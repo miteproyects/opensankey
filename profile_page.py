@@ -218,6 +218,19 @@ def render_profile_page(ticker: str) -> None:
     """
     ticker = ticker.upper().strip()
 
+    # -- Profile-specific responsive CSS --
+    st.markdown("""<style>
+    @media (max-width: 768px) {
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-period_"]) { flex-wrap: wrap !important; gap: 4px !important; }
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-period_"]) [data-testid="stColumn"] { flex: 0 0 30% !important; max-width: 30% !important; }
+        table { font-size: 0.82rem !important; }
+        td, th { padding: 6px 4px !important; }
+    }
+    @media (max-width: 480px) {
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-period_"]) [data-testid="stColumn"] { flex: 0 0 30% !important; }
+    }
+    </style>""", unsafe_allow_html=True)
+
     # Fetch all data in PARALLEL to reduce cold-load time
     # (each function is individually cached for 1hr, but on first load they
     #  all hit yfinance sequentially — parallelising cuts cold load ~3-4×)
@@ -328,8 +341,8 @@ def render_profile_page(ticker: str) -> None:
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            width: 100px;
-            height: 100px;
+            width: clamp(70px, 15vw, 100px);
+            height: clamp(70px, 15vw, 100px);
             border-radius: 50%;
             background-color: {score_color};
             color: white;
@@ -337,8 +350,8 @@ def render_profile_page(ticker: str) -> None:
             cursor: pointer;
             transition: transform 0.2s;
         ">
-            <span style="font-size: 2.2rem; font-weight: 700; line-height: 1;">{score}</span>
-            <span style="font-size: 0.7rem; font-weight: 400;">score</span>
+            <span style="font-size: clamp(1.5rem, 4vw, 2.2rem); font-weight: 700; line-height: 1;">{score}</span>
+            <span style="font-size: clamp(0.55rem, 1.5vw, 0.7rem); font-weight: 400;">score</span>
         </div>
         </a>
         """, unsafe_allow_html=True)
