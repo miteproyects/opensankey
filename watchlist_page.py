@@ -465,7 +465,23 @@ def render_watchlist_page():
     }
     /* Style the search input */
     div[data-testid="stTextInput"] input {
-        font-size: 1rem;
+        font-size: 16px;
+    }
+    /* -- Watchlist Responsive -- */
+    .watchlist-scroll-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .watchlist-scroll-wrap .watchlist-table { min-width: 620px; }
+    @media (max-width: 768px) {
+        .watchlist-title { font-size: 1.8rem !important; }
+        .watchlist-subtitle { font-size: 0.85rem !important; }
+        .watchlist-table { font-size: 0.82rem !important; }
+        .watchlist-table th { padding: 8px 6px !important; font-size: 0.78rem !important; }
+        .watchlist-table td { padding: 10px 6px !important; }
+        .company-name { font-size: 0.85rem !important; }
+    }
+    @media (max-width: 480px) {
+        .watchlist-title { font-size: 1.4rem !important; }
+        .watchlist-table th { padding: 6px 4px !important; font-size: 0.72rem !important; }
+        .watchlist-table td { padding: 8px 4px !important; font-size: 0.78rem !important; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -502,7 +518,7 @@ def render_watchlist_page():
     st.markdown('<p class="watchlist-section-title">Add Companies</p>',
                 unsafe_allow_html=True)
 
-    add_col1, add_col2 = st.columns([5, 1])
+    add_col1, add_col2 = st.columns([4, 1])
     with add_col1:
         new_ticker = st.text_input(
             "Search company by name or ticker",
@@ -611,6 +627,7 @@ def render_watchlist_page():
         )
 
     table_html = (
+        '<div class="watchlist-scroll-wrap">'
         '<table class="watchlist-table">'
         '<thead><tr>'
         '<th>Name</th><th>Market Cap</th><th>Share Price</th>'
@@ -619,6 +636,7 @@ def render_watchlist_page():
         '<th>Actions</th>'
         '</tr></thead>'
         f'<tbody>{rows_html}</tbody></table>'
+        '</div>'
     )
 
     st.markdown(table_html, unsafe_allow_html=True)
@@ -631,7 +649,7 @@ def render_watchlist_page():
         unsafe_allow_html=True,
     )
 
-    num_cols = min(len(tickers), 6)
+    num_cols = min(len(tickers), 4)
     if num_cols > 0:
         rows_of_btns = [tickers[i:i + num_cols] for i in range(0, len(tickers), num_cols)]
         for btn_row in rows_of_btns:
@@ -659,7 +677,7 @@ def render_watchlist_page():
             'Quick add popular companies:</p>',
             unsafe_allow_html=True,
         )
-        num_cols2 = min(len(available), 7)
+        num_cols2 = min(len(available), 4)
         rows_of_adds = [available[i:i + num_cols2] for i in range(0, len(available), num_cols2)]
         for add_row in rows_of_adds:
             cols2 = st.columns(num_cols2)
