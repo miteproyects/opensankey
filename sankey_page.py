@@ -234,9 +234,17 @@ def _fetch_quarterly_data(ticker: str):
     return q_income, q_balance
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_annual_data(ticker: str):
+    """Fetch annual income & balance sheet for historical XY charts."""
+    stock = yf.Ticker(ticker)
+    a_income = stock.financials
+    a_balance = stock.balance_sheet
+    return a_income, a_balance
+
+
 def _show_metric_popup(ticker, node_label, view):
-    """Show a popup (dialog) with quarterly XY chart for the last 4 years."""
-    from datetime import datetime, timedelta
+    """Show a popup (dialog) with historical chart + Quarterly/Annual & period selectors."""
 
     # Determine which mapping to use
     metric_map = INCOME_NODE_METRICS if view == "income" else BALANCE_NODE_METRICS
@@ -246,25 +254,105 @@ def _show_metric_popup(ticker, node_label, view):
     if not yf_key:
         return
 
-    # Fetch quarterly data
-    q_income, q_balance = _fetch_quarterly_data(ticker)
-    q_df = q_income if view == "income" else q_balance
-    quarterly_series = _get_historical_series(q_df, yf_key)
+    # ââ Inject custom CSS for the timeframe buttons ââ
+    st.markdown("""
+    <style>
+    .tf-row {
+        display: flex; gap: 0; border-radius: 12px; overflow: hidden;
+        border: 2px solid #3b82f6; width: fit-content; margin: 0 auto 6px;
+    }
+    .tf-btn {
+        padding: 10px 28px; font-size: 0.95rem; font-weight: 600;
+        font-family: Inter, system-ui, sans-serif; cursor: pointer;
+        border: none; transition: all 0.15s ease;
+        background: #fff; color: #3b82f6;
+    }
+    .tf-btn.active { background: #3b82f6; color: #fff; }
+    .tf-btn:not(:last-child) { border-right: 2px solid #3b82f6; }
+    .pd-row {
+        display: flex; gap: 0; border-radius: 10px; overflow: hidden;
+        border: 2px solid #3b82f6; width: fit-content; margin: 0 auto 10px;
+    }
+    .pd-btn {
+        padding: 8px 24px; font-size: 0.85rem; font-weight: 600;
+        font-family: Inter, system-ui, sans-serif; cursor: pointer;
+        border: none; transition: all 0.15s ease;
+        background: #fff; color: #3b82f6;
+    }
+    .pd-btn.active { background: #3b82f6; color: #fff; }
+    .pd-btn:not(:last-child) { border-right: 2px solid #3b82f6; }
+    @media (max-width: 480px) {
+        .tf-btn { padding: 8px 18px; font-size: 0.82rem; }
+        .pd-btn { padding: 6px 16px; font-size: 0.78rem; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    if quarterly_series is None or len(quarterly_series) < 2:
-        st.warning(f"No quarterly data available for **{clean_label}**.")
+    # ââ Frequency toggle: Quarterly / Annual ââ
+    freq_key = f"tf_freq_{view}_{clean_label}"
+    if freq_key not in st.session_state:
+        st.session_state[freq_key] = "Quarterly"
+
+    # ââ Period toggle: 1Y / 2Y / 4Y / MAX ââ
+    period_key = f"tf_period_{view}_{clean_label}"
+    if period_key not in st.session_state:
+        st.session_state[period_key] = "4Y"
+
+    # Render frequency toggle
+    freq_cols = st.columns([1, 2, 1])
+    with freq_cols[1]:
+        fc = st.columns(2)
+        for i, lbl in enumerate(["Quarterly", "Annual"]):
+            if fc[i].button(lbl, key=f"{freq_key}_{lbl}",
+                            type="primary" if st.session_state[freq_key] == lbl else "secondary",
+                            use_container_width=True):
+                st.session_state[freq_key] = lbl
+                st.rerun()
+
+    # Render period selector
+    period_cols = st.columns([1, 3, 1])
+    with period_cols[1]:
+        pc = st.columns(4)
+        for i, lbl in enumerate(["1Y", "2Y", "4Y", "MAX"]):
+            if pc[i].button(lbl, key=f"{period_key}_{lbl}",
+                            type="primary" if st.session_state[period_key] == lbl else "secondary",
+                            use_container_width=True):
+                st.session_state[period_key] = lbl
+                st.rerun()
+
+    freq = st.session_state[freq_key]
+    period = st.session_state[period_key]
+
+    # ââ Fetch data based on frequency ââ
+    if freq == "Quarterly":
+        q_income, q_balance = _fetch_quarterly_data(ticker)
+        src_df = q_income if view == "income" else q_balance
+        freq_label = "Quarterly"
+        tick_dt = "M3"
+    else:
+        a_income, a_balance = _fetch_annual_data(ticker)
+        src_df = a_income if view == "income" else a_balance
+        freq_label = "Annual"
+        tick_dt = "M12"
+
+    series = _get_historical_series(src_df, yf_key)
+
+    if series is None or len(series) < 2:
+        st.warning(f"No {freq_label.lower()} data available for **{clean_label}**.")
         return
 
-    # Filter to last 4 years
-    cutoff = pd.Timestamp.now() - pd.DateOffset(years=4)
-    quarterly_series = quarterly_series[quarterly_series.index >= cutoff]
+    # ââ Filter by period ââ
+    if period != "MAX":
+        years = int(period.replace("Y", ""))
+        cutoff = pd.Timestamp.now() - pd.DateOffset(years=years)
+        series = series[series.index >= cutoff]
 
-    if quarterly_series.empty:
-        st.warning(f"No quarterly data in last 4 years for **{clean_label}**.")
+    if series.empty:
+        st.warning(f"No {freq_label.lower()} data in selected period for **{clean_label}**.")
         return
 
     # Determine scale
-    max_val = quarterly_series.abs().max()
+    max_val = series.abs().max()
     if max_val >= 1e12:
         divisor, suffix = 1e12, "T"
     elif max_val >= 1e9:
@@ -274,15 +362,17 @@ def _show_metric_popup(ticker, node_label, view):
     else:
         divisor, suffix = 1, ""
 
-    scaled_values = [v / divisor for v in quarterly_series.values]
+    scaled_values = [v / divisor for v in series.values]
+
+    period_label = "All Time" if period == "MAX" else f"Last {period}"
 
     # Build chart
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=quarterly_series.index,
+        x=series.index,
         y=scaled_values,
         mode="lines+markers",
-        name="Quarterly",
+        name=freq_label,
         line=dict(color="#3b82f6", width=2.5),
         marker=dict(size=8),
         fill="tozeroy",
@@ -292,7 +382,7 @@ def _show_metric_popup(ticker, node_label, view):
 
     fig.update_layout(
         title=dict(
-            text=f"{clean_label} — Quarterly (Last 4 Years)",
+            text=f"{clean_label} â {freq_label} ({period_label})",
             font=dict(size=16, family="Inter, sans-serif", color="#1e293b"),
         ),
         height=400,
@@ -303,7 +393,7 @@ def _show_metric_popup(ticker, node_label, view):
         showlegend=False,
         xaxis=dict(
             showgrid=True, gridcolor="rgba(0,0,0,0.06)",
-            dtick="M3", tickformat="%b\n%Y",
+            dtick=tick_dt, tickformat="%b\n%Y",
         ),
         yaxis=dict(
             showgrid=True, gridcolor="rgba(0,0,0,0.06)",
@@ -315,7 +405,6 @@ def _show_metric_popup(ticker, node_label, view):
     )
 
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
 
 def _inject_sankey_click_js(metric_map):
     """Inject JS that bridges Sankey node clicks to the matching pill button.
@@ -1440,10 +1529,10 @@ def render_sankey_page():
 
             # ── Historical trend selector (popup) ──
             metric_options = list(INCOME_NODE_METRICS.keys())
-            sel = st.pills("📈 Click a metric to see quarterly trend",
+            sel = st.pills("📈 Click a metric to see historical trend",
                            metric_options, key="income_metric_pill")
             if sel:
-                @st.dialog(f"{sel} — Quarterly Trend", width="large")
+                @st.dialog(f"{sel} — Historical Trend", width="large")
                 def _income_popup():
                     _show_metric_popup(ticker, sel, "income")
                 _income_popup()
@@ -1476,10 +1565,10 @@ def render_sankey_page():
 
             # ── Historical trend selector (popup) ──
             metric_options = list(BALANCE_NODE_METRICS.keys())
-            sel = st.pills("📈 Click a metric to see quarterly trend",
+            sel = st.pills("📈 Click a metric to see historical trend",
                            metric_options, key="balance_metric_pill")
             if sel:
-                @st.dialog(f"{sel} — Quarterly Trend", width="large")
+                @st.dialog(f"{sel} — Historical Trend", width="large")
                 def _balance_popup():
                     _show_metric_popup(ticker, sel, "balance")
                 _balance_popup()
