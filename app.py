@@ -639,7 +639,7 @@ input, select, textarea { font-size: 16px !important; }
 .main .block-container { overflow-x: hidden; }
 img, iframe, svg, canvas { max-width: 100%; height: auto; }
 
-/* ====== TABLET (<=1024px) ====== */
+/* ====== TABLET (max 1024px) ====== */
 @media (max-width: 1024px) {
     section[data-testid="stSidebar"] { min-width: 280px !important; width: 280px !important; }
     .block-container { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
@@ -650,7 +650,7 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
     .footer { padding: 24px 16px !important; }
 }
 
-/* ====== MOBILE (<=768px) ====== */
+/* ====== MOBILE (max 768px) ====== */
 @media (max-width: 768px) {
     section[data-testid="stSidebar"] { min-width: 0 !important; width: 0 !important; overflow: hidden !important; display: none !important; }
     .nav-expand-btn { display: inline-flex !important; }
@@ -669,7 +669,7 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
     .stAlert p { font-size: 0.85rem !important; }
 }
 
-/* ====== SMALL PHONE (<=480px) ====== */
+/* ====== SMALL PHONE (max 480px) ====== */
 @media (max-width: 480px) {
     .block-container { padding-left: 0.25rem !important; padding-right: 0.25rem !important; }
     .nav-bar { padding: 6px 8px !important; gap: 8px !important; margin: -0.5rem -0.25rem 8px -0.25rem !important; }
