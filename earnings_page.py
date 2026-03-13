@@ -450,6 +450,19 @@ def render_earnings_page():
         margin-bottom: 12px;
         color: #333;
     }
+    /* -- Earnings Responsive -- */
+    @media (max-width: 768px) {
+        .earnings-title { font-size: 1.8rem !important; }
+        .earnings-nav-btn { padding: 8px 14px !important; font-size: 0.82rem !important; }
+        .earnings-date-range { font-size: 0.95rem !important; }
+        .day-header { padding: 8px 12px !important; font-size: 0.9rem !important; }
+        .day-empty { padding: 20px !important; font-size: 0.85rem !important; }
+    }
+    @media (max-width: 480px) {
+        .earnings-title { font-size: 1.4rem !important; }
+        .earnings-nav-btn { padding: 6px 10px !important; font-size: 0.75rem !important; }
+        .day-header { font-size: 0.82rem !important; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -633,10 +646,13 @@ def _render_exchange_filters():
     )
 
     exchanges = ["NYSE", "NASDAQ", "JPX", "HKSE", "EURONEXT", "TSX", "Others"]
-    cols = st.columns(len(exchanges))
-    for i, ex in enumerate(exchanges):
-        with cols[i]:
-            st.checkbox(ex, value=True, key=f"ex_{ex}", disabled=True)
+    n_cols = min(len(exchanges), 4)
+    for row_start in range(0, len(exchanges), n_cols):
+        row_exs = exchanges[row_start:row_start + n_cols]
+        cols = st.columns(n_cols)
+        for i, ex in enumerate(row_exs):
+            with cols[i]:
+                st.checkbox(ex, value=True, key=f"ex_{ex}", disabled=True)
 
     st.caption(
         "Exchange filtering is available with FMP API key. "
