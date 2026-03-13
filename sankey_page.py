@@ -337,7 +337,7 @@ def _show_metric_popup(ticker, node_label, view):
 
     series = _get_historical_series(src_df, yf_key)
 
-    if series is None or len(series) < 2:
+    if series is None or series.empty:
         st.warning(f"No {freq_label.lower()} data available for **{clean_label}**.")
         return
 
@@ -371,7 +371,7 @@ def _show_metric_popup(ticker, node_label, view):
     fig.add_trace(go.Scatter(
         x=series.index,
         y=scaled_values,
-        mode="lines+markers",
+        mode="lines+markers" if len(series) > 1 else "markers",
         name=freq_label,
         line=dict(color="#3b82f6", width=2.5),
         marker=dict(size=8),
@@ -404,7 +404,7 @@ def _show_metric_popup(ticker, node_label, view):
         hovermode="x unified",
     )
 
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key=f"hist_{freq}_{period}")
 
 def _inject_sankey_click_js(metric_map):
     """Inject JS that bridges Sankey node clicks to the matching pill button.
