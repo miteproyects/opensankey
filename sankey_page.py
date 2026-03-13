@@ -636,11 +636,27 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
 @st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_sankey_data(ticker: str):
     """Fetch income statement, balance sheet data for Sankey diagrams."""
-    stock = yf.Ticker(ticker)
-    income = stock.financials
-    balance = stock.balance_sheet
-    info = stock.info or {}
-    return income, balance, info
+    try:
+        stock = yf.Ticker(ticker)
+        income = stock.financials
+        balance = stock.balance_sheet
+        info = stock.info or {}
+        return income, balance, info
+    except Exception as e:
+        # Handle rate limit and other yfinance errors gracefully
+        import time
+        error_msg = str(e).lower()
+        if "rate" in error_msg or "limit" in error_msg or "too many" in error_msg:
+            time.sleep(2)
+            try:
+                stock = yf.Ticker(ticker)
+                income = stock.financials
+                balance = stock.balance_sheet
+                info = stock.info or {}
+                return income, balance, info
+            except Exception:
+                pass
+        return pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
 
 
 def _build_income_sankey(income_df, info):
@@ -1257,7 +1273,21 @@ def render_sankey_page():
 
     # Fetch data
     with st.spinner(f"Loading {ticker} financial data..."):
-        income_df, balance_df, info = _fetch_sankey_data(ticker)
+        try:
+            income_df, balance_df, info = _fetch_sankey_data(ticker)
+        except Exception as e:
+            income_df, balance_df, info = pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
+            error_msg = str(e).lower()
+            if "rate" in error_msg or "limit" in error_msg or "too many" in error_msg:
+                st.warning(f"\u23f3 Yahoo Finance rate limit reached. Please wait a moment and refresh the page.")
+            else:
+                st.error(f"Could not load financial data for {ticker}. Please try again.")
+            st.stop()
+
+    # Check if data is empty
+    if income_df.empty and balance_df.empty:
+        st.warning(f"\u23f3 Could not load financial data for {ticker}. Yahoo Finance may be rate-limiting requests. Please wait a moment and refresh.")
+        st.stop()
 
     company_name = info.get("shortName", info.get("longName", ticker))
 
