@@ -382,7 +382,7 @@ def _show_metric_popup(ticker, node_label, view):
 
     fig.update_layout(
         title=dict(
-            text=f"{clean_label} â {freq_label} ({period_label})",
+            text=f"{clean_label} — {freq_label} ({period_label})",
             font=dict(size=16, family="Inter, sans-serif", color="#1e293b"),
         ),
         height=400,
