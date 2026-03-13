@@ -629,8 +629,8 @@ section[data-testid="stSidebar"] div[data-testid="stExpander"] summary p {
 # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # Global responsive CSS â all devices / all viewports
 # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+st.markdown('<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">', unsafe_allow_html=True)
 st.markdown("""
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
 <style>
 /* ====== GLOBAL RESPONSIVE ====== */
 
