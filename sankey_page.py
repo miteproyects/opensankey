@@ -1310,6 +1310,27 @@ def render_sankey_page():
             border-radius: 50%;
             display: inline-block;
         }
+
+        /* -- Sankey Responsive -- */
+        @media (max-width: 768px) {
+            .sankey-header { padding: 16px 14px 14px !important; flex-direction: column !important; gap: 8px !important; }
+            .sankey-title { font-size: 1.2rem !important; }
+            .sankey-subtitle { font-size: 0.8rem !important; }
+            .sankey-tab { padding: 9px 16px !important; font-size: 0.82rem !important; }
+            .sankey-legend { flex-wrap: wrap !important; gap: 12px !important; padding: 10px 12px !important; font-size: 0.78rem !important; }
+            div[data-testid="metric-container"] { padding: 10px 12px !important; }
+            [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]),
+            [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) { padding: 6px 4px !important; }
+        }
+        @media (max-width: 480px) {
+            .sankey-header { padding: 12px 10px !important; border-radius: 8px !important; }
+            .sankey-title { font-size: 1rem !important; }
+            .sankey-tab-container { flex-wrap: wrap !important; }
+            .sankey-tab { padding: 8px 12px !important; font-size: 0.78rem !important; flex: 1 !important; text-align: center !important; }
+            .sankey-tab:first-child { border-radius: 8px 0 0 8px !important; }
+            .sankey-tab:last-child { border-radius: 0 8px 8px 0 !important; }
+            .sankey-legend { gap: 8px !important; font-size: 0.72rem !important; }
+        }
     </style>
     """, unsafe_allow_html=True)
 
