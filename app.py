@@ -626,71 +626,208 @@ section[data-testid="stSidebar"] div[data-testid="stExpander"] summary p {
 </style>
 """, unsafe_allow_html=True)
 
-# ───────────────────────────────────────────────────────────────────────────
-# Global responsive CSS – all devices / all viewports
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Global responsive CSS â all devices / all viewports
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 st.markdown("""
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
 <style>
 /* ====== GLOBAL RESPONSIVE ====== */
+
+/* Ensure smooth scrolling on iOS */
 html { -webkit-overflow-scrolling: touch; }
+
+/* Fix iOS input zoom (font-size under 16px triggers zoom) */
 input, select, textarea { font-size: 16px !important; }
+
+/* Make all Plotly charts container-width responsive */
 .js-plotly-plot, .plotly { width: 100% !important; }
+
+/* Prevent horizontal overflow globally */
 .main .block-container { overflow-x: hidden; }
+
+/* Responsive images and iframes */
 img, iframe, svg, canvas { max-width: 100%; height: auto; }
 
-/* ====== TABLET (max 1024px) ====== */
+/* ====== TABLET (lte 1024px) ====== */
 @media (max-width: 1024px) {
-    section[data-testid="stSidebar"] { min-width: 280px !important; width: 280px !important; }
-    .block-container { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
-    .nav-bar { padding: 10px 16px !important; gap: 16px !important; }
-    .nav-bar a, .nav-bar .nav-link { font-size: 0.82rem !important; }
-    .nav-logo { font-size: 1rem !important; }
-    .metric-value { font-size: 1.1rem !important; }
-    .footer { padding: 24px 16px !important; }
+    /* Collapse sidebar by default on tablet */
+    section[data-testid="stSidebar"] {
+        min-width: 280px !important;
+        width: 280px !important;
+    }
+    .block-container {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+    /* Nav bar: tighter spacing */
+    .nav-bar {
+        padding: 10px 16px !important;
+        gap: 16px !important;
+    }
+    .nav-bar a, .nav-bar .nav-link {
+        font-size: 0.82rem !important;
+    }
+    .nav-logo {
+        font-size: 1rem !important;
+    }
+    /* Metric cards: smaller text */
+    .metric-value {
+        font-size: 1.1rem !important;
+    }
+    /* Footer: tighter */
+    .footer {
+        padding: 24px 16px !important;
+    }
 }
 
-/* ====== MOBILE (max 768px) ====== */
+/* ====== MOBILE (lte 768px) ====== */
 @media (max-width: 768px) {
-    section[data-testid="stSidebar"] { min-width: 0 !important; width: 0 !important; overflow: hidden !important; display: none !important; }
-    .nav-expand-btn { display: inline-flex !important; }
-    .block-container { padding-left: 0.4rem !important; padding-right: 0.4rem !important; padding-top: 0.25rem !important; }
-    .nav-bar { padding: 8px 12px !important; gap: 10px !important; margin: -0.5rem -0.4rem 10px -0.4rem !important; }
-    .nav-bar a, .nav-bar .nav-link { font-size: 0.78rem !important; }
-    .nav-logo { font-size: 0.95rem !important; gap: 5px !important; }
-    .metric-row { flex-wrap: wrap !important; gap: 8px !important; }
-    .metric-card { flex: 1 1 45% !important; min-width: 120px !important; }
-    .metric-value { font-size: 1rem !important; }
-    .metric-label { font-size: 0.7rem !important; }
-    .section-header-expanded, .section-header-collapsed, [class*="st-key-hdr_show_"] button { padding: 10px 12px !important; font-size: 0.95rem !important; min-height: 2.4rem !important; }
-    .footer { padding: 20px 12px !important; margin-left: -0.4rem !important; margin-right: -0.4rem !important; }
-    [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; }
-    [data-testid="stPopoverBody"] { max-width: 90vw !important; min-width: 260px !important; }
-    .stAlert p { font-size: 0.85rem !important; }
+    /* Hide sidebar completely on mobile, show expand button */
+    section[data-testid="stSidebar"] {
+        min-width: 0 !important;
+        width: 0 !important;
+        overflow: hidden !important;
+        display: none !important;
+    }
+    .nav-expand-btn {
+        display: inline-flex !important;
+    }
+    /* Block container: minimal padding */
+    .block-container {
+        padding-left: 0.4rem !important;
+        padding-right: 0.4rem !important;
+        padding-top: 0.25rem !important;
+    }
+    /* Nav bar: wrap and compact */
+    .nav-bar {
+        padding: 8px 12px !important;
+        gap: 10px !important;
+        margin: -0.5rem -0.4rem 10px -0.4rem !important;
+    }
+    .nav-bar a, .nav-bar .nav-link {
+        font-size: 0.78rem !important;
+    }
+    .nav-logo {
+        font-size: 0.95rem !important;
+        gap: 5px !important;
+    }
+    /* Metric cards stack better */
+    .metric-row {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    .metric-card {
+        flex: 1 1 45% !important;
+        min-width: 120px !important;
+    }
+    .metric-value {
+        font-size: 1rem !important;
+    }
+    .metric-label {
+        font-size: 0.7rem !important;
+    }
+    /* Section headers: smaller */
+    .section-header-expanded,
+    .section-header-collapsed,
+    [class*="st-key-hdr_show_"] button {
+        padding: 10px 12px !important;
+        font-size: 0.95rem !important;
+        min-height: 2.4rem !important;
+    }
+    /* Footer: single column */
+    .footer {
+        padding: 20px 12px !important;
+        margin-left: -0.4rem !important;
+        margin-right: -0.4rem !important;
+    }
+    /* Streamlit columns: prevent extreme squish */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+    }
+    /* Popover: fit mobile screen */
+    [data-testid="stPopoverBody"] {
+        max-width: 90vw !important;
+        min-width: 260px !important;
+    }
+    /* Info banner text */
+    .stAlert p {
+        font-size: 0.85rem !important;
+    }
 }
 
-/* ====== SMALL PHONE (max 480px) ====== */
+/* ====== SMALL PHONE (lte 480px) ====== */
 @media (max-width: 480px) {
-    .block-container { padding-left: 0.25rem !important; padding-right: 0.25rem !important; }
-    .nav-bar { padding: 6px 8px !important; gap: 8px !important; margin: -0.5rem -0.25rem 8px -0.25rem !important; }
-    .nav-bar a, .nav-bar .nav-link { font-size: 0.72rem !important; }
-    .nav-logo { font-size: 0.85rem !important; }
-    .metric-card { flex: 1 1 100% !important; }
-    .metric-value { font-size: 0.9rem !important; }
-    .section-header-expanded, .section-header-collapsed { padding: 8px 10px !important; font-size: 0.85rem !important; }
-    .section-row-expanded button:not(.section-header-expanded), .section-row-collapsed button:not(.section-header-collapsed) { font-size: 0.68rem !important; padding: 4px 8px !important; }
+    .block-container {
+        padding-left: 0.25rem !important;
+        padding-right: 0.25rem !important;
+    }
+    .nav-bar {
+        padding: 6px 8px !important;
+        gap: 8px !important;
+        margin: -0.5rem -0.25rem 8px -0.25rem !important;
+    }
+    .nav-bar a, .nav-bar .nav-link {
+        font-size: 0.72rem !important;
+    }
+    .nav-logo {
+        font-size: 0.85rem !important;
+    }
+    .metric-card {
+        flex: 1 1 100% !important;
+    }
+    .metric-value {
+        font-size: 0.9rem !important;
+    }
+    .section-header-expanded,
+    .section-header-collapsed {
+        padding: 8px 10px !important;
+        font-size: 0.85rem !important;
+    }
+    /* PDF buttons in section headers */
+    .section-row-expanded button:not(.section-header-expanded),
+    .section-row-collapsed button:not(.section-header-collapsed) {
+        font-size: 0.68rem !important;
+        padding: 4px 8px !important;
+    }
 }
 
 /* ====== TOUCH DEVICE IMPROVEMENTS ====== */
 @media (hover: none) and (pointer: coarse) {
-    .nav-bar a, .nav-bar .nav-link { padding: 6px 4px !important; min-height: 36px !important; display: inline-flex !important; align-items: center !important; }
-    button { min-height: 44px; }
+    /* Larger tap targets */
+    .nav-bar a, .nav-bar .nav-link {
+        padding: 6px 4px !important;
+        min-height: 36px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+    button {
+        min-height: 44px;
+    }
+    /* Remove hover-only effects that don't work on touch */
+    .section-header-expanded:hover,
+    .section-header-collapsed:hover {
+        background: inherit !important;
+    }
+}
+
+/* ====== HIGH DPI / RETINA ====== */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    /* Sharper borders on retina displays */
+    .section-row-expanded,
+    .section-row-collapsed {
+        border-width: 1px !important;
+    }
 }
 
 /* ====== LANDSCAPE PHONE ====== */
 @media (max-height: 500px) and (orientation: landscape) {
-    .nav-bar { padding: 4px 12px !important; }
-    .block-container { padding-top: 0.1rem !important; }
+    .nav-bar {
+        padding: 4px 12px !important;
+    }
+    .block-container {
+        padding-top: 0.1rem !important;
+    }
 }
 
 /* ====== PRINT ====== */
@@ -700,8 +837,15 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
 }
 
 /* ====== SCROLLABLE TABLES (global) ====== */
-.responsive-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 1rem; }
-.responsive-table-wrap table { min-width: 580px; }
+.responsive-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 1rem;
+}
+.responsive-table-wrap table {
+    min-width: 580px;
+}
 </style>
 """, unsafe_allow_html=True)
 
