@@ -870,7 +870,7 @@ _qp_page = st.query_params.get("page", "").lower()
 _qp_ticker = st.query_params.get("ticker", "").upper().strip()
 if _qp_ticker:
     st.session_state.ticker = _qp_ticker
-if _qp_page in ("profile", "charts", "earnings", "watchlist", "sankey"):
+if _qp_page in ("profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing"):
     st.session_state.page = _qp_page
 elif "page" not in st.session_state:
     st.session_state.page = "charts"
@@ -1566,6 +1566,8 @@ st.markdown(f"""
     <a class="nav-link {'active' if current_page == 'profile' else ''}" href="?page=profile&ticker={ticker}" target="_self">{ticker} Profile</a>
     <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="?page=earnings&ticker={ticker}" target="_self">Earnings Calendar</a>
     <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
+    <a href="?page=pricing&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'pricing' else ''}">Pricing</a>
+    <a href="?page=login&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'login' else ''}">Sign In</a>
     <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
 </div>
 """, unsafe_allow_html=True)
@@ -1583,15 +1585,7 @@ st.markdown("""<style>
 # ───────────────────────────────────────────────────────────────────────────
 # Sidebar (Charts page only – Profile page has no sidebar)
 # ───────────────────────────────────────────────────────────────────────────
-if current_page in ("profile", "earnings", "watchlist", "sankey"):
-    # Hide sidebar completely on profile/earnings pages
-    st.markdown("""<style>
-        [data-testid="stSidebar"] { display: none; }
-        [data-testid="stSidebarCollapsedControl"] { display: none; }
-    </style>""", unsafe_allow_html=True)
-
-if current_page == "charts":
-  with st.sidebar:
+with st.sidebar:
     # Styled GO button CSS
     st.markdown("""<style>
     /* Ticker search form */
@@ -1772,28 +1766,26 @@ if current_page == "profile":
 
 if current_page == "earnings":
     # Hide sidebar on earnings page (it's a standalone page, not ticker-specific)
-    st.markdown("""<style>
-        [data-testid="stSidebar"] { display: none; }
-        [data-testid="stSidebarCollapsedControl"] { display: none; }
-    </style>""", unsafe_allow_html=True)
     from earnings_page import render_earnings_page
     render_earnings_page()
     st.stop()
 
+if current_page == "login":
+    from login_page import render_login_page
+    render_login_page()
+    st.stop()
+
+if current_page == "pricing":
+    from pricing_page import render_pricing_page
+    render_pricing_page()
+    st.stop()
+
 if current_page == "sankey":
-    st.markdown("""<style>
-        [data-testid="stSidebar"] { display: none; }
-        [data-testid="stSidebarCollapsedControl"] { display: none; }
-    </style>""", unsafe_allow_html=True)
     from sankey_page import render_sankey_page
     render_sankey_page()
     st.stop()
 
 if current_page == "watchlist":
-    st.markdown("""<style>
-        [data-testid="stSidebar"] { display: none; }
-        [data-testid="stSidebarCollapsedControl"] { display: none; }
-    </style>""", unsafe_allow_html=True)
     from watchlist_page import render_watchlist_page
     render_watchlist_page()
     st.stop()
