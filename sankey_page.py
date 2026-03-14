@@ -229,8 +229,12 @@ def _get_historical_series(df, yf_key):
 def _fetch_quarterly_data(ticker: str):
     """Fetch quarterly income & balance sheet for historical XY charts."""
     stock = yf.Ticker(ticker)
-    q_income = stock.quarterly_financials
-    q_balance = stock.quarterly_balance_sheet
+    try:
+        q_income = stock.get_income_stmt(freq="quarterly")
+        q_balance = stock.get_balance_sheet(freq="quarterly")
+    except Exception:
+        q_income = stock.quarterly_financials
+        q_balance = stock.quarterly_balance_sheet
     return q_income, q_balance
 
 
@@ -238,8 +242,12 @@ def _fetch_quarterly_data(ticker: str):
 def _fetch_annual_data(ticker: str):
     """Fetch annual income & balance sheet for historical XY charts."""
     stock = yf.Ticker(ticker)
-    a_income = stock.financials
-    a_balance = stock.balance_sheet
+    try:
+        a_income = stock.get_income_stmt(freq="yearly")
+        a_balance = stock.get_balance_sheet(freq="yearly")
+    except Exception:
+        a_income = stock.financials
+        a_balance = stock.balance_sheet
     return a_income, a_balance
 
 
