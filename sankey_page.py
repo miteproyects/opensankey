@@ -300,13 +300,16 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
         facts: Full CompanyFacts JSON
         tag_map: Dict mapping display_name → list of XBRL tags
         form_filter: "10-K" for annual, "10-Q" for quarterly
-        quarterly_income: If True, filter for individual-quarter income values
-                          using the frame field (CYxxxxQn pattern)
+        quarterly_income: If True, compute individual-quarter income values.
+                          Uses frame-based data (CYxxxxQn) when available,
+                          then fills gaps by subtracting consecutive YTD values
+                          from 10-Q/10-K cumulative filings.
 
     Returns:
         DataFrame with index=metric names, columns=dates (desc), values=USD
     """
     import re
+    from datetime import datetime
     gaap = facts.get("facts", {}).get("us-gaap", {})
     rows = {}
 
@@ -343,20 +346,79 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
 
                 elif form_filter == "10-Q":
                     if quarterly_income:
-                        # Income statement: need individual quarter values
-                        # Use frame field: "CY2024Q1" = 3-month value
+                        # Income statement: collect individual quarter values
+                        # from frame field: "CY2024Q1" = 3-month value
                         if frame and re.match(r"CY\d{4}Q\d$", frame):
-                            if end not in vals or filed > vals[end][1]:
-                                vals[end] = (val, filed)
-                        elif fp in ("Q1", "Q2", "Q3", "Q4") and form == "10-Q":
-                            # Fallback: use 10-Q entries if no frame-based data
                             if end not in vals or filed > vals[end][1]:
                                 vals[end] = (val, filed)
                     else:
                         # Balance sheet: point-in-time from 10-Q and 10-K
-                        if form in ("10-Q",) and fp in ("Q1", "Q2", "Q3", "Q4"):
+                        if form in ("10-Q", "10-K") and fp in ("Q1", "Q2", "Q3", "Q4", "FY"):
                             if end not in vals or filed > vals[end][1]:
                                 vals[end] = (val, filed)
+
+            # ── For quarterly income: if frame-based data is sparse,
+            #    compute individual Qs from cumulative YTD values ──
+            if form_filter == "10-Q" and quarterly_income and len(vals) < 8:
+                # Collect cumulative (YTD) values from 10-Q and 10-K filings
+                ytd_by_fp = {}  # key = (fiscal_year_end, fp) → (val, end_date, filed)
+                for e in entries:
+                    form = e.get("form", "")
+                    fp = e.get("fp", "")
+                    end = e.get("end", "")
+                    val = e.get("val")
+                    filed = e.get("filed", "")
+                    if val is None or not end:
+                        continue
+                    # 10-Q filings contain cumulative YTD income values
+                    # 10-K filings contain full-year (FY) income values
+                    if form == "10-Q" and fp in ("Q1", "Q2", "Q3"):
+                        key = (end[:4], fp)  # approximate fiscal year from end date
+                        if key not in ytd_by_fp or filed > ytd_by_fp[key][2]:
+                            ytd_by_fp[key] = (val, end, filed)
+                    elif form == "10-K" and fp == "FY":
+                        key = (end[:4], "FY")
+                        if key not in ytd_by_fp or filed > ytd_by_fp[key][2]:
+                            ytd_by_fp[key] = (val, end, filed)
+
+                # Group by fiscal year and compute individual quarter values
+                # Sort entries by end date to align Q1 < Q2 < Q3 < FY
+                years = {}
+                for (yr, fp_label), (val, end, filed) in ytd_by_fp.items():
+                    if yr not in years:
+                        years[yr] = {}
+                    years[yr][fp_label] = (val, end)
+
+                for yr, periods in years.items():
+                    # Q1 value is already individual quarter (3 months)
+                    if "Q1" in periods:
+                        q1_val, q1_end = periods["Q1"]
+                        if q1_end not in vals:
+                            vals[q1_end] = (q1_val, "computed")
+                    # Q2 individual = Q2_YTD - Q1_YTD (if Q2 is 6-month cumulative)
+                    if "Q2" in periods and "Q1" in periods:
+                        q2_ytd, q2_end = periods["Q2"]
+                        q1_ytd, _ = periods["Q1"]
+                        q2_individual = q2_ytd - q1_ytd
+                        if q2_end not in vals:
+                            vals[q2_end] = (q2_individual, "computed")
+                    elif "Q2" in periods:
+                        # No Q1 to subtract; skip or use as-is
+                        pass
+                    # Q3 individual = Q3_YTD - Q2_YTD
+                    if "Q3" in periods and "Q2" in periods:
+                        q3_ytd, q3_end = periods["Q3"]
+                        q2_ytd, _ = periods["Q2"]
+                        q3_individual = q3_ytd - q2_ytd
+                        if q3_end not in vals:
+                            vals[q3_end] = (q3_individual, "computed")
+                    # Q4 individual = FY - Q3_YTD
+                    if "FY" in periods and "Q3" in periods:
+                        fy_val, fy_end = periods["FY"]
+                        q3_ytd, _ = periods["Q3"]
+                        q4_individual = fy_val - q3_ytd
+                        if fy_end not in vals:
+                            vals[fy_end] = (q4_individual, "computed")
 
             if vals:
                 rows[display_name] = {k: v[0] for k, v in vals.items()}
