@@ -187,6 +187,16 @@ section[data-testid="stSidebar"] {
     display: none !important;
 }
 
+/* ── CSS-driven expand-button visibility (no JS needed) ────────── */
+/* When sidebar is collapsed, show the nav-bar expand button via :has() */
+:has([data-testid="stSidebar"][aria-expanded="false"]) .nav-expand-btn {
+    display: block !important;
+}
+/* When sidebar is expanded, ensure the expand button hides */
+:has([data-testid="stSidebar"][aria-expanded="true"]) .nav-expand-btn {
+    display: none !important;
+}
+
 /* Remove default top padding */
 .block-container {
     padding-top: 0.5rem !important;
