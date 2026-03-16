@@ -1905,12 +1905,20 @@ def render_sankey_page():
         # ── KPI Metric Cards ──
         revenue      = _safe(income_df, "Total Revenue")
         gross_profit = _safe(income_df, "Gross Profit")
+        cogs_kpi     = abs(_safe(income_df, "Cost Of Revenue"))
         op_income    = _safe(income_df, "Operating Income")
         net_income   = _safe(income_df, "Net Income")
         rev_prev     = _safe_prev(income_df, "Total Revenue")
         gp_prev      = _safe_prev(income_df, "Gross Profit")
         oi_prev      = _safe_prev(income_df, "Operating Income")
         ni_prev      = _safe_prev(income_df, "Net Income")
+        # Compute derived Gross Profit when XBRL tag is missing
+        if gross_profit == 0 and revenue > 0 and cogs_kpi > 0:
+            gross_profit = revenue - cogs_kpi
+        if gp_prev == 0 and rev_prev > 0:
+            cogs_prev = abs(_safe_prev(income_df, "Cost Of Revenue"))
+            if cogs_prev > 0:
+                gp_prev = rev_prev - cogs_prev
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Revenue", _fmt(revenue), _yoy_delta(revenue, rev_prev))
