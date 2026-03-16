@@ -357,68 +357,97 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                             if end not in vals or filed > vals[end][1]:
                                 vals[end] = (val, filed)
 
-            # ── For quarterly income: if frame-based data is sparse,
-            #    compute individual Qs from cumulative YTD values ──
-            if form_filter == "10-Q" and quarterly_income and len(vals) < 8:
-                # Collect cumulative (YTD) values from 10-Q and 10-K filings
-                ytd_by_fp = {}  # key = (fiscal_year_end, fp) → (val, end_date, filed)
+            # ── For quarterly income: always try to fill gaps using
+            #    10-Q/10-K filing data beyond frame-based entries ──
+            if form_filter == "10-Q" and quarterly_income:
+                # Collect all 10-Q and 10-K entries, keyed by (fy, fp)
+                # Use the `fy` field (fiscal year) for grouping, fall back to end[:4]
+                raw_by_fy = {}  # key = (fy, fp) → (val, end_date, filed)
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
                     end = e.get("end", "")
                     val = e.get("val")
                     filed = e.get("filed", "")
+                    fy = str(e.get("fy", end[:4])) if end else ""
                     if val is None or not end:
                         continue
-                    # 10-Q filings contain cumulative YTD income values
-                    # 10-K filings contain full-year (FY) income values
                     if form == "10-Q" and fp in ("Q1", "Q2", "Q3"):
-                        key = (end[:4], fp)  # approximate fiscal year from end date
-                        if key not in ytd_by_fp or filed > ytd_by_fp[key][2]:
-                            ytd_by_fp[key] = (val, end, filed)
+                        key = (fy, fp)
+                        if key not in raw_by_fy or filed > raw_by_fy[key][2]:
+                            raw_by_fy[key] = (val, end, filed)
                     elif form == "10-K" and fp == "FY":
-                        key = (end[:4], "FY")
-                        if key not in ytd_by_fp or filed > ytd_by_fp[key][2]:
-                            ytd_by_fp[key] = (val, end, filed)
+                        key = (fy, "FY")
+                        if key not in raw_by_fy or filed > raw_by_fy[key][2]:
+                            raw_by_fy[key] = (val, end, filed)
 
-                # Group by fiscal year and compute individual quarter values
-                # Sort entries by end date to align Q1 < Q2 < Q3 < FY
+                # Group by fiscal year
                 years = {}
-                for (yr, fp_label), (val, end, filed) in ytd_by_fp.items():
-                    if yr not in years:
-                        years[yr] = {}
-                    years[yr][fp_label] = (val, end)
+                for (fy, fp_label), (val, end, filed) in raw_by_fy.items():
+                    if fy not in years:
+                        years[fy] = {}
+                    years[fy][fp_label] = (val, end)
 
                 for yr, periods in years.items():
-                    # Q1 value is already individual quarter (3 months)
-                    if "Q1" in periods:
-                        q1_val, q1_end = periods["Q1"]
-                        if q1_end not in vals:
-                            vals[q1_end] = (q1_val, "computed")
-                    # Q2 individual = Q2_YTD - Q1_YTD (if Q2 is 6-month cumulative)
-                    if "Q2" in periods and "Q1" in periods:
-                        q2_ytd, q2_end = periods["Q2"]
-                        q1_ytd, _ = periods["Q1"]
-                        q2_individual = q2_ytd - q1_ytd
-                        if q2_end not in vals:
-                            vals[q2_end] = (q2_individual, "computed")
-                    elif "Q2" in periods:
-                        # No Q1 to subtract; skip or use as-is
-                        pass
-                    # Q3 individual = Q3_YTD - Q2_YTD
-                    if "Q3" in periods and "Q2" in periods:
-                        q3_ytd, q3_end = periods["Q3"]
-                        q2_ytd, _ = periods["Q2"]
-                        q3_individual = q3_ytd - q2_ytd
-                        if q3_end not in vals:
-                            vals[q3_end] = (q3_individual, "computed")
-                    # Q4 individual = FY - Q3_YTD
-                    if "FY" in periods and "Q3" in periods:
-                        fy_val, fy_end = periods["FY"]
-                        q3_ytd, _ = periods["Q3"]
-                        q4_individual = fy_val - q3_ytd
-                        if fy_end not in vals:
-                            vals[fy_end] = (q4_individual, "computed")
+                    # Detect if Q values are cumulative (YTD) or individual:
+                    # If Q3 > Q2 > Q1 by a significant margin, they're cumulative
+                    q1v = periods["Q1"][0] if "Q1" in periods else None
+                    q2v = periods["Q2"][0] if "Q2" in periods else None
+                    q3v = periods["Q3"][0] if "Q3" in periods else None
+                    fyv = periods["FY"][0] if "FY" in periods else None
+
+                    is_cumulative = False
+                    if q1v and q2v and q3v:
+                        # If Q3 > 2*Q1 and Q2 > 1.4*Q1, likely cumulative
+                        if q1v > 0 and q2v > 1.4 * q1v and q3v > 1.8 * q1v:
+                            is_cumulative = True
+                    elif q1v and q2v:
+                        if q1v > 0 and q2v > 1.4 * q1v:
+                            is_cumulative = True
+
+                    if is_cumulative:
+                        # Compute individual Qs from cumulative differences
+                        if "Q1" in periods:
+                            q1_val, q1_end = periods["Q1"]
+                            if q1_end not in vals:
+                                vals[q1_end] = (q1_val, "computed")
+                        if "Q2" in periods and "Q1" in periods:
+                            q2_ytd, q2_end = periods["Q2"]
+                            q1_ytd, _ = periods["Q1"]
+                            q2_ind = q2_ytd - q1_ytd
+                            if q2_end not in vals and q2_ind >= 0:
+                                vals[q2_end] = (q2_ind, "computed")
+                        if "Q3" in periods and "Q2" in periods:
+                            q3_ytd, q3_end = periods["Q3"]
+                            q2_ytd, _ = periods["Q2"]
+                            q3_ind = q3_ytd - q2_ytd
+                            if q3_end not in vals and q3_ind >= 0:
+                                vals[q3_end] = (q3_ind, "computed")
+                        if "FY" in periods and "Q3" in periods:
+                            fy_val, fy_end = periods["FY"]
+                            q3_ytd, _ = periods["Q3"]
+                            q4_ind = fy_val - q3_ytd
+                            if fy_end not in vals and q4_ind >= 0:
+                                vals[fy_end] = (q4_ind, "computed")
+                    else:
+                        # Values appear to be individual quarters — use directly
+                        for fp_label in ("Q1", "Q2", "Q3"):
+                            if fp_label in periods:
+                                qval, qend = periods[fp_label]
+                                if qend not in vals:
+                                    vals[qend] = (qval, "computed")
+                        # Compute Q4 = FY - (Q1+Q2+Q3) if all available
+                        if "FY" in periods:
+                            fy_val, fy_end = periods["FY"]
+                            q_sum = sum(periods[q][0] for q in ("Q1","Q2","Q3") if q in periods)
+                            q_count = sum(1 for q in ("Q1","Q2","Q3") if q in periods)
+                            if q_count == 3:
+                                q4_ind = fy_val - q_sum
+                                if fy_end not in vals and q4_ind >= 0:
+                                    vals[fy_end] = (q4_ind, "computed")
+                            elif q_count == 0 and fy_end not in vals:
+                                # No quarterly data at all; skip FY for quarterly view
+                                pass
 
             if vals:
                 rows[display_name] = {k: v[0] for k, v in vals.items()}
