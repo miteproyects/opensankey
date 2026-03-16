@@ -827,69 +827,171 @@ def calculate_dcf(
 
 @st.cache_data(ttl=3600)
 def get_score(ticker: str) -> int:
-    """Calculate financial health score (0-100) from SEC EDGAR data.
+    """Calculate financial health score (0-100) using EDGAR + Yahoo Finance.
 
-    When EDGAR data is unavailable, returns 50 (neutral score).
+    Matches the detailed score_tab breakdown in profile_page.py:
+      Profitability  20 pts  (Gross Margin, Profit Margin, ROE, ROA)
+      Liquidity      20 pts  (Current, Quick, Cash, OCF ratios)
+      Leverage       25 pts  (D/E, Interest Cov, D/A, LtD/Cap, Altman Z)
+      Efficiency     15 pts  (Asset TO, Inventory TO, Receivables TO)
+      Growth         10 pts  (EPS growth, Price CAGR)
+      Valuation      10 pts  (P/E, P/B)
+                    --------
+                    100 pts
     """
-    try:
-        cik = _ticker_to_cik(ticker)
-        if not cik:
-            return 50
+    def _st(val, tiers):
+        if val is None:
+            return 0
+        for threshold, pts in tiers:
+            if val >= threshold:
+                return pts
+        return 0
 
-        facts = _fetch_edgar_facts(cik)
+    try:
+        # ── EDGAR data ──
+        cik = _ticker_to_cik(ticker)
+        facts = _fetch_edgar_facts(cik) if cik else None
         if not facts:
             return 50
 
-        # Get key metrics from EDGAR
-        revenue = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Total Revenue"])
-        gross_profit = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Gross Profit"])
-        operating_income = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Operating Income"])
-        net_income = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Net Income"])
+        rev = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Total Revenue"])
+        gp = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Gross Profit"])
+        cogs = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Cost Of Revenue"])
+        if not gp and rev and cogs:
+            gp = rev - cogs
+        oi = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Operating Income"])
+        ni = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Net Income"])
+        interest = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Interest Expense"])
 
-        total_assets = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Total Assets"])
-        current_assets = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Assets"])
-        current_liab = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Liabilities"])
-        equity = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Stockholders Equity"])
-        total_debt = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Long Term Debt"])
+        ta = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Total Assets"])
+        ca = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Assets"])
+        cash = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Cash And Cash Equivalents"])
+        inv = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Inventory"])
+        ar = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Accounts Receivable"])
+        cl = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Liabilities"])
+        ltd = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Long Term Debt"])
+        cur_debt = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Debt"])
+        teq = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Stockholders Equity"])
+        tl = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Total Liabilities"])
+        if tl is None and ta and teq:
+            tl = ta - teq
+        td = (ltd or 0) + (cur_debt or 0)
 
-        score = 0
+        ocf = _get_xbrl_value(facts, _XBRL_CASHFLOW_TAGS["Operating Cash Flow"])
 
-        # Profitability (20 pts max)
-        if revenue:
-            if gross_profit:
-                gm = gross_profit / revenue
-                score += 5 if gm > 0.4 else (3 if gm > 0.2 else 1)
-            if operating_income:
-                om = operating_income / revenue
-                score += 5 if om > 0.2 else (3 if om > 0.1 else 1)
-            if net_income:
-                pm = net_income / revenue
-                score += 5 if pm > 0.1 else (3 if pm > 0.05 else 1)
+        ni_cur, ni_prev = _get_xbrl_two_years(facts, _XBRL_INCOME_TAGS["Net Income"])
+        eps_cur, eps_prev = _get_xbrl_two_years(facts, _XBRL_INCOME_TAGS["EPS"], unit="USD/shares")
 
-        if equity and net_income:
-            roe = net_income / equity
-            score += 5 if roe > 0.15 else (3 if roe > 0.1 else 1)
+        # ── Yahoo Finance data ──
+        info = _yf_info(ticker)
 
-        # Liquidity (20 pts max)
-        if current_assets and current_liab:
-            cr = current_assets / current_liab
-            score += 5 if cr > 2 else (3 if cr > 1.5 else 1)
+        # ── Profitability (20 pts) ──
+        gm_pct = (gp / rev * 100) if rev and gp else 0
+        pm_pct = (ni / rev * 100) if rev and ni else 0
+        roe_pct = (ni / teq * 100) if teq and ni and teq != 0 else 0
+        roa_pct = (ni / ta * 100) if ta and ni and ta != 0 else 0
+        prof = (_st(gm_pct, [(60,5),(40,4),(20,3),(10,2),(0.01,1)])
+              + _st(pm_pct, [(20,5),(10,4),(5,3),(0.01,2)])
+              + _st(roe_pct, [(25,5),(15,4),(10,3),(5,2),(0.01,1)])
+              + _st(roa_pct, [(15,5),(10,4),(5,3),(2,2),(0.01,1)]))
 
-        # Leverage (15 pts max)
-        if total_assets and total_debt:
-            da = total_debt / total_assets
-            score += 5 if da < 0.3 else (3 if da < 0.5 else 1)
+        # ── Liquidity (20 pts) ──
+        cr = (ca / cl) if ca and cl and cl > 0 else None
+        qr = ((ca - (inv or 0)) / cl) if ca and cl and cl > 0 else None
+        cashr = (cash / cl) if cash is not None and cl and cl > 0 else None
+        ocfr = (ocf / cl) if ocf is not None and cl and cl > 0 else None
+        liq = (_st(cr, [(3,5),(2,4),(1.5,3),(1,2),(0.5,1)])
+             + _st(qr, [(2,5),(1.5,4),(1,3),(0.5,2),(0.2,1)])
+             + _st(cashr, [(1,5),(0.5,4),(0.3,3),(0.15,2),(0.05,1)])
+             + _st(ocfr, [(1.5,5),(1,4),(0.5,3),(0.2,2),(0.05,1)]))
 
-        if equity and total_debt:
-            de = total_debt / equity
-            score += 5 if de < 0.5 else (3 if de < 1.0 else 1)
+        # ── Leverage (25 pts) ──
+        de_ratio = (td / teq) if teq and teq != 0 else None
+        int_cov = abs(oi / interest) if oi and interest and abs(interest) > 0 else None
+        da = (td / ta) if ta and ta > 0 else None
+        ldc = (ltd / (ltd + teq)) if ltd is not None and teq is not None and (ltd + teq) > 0 else None
+        wc = (ca - cl) if ca is not None and cl is not None else None
+        mc = info.get("marketCap")
+        re_val = _get_xbrl_value(facts, ["RetainedEarningsAccumulatedDeficit"], form_type="10-K")
+        az = None
+        if ta and ta > 0 and all(v is not None for v in [wc, re_val, oi, mc, tl, rev]):
+            az = 1.2*(wc/ta) + 1.4*(re_val/ta) + 3.3*(oi/ta) + 0.6*(mc/tl if tl and tl > 0 else 0) + 1.0*(rev/ta)
 
-        # Asset efficiency (10 pts max)
-        if revenue and total_assets:
-            at = revenue / total_assets
-            score += 5 if at > 1.5 else (3 if at > 1 else 1)
+        de_s = 0
+        if de_ratio is not None:
+            if de_ratio <= 0.1: de_s = 5
+            elif de_ratio <= 0.3: de_s = 4
+            elif de_ratio <= 0.5: de_s = 3
+            elif de_ratio <= 1.0: de_s = 2
+            elif de_ratio <= 2.0: de_s = 1
+        da_s = 0
+        if da is not None:
+            if da <= 0.1: da_s = 5
+            elif da <= 0.2: da_s = 4
+            elif da <= 0.3: da_s = 3
+            elif da <= 0.5: da_s = 2
+            elif da <= 0.7: da_s = 1
+        ldc_s = 0
+        if ldc is not None:
+            if ldc <= 0.1: ldc_s = 5
+            elif ldc <= 0.2: ldc_s = 4
+            elif ldc <= 0.3: ldc_s = 3
+            elif ldc <= 0.5: ldc_s = 2
+            elif ldc <= 0.7: ldc_s = 1
+        lev = (de_s
+             + _st(int_cov, [(10,5),(5,4),(3,3),(1.5,2),(1,1)])
+             + da_s + ldc_s
+             + _st(az, [(3,5),(2.5,4),(1.8,3),(1.2,2),(0.5,1)]))
 
-        return min(100, score)
+        # ── Efficiency (15 pts) ──
+        at = (rev / ta) if rev and ta and ta > 0 else None
+        invt = (cogs / inv) if cogs and inv and inv > 0 else None
+        rt = (rev / ar) if rev and ar and ar > 0 else None
+        eff = (_st(at, [(2,5),(1.5,4),(1,3),(0.5,2),(0.2,1)])
+             + _st(invt, [(8,5),(5,4),(4,3),(2,2),(1,1)])
+             + _st(rt, [(8,5),(5,4),(4,3),(2,2),(1,1)]))
+
+        # ── Growth (10 pts) ──
+        epsg_pct = None
+        if eps_cur is not None and eps_prev is not None and eps_prev != 0:
+            epsg_pct = ((eps_cur / eps_prev) - 1) * 100
+        elif ni_cur is not None and ni_prev is not None and ni_prev != 0:
+            epsg_pct = ((ni_cur / ni_prev) - 1) * 100
+        if epsg_pct is None:
+            _eg = info.get("earningsGrowth")
+            if _eg is not None:
+                epsg_pct = _eg * 100 if abs(_eg) < 10 else _eg
+        cagr_v = None
+        try:
+            h5 = yf.Ticker(ticker).history(period="5y", interval="1mo")
+            if h5 is not None and len(h5) >= 12:
+                cagr_v = (pow(float(h5["Close"].iloc[-1]) / float(h5["Close"].iloc[0]),
+                              1 / (len(h5) / 12)) - 1) * 100
+        except Exception:
+            pass
+        gro = (_st(epsg_pct, [(30,5),(15,4),(5,3),(0.01,2)])
+             + _st(cagr_v, [(25,5),(15,4),(8,3),(3,2),(0.01,1)]))
+
+        # ── Valuation (10 pts) ──
+        pe = info.get("trailingPE")
+        pb = info.get("priceToBook")
+        pe_s = 0
+        if pe and pe > 0:
+            if pe <= 10: pe_s = 5
+            elif pe <= 15: pe_s = 4
+            elif pe <= 20: pe_s = 3
+            elif pe <= 30: pe_s = 2
+            elif pe <= 50: pe_s = 1
+        pb_s = 0
+        if pb and pb > 0:
+            if pb <= 1: pb_s = 5
+            elif pb <= 2: pb_s = 4
+            elif pb <= 3: pb_s = 3
+            elif pb <= 5: pb_s = 2
+            elif pb <= 10: pb_s = 1
+        val = pe_s + pb_s
+
+        return min(100, prof + liq + lev + eff + gro + val)
     except Exception as exc:
         print(f"[info_data] get_score({ticker}): {exc}")
         return 50
