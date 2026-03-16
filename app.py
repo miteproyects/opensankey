@@ -140,13 +140,17 @@ section[data-testid="stSidebar"] {
     min-width: 340px !important;
     width: 340px !important;
 }
-/* Make collapse button always visible — arrow points left (<<) to close right-side sidebar */
+/* Make collapse button always visible — arrow flipped to >> (close right-side sidebar) */
 [data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCollapseButton"] {
     visibility: visible !important;
     opacity: 1 !important;
 }
 [data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCollapseButton"] button {
     visibility: visible !important;
+}
+[data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCollapseButton"] button svg,
+[data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCollapseButton"] button [data-testid="stIconMaterial"] {
+    transform: scaleX(-1) !important;
 }
 [data-testid="stAppViewContainer"] {
     flex-direction: row !important;
@@ -1579,7 +1583,7 @@ st.markdown(f"""
     <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
     <a href="?page=pricing&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'pricing' else ''}">Pricing</a>
     <a href="?page=login&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'login' else ''}">Sign In</a>
-    <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#187;</button>
+    <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
 </div>
 """, unsafe_allow_html=True)
 
