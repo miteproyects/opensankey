@@ -567,61 +567,108 @@ def get_technicals(ticker: str) -> List[List[Tuple[str, str, str]]]:
 
 @st.cache_data(ttl=3600)
 def get_dcf_data(ticker: str) -> Dict[str, Any]:
-    """Fetch inputs for DCF valuation model from SEC EDGAR.
+    """Fetch inputs for DCF valuation model from EDGAR + Yahoo Finance.
+
+    Uses YF freeCashflow (more reliable) with EDGAR as fallback.
+    Estimates WACC from beta when available.
 
     Returns dict with: current_fcf, wacc, fcf_growth_rates, terminal_growth_rate,
     discount_rate, shares_outstanding, net_debt.
-
-    When EDGAR data is unavailable, returns sensible defaults.
     """
     try:
-        cik = _ticker_to_cik(ticker)
-        if not cik:
-            return _get_dcf_defaults()
+        # ── Yahoo Finance data (preferred for FCF, shares, beta) ──
+        info = _yf_info(ticker)
 
-        facts = _fetch_edgar_facts(cik)
-        if not facts:
-            return _get_dcf_defaults()
+        # FCF: prefer YF (accounts for all capex properly)
+        current_fcf = info.get("freeCashflow")
 
-        # ── Cash flow data ──
-        ocf = _get_xbrl_value(facts, _XBRL_CASHFLOW_TAGS["Operating Cash Flow"])
-        capex = _get_xbrl_value(facts, _XBRL_CASHFLOW_TAGS["Capital Expenditure"])
-        fcf_direct = _get_xbrl_value(facts, _XBRL_CASHFLOW_TAGS["Free Cash Flow"])
+        # Fallback to EDGAR if YF FCF unavailable
+        if not current_fcf:
+            cik = _ticker_to_cik(ticker)
+            facts = _fetch_edgar_facts(cik) if cik else None
+            if facts:
+                ocf = _get_xbrl_value(facts, _XBRL_CASHFLOW_TAGS["Operating Cash Flow"])
+                capex = _get_xbrl_value(facts, _XBRL_CASHFLOW_TAGS["Capital Expenditure"])
+                fcf_direct = _get_xbrl_value(facts, _XBRL_CASHFLOW_TAGS["Free Cash Flow"])
+                if fcf_direct:
+                    current_fcf = fcf_direct
+                elif ocf and capex:
+                    current_fcf = ocf - capex
+                elif ocf:
+                    current_fcf = ocf * 0.8
 
-        # FCF = OCF - CapEx (CapEx is reported as positive payments)
-        if fcf_direct:
-            current_fcf = fcf_direct
-        elif ocf and capex:
-            current_fcf = ocf - capex
-        elif ocf:
-            current_fcf = ocf * 0.8  # rough estimate
+        if not current_fcf or current_fcf <= 0:
+            ni = info.get("netIncomeToCommon")
+            current_fcf = ni * 0.85 if ni and ni > 0 else 0
+
+        # Shares outstanding (YF is most current)
+        shares = info.get("sharesOutstanding")
+        if not shares:
+            cik = _ticker_to_cik(ticker)
+            facts = _fetch_edgar_facts(cik) if cik else None
+            if facts:
+                shares = _get_xbrl_value(facts,
+                    ["CommonStockSharesOutstanding", "EntityCommonStockSharesOutstanding",
+                     "WeightedAverageNumberOfShareOutstandingBasicAndDiluted",
+                     "WeightedAverageNumberOfDilutedSharesOutstanding"],
+                    unit="shares")
+
+        # Net debt (YF preferred)
+        total_debt_yf = info.get("totalDebt")
+        total_cash_yf = info.get("totalCash")
+        if total_debt_yf is not None and total_cash_yf is not None:
+            net_debt = total_debt_yf - total_cash_yf
         else:
-            ni = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Net Income"])
-            current_fcf = ni * 0.9 if ni else 0
+            # EDGAR fallback
+            cik = _ticker_to_cik(ticker)
+            facts = _fetch_edgar_facts(cik) if cik else None
+            if facts:
+                lt_debt = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Long Term Debt"]) or 0
+                cur_debt = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Debt"]) or 0
+                cash = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Cash And Cash Equivalents"]) or 0
+                net_debt = lt_debt + cur_debt - cash
+            else:
+                net_debt = 0
 
-        # ── Shares outstanding ──
-        shares = _get_xbrl_value(facts,
-            ["CommonStockSharesOutstanding", "EntityCommonStockSharesOutstanding",
-             "WeightedAverageNumberOfShareOutstandingBasicAndDiluted",
-             "WeightedAverageNumberOfDilutedSharesOutstanding"],
-            unit="shares")
+        # Estimate WACC from beta (CAPM-based)
+        beta = info.get("beta", 1.0) or 1.0
+        risk_free = 0.04  # ~10Y Treasury
+        equity_premium = 0.055  # long-run equity risk premium
+        cost_of_equity = risk_free + beta * equity_premium
+        # Blended WACC (assume ~30% debt at 5% cost, 70% equity)
+        wacc = 0.70 * cost_of_equity + 0.30 * 0.05
+        wacc = max(0.06, min(0.15, wacc))  # clamp 6-15%
 
-        # ── Net debt ──
-        lt_debt = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Long Term Debt"]) or 0
-        cur_debt = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Debt"]) or 0
-        cash = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Cash And Cash Equivalents"]) or 0
-        net_debt = lt_debt + cur_debt - cash
+        # Growth rates — use YF earnings growth as anchor if available
+        eg = info.get("earningsGrowth")
+        rg = info.get("revenueGrowth")
+        base_growth = 0.06  # default
+        if eg and abs(eg) < 2:
+            base_growth = max(0.02, min(0.25, abs(eg)))
+        elif rg and abs(rg) < 2:
+            base_growth = max(0.02, min(0.20, abs(rg)))
+
+        # Declining growth over 5 years
+        growth_rates = [
+            base_growth,
+            base_growth * 0.85,
+            base_growth * 0.70,
+            base_growth * 0.60,
+            base_growth * 0.50,
+        ]
+
+        terminal_growth = 0.025  # long-run GDP-ish
 
         return {
             "current_fcf": current_fcf or 0,
-            "base_growth_rate": 0.08,
-            "terminal_growth_rate": 0.03,
-            "discount_rate": 0.10,
-            "wacc": 0.10,
-            "fcf_growth_rates": [0.08, 0.07, 0.06, 0.05, 0.04],
+            "base_growth_rate": base_growth,
+            "terminal_growth_rate": terminal_growth,
+            "discount_rate": wacc,
+            "wacc": wacc,
+            "fcf_growth_rates": growth_rates,
             "shares_outstanding": shares or 1,
             "net_debt": net_debt,
-            "risk_free_rate": 0.04,
+            "risk_free_rate": risk_free,
         }
     except Exception as exc:
         print(f"[info_data] get_dcf_data({ticker}): {exc}")
