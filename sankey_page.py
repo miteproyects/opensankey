@@ -358,17 +358,23 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
 
             elif form_filter == "10-Q" and quarterly_income:
                 # ══════════════════════════════════════════════════════
-                # QUARTERLY INCOME: Best-practice multi-pass approach
+                # QUARTERLY INCOME: YTD-subtraction approach
                 # ══════════════════════════════════════════════════════
-                # SEC EDGAR has MULTIPLE entries per end date for income
-                # items (individual 3-month + cumulative YTD). We must
-                # reliably extract only individual quarter values.
+                # SEC EDGAR 10-Q entries for income items report
+                # CUMULATIVE year-to-date values:
+                #   Q1 → 3-month value (individual = cumulative)
+                #   Q2 → 6-month cumulative (Q1+Q2)
+                #   Q3 → 9-month cumulative (Q1+Q2+Q3)
+                # Recent years also have CYxxxxQn frame entries with
+                # individual quarter values, but older years do not.
                 #
                 # Strategy:
-                #   Pass 1: Use frame-based entries (CYxxxxQn = individual Q)
-                #   Pass 2: For each end date with multiple entries, take
-                #           the minimum positive value (individual < cumulative)
-                #   Pass 3: Compute Q4 = FY - (Q1+Q2+Q3) per fiscal year
+                #   Pass 1: Use frame-based entries (CYxxxxQn = individual)
+                #   Pass 2: YTD subtraction for missing quarters:
+                #           Q1_ind = cum_Q1 (always individual)
+                #           Q2_ind = cum_Q2 - cum_Q1
+                #           Q3_ind = cum_Q3 - cum_Q2
+                #   Pass 3: Q4 = FY_annual - cum_Q3
                 # ══════════════════════════════════════════════════════
 
                 # ── Pass 1: Collect frame-based individual quarter values ──
@@ -383,62 +389,58 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                         if end not in vals or filed > vals[end][1]:
                             vals[end] = (val, filed)
 
-                # ── Pass 2: For missing quarters, collect ALL 10-Q entries
-                #    per end date, then pick the minimum positive value
-                #    (individual quarter is always ≤ cumulative YTD) ──
-                all_by_end = {}  # end_date → list of (val, filed, fp)
-                fy_entries = {}  # fy → (val, end, filed)  for 10-K annual
+                # ── Pass 2: YTD subtraction for missing quarters ──
+                # Collect cumulative (max val) per end date from 10-Q
+                cum_by_end = {}  # end_date → (max_val, filed, fp)
+                fy_annual = {}   # end_date → (val, filed)
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
                     end = e.get("end", "")
                     val = e.get("val")
                     filed = e.get("filed", "")
-                    fy = e.get("fy", "")
                     if val is None or not end:
                         continue
                     if form == "10-Q" and fp in ("Q1", "Q2", "Q3"):
-                        if end not in all_by_end:
-                            all_by_end[end] = []
-                        all_by_end[end].append((val, filed, fp, fy))
+                        # Take maximum val per end date = cumulative YTD
+                        if end not in cum_by_end or val > cum_by_end[end][0]:
+                            cum_by_end[end] = (val, filed, fp)
+                        elif val == cum_by_end[end][0] and filed > cum_by_end[end][1]:
+                            cum_by_end[end] = (val, filed, fp)
                     elif form == "10-K" and fp == "FY":
-                        fy_key = str(fy) if fy else end[:4]
-                        if fy_key not in fy_entries or filed > fy_entries[fy_key][2]:
-                            fy_entries[fy_key] = (val, end, filed)
+                        if end not in fy_annual or filed > fy_annual[end][1]:
+                            fy_annual[end] = (val, filed)
 
-                for end_date, entry_list in all_by_end.items():
-                    if end_date in vals:
-                        continue  # Already have frame-based data
+                # Sort end dates chronologically
+                sorted_ends = sorted(cum_by_end.keys())
 
-                    # Among all entries for this end date, pick the
-                    # minimum positive value = individual quarter
-                    positive = [(v, f, fp, fy) for v, f, fp, fy in entry_list if v > 0]
-                    if positive:
-                        best = min(positive, key=lambda x: x[0])
-                        vals[end_date] = (best[0], best[1])
-                    elif entry_list:
-                        # All zero or negative — take the latest filed
-                        latest = max(entry_list, key=lambda x: x[1])
-                        vals[end_date] = (latest[0], latest[1])
+                # Walk through quarters, subtracting previous cumulative
+                prev_cum = 0
+                for end_date in sorted_ends:
+                    cum_val, filed, fp = cum_by_end[end_date]
 
-                # ── Pass 3: Compute Q4 for each fiscal year ──
-                # Q4 = FY_annual - (Q1 + Q2 + Q3)
-                # Group existing quarterly values by fiscal year
-                q_by_fy = {}  # fy → {end_date: val}
-                for end_date, entry_list in all_by_end.items():
-                    if entry_list:
-                        fy_key = str(entry_list[0][3]) if entry_list[0][3] else end_date[:4]
-                        if fy_key not in q_by_fy:
-                            q_by_fy[fy_key] = []
-                        if end_date in vals:
-                            q_by_fy[fy_key].append(vals[end_date][0])
+                    if fp == "Q1":
+                        prev_cum = 0  # Reset at fiscal year boundary
 
-                for fy_key, (fy_val, fy_end, fy_filed) in fy_entries.items():
+                    if end_date not in vals:
+                        individual = cum_val - prev_cum
+                        if individual >= 0:
+                            vals[end_date] = (individual, filed)
+
+                    prev_cum = cum_val
+
+                # ── Pass 3: Q4 = FY_annual - Q3_cumulative ──
+                for fy_end, (fy_val, fy_filed) in fy_annual.items():
                     if fy_end in vals:
-                        continue  # Already have Q4 data for this end date
-                    q_vals = q_by_fy.get(fy_key, [])
-                    if len(q_vals) == 3:
-                        q4 = fy_val - sum(q_vals)
+                        continue
+                    # Find the latest Q3 cumulative before this FY end
+                    last_q3_cum = None
+                    for end_date in sorted_ends:
+                        if end_date < fy_end:
+                            if cum_by_end[end_date][2] == "Q3":
+                                last_q3_cum = cum_by_end[end_date][0]
+                    if last_q3_cum is not None:
+                        q4 = fy_val - last_q3_cum
                         if q4 >= 0:
                             vals[fy_end] = (q4, fy_filed)
 
@@ -731,7 +733,7 @@ def _show_metric_popup(ticker, node_label, view):
         marker=dict(size=8),
         fill="tozeroy",
         fillcolor="rgba(59,130,246,0.10)",
-        hovertemplate=f"%{{x|%b %Y}}<br>${{y:.2f}}{suffix}<extra></extra>",
+        hovertemplate=f"%{{x|%b %Y}}<br>$%{{y:.2f}}{suffix}<extra></extra>",
     ))
 
     fig.update_layout(
