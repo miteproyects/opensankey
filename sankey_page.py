@@ -449,6 +449,32 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                                 # No quarterly data at all; skip FY for quarterly view
                                 pass
 
+            # ── Final fallback: fill remaining gaps with raw 10-Q entries ──
+            # Some metrics (D&A, Interest) may still have gaps if the YTD
+            # computation couldn't find all Q1/Q2/Q3/FY combos. Use raw
+            # 10-Q entries directly, with outlier filtering to reject
+            # cumulative values that would distort the chart.
+            if form_filter == "10-Q" and quarterly_income and vals:
+                # Compute median of existing values for outlier detection
+                existing_vals = [v[0] for v in vals.values() if v[0] > 0]
+                if existing_vals:
+                    median_val = sorted(existing_vals)[len(existing_vals) // 2]
+                    outlier_threshold = median_val * 2.5  # reject if > 2.5x median
+
+                    for e in entries:
+                        form = e.get("form", "")
+                        fp = e.get("fp", "")
+                        end = e.get("end", "")
+                        val = e.get("val")
+                        filed = e.get("filed", "")
+                        if val is None or not end:
+                            continue
+                        if form == "10-Q" and fp in ("Q1", "Q2", "Q3"):
+                            if end not in vals:
+                                # Only add if value is in reasonable range
+                                if abs(val) <= outlier_threshold:
+                                    vals[end] = (val, filed)
+
             if vals:
                 rows[display_name] = {k: v[0] for k, v in vals.items()}
                 break  # Found data for this metric
