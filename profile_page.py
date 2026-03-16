@@ -188,7 +188,7 @@ def _fetch_candlestick_chart(ticker: str, period: str = "3mo") -> Optional[go.Fi
         )
 
         # Remove weekend gaps for daily/weekly data
-        if interval in ("1d", "1wk", "1mo"):
+        if period in ("1d", "5d", "1mo", "3mo", "6mo", "ytd", "1y"):
             fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])])
 
         return fig
