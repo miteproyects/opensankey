@@ -83,7 +83,15 @@ def _color_for_value(val: Optional[float], is_growth: bool = False) -> str:
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def _fetch_candlestick_data(ticker: str, period: str = "3mo") -> Optional[pd.DataFrame]:
-    """Candlestick data not available from SEC EDGAR (no real-time price data)."""
+    """Fetch OHLCV candlestick data from Yahoo Finance."""
+    try:
+        import yfinance as yf
+        hist = yf.Ticker(ticker).history(period=period)
+        if hist is not None and not hist.empty:
+            hist = hist.reset_index()
+            return hist
+    except Exception as e:
+        print(f"[profile] _fetch_candlestick_data({ticker}): {e}")
     return None
 
 
@@ -217,9 +225,8 @@ def render_profile_page(ticker: str) -> None:
     }
     </style>""", unsafe_allow_html=True)
 
-    # Fetch all data in PARALLEL to reduce cold-load time
-    # (all data from SEC EDGAR — parallelising cuts cold load ~3-4×)
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    # Fetch all data in PARALLEL (EDGAR for financials, YF for market data)
+    with ThreadPoolExecutor(max_workers=10) as pool:
         fut_company   = pool.submit(get_company_description, ticker)
         fut_fund      = pool.submit(get_fundamentals, ticker)
         fut_tech      = pool.submit(get_technicals, ticker)
@@ -227,6 +234,7 @@ def render_profile_page(ticker: str) -> None:
         fut_own       = pool.submit(get_ownership_data, ticker)
         fut_insider   = pool.submit(get_insider_trades, ticker)
         fut_score     = pool.submit(get_score, ticker)
+        fut_candle    = pool.submit(_fetch_candlestick_data, ticker, "3mo")
 
     company_data   = fut_company.result()
     fundamentals   = fut_fund.result()
@@ -235,6 +243,7 @@ def render_profile_page(ticker: str) -> None:
     ownership_data = fut_own.result()
     insider_trades = fut_insider.result()
     score          = fut_score.result()
+    candle_data    = fut_candle.result()
 
     # ─────────────────────────────────────────────────────────────────────────
     # 1. Company Header
@@ -737,9 +746,15 @@ def render_profile_page(ticker: str) -> None:
             int_cov = abs(oi / interest) if oi and interest and abs(interest) > 0 else None
             da = (td / ta) if ta and ta > 0 else None
             ldc = (ltd / (ltd + teq)) if ltd is not None and teq is not None and (ltd + teq) > 0 else None
-            # Altman Z (without market cap — not available from EDGAR)
+            # Altman Z (uses market cap from YF + EDGAR balance sheet)
             wc = (ca - cl) if ca is not None and cl is not None else None
-            az = None  # Requires market cap, not available from EDGAR
+            from info_data import _yf_info as _yf_info_fn
+            _yf_data = _yf_info_fn(ticker)
+            mc = _yf_data.get("marketCap")
+            re_val_xbrl = _get_xbrl_value(facts, ["RetainedEarningsAccumulatedDeficit"], form_type="10-K")
+            az = None
+            if ta and ta > 0 and all(v is not None for v in [wc, re_val_xbrl, oi, mc, tl, rev]):
+                az = 1.2*(wc/ta) + 1.4*(re_val_xbrl/ta) + 3.3*(oi/ta) + 0.6*(mc/tl if tl and tl > 0 else 0) + 1.0*(rev/ta)
 
             de_s = 0
             if de_ratio is not None:
@@ -763,7 +778,7 @@ def render_profile_page(ticker: str) -> None:
                 elif ldc <= 0.3: ldc_s = 3
                 elif ldc <= 0.5: ldc_s = 2
                 elif ldc <= 0.7: ldc_s = 1
-            az_s = 0  # N/A without market cap
+            az_s = _score_tiered(az, [(3,5),(2.5,4),(1.8,3),(1.2,2),(0.5,1)])
             lev_total = de_s + ic_s + da_s + ldc_s + az_s
 
             # ── Efficiency ──
@@ -775,20 +790,47 @@ def render_profile_page(ticker: str) -> None:
             rt_s = _score_tiered(rt, [(8,5),(5,4),(4,3),(2,2),(1,1)])
             eff_total = at_s + it_s + rt_s
 
-            # ── Growth (from EDGAR two-year comparison) ──
+            # ── Growth (EDGAR EPS + YF price CAGR) ──
             epsg_pct = None
             if eps_cur is not None and eps_prev is not None and eps_prev != 0:
                 epsg_pct = ((eps_cur / eps_prev) - 1) * 100
             elif ni_cur is not None and ni_prev is not None and ni_prev != 0:
                 epsg_pct = ((ni_cur / ni_prev) - 1) * 100
-            cagr_v = None  # Price CAGR not available from EDGAR
+            # Also try YF earningsGrowth as fallback
+            if epsg_pct is None:
+                _eg = _yf_data.get("earningsGrowth")
+                if _eg is not None:
+                    epsg_pct = _eg * 100 if abs(_eg) < 10 else _eg
+            cagr_v = None
+            try:
+                import yfinance as yf
+                h5 = yf.Ticker(ticker).history(period="5y", interval="1mo")
+                if h5 is not None and len(h5) >= 12:
+                    cagr_v = (pow(float(h5["Close"].iloc[-1]) / float(h5["Close"].iloc[0]),
+                                  1 / (len(h5) / 12)) - 1) * 100
+            except Exception:
+                pass
             epsg_s = _score_tiered(epsg_pct, [(30,5),(15,4),(5,3),(0.01,2)])
-            cagr_s = 0  # N/A without price data
+            cagr_s = _score_tiered(cagr_v, [(25,5),(15,4),(8,3),(3,2),(0.01,1)])
             gro_total = epsg_s + cagr_s
 
-            # ── Valuation (not available from EDGAR — requires market price) ──
+            # ── Valuation (from Yahoo Finance) ──
+            pe = _yf_data.get("trailingPE")
+            pb = _yf_data.get("priceToBook")
             pe_s = 0
+            if pe and pe > 0:
+                if pe <= 10: pe_s = 5
+                elif pe <= 15: pe_s = 4
+                elif pe <= 20: pe_s = 3
+                elif pe <= 30: pe_s = 2
+                elif pe <= 50: pe_s = 1
             pb_s = 0
+            if pb and pb > 0:
+                if pb <= 1: pb_s = 5
+                elif pb <= 2: pb_s = 4
+                elif pb <= 3: pb_s = 3
+                elif pb <= 5: pb_s = 2
+                elif pb <= 10: pb_s = 1
             val_total = pe_s + pb_s
 
         except Exception:

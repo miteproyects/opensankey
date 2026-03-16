@@ -1,14 +1,9 @@
 """
 Data fetching module for the Open Sankey company info/profile page.
 
-Uses SEC EDGAR XBRL CompanyFacts API for all financial data instead of Yahoo Finance.
-Provides comprehensive financial data for company profile pages, including:
-- Company description and metadata
-- Fundamental metrics (valuation, margins, efficiency)
-- Technical metrics (price, volume, moving averages)
-- DCF valuation inputs
-- Ownership and insider trading data
-- Financial health scoring
+Uses SEC EDGAR XBRL CompanyFacts API for financial-statement data (income,
+balance sheet, cash flow) and Yahoo Finance for market/price data (quote,
+technicals, ownership, insider trades, company metadata).
 
 All primary data functions are cached for 1 hour via Streamlit.
 """
@@ -21,6 +16,7 @@ from datetime import datetime
 import warnings
 import re
 import requests
+import yfinance as yf
 
 warnings.filterwarnings("ignore")
 
@@ -60,7 +56,7 @@ _XBRL_BALANCE_TAGS = {
     "Inventory": ["InventoryNet"],
     "Net PPE": ["PropertyPlantAndEquipmentNet"],
     "Goodwill": ["Goodwill"],
-    "Total Liabilities": ["Liabilities"],
+    "Total Liabilities": ["Liabilities", "LiabilitiesNoncurrent"],
     "Current Liabilities": ["LiabilitiesCurrent"],
     "Accounts Payable": ["AccountsPayableCurrent"],
     "Current Debt": ["DebtCurrent", "ShortTermBorrowings"],
@@ -207,67 +203,83 @@ def _get_company_name(facts: dict, ticker: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Yahoo Finance helper (market/price data only)
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _yf_info(ticker: str) -> dict:
+    """Fetch the Yahoo Finance .info dict (cached 1 h). Returns {} on failure."""
+    try:
+        return dict(yf.Ticker(ticker).info or {})
+    except Exception as e:
+        print(f"[info_data] _yf_info({ticker}): {e}")
+        return {}
+
+
+# ---------------------------------------------------------------------------
 # Company Description
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=3600)
 def get_company_description(ticker: str) -> Dict[str, Any]:
-    """Fetch comprehensive company profile information from SEC EDGAR.
+    """Fetch company profile merging EDGAR (name) + Yahoo Finance (market data).
 
-    For data not available in EDGAR (price, website, logo), returns N/A defaults.
-
-    Returns a dictionary with keys:
-    - name: Company name
-    - ticker: Stock ticker
-    - price: N/A (real-time data not in EDGAR)
-    - description: Company description (from EDGAR if available)
-    - logo_url: N/A
-    - sector: N/A (not in EDGAR)
-    - industry: N/A (not in EDGAR)
-    - country: Country from EDGAR
-    - exchange: N/A
-    - ceo: N/A
-    - ipo_date: N/A
-    - employees: N/A
-    - website: N/A
-    - cagr: N/A
-    - div_yield: N/A
-    - payout_ratio: N/A
-    - market_cap: N/A
+    Returns a dictionary with keys matching the profile page expectations.
     """
     try:
+        # EDGAR for company name
         cik = _ticker_to_cik(ticker)
-        if not cik:
-            return _make_empty_company_description(ticker)
+        facts = _fetch_edgar_facts(cik) if cik else None
+        name = _get_company_name(facts, ticker) if facts else ticker.upper()
 
-        facts = _fetch_edgar_facts(cik)
-        if not facts:
-            return _make_empty_company_description(ticker)
+        # Yahoo Finance for market / metadata
+        info = _yf_info(ticker)
 
-        name = _get_company_name(facts, ticker)
+        # 5-year price CAGR
+        cagr = None
+        try:
+            h5 = yf.Ticker(ticker).history(period="5y", interval="1mo")
+            if h5 is not None and len(h5) >= 12:
+                cagr = (pow(float(h5["Close"].iloc[-1]) / float(h5["Close"].iloc[0]),
+                            1 / (len(h5) / 12)) - 1)
+        except Exception:
+            pass
 
         return {
             "name": name,
             "ticker": ticker.upper(),
-            "price": None,  # Real-time price not available from EDGAR
-            "description": "",
-            "logo_url": "",
-            "sector": "N/A",
-            "industry": "N/A",
-            "country": "N/A",
-            "exchange": "N/A",
-            "ceo": "N/A",
-            "ipo_date": "N/A",
-            "employees": None,
-            "website": "N/A",
-            "cagr": None,
-            "div_yield": None,
-            "payout_ratio": None,
-            "market_cap": None,
+            "price": info.get("currentPrice") or info.get("regularMarketPrice"),
+            "description": info.get("longBusinessSummary", ""),
+            "logo_url": info.get("logo_url", ""),
+            "sector": info.get("sector", "N/A"),
+            "industry": info.get("industry", "N/A"),
+            "country": info.get("country", "N/A"),
+            "exchange": info.get("exchange", "N/A"),
+            "ceo": _extract_ceo(info),
+            "ipo_date": info.get("ipoDate", "N/A") or "N/A",
+            "employees": info.get("fullTimeEmployees"),
+            "website": info.get("website", "N/A") or "N/A",
+            "cagr": cagr,
+            "div_yield": info.get("dividendYield"),
+            "payout_ratio": info.get("payoutRatio"),
+            "market_cap": info.get("marketCap"),
         }
     except Exception as exc:
         print(f"[info_data] get_company_description({ticker}): {exc}")
         return _make_empty_company_description(ticker)
+
+
+def _extract_ceo(info: dict) -> str:
+    """Try to pull the CEO name from YF companyOfficers."""
+    try:
+        officers = info.get("companyOfficers", [])
+        for o in officers:
+            title = (o.get("title") or "").lower()
+            if "ceo" in title or "chief executive" in title:
+                return o.get("name", "N/A")
+    except Exception:
+        pass
+    return "N/A"
 
 
 def _make_empty_company_description(ticker: str) -> Dict[str, Any]:
@@ -384,6 +396,8 @@ def get_fundamentals(ticker: str) -> List[List[Tuple[str, str, str]]]:
         lt_debt = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Long Term Debt"])
         equity = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Stockholders Equity"])
         tot_liab = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Total Liabilities"])
+        if tot_liab is None and tot_assets and equity:
+            tot_liab = tot_assets - equity  # Assets = Liabilities + Equity
         total_debt = (lt_debt or 0) + (_get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Debt"]) or 0)
 
         # ── Margins & returns ──
@@ -418,17 +432,36 @@ def get_fundamentals(ticker: str) -> List[List[Tuple[str, str, str]]]:
         def _r2(v):
             return f"{v:.2f}" if v is not None else "N/A"
 
+        # ── Valuation multiples from Yahoo Finance ──
+        info = _yf_info(ticker)
+        ev = info.get("enterpriseValue")
+        pe = info.get("trailingPE")
+        fpe = info.get("forwardPE")
+        peg = info.get("pegRatio")
+        ps = info.get("priceToSalesTrailing12Months")
+        pb = info.get("priceToBook")
+        pcf = None
+        pfcf = None
+        price = info.get("currentPrice") or info.get("regularMarketPrice")
+        ocf_yf = info.get("operatingCashflow")
+        shares_yf = info.get("sharesOutstanding")
+        if price and ocf_yf and shares_yf and shares_yf > 0:
+            pcf = price / (ocf_yf / shares_yf)
+        fcf_yf = info.get("freeCashflow")
+        if price and fcf_yf and shares_yf and shares_yf > 0 and fcf_yf > 0:
+            pfcf = price / (fcf_yf / shares_yf)
+
         # ── Build rows ──
         rows = [
-            [("EV", "N/A", "blue"),
-             ("P/E", "N/A", "blue"),
-             ("Forward P/E", "N/A", "blue"),
-             ("PEG", "N/A", "blue")],
+            [("EV", _fmt_num(ev, prefix="$"), "blue"),
+             ("P/E", _r2(pe), "blue"),
+             ("Forward P/E", _r2(fpe), "blue"),
+             ("PEG", _r2(peg), "blue")],
 
-            [("P/S", "N/A", "blue"),
-             ("P/B", "N/A", "blue"),
-             ("P/CF", "N/A", "blue"),
-             ("P/FCF", "N/A", "blue")],
+            [("P/S", _r2(ps), "blue"),
+             ("P/B", _r2(pb), "blue"),
+             ("P/CF", _r2(pcf), "blue"),
+             ("P/FCF", _r2(pfcf), "blue")],
 
             [("Revenue", _fmt_num(rev_cur, prefix="$"), "blue"),
              ("Rev Growth", _pct_str(rev_growth), _gc(rev_growth, True)),
@@ -483,36 +516,43 @@ def get_fundamentals(ticker: str) -> List[List[Tuple[str, str, str]]]:
 
 @st.cache_data(ttl=3600)
 def get_technicals(ticker: str) -> List[List[Tuple[str, str, str]]]:
-    """Fetch technical metrics (price, volume, moving averages).
+    """Fetch technical / market metrics from Yahoo Finance.
 
-    Returns a list of 3 rows, where each row contains 4 tuples.
-    Each tuple is (label, value_str, color).
-
-    Note: Real-time price, volume, and moving averages are not available from EDGAR.
-    Returns N/A for all technical metrics.
+    Returns a list of 3 rows, where each row contains 4 tuples (label, value_str, color).
     """
     try:
+        info = _yf_info(ticker)
+        if not info:
+            raise ValueError("No YF data")
+
+        price = info.get("currentPrice") or info.get("regularMarketPrice")
+        prev = info.get("previousClose") or info.get("regularMarketPreviousClose")
+        change = ((price - prev) if price and prev else None)
+        change_pct = (change / prev * 100) if change is not None and prev else None
+        change_str = f"{change:+.2f} ({change_pct:+.2f}%)" if change is not None else "N/A"
+        change_color = "green" if (change or 0) >= 0 else "red"
+
+        def _p(v, pre="$"):
+            return f"{pre}{v:,.2f}" if v else "N/A"
+
         rows = [
-            # Row 1: Price, One Day Var., Short Interest, Beta
             [
-                ("Price", "N/A", "blue"),
-                ("1D Change", "N/A", "blue"),
-                ("Short Int.", "N/A", "blue"),
-                ("Beta", "N/A", "blue"),
+                ("Price", _p(price), "blue"),
+                ("1D Change", change_str, change_color),
+                ("Short Int.", _fmt_num(info.get("sharesShort")), "blue"),
+                ("Beta", f"{info['beta']:.2f}" if info.get("beta") else "N/A", "blue"),
             ],
-            # Row 2: Day Low, Day High, Year Low, Year High
             [
-                ("Day Low", "N/A", "blue"),
-                ("Day High", "N/A", "blue"),
-                ("52w Low", "N/A", "blue"),
-                ("52w High", "N/A", "blue"),
+                ("Day Low", _p(info.get("dayLow")), "blue"),
+                ("Day High", _p(info.get("dayHigh")), "blue"),
+                ("52w Low", _p(info.get("fiftyTwoWeekLow")), "blue"),
+                ("52w High", _p(info.get("fiftyTwoWeekHigh")), "blue"),
             ],
-            # Row 3: Volume, Avg Volume, Avg 50, Avg 200
             [
-                ("Volume", "N/A", "blue"),
-                ("Avg Vol", "N/A", "blue"),
-                ("Avg 50d", "N/A", "blue"),
-                ("Avg 200d", "N/A", "blue"),
+                ("Volume", _fmt_num(info.get("volume")), "blue"),
+                ("Avg Vol", _fmt_num(info.get("averageVolume")), "blue"),
+                ("Avg 50d", _p(info.get("fiftyDayAverage")), "blue"),
+                ("Avg 200d", _p(info.get("twoHundredDayAverage")), "blue"),
             ],
         ]
         return rows
@@ -609,20 +649,51 @@ def _get_dcf_defaults() -> Dict[str, Any]:
 
 @st.cache_data(ttl=3600)
 def get_ownership_data(ticker: str) -> Dict[str, Any]:
-    """Fetch ownership structure (not available from EDGAR).
+    """Fetch ownership structure from Yahoo Finance.
 
     Returns a dictionary with keys:
-    - institutional_holders: Empty list (not in EDGAR)
-    - insider_pct: N/A
-    - institutional_pct: N/A
-    - public_pct: N/A
+    - institutional_holders: list of dicts
+    - insider_pct: float
+    - institutional_pct: float
+    - public_pct: float
     """
-    return {
-        "institutional_holders": [],
-        "insider_pct": 0,
-        "institutional_pct": 0,
-        "public_pct": 1.0,
-    }
+    try:
+        t = yf.Ticker(ticker)
+        info = _yf_info(ticker)
+
+        insider_pct = info.get("heldPercentInsiders", 0) or 0
+        inst_pct = info.get("heldPercentInstitutions", 0) or 0
+        public_pct = max(0, 1 - insider_pct - inst_pct)
+
+        # Top institutional holders
+        holders = []
+        try:
+            ih = t.institutional_holders
+            if ih is not None and not ih.empty:
+                for _, row in ih.head(10).iterrows():
+                    holders.append({
+                        "holder": row.get("Holder", "Unknown"),
+                        "shares": row.get("Shares", 0),
+                        "pct_out": row.get("% Out", 0),
+                        "value": row.get("Value", 0),
+                    })
+        except Exception:
+            pass
+
+        return {
+            "institutional_holders": holders,
+            "insider_pct": insider_pct,
+            "institutional_pct": inst_pct,
+            "public_pct": public_pct,
+        }
+    except Exception as exc:
+        print(f"[info_data] get_ownership_data({ticker}): {exc}")
+        return {
+            "institutional_holders": [],
+            "insider_pct": 0,
+            "institutional_pct": 0,
+            "public_pct": 1.0,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -631,16 +702,57 @@ def get_ownership_data(ticker: str) -> Dict[str, Any]:
 
 @st.cache_data(ttl=3600)
 def get_insider_trades(ticker: str) -> Dict[str, Any]:
-    """Fetch insider trading activity (not available from EDGAR).
+    """Fetch insider trading activity from Yahoo Finance.
 
     Returns a dictionary with keys:
-    - recent_trades: Empty list
-    - monthly_activity: Empty list
+    - recent_trades: list of dicts
+    - monthly_activity: list of dicts
     """
-    return {
-        "recent_trades": [],
-        "monthly_activity": [],
-    }
+    try:
+        t = yf.Ticker(ticker)
+        trades = []
+
+        try:
+            it = t.insider_transactions
+            if it is not None and not it.empty:
+                for _, row in it.head(20).iterrows():
+                    trades.append({
+                        "insider": row.get("Insider", "Unknown"),
+                        "relation": row.get("Position", ""),
+                        "date": str(row.get("Start Date", "")),
+                        "transaction": row.get("Transaction", ""),
+                        "shares": row.get("Shares", 0),
+                        "value": row.get("Value", 0),
+                    })
+        except Exception:
+            pass
+
+        # Monthly buy/sell aggregation
+        monthly = []
+        try:
+            ip = t.insider_purchases
+            if ip is not None and not ip.empty:
+                for _, row in ip.iterrows():
+                    monthly.append({
+                        "period": row.get("Period", ""),
+                        "buys": row.get("Purchases", 0),
+                        "sells": row.get("Sales", 0),
+                        "shares_bought": row.get("Shares Purchased", 0),
+                        "shares_sold": row.get("Shares Sold", 0),
+                    })
+        except Exception:
+            pass
+
+        return {
+            "recent_trades": trades,
+            "monthly_activity": monthly,
+        }
+    except Exception as exc:
+        print(f"[info_data] get_insider_trades({ticker}): {exc}")
+        return {
+            "recent_trades": [],
+            "monthly_activity": [],
+        }
 
 
 # ---------------------------------------------------------------------------
