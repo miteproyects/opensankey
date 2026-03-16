@@ -6,12 +6,10 @@ and Pretax Income waterfall matching OpenSankey deployed style.
 import streamlit as st
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
-import yfinance as yf
 import pandas as pd
 from io import BytesIO
 import numpy as np
 import requests
-import time as _time
 
 # ─── Demo / sample data for when Yahoo Finance is rate-limited ─────────────
 def _get_demo_data(ticker: str):
@@ -147,8 +145,247 @@ def _yoy_delta(current, previous):
     return f"{pct:+.1f}% YoY"
 
 
-# ─── Node label → Yahoo Finance metric mapping ───────────────────────────
-# Maps the display name in each Sankey node to the yfinance DataFrame row key.
+# ─── SEC EDGAR data source ──────────────────────────────────────────────────
+_SEC_HEADERS = {
+    "User-Agent": "OpenSankey contact@opensankey.com",
+    "Accept-Encoding": "gzip, deflate",
+}
+
+# XBRL tag mappings: DataFrame row name → list of possible us-gaap tags (first match wins)
+_XBRL_INCOME_TAGS = {
+    "Total Revenue": [
+        "Revenues",
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        "SalesRevenueNet",
+        "SalesRevenueGoodsNet",
+        "RevenueFromContractWithCustomerIncludingAssessedTax",
+    ],
+    "Cost Of Revenue": [
+        "CostOfRevenue",
+        "CostOfGoodsAndServicesSold",
+        "CostOfGoodsSold",
+    ],
+    "Gross Profit": ["GrossProfit"],
+    "Research And Development": [
+        "ResearchAndDevelopmentExpense",
+        "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost",
+    ],
+    "Selling General And Administration": [
+        "SellingGeneralAndAdministrativeExpense",
+    ],
+    "Reconciled Depreciation": [
+        "DepreciationDepletionAndAmortization",
+        "DepreciationAndAmortization",
+        "Depreciation",
+    ],
+    "Other Operating Expenses": [
+        "OtherOperatingIncomeExpenseNet",
+        "OtherCostAndExpenseOperating",
+    ],
+    "Operating Income": [
+        "OperatingIncomeLoss",
+    ],
+    "Interest Expense": [
+        "InterestExpense",
+        "InterestExpenseDebt",
+        "InterestIncomeExpenseNonoperatingNet",
+    ],
+    "Pretax Income": [
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+    ],
+    "Tax Provision": [
+        "IncomeTaxExpenseBenefit",
+    ],
+    "Net Income": [
+        "NetIncomeLoss",
+        "ProfitLoss",
+        "NetIncomeLossAvailableToCommonStockholdersBasic",
+    ],
+}
+
+_XBRL_BALANCE_TAGS = {
+    "Total Assets": ["Assets"],
+    "Current Assets": ["AssetsCurrent"],
+    "Cash And Cash Equivalents": [
+        "CashAndCashEquivalentsAtCarryingValue",
+        "CashCashEquivalentsAndShortTermInvestments",
+    ],
+    "Other Short Term Investments": [
+        "ShortTermInvestments",
+        "AvailableForSaleSecuritiesCurrent",
+        "MarketableSecuritiesCurrent",
+    ],
+    "Accounts Receivable": [
+        "AccountsReceivableNetCurrent",
+        "AccountsReceivableNet",
+    ],
+    "Inventory": [
+        "InventoryNet",
+    ],
+    "Total Non Current Assets": [],  # Derived: Assets - AssetsCurrent
+    "Net PPE": [
+        "PropertyPlantAndEquipmentNet",
+    ],
+    "Goodwill": ["Goodwill"],
+    "Other Intangible Assets": [
+        "IntangibleAssetsNetExcludingGoodwill",
+        "FiniteLivedIntangibleAssetsNet",
+    ],
+    "Investments And Advances": [
+        "LongTermInvestments",
+        "InvestmentsAndAdvances",
+        "MarketableSecuritiesNoncurrent",
+    ],
+    "Total Liabilities Net Minority Interest": [
+        "Liabilities",
+    ],
+    "Current Liabilities": ["LiabilitiesCurrent"],
+    "Total Non Current Liabilities Net Minority Interest": [
+        "LiabilitiesNoncurrent",
+    ],
+    "Accounts Payable": [
+        "AccountsPayableCurrent",
+    ],
+    "Current Debt": [
+        "DebtCurrent",
+        "ShortTermBorrowings",
+    ],
+    "Current Deferred Revenue": [
+        "DeferredRevenueCurrent",
+        "ContractWithCustomerLiabilityCurrent",
+    ],
+    "Long Term Debt": [
+        "LongTermDebt",
+        "LongTermDebtNoncurrent",
+    ],
+    "Stockholders Equity": [
+        "StockholdersEquity",
+        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+    ],
+    "Retained Earnings": [
+        "RetainedEarningsAccumulatedDeficit",
+    ],
+}
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _ticker_to_cik(ticker: str) -> str:
+    """Convert stock ticker to SEC CIK number (zero-padded to 10 digits)."""
+    url = "https://www.sec.gov/files/company_tickers.json"
+    resp = requests.get(url, headers=_SEC_HEADERS, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    ticker_upper = ticker.upper()
+    for entry in data.values():
+        if entry.get("ticker", "").upper() == ticker_upper:
+            return str(entry["cik_str"]).zfill(10)
+    return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_edgar_facts(cik: str) -> dict:
+    """Fetch CompanyFacts JSON from SEC EDGAR."""
+    url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+    resp = requests.get(url, headers=_SEC_HEADERS, timeout=15)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
+                    quarterly_income: bool = False) -> pd.DataFrame:
+    """Build a yfinance-compatible DataFrame from EDGAR CompanyFacts.
+
+    Args:
+        facts: Full CompanyFacts JSON
+        tag_map: Dict mapping display_name → list of XBRL tags
+        form_filter: "10-K" for annual, "10-Q" for quarterly
+        quarterly_income: If True, filter for individual-quarter income values
+                          using the frame field (CYxxxxQn pattern)
+
+    Returns:
+        DataFrame with index=metric names, columns=dates (desc), values=USD
+    """
+    import re
+    gaap = facts.get("facts", {}).get("us-gaap", {})
+    rows = {}
+
+    for display_name, xbrl_tags in tag_map.items():
+        if not xbrl_tags:
+            continue  # Skip derived fields (e.g., Total Non Current Assets)
+
+        for tag in xbrl_tags:
+            concept = gaap.get(tag)
+            if not concept:
+                continue
+            entries = concept.get("units", {}).get("USD", [])
+            if not entries:
+                continue
+
+            vals = {}
+            for e in entries:
+                form = e.get("form", "")
+                fp = e.get("fp", "")
+                end = e.get("end", "")
+                val = e.get("val")
+                filed = e.get("filed", "")
+                frame = e.get("frame", "")
+
+                if val is None or not end:
+                    continue
+
+                if form_filter == "10-K":
+                    # Annual data: only from 10-K filings, full year
+                    if form != "10-K" or fp != "FY":
+                        continue
+                    if end not in vals or filed > vals[end][1]:
+                        vals[end] = (val, filed)
+
+                elif form_filter == "10-Q":
+                    if quarterly_income:
+                        # Income statement: need individual quarter values
+                        # Use frame field: "CY2024Q1" = 3-month value
+                        if frame and re.match(r"CY\d{4}Q\d$", frame):
+                            if end not in vals or filed > vals[end][1]:
+                                vals[end] = (val, filed)
+                        elif fp in ("Q1", "Q2", "Q3", "Q4") and form == "10-Q":
+                            # Fallback: use 10-Q entries if no frame-based data
+                            if end not in vals or filed > vals[end][1]:
+                                vals[end] = (val, filed)
+                    else:
+                        # Balance sheet: point-in-time from 10-Q and 10-K
+                        if form in ("10-Q",) and fp in ("Q1", "Q2", "Q3", "Q4"):
+                            if end not in vals or filed > vals[end][1]:
+                                vals[end] = (val, filed)
+
+            if vals:
+                rows[display_name] = {k: v[0] for k, v in vals.items()}
+                break  # Found data for this metric
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows).T
+    df.columns = pd.to_datetime(df.columns)
+    df = df.sort_index(axis=1, ascending=False)  # Most recent first
+
+    # Compute derived fields
+    if "Total Non Current Assets" in tag_map and "Total Non Current Assets" not in df.index:
+        if "Total Assets" in df.index and "Current Assets" in df.index:
+            nca = df.loc["Total Assets"] - df.loc["Current Assets"]
+            df.loc["Total Non Current Assets"] = nca
+
+    if "Total Non Current Liabilities Net Minority Interest" in tag_map:
+        if "Total Non Current Liabilities Net Minority Interest" not in df.index:
+            if "Total Liabilities Net Minority Interest" in df.index and "Current Liabilities" in df.index:
+                ncl = df.loc["Total Liabilities Net Minority Interest"] - df.loc["Current Liabilities"]
+                df.loc["Total Non Current Liabilities Net Minority Interest"] = ncl
+
+    return df
+
+
+# ─── Node label → metric mapping ─────────────────────────────────────────
+# Maps the display name in each Sankey node to the DataFrame row key.
 # Used to pull historical time-series when a user clicks a node.
 
 INCOME_NODE_METRICS = {
@@ -248,178 +485,34 @@ def _get_historical_series(df, yf_key):
     return None
 
 
-# ─── Extended Yahoo Finance timeseries API (gets 10+ years of history) ───
-_TIMESERIES_INCOME_FIELDS = [
-    "TotalRevenue", "CostOfRevenue", "GrossProfit",
-    "ResearchAndDevelopment", "SellingGeneralAndAdministration",
-    "ReconciledDepreciation", "OtherOperatingExpenses",
-    "OperatingIncome", "InterestExpense", "PretaxIncome",
-    "TaxProvision", "NetIncome", "OperatingExpense",
-    "InterestExpenseNonOperating", "OtherIncomeExpense",
-    "EBIT", "EBITDA", "BasicEPS", "DilutedEPS",
-]
-_TIMESERIES_BALANCE_FIELDS = [
-    "TotalAssets", "CurrentAssets", "TotalNonCurrentAssets",
-    "CashAndCashEquivalents", "OtherShortTermInvestments",
-    "AccountsReceivable", "Inventory", "NetPPE", "Goodwill",
-    "OtherIntangibleAssets", "InvestmentsAndAdvances",
-    "TotalLiabilitiesNetMinorityInterest", "CurrentLiabilities",
-    "TotalNonCurrentLiabilitiesNetMinorityInterest",
-    "AccountsPayable", "CurrentDebt", "CurrentDeferredRevenue",
-    "LongTermDebt", "StockholdersEquity", "RetainedEarnings",
-    "TotalDebt", "NetDebt", "OrdinarySharesNumber",
-    "ShareIssued", "TangibleBookValue", "WorkingCapital",
-]
-
-
-def _fetch_yahoo_timeseries(ticker, fields, freq="annual"):
-    """Fetch extended history directly from Yahoo Finance timeseries API.
-
-    Uses period1=0 to request ALL available history (often 10-20+ years),
-    bypassing yfinance's default 4-year limit.
-    """
-    prefix = "annual" if freq == "annual" else "quarterly"
-    type_fields = ",".join(f"{prefix}{f}" for f in fields)
-    now = int(_time.time())
-    url = (
-        "https://query2.finance.yahoo.com/ws/fundamentals-timeseries"
-        f"/v1/finance/timeseries/{ticker}"
-        f"?symbol={ticker}&type={type_fields}&period1=0&period2={now}"
-    )
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
-    }
-    resp = requests.get(url, headers=headers, timeout=15)
-    resp.raise_for_status()
-    data = resp.json()
-
-    result = {}
-    for item in data.get("timeseries", {}).get("result", []):
-        meta_type = item.get("meta", {}).get("type", [])
-        if not meta_type:
-            continue
-        type_name = meta_type[0]
-        # Remove "annual" / "quarterly" prefix to get clean field name
-        field_name = type_name[len(prefix):]
-        values_list = item.get(type_name, [])
-        if not values_list:
-            continue
-        series_data = {}
-        for v in values_list:
-            date_str = v.get("asOfDate")
-            raw_val = v.get("reportedValue", {}).get("raw")
-            if date_str and raw_val is not None:
-                series_data[date_str] = raw_val
-        if series_data:
-            result[field_name] = series_data
-
-    if not result:
-        return None
-    df = pd.DataFrame(result).T
-    df.columns = pd.to_datetime(df.columns)
-    df = df.sort_index(axis=1)
-    return df
-
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_quarterly_data(ticker: str):
-    """Fetch quarterly income & balance sheet for historical XY charts.
-
-    Tries Yahoo Finance timeseries API directly (more history),
-    falls back to yfinance if that fails.
-    """
-    q_income, q_balance = None, None
+    """Fetch quarterly income & balance sheet from SEC EDGAR for historical charts."""
     try:
-        q_income = _fetch_yahoo_timeseries(ticker, _TIMESERIES_INCOME_FIELDS, freq="quarterly")
-        q_balance = _fetch_yahoo_timeseries(ticker, _TIMESERIES_BALANCE_FIELDS, freq="quarterly")
+        cik = _ticker_to_cik(ticker)
+        if not cik:
+            return pd.DataFrame(), pd.DataFrame()
+        facts = _fetch_edgar_facts(cik)
+        q_income = _edgar_build_df(facts, _XBRL_INCOME_TAGS, form_filter="10-Q", quarterly_income=True)
+        q_balance = _edgar_build_df(facts, _XBRL_BALANCE_TAGS, form_filter="10-Q", quarterly_income=False)
+        return q_income, q_balance
     except Exception:
-        pass
-
-    if q_income is None or (hasattr(q_income, 'empty') and q_income.empty):
-        stock = yf.Ticker(ticker)
-        try:
-            q_income = stock.get_income_stmt(freq="quarterly")
-        except Exception:
-            q_income = stock.quarterly_financials
-
-    if q_balance is None or (hasattr(q_balance, 'empty') and q_balance.empty):
-        stock = yf.Ticker(ticker)
-        try:
-            q_balance = stock.get_balance_sheet(freq="quarterly")
-        except Exception:
-            q_balance = stock.quarterly_balance_sheet
-
-    return q_income, q_balance
+        return pd.DataFrame(), pd.DataFrame()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_annual_data(ticker: str):
-    """Fetch annual income & balance sheet for historical XY charts.
-
-    Tries Yahoo Finance timeseries API directly with period1=0 to get
-    maximum available history (often 10+ years). Falls back to yfinance
-    if that fails (~4 years).
-    """
-    a_income, a_balance = None, None
+    """Fetch annual income & balance sheet from SEC EDGAR for historical charts."""
     try:
-        a_income = _fetch_yahoo_timeseries(ticker, _TIMESERIES_INCOME_FIELDS, freq="annual")
-        a_balance = _fetch_yahoo_timeseries(ticker, _TIMESERIES_BALANCE_FIELDS, freq="annual")
+        cik = _ticker_to_cik(ticker)
+        if not cik:
+            return pd.DataFrame(), pd.DataFrame()
+        facts = _fetch_edgar_facts(cik)
+        a_income = _edgar_build_df(facts, _XBRL_INCOME_TAGS, form_filter="10-K")
+        a_balance = _edgar_build_df(facts, _XBRL_BALANCE_TAGS, form_filter="10-K")
+        return a_income, a_balance
     except Exception:
-        pass
-
-    if a_income is None or (hasattr(a_income, 'empty') and a_income.empty):
-        stock = yf.Ticker(ticker)
-        try:
-            a_income = stock.get_income_stmt(freq="yearly")
-        except Exception:
-            a_income = stock.financials
-
-    if a_balance is None or (hasattr(a_balance, 'empty') and a_balance.empty):
-        stock = yf.Ticker(ticker)
-        try:
-            a_balance = stock.get_balance_sheet(freq="yearly")
-        except Exception:
-            a_balance = stock.balance_sheet
-
-    return a_income, a_balance
-
-
-# Fallback field names: if the primary yf_key doesn't match, try alternatives.
-# This handles differences between yfinance versions and ticker-specific quirks.
-_YF_ALTERNATIVES = {
-    "Research And Development":    ["Research Development", "ResearchAndDevelopment"],
-    "Selling General And Administration": ["Selling General Administrative",
-                                            "Selling General And Administrative",
-                                            "SellingGeneralAndAdministration"],
-    "Reconciled Depreciation":     ["Depreciation And Amortization",
-                                    "DepreciationAndAmortization"],
-    "Other Operating Expenses":    ["Other Operating Expense", "OtherOperatingExpenses"],
-    "Other Short Term Investments": ["Short Term Investments",
-                                     "OtherShortTermInvestments"],
-    "Other Intangible Assets":     ["Intangible Assets", "IntangibleAssets",
-                                    "OtherIntangibleAssets"],
-    "Net PPE":                     ["Property Plant Equipment",
-                                    "PropertyPlantEquipment", "NetPPE"],
-    "Investments And Advances":    ["Long Term Equity Investment",
-                                    "InvestmentsAndAdvances"],
-    "Total Liabilities Net Minority Interest": ["Total Liab",
-                                                 "TotalLiabilitiesNetMinorityInterest"],
-    "Current Debt":                ["Short Long Term Debt", "CurrentDebt"],
-    "Stockholders Equity":         ["Total Stockholders Equity",
-                                    "StockholdersEquity"],
-    "Accounts Receivable":         ["Receivables", "AccountsReceivable"],
-    "Total Non Current Liabilities Net Minority Interest": [
-        "TotalNonCurrentLiabilitiesNetMinorityInterest",
-        "Non Current Liabilities"],
-    "Interest Expense":            ["InterestExpense", "Interest Expense Non Operating"],
-    "Tax Provision":               ["TaxProvision", "Income Tax Expense"],
-    "Cash And Cash Equivalents":   ["CashAndCashEquivalents", "Cash"],
-    "Current Deferred Revenue":    ["CurrentDeferredRevenue", "Deferred Revenue"],
-}
+        return pd.DataFrame(), pd.DataFrame()
 
 
 def _show_metric_popup(ticker, node_label, view):
@@ -486,7 +579,6 @@ def _show_metric_popup(ticker, node_label, view):
                             type="primary" if st.session_state[freq_key] == lbl else "secondary",
                             use_container_width=True):
                 st.session_state[freq_key] = lbl
-                st.rerun()
 
     # Render period selector
     period_cols = st.columns([1, 3, 1])
@@ -497,7 +589,6 @@ def _show_metric_popup(ticker, node_label, view):
                             type="primary" if st.session_state[period_key] == lbl else "secondary",
                             use_container_width=True):
                 st.session_state[period_key] = lbl
-                st.rerun()
 
     freq = st.session_state[freq_key]
     period = st.session_state[period_key]
@@ -515,13 +606,6 @@ def _show_metric_popup(ticker, node_label, view):
         tick_dt = "M12"
 
     series = _get_historical_series(src_df, yf_key)
-
-    # Try alternative field names if primary key didn't match
-    if series is None or series.empty:
-        for alt_key in _YF_ALTERNATIVES.get(yf_key, []):
-            series = _get_historical_series(src_df, alt_key)
-            if series is not None and not series.empty:
-                break
 
     if series is None or series.empty:
         st.warning(f"No {freq_label.lower()} data available for **{clean_label}**.")
@@ -831,7 +915,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 ax.tick_params(axis="x", length=0)
 
                 fig.text(0.5, 0.01,
-                         f"OpenSankey  \u00b7  Yahoo Finance data  \u00b7  {ticker}",
+                         f"OpenSankey  \u00b7  SEC EDGAR data  \u00b7  {ticker}",
                          ha="center", va="bottom", fontsize=8, color="#94a3b8")
                 pdf.savefig(fig, facecolor="white", dpi=150)
                 plt.close(fig)
@@ -940,7 +1024,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 ax.tick_params(axis="x", labelsize=9, colors="#64748b")
 
                 fig.text(0.5, 0.01,
-                         f"OpenSankey  \u00b7  Yahoo Finance data  \u00b7  {ticker}",
+                         f"OpenSankey  \u00b7  SEC EDGAR data  \u00b7  {ticker}",
                          ha="center", va="bottom", fontsize=8, color="#94a3b8")
                 pdf.savefig(fig, facecolor="white", dpi=150)
                 plt.close(fig)
@@ -953,29 +1037,18 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_sankey_data(ticker: str):
-    """Fetch income statement, balance sheet data for Sankey diagrams."""
+    """Fetch income statement & balance sheet data from SEC EDGAR for Sankey diagrams."""
     try:
-        stock = yf.Ticker(ticker)
-        income = stock.financials
-        balance = stock.balance_sheet
-        info = stock.info or {}
+        cik = _ticker_to_cik(ticker)
+        if not cik:
+            return pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
+        facts = _fetch_edgar_facts(cik)
+        entity_name = facts.get("entityName", ticker.upper())
+        income = _edgar_build_df(facts, _XBRL_INCOME_TAGS, form_filter="10-K")
+        balance = _edgar_build_df(facts, _XBRL_BALANCE_TAGS, form_filter="10-K")
+        info = {"shortName": entity_name, "longName": entity_name}
         return income, balance, info
-    except Exception as e:
-        # Handle rate limit and other yfinance errors gracefully
-        import time
-        error_msg = str(e).lower()
-        if "rate" in error_msg or "limit" in error_msg or "too many" in error_msg:
-            # Wait briefly then retry once
-            time.sleep(2)
-            try:
-                stock = yf.Ticker(ticker)
-                income = stock.financials
-                balance = stock.balance_sheet
-                info = stock.info or {}
-                return income, balance, info
-            except Exception:
-                pass
-        # Return empty data on failure
+    except Exception:
         return pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
 
 
@@ -1663,7 +1736,7 @@ def render_sankey_page():
     if income_df.empty and balance_df.empty:
         income_df, balance_df, info = _get_demo_data(ticker)
         using_demo = True
-        st.info(f"📊 Showing sample data for **{ticker.upper()}** — Yahoo Finance is temporarily rate-limiting requests. Refresh in a minute for live data.")
+        st.info(f"📊 Showing sample data for **{ticker.upper()}** — SEC EDGAR data is temporarily unavailable. Refresh in a minute for live data.")
 
     company_name = info.get("shortName", info.get("longName", ticker))
 
@@ -1770,7 +1843,7 @@ def render_sankey_page():
         else:
             st.warning(f"No income statement data available for {ticker}.")
 
-        st.caption(f"📊 OpenSankey · Yahoo Finance data · {ticker}")
+        st.caption(f"📊 OpenSankey · SEC EDGAR data · {ticker}")
 
     elif sankey_view == "balance":
         # ── KPI Metric Cards for Balance Sheet ──
@@ -1806,4 +1879,4 @@ def render_sankey_page():
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
 
-        st.caption(f"📊 OpenSankey · Yahoo Finance data · {ticker}")
+        st.caption(f"📊 OpenSankey · SEC EDGAR data · {ticker}")
