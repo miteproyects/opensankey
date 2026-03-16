@@ -354,15 +354,14 @@ def _sec_get_income_statement(ticker: str, quarterly: bool = True) -> pd.DataFra
 
 
 def _sec_get_balance_sheet(ticker: str, quarterly: bool = True) -> pd.DataFrame:
-    """Fetch balance sheet from SEC EDGAR."""
+    """Fetch balance sheet from SEC EDGAR v2."""
     facts = _sec_fetch_company_facts(ticker)
     if facts is None:
         return pd.DataFrame()
     return _sec_extract_facts(facts, _SEC_BS_MAP, quarterly=quarterly, instantaneous=True)
 
 
-def _sec_get_cash_flow(ticker: str, quarterly: bool = True) -> pd.DataFrame:
-    """Fetch cash flow statement from SEC EDGAR."""
+def _sec_get_cash_flow(ticker: str, quarterly: bool = True) -> pd.DataFram    """Fetch cash flow statement from SEC EDGAR v2.""""""
     facts = _sec_fetch_company_facts(ticker)
     if facts is None:
         return pd.DataFrame()
@@ -1410,7 +1409,7 @@ _INCOME_MAP: Dict[str, List[str]] = {
 def get_income_statement(ticker: str, quarterly: bool = True) -> pd.DataFrame:
     """Return a chart-ready income statement DataFrame (period × metrics).
 
-    Data source priority: SEC EDGAR → FMP → yfinance.
+    """Return a chart-ready income statement DataFrame (period x metrics). v2
     """
     # 1) SEC EDGAR (free, no API key, authoritative SEC data, 20+ quarters)
     try:
