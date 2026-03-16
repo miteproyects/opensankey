@@ -315,10 +315,15 @@ def _sec_extract_facts(
                 for metric, annual_val in annual_vals.items():
                     if metric in records[q4_label]:
                         continue
-                    q1_val = q1.get(metric, 0.0)
-                    q2_val = q2.get(metric, 0.0)
-                    q3_val = q3.get(metric, 0.0)
-                    # Only compute Q4 if at least Q1-Q3 sum is plausible
+                    # Only derive Q4 if the metric exists in ALL of Q1, Q2, Q3.
+                    # If any quarter is missing this metric, the subtraction
+                    # Annual - (Q1+Q2+Q3) would be wrong (defaulting to 0
+                    # inflates Q4 with the full annual value).
+                    if metric not in q1 or metric not in q2 or metric not in q3:
+                        continue
+                    q1_val = q1[metric]
+                    q2_val = q2[metric]
+                    q3_val = q3[metric]
                     q_sum = q1_val + q2_val + q3_val
                     q4_val = annual_val - q_sum
                     records[q4_label][metric] = q4_val
