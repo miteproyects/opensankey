@@ -9,7 +9,6 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
-import yfinance as yf
 from typing import Optional, List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 
@@ -84,21 +83,8 @@ def _color_for_value(val: Optional[float], is_growth: bool = False) -> str:
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def _fetch_candlestick_data(ticker: str, period: str = "3mo") -> Optional[pd.DataFrame]:
-    """Fetch OHLCV data for candlestick chart (cached separately from figure)."""
-    interval_map = {
-        "1d": "5m", "5d": "15m", "1mo": "1h", "3mo": "1d",
-        "6mo": "1d", "ytd": "1d", "1y": "1d", "5y": "1wk", "max": "1mo",
-    }
-    interval = interval_map.get(period, "1d")
-    try:
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period=period, interval=interval)
-        if hist.empty:
-            return None
-        hist = hist.reset_index()
-        return hist
-    except Exception:
-        return None
+    """Candlestick data not available from SEC EDGAR (no real-time price data)."""
+    return None
 
 
 def _fetch_candlestick_chart(ticker: str, period: str = "3mo") -> Optional[go.Figure]:
@@ -232,8 +218,7 @@ def render_profile_page(ticker: str) -> None:
     </style>""", unsafe_allow_html=True)
 
     # Fetch all data in PARALLEL to reduce cold-load time
-    # (each function is individually cached for 1hr, but on first load they
-    #  all hit yfinance sequentially — parallelising cuts cold load ~3-4×)
+    # (all data from SEC EDGAR — parallelising cuts cold load ~3-4×)
     with ThreadPoolExecutor(max_workers=8) as pool:
         fut_company   = pool.submit(get_company_description, ticker)
         fut_fund      = pool.submit(get_fundamentals, ticker)
@@ -242,9 +227,6 @@ def render_profile_page(ticker: str) -> None:
         fut_own       = pool.submit(get_ownership_data, ticker)
         fut_insider   = pool.submit(get_insider_trades, ticker)
         fut_score     = pool.submit(get_score, ticker)
-        # Also pre-fetch the default candlestick data
-        _default_period = st.session_state.get("chart_period", "3mo")
-        fut_candle    = pool.submit(_fetch_candlestick_data, ticker, _default_period)
 
     company_data   = fut_company.result()
     fundamentals   = fut_fund.result()
@@ -253,7 +235,6 @@ def render_profile_page(ticker: str) -> None:
     ownership_data = fut_own.result()
     insider_trades = fut_insider.result()
     score          = fut_score.result()
-    # candle data is now warm in cache for when the chart renders below
 
     # ─────────────────────────────────────────────────────────────────────────
     # 1. Company Header
