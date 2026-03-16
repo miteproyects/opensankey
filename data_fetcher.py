@@ -213,11 +213,7 @@ def _sec_extract_facts(
     records: Dict[str, Dict[str, float]] = {}
     # Also collect annual data for Q4 derivation
     annual_records: Dict[str, Dict[str, float]] = {}
-    seen_metrics: set = set()
-
     for concept_name, friendly_name in field_map.items():
-        if friendly_name in seen_metrics:
-            continue
         concept_data = us_gaap.get(concept_name)
         if not concept_data:
             continue
@@ -227,7 +223,6 @@ def _sec_extract_facts(
         if not entries:
             continue
 
-        found_any = False
         for entry in entries:
             frame = entry.get("frame", "")
             if not frame:
@@ -260,15 +255,13 @@ def _sec_extract_facts(
                         records[label] = {}
                     if friendly_name not in records[label]:
                         records[label][friendly_name] = val
-                        found_any = True
                 elif m_a:
                     year = m_a.group(1)
                     if year not in annual_records:
                         annual_records[year] = {}
                     if friendly_name not in annual_records[year]:
                         annual_records[year][friendly_name] = val
-                        found_any = True
-            else:
+                else:
                 # Annual mode
                 if instantaneous:
                     if not _re.match(r"^CY\d{4}I$", frame):
@@ -283,10 +276,6 @@ def _sec_extract_facts(
                     records[label] = {}
                 if friendly_name not in records[label]:
                     records[label][friendly_name] = val
-                    found_any = True
-
-        if found_any:
-            seen_metrics.add(friendly_name)
 
     # --- Derive Q4 from annual data for years missing Q4 ---
     if quarterly and annual_records:
@@ -336,6 +325,14 @@ def _sec_extract_facts(
 
     # Sort ascending
     df = _sort_df_chronological(df)
+
+    # Compute Gross Profit from Revenue - Cost Of Revenue where missing
+    if "Revenue" in df.columns and "Cost Of Revenue" in df.columns:
+        if "Gross Profit" not in df.columns:
+            df["Gross Profit"] = df["Revenue"] - df["Cost Of Revenue"]
+        else:
+            mask = df["Gross Profit"].isna() & df["Revenue"].notna() & df["Cost Of Revenue"].notna()
+            df.loc[mask, "Gross Profit"] = df.loc[mask, "Revenue"] - df.loc[mask, "Cost Of Revenue"]
 
     # Compute Free CF if we have Operating CF and CapEx
     if "Operating CF" in df.columns and "CapEx" in df.columns and "Free CF" not in df.columns:
