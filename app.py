@@ -874,6 +874,11 @@ if _qp_page in ("profile", "charts", "earnings", "watchlist", "sankey", "login",
     st.session_state.page = _qp_page
 elif "page" not in st.session_state:
     st.session_state.page = "charts"
+# Always keep URL in sync so browser refresh preserves the current page
+_sync_page = st.session_state.page
+_sync_ticker = st.session_state.ticker
+if st.query_params.get("page") != _sync_page or st.query_params.get("ticker") != _sync_ticker:
+    st.query_params.update({"page": _sync_page, "ticker": _sync_ticker})
 if "quarterly" not in st.session_state:
     st.session_state.quarterly = True
 if "timeframe" not in st.session_state:
@@ -1627,7 +1632,7 @@ with st.sidebar:
     if submitted and new_ticker and new_ticker != st.session_state.ticker:
         if validate_ticker(new_ticker):
             st.session_state.ticker = new_ticker
-            st.query_params["ticker"] = new_ticker
+            st.query_params.update({"page": st.session_state.page, "ticker": new_ticker})
             st.rerun()
         else:
             st.error(f"'{new_ticker}' not found.")
