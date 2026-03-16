@@ -1587,7 +1587,27 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-
+# ── Sidebar expand click handler (must load with nav bar, not at page end) ──
+components.html("""<script>
+(function() {
+    var doc = window.parent.document;
+    if (!doc || !doc.body) return;
+    if (doc.body._osSidebarClick) return;   // already bound
+    doc.body._osSidebarClick = true;
+    doc.body.addEventListener('click', function(e) {
+        var btn = e.target.closest('#navExpandSidebar');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        // New Streamlit: stExpandSidebarButton
+        var eb = doc.querySelector('[data-testid="stExpandSidebarButton"]');
+        if (eb) { eb.click(); return; }
+        // Legacy Streamlit: stSidebarCollapsedControl
+        var ctrl = doc.querySelector('[data-testid="stSidebarCollapsedControl"] button');
+        if (ctrl) { ctrl.click(); }
+    });
+})();
+</script>""", height=0)
 
 # Sync parent (Streamlit Cloud wrapper) URL with the iframe URL so that
 # browser refresh preserves the current page.  The Streamlit app runs inside
@@ -2226,28 +2246,8 @@ components.html("""
     });
     observer.observe(doc.body, { childList: true, subtree: true });
 
-    // ---- Sidebar expand/collapse via event delegation on body ----
-    // Event delegation survives Streamlit re-renders because the body
-    // element is never replaced.  Any click on #navExpandSidebar (even
-    // a freshly-recreated button) is caught automatically.
-    if (!doc.body._osSidebarDelegation) {
-        doc.body._osSidebarDelegation = true;
-        doc.body.addEventListener('click', function(e) {
-            var btn = e.target.closest('#navExpandSidebar');
-            if (!btn) return;
-            e.preventDefault();
-            e.stopPropagation();
-            // New Streamlit: stExpandSidebarButton (a <button> inside hidden stHeader)
-            var expandBtn = doc.querySelector('[data-testid="stExpandSidebarButton"]');
-            if (expandBtn) { expandBtn.click(); return; }
-            // Legacy Streamlit: stSidebarCollapsedControl
-            var ctrl = doc.querySelector('[data-testid="stSidebarCollapsedControl"] button');
-            if (ctrl) { ctrl.click(); return; }
-        });
-    }
-
-    // syncSidebarBtn & initSidebarBtn no longer needed —
-    // CSS :has() handles visibility, event delegation handles clicks.
+    // Sidebar click handler is in a separate early-loading components.html
+    // near the nav bar (not here) so it loads before the page finishes.
 })();
 </script>
 """, height=0)
