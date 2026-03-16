@@ -10,6 +10,8 @@ import yfinance as yf
 import pandas as pd
 from io import BytesIO
 import numpy as np
+import requests
+import time as _time
 
 # âââ Demo / sample data for when Yahoo Finance is rate-limited âââââââââââââ
 def _get_demo_data(ticker: str):
@@ -246,21 +248,111 @@ def _get_historical_series(df, yf_key):
     return None
 
 
+# âââ Extended Yahoo Finance timeseries API (gets 10+ years of history) âââ
+_TIMESERIES_INCOME_FIELDS = [
+    "TotalRevenue", "CostOfRevenue", "GrossProfit",
+    "ResearchAndDevelopment", "SellingGeneralAndAdministration",
+    "ReconciledDepreciation", "OtherOperatingExpenses",
+    "OperatingIncome", "InterestExpense", "PretaxIncome",
+    "TaxProvision", "NetIncome", "OperatingExpense",
+    "InterestExpenseNonOperating", "OtherIncomeExpense",
+    "EBIT", "EBITDA", "BasicEPS", "DilutedEPS",
+]
+_TIMESERIES_BALANCE_FIELDS = [
+    "TotalAssets", "CurrentAssets", "TotalNonCurrentAssets",
+    "CashAndCashEquivalents", "OtherShortTermInvestments",
+    "AccountsReceivable", "Inventory", "NetPPE", "Goodwill",
+    "OtherIntangibleAssets", "InvestmentsAndAdvances",
+    "TotalLiabilitiesNetMinorityInterest", "CurrentLiabilities",
+    "TotalNonCurrentLiabilitiesNetMinorityInterest",
+    "AccountsPayable", "CurrentDebt", "CurrentDeferredRevenue",
+    "LongTermDebt", "StockholdersEquity", "RetainedEarnings",
+    "TotalDebt", "NetDebt", "OrdinarySharesNumber",
+    "ShareIssued", "TangibleBookValue", "WorkingCapital",
+]
+
+
+def _fetch_yahoo_timeseries(ticker, fields, freq="annual"):
+    """Fetch extended history directly from Yahoo Finance timeseries API.
+
+    Uses period1=0 to request ALL available history (often 10-20+ years),
+    bypassing yfinance's default 4-year limit.
+    """
+    prefix = "annual" if freq == "annual" else "quarterly"
+    type_fields = ",".join(f"{prefix}{f}" for f in fields)
+    now = int(_time.time())
+    url = (
+        "https://query2.finance.yahoo.com/ws/fundamentals-timeseries"
+        f"/v1/finance/timeseries/{ticker}"
+        f"?symbol={ticker}&type={type_fields}&period1=0&period2={now}"
+    )
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+    resp = requests.get(url, headers=headers, timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+
+    result = {}
+    for item in data.get("timeseries", {}).get("result", []):
+        meta_type = item.get("meta", {}).get("type", [])
+        if not meta_type:
+            continue
+        type_name = meta_type[0]
+        # Remove "annual" / "quarterly" prefix to get clean field name
+        field_name = type_name[len(prefix):]
+        values_list = item.get(type_name, [])
+        if not values_list:
+            continue
+        series_data = {}
+        for v in values_list:
+            date_str = v.get("asOfDate")
+            raw_val = v.get("reportedValue", {}).get("raw")
+            if date_str and raw_val is not None:
+                series_data[date_str] = raw_val
+        if series_data:
+            result[field_name] = series_data
+
+    if not result:
+        return None
+    df = pd.DataFrame(result).T
+    df.columns = pd.to_datetime(df.columns)
+    df = df.sort_index(axis=1)
+    return df
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_quarterly_data(ticker: str):
     """Fetch quarterly income & balance sheet for historical XY charts.
 
-    Uses get_income_stmt / get_balance_sheet with the timeseries endpoint
-    which returns significantly more historical quarters than the legacy
-    .quarterly_financials property (often 20+ quarters vs ~5).
+    Tries Yahoo Finance timeseries API directly (more history),
+    falls back to yfinance if that fails.
     """
-    stock = yf.Ticker(ticker)
+    q_income, q_balance = None, None
     try:
-        q_income = stock.get_income_stmt(freq="quarterly")
-        q_balance = stock.get_balance_sheet(freq="quarterly")
+        q_income = _fetch_yahoo_timeseries(ticker, _TIMESERIES_INCOME_FIELDS, freq="quarterly")
+        q_balance = _fetch_yahoo_timeseries(ticker, _TIMESERIES_BALANCE_FIELDS, freq="quarterly")
     except Exception:
-        q_income = stock.quarterly_financials
-        q_balance = stock.quarterly_balance_sheet
+        pass
+
+    if q_income is None or (hasattr(q_income, 'empty') and q_income.empty):
+        stock = yf.Ticker(ticker)
+        try:
+            q_income = stock.get_income_stmt(freq="quarterly")
+        except Exception:
+            q_income = stock.quarterly_financials
+
+    if q_balance is None or (hasattr(q_balance, 'empty') and q_balance.empty):
+        stock = yf.Ticker(ticker)
+        try:
+            q_balance = stock.get_balance_sheet(freq="quarterly")
+        except Exception:
+            q_balance = stock.quarterly_balance_sheet
+
     return q_income, q_balance
 
 
@@ -268,17 +360,31 @@ def _fetch_quarterly_data(ticker: str):
 def _fetch_annual_data(ticker: str):
     """Fetch annual income & balance sheet for historical XY charts.
 
-    Uses get_income_stmt / get_balance_sheet with the timeseries endpoint
-    which returns significantly more historical years than the legacy
-    .financials property (often 10+ years vs ~4).
+    Tries Yahoo Finance timeseries API directly with period1=0 to get
+    maximum available history (often 10+ years). Falls back to yfinance
+    if that fails (~4 years).
     """
-    stock = yf.Ticker(ticker)
+    a_income, a_balance = None, None
     try:
-        a_income = stock.get_income_stmt(freq="yearly")
-        a_balance = stock.get_balance_sheet(freq="yearly")
+        a_income = _fetch_yahoo_timeseries(ticker, _TIMESERIES_INCOME_FIELDS, freq="annual")
+        a_balance = _fetch_yahoo_timeseries(ticker, _TIMESERIES_BALANCE_FIELDS, freq="annual")
     except Exception:
-        a_income = stock.financials
-        a_balance = stock.balance_sheet
+        pass
+
+    if a_income is None or (hasattr(a_income, 'empty') and a_income.empty):
+        stock = yf.Ticker(ticker)
+        try:
+            a_income = stock.get_income_stmt(freq="yearly")
+        except Exception:
+            a_income = stock.financials
+
+    if a_balance is None or (hasattr(a_balance, 'empty') and a_balance.empty):
+        stock = yf.Ticker(ticker)
+        try:
+            a_balance = stock.get_balance_sheet(freq="yearly")
+        except Exception:
+            a_balance = stock.balance_sheet
+
     return a_income, a_balance
 
 
@@ -322,7 +428,246 @@ def _show_metric_popup(ticker, node_label, view):
     # Determine which mapping to use
     metric_map = INCOME_NODE_METRICS if view == "income" else BALANCE_NODE_METRICS
 
-    clean_label = node_label.split("<br>")[0] i_pdf import PdfPages
+    clean_label = node_label.split("<br>")[0] if "<br>" in node_label else node_label
+    yf_key = metric_map.get(clean_label)
+    if not yf_key:
+        return
+
+    # ââ Inject custom CSS for the timeframe buttons ââ
+    st.markdown("""
+    <style>
+    .tf-row {
+        display: flex; gap: 0; border-radius: 12px; overflow: hidden;
+        border: 2px solid #3b82f6; width: fit-content; margin: 0 auto 6px;
+    }
+    .tf-btn {
+        padding: 10px 28px; font-size: 0.95rem; font-weight: 600;
+        font-family: Inter, system-ui, sans-serif; cursor: pointer;
+        border: none; transition: all 0.15s ease;
+        background: #fff; color: #3b82f6;
+    }
+    .tf-btn.active { background: #3b82f6; color: #fff; }
+    .tf-btn:not(:last-child) { border-right: 2px solid #3b82f6; }
+    .pd-row {
+        display: flex; gap: 0; border-radius: 10px; overflow: hidden;
+        border: 2px solid #3b82f6; width: fit-content; margin: 0 auto 10px;
+    }
+    .pd-btn {
+        padding: 8px 24px; font-size: 0.85rem; font-weight: 600;
+        font-family: Inter, system-ui, sans-serif; cursor: pointer;
+        border: none; transition: all 0.15s ease;
+        background: #fff; color: #3b82f6;
+    }
+    .pd-btn.active { background: #3b82f6; color: #fff; }
+    .pd-btn:not(:last-child) { border-right: 2px solid #3b82f6; }
+    @media (max-width: 480px) {
+        .tf-btn { padding: 8px 18px; font-size: 0.82rem; }
+        .pd-btn { padding: 6px 16px; font-size: 0.78rem; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ââ Frequency toggle: Quarterly / Annual ââ
+    freq_key = f"tf_freq_{view}_{clean_label}"
+    if freq_key not in st.session_state:
+        st.session_state[freq_key] = "Quarterly"
+
+    # ââ Period toggle: 1Y / 2Y / 4Y / MAX ââ
+    period_key = f"tf_period_{view}_{clean_label}"
+    if period_key not in st.session_state:
+        st.session_state[period_key] = "4Y"
+
+    # Render frequency toggle
+    freq_cols = st.columns([1, 2, 1])
+    with freq_cols[1]:
+        fc = st.columns(2)
+        for i, lbl in enumerate(["Quarterly", "Annual"]):
+            if fc[i].button(lbl, key=f"{freq_key}_{lbl}",
+                            type="primary" if st.session_state[freq_key] == lbl else "secondary",
+                            use_container_width=True):
+                st.session_state[freq_key] = lbl
+                st.rerun()
+
+    # Render period selector
+    period_cols = st.columns([1, 3, 1])
+    with period_cols[1]:
+        pc = st.columns(4)
+        for i, lbl in enumerate(["1Y", "2Y", "4Y", "MAX"]):
+            if pc[i].button(lbl, key=f"{period_key}_{lbl}",
+                            type="primary" if st.session_state[period_key] == lbl else "secondary",
+                            use_container_width=True):
+                st.session_state[period_key] = lbl
+                st.rerun()
+
+    freq = st.session_state[freq_key]
+    period = st.session_state[period_key]
+
+    # ââ Fetch data based on frequency ââ
+    if freq == "Quarterly":
+        q_income, q_balance = _fetch_quarterly_data(ticker)
+        src_df = q_income if view == "income" else q_balance
+        freq_label = "Quarterly"
+        tick_dt = "M3"
+    else:
+        a_income, a_balance = _fetch_annual_data(ticker)
+        src_df = a_income if view == "income" else a_balance
+        freq_label = "Annual"
+        tick_dt = "M12"
+
+    series = _get_historical_series(src_df, yf_key)
+
+    # Try alternative field names if primary key didn't match
+    if series is None or series.empty:
+        for alt_key in _YF_ALTERNATIVES.get(yf_key, []):
+            series = _get_historical_series(src_df, alt_key)
+            if series is not None and not series.empty:
+                break
+
+    if series is None or series.empty:
+        st.warning(f"No {freq_label.lower()} data available for **{clean_label}**.")
+        return
+
+    # ââ Filter by period ââ
+    if period != "MAX":
+        years = int(period.replace("Y", ""))
+        cutoff = pd.Timestamp.now() - pd.DateOffset(years=years)
+        series = series[series.index >= cutoff]
+
+    if series.empty:
+        st.warning(f"No {freq_label.lower()} data in selected period for **{clean_label}**.")
+        return
+
+    # Determine scale
+    max_val = series.abs().max()
+    if max_val >= 1e12:
+        divisor, suffix = 1e12, "T"
+    elif max_val >= 1e9:
+        divisor, suffix = 1e9, "B"
+    elif max_val >= 1e6:
+        divisor, suffix = 1e6, "M"
+    else:
+        divisor, suffix = 1, ""
+
+    scaled_values = [v / divisor for v in series.values]
+
+    period_label = "All Time" if period == "MAX" else f"Last {period}"
+
+    # Build chart
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=series.index,
+        y=scaled_values,
+        mode="lines+markers" if len(series) > 1 else "markers",
+        name=freq_label,
+        line=dict(color="#3b82f6", width=2.5),
+        marker=dict(size=8),
+        fill="tozeroy",
+        fillcolor="rgba(59,130,246,0.10)",
+        hovertemplate=f"%{{x|%b %Y}}<br>${{y:.2f}}{suffix}<extra></extra>",
+    ))
+
+    fig.update_layout(
+        title=dict(
+            text=f"{clean_label} â {freq_label} ({period_label})",
+            font=dict(size=16, family="Inter, sans-serif", color="#1e293b"),
+        ),
+        height=400,
+        margin=dict(l=60, r=20, t=50, b=40),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif", color="#475569"),
+        showlegend=False,
+        xaxis=dict(
+            showgrid=True, gridcolor="rgba(0,0,0,0.06)",
+            dtick=tick_dt, tickformat="%b\n%Y",
+        ),
+        yaxis=dict(
+            showgrid=True, gridcolor="rgba(0,0,0,0.06)",
+            tickprefix="$", ticksuffix=suffix,
+            tickformat=",.1f" if divisor >= 1e9 else ",.0f",
+            title=None,
+        ),
+        hovermode="x unified",
+    )
+
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key=f"hist_{freq}_{period}")
+
+
+def _inject_sankey_click_js(metric_map):
+    """Inject JS that bridges Sankey node clicks to the matching pill button.
+
+    When a user clicks a Sankey node, the JS extracts the node label,
+    finds the corresponding pill button in the parent document, and clicks it.
+    This triggers the existing st.pills â st.dialog flow.
+    """
+    # Build a JS set of valid pill labels for fast lookup
+    valid_labels = list(metric_map.keys())
+    labels_js = ", ".join(f'"{lbl}"' for lbl in valid_labels)
+
+    js = f"""
+    <script>
+    (function() {{
+        const VALID = new Set([{labels_js}]);
+        const parentDoc = window.parent.document;
+
+        function attach() {{
+            // Find all Plotly charts in parent
+            const plots = parentDoc.querySelectorAll('.js-plotly-plot');
+            if (!plots.length) return false;
+
+            let attached = false;
+            plots.forEach(function(plotDiv) {{
+                if (plotDiv._sankey_click_bound) return;
+                plotDiv.on('plotly_click', function(data) {{
+                    if (!data || !data.points || !data.points[0]) return;
+                    var pt = data.points[0];
+                    // Sankey nodes expose label; links expose source/target
+                    var raw = pt.label || '';
+                    // Strip value after <br>
+                    var label = raw.split('<br>')[0].replace(/\\n/g, '').trim();
+                    if (!label || !VALID.has(label)) return;
+
+                    // Find pill buttons (Streamlit renders them in [role=radiogroup])
+                    var btns = parentDoc.querySelectorAll('[role="radiogroup"] button');
+                    for (var i = 0; i < btns.length; i++) {{
+                        if (btns[i].textContent.trim() === label) {{
+                            btns[i].click();
+                            break;
+                        }}
+                    }}
+                }});
+                plotDiv._sankey_click_bound = true;
+                attached = true;
+            }});
+            return attached;
+        }}
+
+        // Retry until chart is rendered
+        if (!attach()) {{
+            var obs = new MutationObserver(function() {{
+                if (attach()) obs.disconnect();
+            }});
+            obs.observe(parentDoc.body, {{ childList: true, subtree: true }});
+            setTimeout(function() {{ obs.disconnect(); }}, 8000);
+        }}
+    }})();
+    </script>
+    """
+    components.html(js, height=0)
+
+
+def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
+    """Generate a professional PDF with waterfall / stacked-bar chart + KPI cards.
+
+    Income Statement  â waterfall chart showing Revenue â Net Income flow.
+    Balance Sheet     â stacked horizontal bars (Assets vs Liabilities & Equity).
+    Uses matplotlib only (no kaleido needed).  Returns PDF bytes.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    from matplotlib.backends.backend_pdf import PdfPages
     from matplotlib.ticker import FuncFormatter
     import numpy as np
 
@@ -548,222 +893,7 @@ def _show_metric_popup(ticker, node_label, view):
                 fig = plt.figure(figsize=(16, 9), facecolor="white")
                 fig.text(0.5, 0.96,
                          f"{company} ({ticker}) â Balance Sheet Breakdown",
-                         ha="center", va="top", fontsize=20, fontweight="bold",
-                         color="#0f172a")
-
-                _draw_kpi_row(fig, [
-                    ("Total Assets", total_assets), ("Total Liabilities", total_liab),
-                    ("Equity", equity), ("Cash", cash),
-                ])
-
-                ax = fig.add_axes([0.12, 0.08, 0.82, 0.72])
-                bar_h = 0.45
-                rows = [
-                    (asset_items, 1.0, "Assets"),
-                    (fund_items, 0.3, "Liabilities\n& Equity"),
-                ]
-                for items, y_pos, row_lbl in rows:
-                    left = 0
-                    for lbl, val, clr in items:
-                        ax.barh(y_pos, val, left=left, height=bar_h, color=clr,
-                                edgecolor="white", linewidth=1.5, zorder=3)
-                        mid = left + val / 2
-                        ratio = val / total_assets
-                        if ratio > 0.08:
-                            ax.text(mid, y_pos, f"{lbl}\n{_fmts(val)}",
-                                    ha="center", va="center",
-                                    fontsize=8, fontweight="bold", color="white",
-                                    zorder=4)
-                        elif ratio > 0.04:
-                            ax.text(mid, y_pos, _fmts(val), ha="center",
-                                    va="center", fontsize=7, fontweight="bold",
-                                    color="white", zorder=4)
-                        left += val
-                    ax.text(-total_assets * 0.01, y_pos, row_lbl, ha="right",
-                            va="center", fontsize=11, fontweight="bold",
-                            color="#374151")
-
-                ax.set_xlim(0, total_assets * 1.02)
-                ax.set_ylim(-0.1, 1.5)
-                ax.xaxis.set_major_formatter(FuncFormatter(_fmt_axis))
-                ax.set_yticks([])
-                ax.spines["top"].set_visible(False)
-                ax.spines["right"].set_visible(False)
-                ax.spines["left"].set_visible(False)
-                ax.spines["bottom"].set_color("#cbd5e1")
-                ax.grid(axis="x", alpha=0.12, zorder=1, color="#94a3b8")
-                ax.tick_params(axis="x", labelsize=9, colors="#64748b")
-
-                fig.text(0.5, 0.01,
-                         f"OpenSankey  \u00b7  Yahoo Finance data  \u00b7  {ticker}",
-                         ha="center", va="bottom", fontsize=8, color="#94a3b8")
-                pdf.savefig(fig, facecolor="white", dpi=150)
-                plt.close(fig)
-
-    except Exception:
-        return b""
-
-    return buf.getvalue()
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def _fetch_sankey_data(ticker: str):
-    """Fetch income statement, balance sheet data for Sankey diagrams."""
-    try:
-        stock = yf.Ticker(ticker)
-        income = stock.financials
-        balance = stock.balance_sheet
-        info = stock.info or {}
-        return income, balance, info
-    except Exception as e:
-        # Handle rate limit and other yfinance errors gracefully
-        import time
-        error_msg = str(e).lower()
-        if "rate" in error_msg or "limit" in error_msg or "too many" in error_msg:
-            # Wait briefly then retry once
-            time.sleep(2)
-            try:
-                stock = yf.Ticker(ticker)
-                income = stock.financials
-                balance = stock.balance_sheet
-                info = stock.info or {}
-                return income, balance, info
-            except Exception:
-                pass
-        # Return empty data on failure
-        return pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
-
-
-def _build_income_sankey(income_df, info):
-    """Build income statement Sankey with fixed positions & 11 vivid nodes.
-
-    Flow: Revenue â COGS + Gross Profit â R&D + SG&A + D&A + Operating Income
-          â Interest + Pretax Income â Tax + Net Income
-    """
-    # ââ Extract values ââ
-    revenue       = _safe(income_df, "Total Revenue")
-    cogs          = abs(_safe(income_df, "Cost Of Revenue"))
-    gross_profit  = _safe(income_df, "Gross Profit")
-    rd_expense    = abs(_safe(income_df, "Research And Development"))
-    sga_expense   = abs(_safe(income_df, "Selling General And Administration"))
-    dep_amort     = abs(_safe(income_df, "Reconciled Depreciation"))
-    if dep_amort == 0:
-        dep_amort = abs(_safe(income_df, "Depreciation And Amortization"))
-    other_opex    = abs(_safe(income_df, "Other Operating Expense"))
-    operating_inc = _safe(income_df, "Operating Income")
-    interest_exp  = abs(_safe(income_df, "Interest Expense"))
-    pretax_income = _safe(income_df, "Pretax Income") or _safe(income_df, "Income Before Tax")
-    tax           = abs(_safe(income_df, "Tax Provision"))
-    net_income    = _safe(income_df, "Net Income")
-
-    if revenue == 0:
-        return None
-
-    # Fix derived values
-    if gross_profit == 0 and revenue > 0:
-        gross_profit = revenue - cogs
-    if operating_inc == 0 and gross_profit > 0:
-        operating_inc = gross_profit - rd_expense - sga_expense - dep_amort - other_opex
-    if pretax_income == 0:
-        pretax_income = operating_inc - interest_exp
-    if net_income == 0:
-        net_income = pretax_income - tax
-
-    # Ensure all positive
-    revenue = max(revenue, 0)
-    cogs = max(cogs, 0)
-    gross_profit = max(gross_profit, 0)
-    rd_expense = max(rd_expense, 0)
-    sga_expense = max(sga_expense, 0)
-    dep_amort = max(dep_amort, 0)
-    other_opex = max(other_opex, 0)
-    operating_inc = max(operating_inc, 0)
-    interest_exp = max(interest_exp, 0)
-    pretax_income = max(pretax_income, 0)
-    tax = max(tax, 0)
-    net_income = max(net_income, 0)
-
-    # ââ Fixed X/Y positions for precise layout ââ
-    X1, X2, X3, X4, X5 = 0.02, 0.25, 0.55, 0.78, 0.99
-    colors = VIVID
-
-    nodes = []
-    node_colors = []
-    node_x = []
-    node_y = []
-    imap = {}
-
-    def add(name, val, color_idx, x, y):
-        y = round(max(0.01, min(0.99, y)), 4)
-        imap[name] = len(nodes)
-        nodes.append(f"{name}<br>{_fmt(val)}")
-        node_colors.append(colors[color_idx])
-        node_x.append(x)
-        node_y.append(y)
-
-    # Column 1: Revenue
-    add("Revenue", revenue, 0, X1, 0.45)
-
-    # Column 2: COGS (top) + Gross Profit (bottom)
-    add("Cost of Revenue", cogs, 1, X2, 0.05)
-    add("Gross Profit", gross_profit, 2, X2, 0.58)
-
-    # Column 3: Expenses (top) + Operating Income (bottom)
-    exp_y = 0.04
-    exp_gap = 0.13
-    n_exp = 0
-    if rd_expense > 0:
-        add("R&D", rd_expense, 3, X3, exp_y + n_exp * exp_gap)
-        n_exp += 1
-    if sga_expense > 0:
-        add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap)
-        n_exp += 1
-    if dep_amort > 0:
-        add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap)
-        n_exp += 1
-    if other_opex > 0:
-        add("Other OpEx", other_opex, 5, X3, exp_y + n_exp * exp_gap)
-        n_exp += 1
-fe(balance_df, "Long Term Debt")
-                equity       = (_safe(balance_df, "Stockholders Equity")
-                                or _safe(balance_df, "Total Stockholders Equity"))
-                if equity == 0 and total_assets > 0 and total_liab > 0:
-                    equity = total_assets - total_liab
-
-                # Build asset & funding breakdown items
-                asset_items = []
-                if cash > 0:
-                    asset_items.append(("Cash", cash, "#06b6d4"))
-                if short_invest > 0:
-                    asset_items.append(("ST Invest.", short_invest, "#a855f7"))
-                if receivables > 0:
-                    asset_items.append(("Receivables", receivables, "#3b82f6"))
-                if ppe > 0:
-                    asset_items.append(("PPE", ppe, "#8b5cf6"))
-                if goodwill > 0:
-                    asset_items.append(("Goodwill", goodwill, "#6366f1"))
-                if investments > 0:
-                    asset_items.append(("Investments", investments, "#a855f7"))
-                other_a = max(0, total_assets - sum(x[1] for x in asset_items))
-                if other_a > 0:
-                    asset_items.append(("Other Assets", other_a, "#94a3b8"))
-
-                fund_items = []
-                if current_liab > 0:
-                    fund_items.append(("Current Liab.", current_liab, "#f59e0b"))
-                if long_debt > 0:
-                    fund_items.append(("Long-Term Debt", long_debt, "#ef4444"))
-                other_l = max(0, total_liab - current_liab - long_debt)
-                if other_l > 0:
-                    fund_items.append(("Other Liab.", other_l, "#f97316"))
-                if equity > 0:
-                    fund_items.append(("Equity", equity, "#22c55e"))
-
-                # ââ Draw figure ââ
-                fig = plt.figure(figsize=(16, 9), facecolor="white")
-                fig.text(0.5, 0.96,
-                         f"{company} ({ticker}) â Balance Sheet Breakdown",
-                         ha="center", va="top", fontsize=20, fontweight="bold",
+                         ha="center s va="top", fontsize=20, fontweight="bold",
                          color="#0f172a")
 
                 _draw_kpi_row(fig, [
