@@ -2223,77 +2223,31 @@ components.html("""
     // Re-apply on DOM mutations (Streamlit re-renders)
     var observer = new MutationObserver(function() {
         setTimeout(applyStyles, 100);
-        setTimeout(syncSidebarBtn, 50);
     });
     observer.observe(doc.body, { childList: true, subtree: true });
 
-    // ---- Sidebar expand/collapse button logic ----
-    function syncSidebarBtn() {
-        var btn = doc.getElementById('navExpandSidebar');
-        if (!btn) return;
-        var sb = doc.querySelector('[data-testid="stSidebar"]');
-        if (sb && sb.getAttribute('aria-expanded') === 'false') {
-            btn.style.display = 'block';
-        } else {
-            btn.style.display = 'none';
-        }
-    }
-
-    function initSidebarBtn() {
-        var btn = doc.getElementById('navExpandSidebar');
-        if (!btn || btn._osBound) return;
-        btn._osBound = true;
-
-        btn.addEventListener('click', function(e) {
+    // ---- Sidebar expand/collapse via event delegation on body ----
+    // Event delegation survives Streamlit re-renders because the body
+    // element is never replaced.  Any click on #navExpandSidebar (even
+    // a freshly-recreated button) is caught automatically.
+    if (!doc.body._osSidebarDelegation) {
+        doc.body._osSidebarDelegation = true;
+        doc.body.addEventListener('click', function(e) {
+            var btn = e.target.closest('#navExpandSidebar');
+            if (!btn) return;
             e.preventDefault();
-            // New Streamlit: stExpandSidebarButton (a <button> inside stHeader)
+            e.stopPropagation();
+            // New Streamlit: stExpandSidebarButton (a <button> inside hidden stHeader)
             var expandBtn = doc.querySelector('[data-testid="stExpandSidebarButton"]');
-            if (expandBtn) {
-                expandBtn.click();
-                return;
-            }
+            if (expandBtn) { expandBtn.click(); return; }
             // Legacy Streamlit: stSidebarCollapsedControl
             var ctrl = doc.querySelector('[data-testid="stSidebarCollapsedControl"] button');
-            if (ctrl) {
-                var el = ctrl.closest('[data-testid="stSidebarCollapsedControl"]');
-                if (el) {
-                    el.style.pointerEvents = 'auto';
-                    el.style.top = '0';
-                }
-                ctrl.click();
-                if (el) {
-                    setTimeout(function() {
-                        el.style.pointerEvents = 'none';
-                        el.style.top = '-9999px';
-                    }, 200);
-                }
-                return;
-            }
+            if (ctrl) { ctrl.click(); return; }
         });
-
-        syncSidebarBtn();
-
-        // Watch sidebar attribute changes
-        var sb = doc.querySelector('[data-testid="stSidebar"]');
-        if (sb && !sb._osObserved) {
-            sb._osObserved = true;
-            new MutationObserver(syncSidebarBtn).observe(sb, { attributes: true, attributeFilter: ['aria-expanded'] });
-        }
     }
 
-    // Persistent interval ensures buttons stay synced even after Streamlit
-    // re-renders that recreate DOM elements and kill observers.
-    setInterval(function() {
-        initSidebarBtn();
-        syncSidebarBtn();
-    }, 400);
-
-    // Also run immediately and on short delays for fast initial response
-    initSidebarBtn();
-    syncSidebarBtn();
-    setTimeout(function() { initSidebarBtn(); syncSidebarBtn(); }, 100);
-    setTimeout(function() { initSidebarBtn(); syncSidebarBtn(); }, 300);
-    setTimeout(function() { initSidebarBtn(); syncSidebarBtn(); }, 800);
+    // syncSidebarBtn & initSidebarBtn no longer needed —
+    // CSS :has() handles visibility, event delegation handles clicks.
 })();
 </script>
 """, height=0)
