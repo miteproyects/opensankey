@@ -2231,13 +2231,18 @@ components.html("""
 
     function initSidebarBtn() {
         var btn = doc.getElementById('navExpandSidebar');
-        if (!btn) return;
-        // Remove any old listeners by cloning
-        var newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        btn = newBtn;
+        if (!btn || btn._osBound) return;
+        btn._osBound = true;
 
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            // New Streamlit: stExpandSidebarButton (a <button> inside stHeader)
+            var expandBtn = doc.querySelector('[data-testid="stExpandSidebarButton"]');
+            if (expandBtn) {
+                expandBtn.click();
+                return;
+            }
+            // Legacy Streamlit: stSidebarCollapsedControl
             var ctrl = doc.querySelector('[data-testid="stSidebarCollapsedControl"] button');
             if (ctrl) {
                 var el = ctrl.closest('[data-testid="stSidebarCollapsedControl"]');
@@ -2254,27 +2259,31 @@ components.html("""
                 }
                 return;
             }
-            var stBtn = doc.querySelector('[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] button');
-            if (stBtn) stBtn.click();
         });
 
         syncSidebarBtn();
 
         // Watch sidebar attribute changes
         var sb = doc.querySelector('[data-testid="stSidebar"]');
-        if (sb) {
+        if (sb && !sb._osObserved) {
+            sb._osObserved = true;
             new MutationObserver(syncSidebarBtn).observe(sb, { attributes: true, attributeFilter: ['aria-expanded'] });
         }
     }
 
-    // Run immediately and on delays to catch Streamlit reruns
+    // Persistent interval ensures buttons stay synced even after Streamlit
+    // re-renders that recreate DOM elements and kill observers.
+    setInterval(function() {
+        initSidebarBtn();
+        syncSidebarBtn();
+    }, 400);
+
+    // Also run immediately and on short delays for fast initial response
     initSidebarBtn();
     syncSidebarBtn();
-    setTimeout(function() { initSidebarBtn(); syncSidebarBtn(); }, 200);
-    setTimeout(function() { initSidebarBtn(); syncSidebarBtn(); }, 500);
-    setTimeout(function() { initSidebarBtn(); syncSidebarBtn(); }, 1000);
-    setTimeout(function() { syncSidebarBtn(); }, 2000);
-    setTimeout(function() { syncSidebarBtn(); }, 3000);
+    setTimeout(function() { initSidebarBtn(); syncSidebarBtn(); }, 100);
+    setTimeout(function() { initSidebarBtn(); syncSidebarBtn(); }, 300);
+    setTimeout(function() { initSidebarBtn(); syncSidebarBtn(); }, 800);
 })();
 </script>
 """, height=0)
