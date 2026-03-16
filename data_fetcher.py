@@ -213,6 +213,7 @@ def _sec_extract_facts(
     records: Dict[str, Dict[str, float]] = {}
     # Also collect annual data for Q4 derivation
     annual_records: Dict[str, Dict[str, float]] = {}
+
     for concept_name, friendly_name in field_map.items():
         concept_data = us_gaap.get(concept_name)
         if not concept_data:
@@ -261,7 +262,7 @@ def _sec_extract_facts(
                         annual_records[year] = {}
                     if friendly_name not in annual_records[year]:
                         annual_records[year][friendly_name] = val
-                else:
+            else:
                 # Annual mode
                 if instantaneous:
                     if not _re.match(r"^CY\d{4}I$", frame):
