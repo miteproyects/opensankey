@@ -1579,6 +1579,22 @@ st.markdown(f"""
 
 
 
+# Sync parent (Streamlit Cloud wrapper) URL with the iframe URL so that
+# browser refresh preserves the current page.  The Streamlit app runs inside
+# a sandboxed iframe that cannot navigate its parent via target="_top", but
+# same-origin history.replaceState works.
+components.html("""<script>
+try {
+    var top = window.parent && window.parent.parent;
+    if (top && top.history) {
+        var s = window.parent.location.search;
+        if (top.location.search !== s) {
+            top.history.replaceState({}, '', '/' + s);
+        }
+    }
+} catch(e) {}
+</script>""", height=0)
+
 # ───────────────────────────────────────────────────────────────────────────
 # Hide Streamlit's "Running..." status widget on all pages
 # ───────────────────────────────────────────────────────────────────────────
