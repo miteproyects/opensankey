@@ -660,32 +660,61 @@ def render_profile_page(ticker: str) -> None:
         # Anchor for scroll-to from header badge
         st.markdown('<div id="score-section"></div>', unsafe_allow_html=True)
 
-        # Re-compute score with breakdown by importing the scoring helpers
-        from info_data import _safe_get, _score_tiered, _yf_get
-        try:
-            _info = _yf_get(ticker, "info")
-            _qbs = _yf_get(ticker, "quarterly_balance_sheet")
-            _bs = _qbs if _qbs is not None and not _qbs.empty else (_yf_get(ticker, "balance_sheet") or pd.DataFrame())
-            _qcf = _yf_get(ticker, "quarterly_cashflow")
-            _cf = _qcf if _qcf is not None and not _qcf.empty else (_yf_get(ticker, "cashflow") or pd.DataFrame())
-            _qfin = _yf_get(ticker, "quarterly_financials")
-            _inc = _qfin if _qfin is not None and not _qfin.empty else (_yf_get(ticker, "financials") or pd.DataFrame())
+        # Re-compute score with breakdown using SEC EDGAR data
+        from info_data import (
+            _ticker_to_cik, _fetch_edgar_facts, _get_xbrl_value,
+            _get_xbrl_two_years,
+            _XBRL_INCOME_TAGS, _XBRL_BALANCE_TAGS, _XBRL_CASHFLOW_TAGS,
+        )
 
-            def _bsv(keys):
-                s = _safe_get(_bs, keys)
-                return float(s.iloc[0]) if s is not None and len(s) > 0 else None
-            def _cfv(keys):
-                s = _safe_get(_cf, keys)
-                return float(s.iloc[0]) if s is not None and len(s) > 0 else None
-            def _incv(keys):
-                s = _safe_get(_inc, keys)
-                return float(s.iloc[0]) if s is not None and len(s) > 0 else None
+        def _score_tiered(val, tiers):
+            """Score a value against descending thresholds: [(threshold, pts), ...]."""
+            if val is None:
+                return 0
+            for threshold, pts in tiers:
+                if val >= threshold:
+                    return pts
+            return 0
+
+        try:
+            cik = _ticker_to_cik(ticker)
+            facts = _fetch_edgar_facts(cik) if cik else None
+            if not facts:
+                raise ValueError("No EDGAR data")
+
+            # ── Fetch raw EDGAR values ──
+            rev = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Total Revenue"])
+            gp = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Gross Profit"])
+            cogs = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Cost Of Revenue"])
+            if not gp and rev and cogs:
+                gp = rev - cogs
+            oi = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Operating Income"])
+            ni = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Net Income"])
+            interest = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Interest Expense"])
+
+            ta = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Total Assets"])
+            ca = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Assets"])
+            cash_val = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Cash And Cash Equivalents"])
+            inv = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Inventory"])
+            ar = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Accounts Receivable"])
+            cl = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Liabilities"])
+            ltd = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Long Term Debt"])
+            cur_debt = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Debt"])
+            teq = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Stockholders Equity"])
+            tl = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Total Liabilities"])
+            td = (ltd or 0) + (cur_debt or 0)
+
+            ocf = _get_xbrl_value(facts, _XBRL_CASHFLOW_TAGS["Operating Cash Flow"])
+
+            # Growth data (two years)
+            ni_cur, ni_prev = _get_xbrl_two_years(facts, _XBRL_INCOME_TAGS["Net Income"])
+            eps_cur, eps_prev = _get_xbrl_two_years(facts, _XBRL_INCOME_TAGS["EPS"], unit="USD/shares")
 
             # ── Profitability ──
-            gm_pct = (_info.get('grossMargins', 0) or 0) * 100
-            pm_pct = (_info.get('profitMargins', 0) or 0) * 100
-            roe_pct = (_info.get('returnOnEquity', 0) or 0) * 100
-            roa_pct = (_info.get('returnOnAssets', 0) or 0) * 100
+            gm_pct = (gp / rev * 100) if rev and gp else 0
+            pm_pct = (ni / rev * 100) if rev and ni else 0
+            roe_pct = (ni / teq * 100) if teq and ni and teq != 0 else 0
+            roa_pct = (ni / ta * 100) if ta and ni and ta != 0 else 0
             gm_s = _score_tiered(gm_pct, [(60,5),(40,4),(20,3),(10,2),(0.01,1)])
             pm_s = _score_tiered(pm_pct, [(20,5),(10,4),(5,3),(0.01,2)])
             roe_s = _score_tiered(roe_pct, [(25,5),(15,4),(10,3),(5,2),(0.01,1)])
@@ -693,14 +722,10 @@ def render_profile_page(ticker: str) -> None:
             prof_total = gm_s + pm_s + roe_s + roa_s
 
             # ── Liquidity ──
-            cr = _info.get('currentRatio')
-            qr = _info.get('quickRatio')
-            cash_val = _bsv(["Cash And Cash Equivalents", "Cash"])
-            si = _bsv(["Short Term Investments", "OtherShortTermInvestments"])
-            cl = _bsv(["Current Liabilities", "Total Current Liabilities"])
-            cashr = ((cash_val or 0) + (si or 0)) / cl if cash_val is not None and cl and cl > 0 else None
-            ocf_val = _cfv(["Operating Cash Flow"])
-            ocfr = ocf_val / cl if ocf_val is not None and cl and cl > 0 else None
+            cr = (ca / cl) if ca and cl and cl > 0 else None
+            qr = ((ca - (inv or 0)) / cl) if ca and cl and cl > 0 else None
+            cashr = (cash_val / cl) if cash_val is not None and cl and cl > 0 else None
+            ocfr = (ocf / cl) if ocf is not None and cl and cl > 0 else None
             cr_s = _score_tiered(cr, [(3,5),(2,4),(1.5,3),(1,2),(0.5,1)])
             qr_s = _score_tiered(qr, [(2,5),(1.5,4),(1,3),(0.5,2),(0.2,1)])
             cashr_s = _score_tiered(cashr, [(1,5),(0.5,4),(0.3,3),(0.15,2),(0.05,1)])
@@ -708,29 +733,13 @@ def render_profile_page(ticker: str) -> None:
             liq_total = cr_s + qr_s + cashr_s + ocfr_s
 
             # ── Leverage ──
-            de_raw = _info.get("debtToEquity")
-            de_ratio = (de_raw / 100) if de_raw and de_raw > 5 else de_raw
-            ebit = _incv(["EBIT", "Operating Income"])
-            ie = _incv(["Interest Expense"])
-            int_cov = abs(ebit / ie) if ebit and ie and abs(ie) > 0 else None
-            td = _info.get("totalDebt") or _bsv(["Total Debt", "Long Term Debt"])
-            ta = _bsv(["Total Assets"])
-            da = td / ta if td is not None and ta and ta > 0 else None
-            ltd = _bsv(["Long Term Debt"])
-            teq = _bsv(["Total Stockholders Equity", "Stockholders Equity", "Total Equity Gross Minority Interest"])
-            ldc = ltd / (ltd + teq) if ltd is not None and teq is not None and (ltd + teq) > 0 else None
-            # Altman Z
-            wc = _bsv(["Working Capital"])
-            if wc is None:
-                ca = _bsv(["Current Assets", "Total Current Assets"])
-                wc = (ca - cl) if ca is not None and cl is not None else None
-            re_val = _bsv(["Retained Earnings"])
-            mc = _info.get("marketCap")
-            tl = _bsv(["Total Liabilities Net Minority Interest", "Total Liab"])
-            trev = _info.get("totalRevenue")
-            az = None
-            if ta and ta > 0 and all(v is not None for v in [wc, re_val, ebit, mc, tl, trev]):
-                az = 1.2*(wc/ta) + 1.4*(re_val/ta) + 3.3*(ebit/ta) + 0.6*(mc/tl if tl > 0 else 0) + 1.0*(trev/ta)
+            de_ratio = (td / teq) if teq and teq != 0 else None
+            int_cov = abs(oi / interest) if oi and interest and abs(interest) > 0 else None
+            da = (td / ta) if ta and ta > 0 else None
+            ldc = (ltd / (ltd + teq)) if ltd is not None and teq is not None and (ltd + teq) > 0 else None
+            # Altman Z (without market cap — not available from EDGAR)
+            wc = (ca - cl) if ca is not None and cl is not None else None
+            az = None  # Requires market cap, not available from EDGAR
 
             de_s = 0
             if de_ratio is not None:
@@ -754,58 +763,32 @@ def render_profile_page(ticker: str) -> None:
                 elif ldc <= 0.3: ldc_s = 3
                 elif ldc <= 0.5: ldc_s = 2
                 elif ldc <= 0.7: ldc_s = 1
-            az_s = _score_tiered(az, [(3,5),(2.5,4),(1.8,3),(1.2,2),(0.5,1)])
+            az_s = 0  # N/A without market cap
             lev_total = de_s + ic_s + da_s + ldc_s + az_s
 
             # ── Efficiency ──
-            at = trev / ta if trev and ta and ta > 0 else None
-            inv = _bsv(["Inventory"])
-            cogs = abs(_incv(["Cost Of Revenue"]) or 0)
-            invt = cogs / inv if cogs and inv and inv > 0 else None
-            ar = _bsv(["Accounts Receivable", "Net Receivables"])
-            rt = trev / ar if trev and ar and ar > 0 else None
+            at = (rev / ta) if rev and ta and ta > 0 else None
+            invt = (cogs / inv) if cogs and inv and inv > 0 else None
+            rt = (rev / ar) if rev and ar and ar > 0 else None
             at_s = _score_tiered(at, [(2,5),(1.5,4),(1,3),(0.5,2),(0.2,1)])
             it_s = _score_tiered(invt, [(8,5),(5,4),(4,3),(2,2),(1,1)])
             rt_s = _score_tiered(rt, [(8,5),(5,4),(4,3),(2,2),(1,1)])
             eff_total = at_s + it_s + rt_s
 
-            # ── Growth ──
-            epsg = _info.get("earningsGrowth")
-            if epsg is None:
-                eps_ser = _safe_get(_inc, ["Basic EPS", "Diluted EPS"])
-                if eps_ser is not None and len(eps_ser) >= 4:
-                    old = float(eps_ser.iloc[min(4, len(eps_ser)-1)])
-                    if old > 0:
-                        epsg = (float(eps_ser.iloc[0]) / old) - 1
-            cagr_v = None
-            try:
-                h5 = yf.Ticker(ticker).history(period="5y", interval="1mo")
-                if h5 is not None and len(h5) >= 12:
-                    cagr_v = (pow(float(h5["Close"].iloc[-1]) / float(h5["Close"].iloc[0]), 1 / (len(h5)/12)) - 1) * 100
-            except Exception:
-                pass
-            epsg_pct = (epsg * 100 if epsg and abs(epsg) < 10 else epsg) if epsg else None
+            # ── Growth (from EDGAR two-year comparison) ──
+            epsg_pct = None
+            if eps_cur is not None and eps_prev is not None and eps_prev != 0:
+                epsg_pct = ((eps_cur / eps_prev) - 1) * 100
+            elif ni_cur is not None and ni_prev is not None and ni_prev != 0:
+                epsg_pct = ((ni_cur / ni_prev) - 1) * 100
+            cagr_v = None  # Price CAGR not available from EDGAR
             epsg_s = _score_tiered(epsg_pct, [(30,5),(15,4),(5,3),(0.01,2)])
-            cagr_s = _score_tiered(cagr_v, [(25,5),(15,4),(8,3),(3,2),(0.01,1)])
+            cagr_s = 0  # N/A without price data
             gro_total = epsg_s + cagr_s
 
-            # ── Valuation ──
-            pe = _info.get("trailingPE")
-            pb = _info.get("priceToBook")
+            # ── Valuation (not available from EDGAR — requires market price) ──
             pe_s = 0
-            if pe and pe > 0:
-                if pe <= 10: pe_s = 5
-                elif pe <= 15: pe_s = 4
-                elif pe <= 20: pe_s = 3
-                elif pe <= 30: pe_s = 2
-                elif pe <= 50: pe_s = 1
             pb_s = 0
-            if pb and pb > 0:
-                if pb <= 1: pb_s = 5
-                elif pb <= 2: pb_s = 4
-                elif pb <= 3: pb_s = 3
-                elif pb <= 5: pb_s = 2
-                elif pb <= 10: pb_s = 1
             val_total = pe_s + pb_s
 
         except Exception:
