@@ -317,6 +317,9 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
         if not xbrl_tags:
             continue  # Skip derived fields (e.g., Total Non Current Assets)
 
+        best_vals = None       # {end_date: val} from the best tag so far
+        best_max_date = ""     # most recent end date from best tag
+
         for tag in xbrl_tags:
             concept = gaap.get(tag)
             if not concept:
@@ -445,8 +448,15 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                             vals[fy_end] = (q4, fy_filed)
 
             if vals:
-                rows[display_name] = {k: v[0] for k, v in vals.items()}
-                break  # Found data for this metric
+                # Pick the tag whose data is most recent (handles tag
+                # transitions like Revenues → RevenueFromContract…)
+                tag_max_date = max(vals.keys())
+                if best_vals is None or tag_max_date > best_max_date:
+                    best_vals = vals
+                    best_max_date = tag_max_date
+
+        if best_vals:
+            rows[display_name] = {k: v[0] for k, v in best_vals.items()}
 
     if not rows:
         return pd.DataFrame()
