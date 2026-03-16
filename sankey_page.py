@@ -326,154 +326,121 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                 continue
 
             vals = {}
-            for e in entries:
-                form = e.get("form", "")
-                fp = e.get("fp", "")
-                end = e.get("end", "")
-                val = e.get("val")
-                filed = e.get("filed", "")
-                frame = e.get("frame", "")
 
-                if val is None or not end:
-                    continue
-
-                if form_filter == "10-K":
-                    # Annual data: only from 10-K filings, full year
-                    if form != "10-K" or fp != "FY":
-                        continue
-                    if end not in vals or filed > vals[end][1]:
-                        vals[end] = (val, filed)
-
-                elif form_filter == "10-Q":
-                    if quarterly_income:
-                        # Income statement: collect individual quarter values
-                        # from frame field: "CY2024Q1" = 3-month value
-                        if frame and re.match(r"CY\d{4}Q\d$", frame):
-                            if end not in vals or filed > vals[end][1]:
-                                vals[end] = (val, filed)
-                    else:
-                        # Balance sheet: point-in-time from 10-Q and 10-K
-                        if form in ("10-Q", "10-K") and fp in ("Q1", "Q2", "Q3", "Q4", "FY"):
-                            if end not in vals or filed > vals[end][1]:
-                                vals[end] = (val, filed)
-
-            # ── For quarterly income: always try to fill gaps using
-            #    10-Q/10-K filing data beyond frame-based entries ──
-            if form_filter == "10-Q" and quarterly_income:
-                # Collect all 10-Q and 10-K entries, keyed by (fy, fp)
-                # Use the `fy` field (fiscal year) for grouping, fall back to end[:4]
-                raw_by_fy = {}  # key = (fy, fp) → (val, end_date, filed)
+            if form_filter == "10-K":
+                # ── Annual data: straightforward, one entry per year ──
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
                     end = e.get("end", "")
                     val = e.get("val")
                     filed = e.get("filed", "")
-                    fy = str(e.get("fy", end[:4])) if end else ""
+                    if val is None or not end:
+                        continue
+                    if form != "10-K" or fp != "FY":
+                        continue
+                    if end not in vals or filed > vals[end][1]:
+                        vals[end] = (val, filed)
+
+            elif form_filter == "10-Q" and not quarterly_income:
+                # ── Balance sheet: point-in-time values ──
+                for e in entries:
+                    form = e.get("form", "")
+                    fp = e.get("fp", "")
+                    end = e.get("end", "")
+                    val = e.get("val")
+                    filed = e.get("filed", "")
+                    if val is None or not end:
+                        continue
+                    if form in ("10-Q", "10-K") and fp in ("Q1","Q2","Q3","Q4","FY"):
+                        if end not in vals or filed > vals[end][1]:
+                            vals[end] = (val, filed)
+
+            elif form_filter == "10-Q" and quarterly_income:
+                # ══════════════════════════════════════════════════════
+                # QUARTERLY INCOME: Best-practice multi-pass approach
+                # ══════════════════════════════════════════════════════
+                # SEC EDGAR has MULTIPLE entries per end date for income
+                # items (individual 3-month + cumulative YTD). We must
+                # reliably extract only individual quarter values.
+                #
+                # Strategy:
+                #   Pass 1: Use frame-based entries (CYxxxxQn = individual Q)
+                #   Pass 2: For each end date with multiple entries, take
+                #           the minimum positive value (individual < cumulative)
+                #   Pass 3: Compute Q4 = FY - (Q1+Q2+Q3) per fiscal year
+                # ══════════════════════════════════════════════════════
+
+                # ── Pass 1: Collect frame-based individual quarter values ──
+                for e in entries:
+                    frame = e.get("frame", "")
+                    end = e.get("end", "")
+                    val = e.get("val")
+                    filed = e.get("filed", "")
+                    if val is None or not end:
+                        continue
+                    if frame and re.match(r"CY\d{4}Q\d$", frame):
+                        if end not in vals or filed > vals[end][1]:
+                            vals[end] = (val, filed)
+
+                # ── Pass 2: For missing quarters, collect ALL 10-Q entries
+                #    per end date, then pick the minimum positive value
+                #    (individual quarter is always ≤ cumulative YTD) ──
+                all_by_end = {}  # end_date → list of (val, filed, fp)
+                fy_entries = {}  # fy → (val, end, filed)  for 10-K annual
+                for e in entries:
+                    form = e.get("form", "")
+                    fp = e.get("fp", "")
+                    end = e.get("end", "")
+                    val = e.get("val")
+                    filed = e.get("filed", "")
+                    fy = e.get("fy", "")
                     if val is None or not end:
                         continue
                     if form == "10-Q" and fp in ("Q1", "Q2", "Q3"):
-                        key = (fy, fp)
-                        if key not in raw_by_fy or filed > raw_by_fy[key][2]:
-                            raw_by_fy[key] = (val, end, filed)
+                        if end not in all_by_end:
+                            all_by_end[end] = []
+                        all_by_end[end].append((val, filed, fp, fy))
                     elif form == "10-K" and fp == "FY":
-                        key = (fy, "FY")
-                        if key not in raw_by_fy or filed > raw_by_fy[key][2]:
-                            raw_by_fy[key] = (val, end, filed)
+                        fy_key = str(fy) if fy else end[:4]
+                        if fy_key not in fy_entries or filed > fy_entries[fy_key][2]:
+                            fy_entries[fy_key] = (val, end, filed)
 
-                # Group by fiscal year
-                years = {}
-                for (fy, fp_label), (val, end, filed) in raw_by_fy.items():
-                    if fy not in years:
-                        years[fy] = {}
-                    years[fy][fp_label] = (val, end)
+                for end_date, entry_list in all_by_end.items():
+                    if end_date in vals:
+                        continue  # Already have frame-based data
 
-                for yr, periods in years.items():
-                    # Detect if Q values are cumulative (YTD) or individual:
-                    # If Q3 > Q2 > Q1 by a significant margin, they're cumulative
-                    q1v = periods["Q1"][0] if "Q1" in periods else None
-                    q2v = periods["Q2"][0] if "Q2" in periods else None
-                    q3v = periods["Q3"][0] if "Q3" in periods else None
-                    fyv = periods["FY"][0] if "FY" in periods else None
+                    # Among all entries for this end date, pick the
+                    # minimum positive value = individual quarter
+                    positive = [(v, f, fp, fy) for v, f, fp, fy in entry_list if v > 0]
+                    if positive:
+                        best = min(positive, key=lambda x: x[0])
+                        vals[end_date] = (best[0], best[1])
+                    elif entry_list:
+                        # All zero or negative — take the latest filed
+                        latest = max(entry_list, key=lambda x: x[1])
+                        vals[end_date] = (latest[0], latest[1])
 
-                    is_cumulative = False
-                    if q1v and q2v and q3v:
-                        # If Q3 > 2*Q1 and Q2 > 1.4*Q1, likely cumulative
-                        if q1v > 0 and q2v > 1.4 * q1v and q3v > 1.8 * q1v:
-                            is_cumulative = True
-                    elif q1v and q2v:
-                        if q1v > 0 and q2v > 1.4 * q1v:
-                            is_cumulative = True
+                # ── Pass 3: Compute Q4 for each fiscal year ──
+                # Q4 = FY_annual - (Q1 + Q2 + Q3)
+                # Group existing quarterly values by fiscal year
+                q_by_fy = {}  # fy → {end_date: val}
+                for end_date, entry_list in all_by_end.items():
+                    if entry_list:
+                        fy_key = str(entry_list[0][3]) if entry_list[0][3] else end_date[:4]
+                        if fy_key not in q_by_fy:
+                            q_by_fy[fy_key] = []
+                        if end_date in vals:
+                            q_by_fy[fy_key].append(vals[end_date][0])
 
-                    if is_cumulative:
-                        # Compute individual Qs from cumulative differences
-                        if "Q1" in periods:
-                            q1_val, q1_end = periods["Q1"]
-                            if q1_end not in vals:
-                                vals[q1_end] = (q1_val, "computed")
-                        if "Q2" in periods and "Q1" in periods:
-                            q2_ytd, q2_end = periods["Q2"]
-                            q1_ytd, _ = periods["Q1"]
-                            q2_ind = q2_ytd - q1_ytd
-                            if q2_end not in vals and q2_ind >= 0:
-                                vals[q2_end] = (q2_ind, "computed")
-                        if "Q3" in periods and "Q2" in periods:
-                            q3_ytd, q3_end = periods["Q3"]
-                            q2_ytd, _ = periods["Q2"]
-                            q3_ind = q3_ytd - q2_ytd
-                            if q3_end not in vals and q3_ind >= 0:
-                                vals[q3_end] = (q3_ind, "computed")
-                        if "FY" in periods and "Q3" in periods:
-                            fy_val, fy_end = periods["FY"]
-                            q3_ytd, _ = periods["Q3"]
-                            q4_ind = fy_val - q3_ytd
-                            if fy_end not in vals and q4_ind >= 0:
-                                vals[fy_end] = (q4_ind, "computed")
-                    else:
-                        # Values appear to be individual quarters — use directly
-                        for fp_label in ("Q1", "Q2", "Q3"):
-                            if fp_label in periods:
-                                qval, qend = periods[fp_label]
-                                if qend not in vals:
-                                    vals[qend] = (qval, "computed")
-                        # Compute Q4 = FY - (Q1+Q2+Q3) if all available
-                        if "FY" in periods:
-                            fy_val, fy_end = periods["FY"]
-                            q_sum = sum(periods[q][0] for q in ("Q1","Q2","Q3") if q in periods)
-                            q_count = sum(1 for q in ("Q1","Q2","Q3") if q in periods)
-                            if q_count == 3:
-                                q4_ind = fy_val - q_sum
-                                if fy_end not in vals and q4_ind >= 0:
-                                    vals[fy_end] = (q4_ind, "computed")
-                            elif q_count == 0 and fy_end not in vals:
-                                # No quarterly data at all; skip FY for quarterly view
-                                pass
-
-            # ── Final fallback: fill remaining gaps with raw 10-Q entries ──
-            # Some metrics (D&A, Interest) may still have gaps if the YTD
-            # computation couldn't find all Q1/Q2/Q3/FY combos. Use raw
-            # 10-Q entries directly, with outlier filtering to reject
-            # cumulative values that would distort the chart.
-            if form_filter == "10-Q" and quarterly_income and vals:
-                # Compute median of existing values for outlier detection
-                existing_vals = [v[0] for v in vals.values() if v[0] > 0]
-                if existing_vals:
-                    median_val = sorted(existing_vals)[len(existing_vals) // 2]
-                    outlier_threshold = median_val * 2.5  # reject if > 2.5x median
-
-                    for e in entries:
-                        form = e.get("form", "")
-                        fp = e.get("fp", "")
-                        end = e.get("end", "")
-                        val = e.get("val")
-                        filed = e.get("filed", "")
-                        if val is None or not end:
-                            continue
-                        if form == "10-Q" and fp in ("Q1", "Q2", "Q3"):
-                            if end not in vals:
-                                # Only add if value is in reasonable range
-                                if abs(val) <= outlier_threshold:
-                                    vals[end] = (val, filed)
+                for fy_key, (fy_val, fy_end, fy_filed) in fy_entries.items():
+                    if fy_end in vals:
+                        continue  # Already have Q4 data for this end date
+                    q_vals = q_by_fy.get(fy_key, [])
+                    if len(q_vals) == 3:
+                        q4 = fy_val - sum(q_vals)
+                        if q4 >= 0:
+                            vals[fy_end] = (q4, fy_filed)
 
             if vals:
                 rows[display_name] = {k: v[0] for k, v in vals.items()}
