@@ -1561,7 +1561,7 @@ current_page = st.session_state.page
 st.markdown(f"""
 <div class="nav-bar">
     <span class="nav-logo">📊 OPEN<br>SANKEY</span>
-    <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="?page=sankey&ticker={ticker}" target="_self">Sankey</a>
+    <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="?page=sankey&ticker={ticker}" target="_self">{ticker} Sankey</a>
     <a class="nav-link {'active' if current_page == 'charts' else ''}" href="?page=charts&ticker={ticker}" target="_self">{ticker} Charts</a>
     <a class="nav-link {'active' if current_page == 'profile' else ''}" href="?page=profile&ticker={ticker}" target="_self">{ticker} Profile</a>
     <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="?page=earnings&ticker={ticker}" target="_self">Earnings Calendar</a>
