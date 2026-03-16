@@ -112,6 +112,11 @@ def _empty_fig(msg: str = "No data available") -> go.Figure:
     return fig
 
 
+def _clean(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop rows where ALL values are NaN so charts only span periods with data."""
+    return df.dropna(how="all") if not df.empty else df
+
+
 def _x(df: pd.DataFrame) -> list:
     """Return a list of period labels from the DataFrame index."""
     return df.index.astype(str).tolist()
@@ -123,6 +128,7 @@ def _x(df: pd.DataFrame) -> list:
 
 def create_income_chart(df: pd.DataFrame) -> go.Figure:
     """Grouped bar – Revenue, Gross Profit, Operating Income, Net Income."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -142,6 +148,7 @@ def create_income_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_margins_chart(df: pd.DataFrame) -> go.Figure:
     """Line chart – Gross / Operating / Net margin %."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -165,6 +172,7 @@ def create_margins_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_eps_chart(df: pd.DataFrame) -> go.Figure:
     """Grouped bar – Earnings Per Share (Basic & Diluted)."""
+    df = _clean(df)
     if df.empty or ("EPS" not in df.columns and "EPS Diluted" not in df.columns):
         return _empty_fig()
     x = _x(df)
@@ -180,6 +188,7 @@ def create_eps_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_revenue_yoy_chart(df: pd.DataFrame) -> go.Figure:
     """Line chart – Revenue year-over-year growth %."""
+    df = _clean(df)
     if df.empty or "Revenue YoY Growth %" not in df.columns:
         return _empty_fig()
     x = _x(df)
@@ -197,6 +206,7 @@ def create_revenue_yoy_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_opex_chart(df: pd.DataFrame) -> go.Figure:
     """Stacked bar – R&D + SGA expenses."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -210,6 +220,7 @@ def create_opex_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_ebitda_chart(df: pd.DataFrame) -> go.Figure:
     """Single bar – EBITDA."""
+    df = _clean(df)
     if df.empty or "EBITDA" not in df.columns:
         return _empty_fig()
     x = _x(df)
@@ -221,6 +232,7 @@ def create_ebitda_chart(df: pd.DataFrame) -> go.Figure:
 def create_interest_income_chart(df: pd.DataFrame) -> go.Figure:
     """Bar – Interest Expense."""
     col = "Interest Expense"
+    df = _clean(df)
     if df.empty or col not in df.columns:
         return _empty_fig()
     x = _x(df)
@@ -232,6 +244,7 @@ def create_interest_income_chart(df: pd.DataFrame) -> go.Figure:
 def create_tax_chart(df: pd.DataFrame) -> go.Figure:
     """Bar – Income Tax Expense."""
     col = "Income Tax Expense"
+    df = _clean(df)
     if df.empty or col not in df.columns:
         return _empty_fig()
     x = _x(df)
@@ -242,6 +255,7 @@ def create_tax_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_income_breakdown_chart(df: pd.DataFrame) -> go.Figure:
     """Grouped bar – Operating Income, Interest Income, Other Income/Expenses, Net Income."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -261,6 +275,7 @@ def create_income_breakdown_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_per_share_chart(df: pd.DataFrame) -> go.Figure:
     """Grouped bar – Revenue / Net Income / Operating CF per share."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -284,6 +299,7 @@ def create_per_share_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_revenue_by_product_chart(df: pd.DataFrame) -> go.Figure:
     """Stacked bar – Revenue breakdown by product/operating segment."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -299,6 +315,7 @@ def create_revenue_by_product_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_revenue_by_geography_chart(df: pd.DataFrame) -> go.Figure:
     """Stacked bar – Revenue breakdown by geographic region."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -318,6 +335,7 @@ def create_revenue_by_geography_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_cash_flow_chart(df: pd.DataFrame) -> go.Figure:
     """Grouped bar – Operating / Investing / Financing / Free cash flow."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -338,6 +356,7 @@ def create_cash_flow_chart(df: pd.DataFrame) -> go.Figure:
 def create_cash_position_chart(df: pd.DataFrame) -> go.Figure:
     """Single bar – Cash and Cash Equivalents."""
     col = "Cash and Cash Equivalents"
+    df = _clean(df)
     if df.empty or col not in df.columns:
         return _empty_fig()
     x = _x(df)
@@ -349,6 +368,7 @@ def create_cash_position_chart(df: pd.DataFrame) -> go.Figure:
 def create_capex_chart(df: pd.DataFrame) -> go.Figure:
     """Bar – Capital Expenditure."""
     col = "CapEx"
+    df = _clean(df)
     if df.empty or col not in df.columns:
         return _empty_fig()
     x = _x(df)
@@ -363,6 +383,7 @@ def create_capex_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_assets_chart(df: pd.DataFrame) -> go.Figure:
     """Stacked bar – Current + Non-Current Assets."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -376,6 +397,7 @@ def create_assets_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_liabilities_chart(df: pd.DataFrame) -> go.Figure:
     """Stacked bar – Current + Non-Current Liabilities."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -392,6 +414,7 @@ def create_liabilities_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_equity_debt_chart(df: pd.DataFrame) -> go.Figure:
     """Grouped bar – Stockholders Equity vs Total Debt."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -413,6 +436,7 @@ def create_equity_debt_chart(df: pd.DataFrame) -> go.Figure:
 def create_pe_chart(df: pd.DataFrame) -> go.Figure:
     """Line – P/E Ratio over time (computed from EPS + price)."""
     col = "P/E Ratio"
+    df = _clean(df)
     if df.empty or col not in df.columns:
         return _empty_fig()
     x = _x(df)
@@ -429,6 +453,7 @@ def create_pe_chart(df: pd.DataFrame) -> go.Figure:
 def create_market_cap_chart(df: pd.DataFrame) -> go.Figure:
     """Bar – Market Capitalisation."""
     col = "Market Cap"
+    df = _clean(df)
     if df.empty or col not in df.columns:
         return _empty_fig()
     x = _x(df)
@@ -443,6 +468,7 @@ def create_market_cap_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_qoq_revenue_chart(df: pd.DataFrame) -> go.Figure:
     """Line chart – Quarter-over-Quarter revenue growth %."""
+    df = _clean(df)
     if df.empty or "QoQ Revenue Growth %" not in df.columns:
         return _empty_fig()
     x = _x(df)
@@ -461,6 +487,7 @@ def create_qoq_revenue_chart(df: pd.DataFrame) -> go.Figure:
 def create_sbc_chart(df: pd.DataFrame) -> go.Figure:
     """Bar – Stock Based Compensation."""
     col = "Stock Based Compensation"
+    df = _clean(df)
     if df.empty or col not in df.columns:
         return _empty_fig()
     x = _x(df)
@@ -471,6 +498,7 @@ def create_sbc_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_shares_chart(df: pd.DataFrame) -> go.Figure:
     """Grouped bar – Weighted Average Shares Outstanding (Basic & Diluted)."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -487,6 +515,7 @@ def create_shares_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_expense_ratios_chart(df: pd.DataFrame) -> go.Figure:
     """Line chart – R&D/Revenue, Capex/Revenue, SBC/Revenue expense ratios."""
+    df = _clean(df)
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -510,6 +539,7 @@ def create_expense_ratios_chart(df: pd.DataFrame) -> go.Figure:
 def create_effective_tax_rate_chart(df: pd.DataFrame) -> go.Figure:
     """Line chart – Effective Tax Rate %."""
     col = "Effective Tax Rate %"
+    df = _clean(df)
     if df.empty or col not in df.columns:
         return _empty_fig()
     x = _x(df)
