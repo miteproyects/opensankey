@@ -893,7 +893,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 fig = plt.figure(figsize=(16, 9), facecolor="white")
                 fig.text(0.5, 0.96,
                          f"{company} ({ticker}) — Balance Sheet Breakdown",
-                         ha="center s va="top", fontsize=20, fontweight="bold",
+                         ha="center", va="top", fontsize=20, fontweight="bold",
                          color="#0f172a")
 
                 _draw_kpi_row(fig, [
