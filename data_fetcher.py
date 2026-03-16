@@ -115,14 +115,17 @@ def _sec_fetch_company_facts(ticker: str) -> Optional[dict]:
 # SEC EDGAR us-gaap concept → friendly name mappings
 # Income statement (duration-based → use CY####Q# frames)
 _SEC_INCOME_MAP = {
-    # Revenue (companies use different tags)
+    # Revenue (companies use different tags across eras)
     "Revenues": "Revenue",
     "RevenueFromContractWithCustomerExcludingAssessedTax": "Revenue",
     "SalesRevenueNet": "Revenue",
+    "SalesRevenueGoodsNet": "Revenue",
+    "SalesRevenueServicesNet": "Revenue",
     "RevenueFromContractWithCustomerIncludingAssessedTax": "Revenue",
     # Cost / Profit
     "CostOfRevenue": "Cost Of Revenue",
     "CostOfGoodsAndServicesSold": "Cost Of Revenue",
+    "CostOfGoodsSold": "Cost Of Revenue",
     "GrossProfit": "Gross Profit",
     "OperatingIncomeLoss": "Operating Income",
     "NetIncomeLoss": "Net Income",
