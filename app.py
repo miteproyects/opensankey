@@ -1566,13 +1566,13 @@ current_page = st.session_state.page
 st.markdown(f"""
 <div class="nav-bar">
     <span class="nav-logo">📊 OPEN<br>SANKEY</span>
-    <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="?page=sankey&ticker={ticker}" target="_top">{ticker} Sankey</a>
-    <a class="nav-link {'active' if current_page == 'charts' else ''}" href="?page=charts&ticker={ticker}" target="_top">{ticker} Charts</a>
-    <a class="nav-link {'active' if current_page == 'profile' else ''}" href="?page=profile&ticker={ticker}" target="_top">{ticker} Profile</a>
-    <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="?page=earnings&ticker={ticker}" target="_top">Earnings Calendar</a>
-    <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="?page=watchlist&ticker={ticker}" target="_top">Watchlist</a>
-    <a href="?page=pricing&ticker={ticker}" target="_top" class="nav-link {'active' if current_page == 'pricing' else ''}">Pricing</a>
-    <a href="?page=login&ticker={ticker}" target="_top" class="nav-link {'active' if current_page == 'login' else ''}">Sign In</a>
+    <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="?page=sankey&ticker={ticker}" target="_self">{ticker} Sankey</a>
+    <a class="nav-link {'active' if current_page == 'charts' else ''}" href="?page=charts&ticker={ticker}" target="_self">{ticker} Charts</a>
+    <a class="nav-link {'active' if current_page == 'profile' else ''}" href="?page=profile&ticker={ticker}" target="_self">{ticker} Profile</a>
+    <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="?page=earnings&ticker={ticker}" target="_self">Earnings Calendar</a>
+    <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
+    <a href="?page=pricing&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'pricing' else ''}">Pricing</a>
+    <a href="?page=login&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'login' else ''}">Sign In</a>
     <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
 </div>
 """, unsafe_allow_html=True)
