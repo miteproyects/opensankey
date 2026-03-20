@@ -987,7 +987,7 @@ def _inject_sankey_click_js(metric_map):
                     // Sankey nodes expose label; links expose source/target
                     var raw = pt.label || '';
                     // Strip value after <br>
-                    var label = raw.split('<br>')[0].replace(/\\n/g, '').replace(/[\u2139\uFE0F]/g, '').trim();
+                    var label = raw.split('<br>')[0].replace(/\\n/g, '').trim();
                     if (!label || !VALID.has(label)) return;
 
                     // Find pill buttons (Streamlit renders them in [role=radiogroup])
@@ -1552,7 +1552,7 @@ def _build_income_sankey(income_df, info):
     def add(name, val, color_idx, x, y):
         y = round(max(0.01, min(0.99, y)), 4)
         imap[name] = len(nodes)
-        nodes.append(f"{name} \u2139\ufe0f<br>{_fmt(val)}")
+        nodes.append(f"{name}<br>{_fmt(val)}")
         node_colors.append(colors[color_idx])
         node_x.append(x)
         node_y.append(y)
@@ -1726,7 +1726,7 @@ def _build_balance_sheet_sankey(balance_df, info):
         y = round(max(0.01, min(0.99, y)), 4)
         x = round(max(0.01, min(0.99, x)), 4)
         imap[name] = len(nodes)
-        nodes.append(f"{name} \u2139\ufe0f<br>{_fmt(val)}")
+        nodes.append(f"{name}<br>{_fmt(val)}")
         node_colors_list.append(color)
         node_x.append(x)
         node_y.append(y)
