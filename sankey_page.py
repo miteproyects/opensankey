@@ -2426,4 +2426,4 @@ def render_sankey_page():
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
 
-        st.caption(f"📊 QuarterCharts · SEC EDGAR data · {ticker}" + (f" \u00b7 {_compare_note}" if _compare
+        st.caption(f"📊 QuarterCharts · SEC EDGAR data · {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
