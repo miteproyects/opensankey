@@ -31,9 +31,9 @@ from info_charts import (
 from charts import COLORS
 
 
-# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ───────────────────────────────────────────────────────────────────────────
 # Helpers
-# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ───────────────────────────────────────────────────────────────────────────
 
 
 def _fmt_currency(val: Optional[float]) -> str:
@@ -197,9 +197,9 @@ def _fetch_candlestick_chart(ticker: str, period: str = "3mo") -> Optional[go.Fi
         return None
 
 
-# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ───────────────────────────────────────────────────────────────────────────
 # Main render function
-# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ───────────────────────────────────────────────────────────────────────────
 
 
 def render_profile_page(ticker: str) -> None:
@@ -245,9 +245,9 @@ def render_profile_page(ticker: str) -> None:
     score          = fut_score.result()
     candle_data    = fut_candle.result()
 
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
     # 1. Company Header
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
 
     name = company_data.get("name", ticker)
     current_price = company_data.get("price")
@@ -321,7 +321,7 @@ def render_profile_page(ticker: str) -> None:
             """, unsafe_allow_html=True)
 
     with col4:
-        # Score badge â clickable, scrolls to score section
+        # Score badge — clickable, scrolls to score section
         score_color = "#34a853" if score >= 70 else ("#fbbc04" if score >= 40 else "#ea4335")
         score_label = "Excellent Score" if score >= 70 else ("Good Score" if score >= 40 else "Low Score")
         st.markdown(f"""
@@ -348,9 +348,9 @@ def render_profile_page(ticker: str) -> None:
 
     st.markdown("---")
 
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
     # 2. Candlestick Chart (TradingView-style)
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
 
     # Period selector row
     period_labels = ["1D", "5D", "1M", "3M", "6M", "YTD", "1Y", "5Y", "All"]
@@ -386,9 +386,9 @@ def render_profile_page(ticker: str) -> None:
 
     st.markdown("---")
 
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
     # 3. Description / Shares Tabs
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
 
     desc_tab, shares_tab = st.tabs(["Description", "Shares"])
 
@@ -434,9 +434,9 @@ def render_profile_page(ticker: str) -> None:
 
     st.markdown("---")
 
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
     # 4. Fundamentals / Technicals Tabs
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
 
     fund_tab, tech_tab = st.tabs(["Fundamentals", "Technicals"])
 
@@ -496,9 +496,9 @@ def render_profile_page(ticker: str) -> None:
 
     st.markdown("---")
 
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
     # 5. DCF Calculator / Score Tabs
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
 
     dcf_tab, score_tab = st.tabs(["DCF Calculator", "Score"])
 
@@ -520,7 +520,7 @@ def render_profile_page(ticker: str) -> None:
             net_debt = dcf_data.get("net_debt", 0)
 
             # 6-year projection: table layout
-            # All fields are plain text inputs (no stepper buttons) â matching original
+            # All fields are plain text inputs (no stepper buttons) — matching original
             import datetime as _dt
             base_year = _dt.datetime.now().year
             num_years = 6
@@ -547,7 +547,7 @@ def render_profile_page(ticker: str) -> None:
                 except (ValueError, TypeError):
                     return default
 
-            # ââ Year header row ââ
+            # ── Year header row ──
             year_cols = st.columns([1.2] + [1]*num_years)
             with year_cols[0]:
                 st.markdown("**Year**")
@@ -555,7 +555,7 @@ def render_profile_page(ticker: str) -> None:
                 with year_cols[i+1]:
                     st.markdown(f"**{base_year + i}**")
 
-            # ââ FCF Growth (%) row â plain text inputs, first year blank ââ
+            # ── FCF Growth (%) row — plain text inputs, first year blank ──
             growth_cols = st.columns([1.2] + [1]*num_years)
             with growth_cols[0]:
                 st.markdown("**FCF Growth (%)**")
@@ -573,7 +573,7 @@ def render_profile_page(ticker: str) -> None:
                     )
                     growth_rates.append(_parse_float(val_str) / 100)
 
-            # ââ FCF row â editable text inputs (matching original) ââ
+            # ── FCF row — editable text inputs (matching original) ──
             fcf_cols = st.columns([1.2] + [1]*num_years)
             with fcf_cols[0]:
                 st.markdown("**FCF**")
@@ -599,7 +599,7 @@ def render_profile_page(ticker: str) -> None:
 
             st.markdown("")  # spacer
 
-            # ââ Bottom parameters: Long Term Growth Rate | Discount Rate | WACC | Equity Value ââ
+            # ── Bottom parameters: Long Term Growth Rate | Discount Rate | WACC | Equity Value ──
             param_cols = st.columns([1.2, 1.2, 1, 2])
 
             with param_cols[0]:
@@ -691,7 +691,7 @@ def render_profile_page(ticker: str) -> None:
             if not facts:
                 raise ValueError("No EDGAR data")
 
-            # ââ Fetch raw EDGAR values ââ
+            # ── Fetch raw EDGAR values ──
             rev = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Total Revenue"])
             gp = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Gross Profit"])
             cogs = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Cost Of Revenue"])
@@ -719,7 +719,7 @@ def render_profile_page(ticker: str) -> None:
             ni_cur, ni_prev = _get_xbrl_two_years(facts, _XBRL_INCOME_TAGS["Net Income"])
             eps_cur, eps_prev = _get_xbrl_two_years(facts, _XBRL_INCOME_TAGS["EPS"], unit="USD/shares")
 
-            # ââ Profitability ââ
+            # ── Profitability ──
             gm_pct = (gp / rev * 100) if rev and gp else 0
             pm_pct = (ni / rev * 100) if rev and ni else 0
             roe_pct = (ni / teq * 100) if teq and ni and teq != 0 else 0
@@ -730,7 +730,7 @@ def render_profile_page(ticker: str) -> None:
             roa_s = _score_tiered(roa_pct, [(15,5),(10,4),(5,3),(2,2),(0.01,1)])
             prof_total = gm_s + pm_s + roe_s + roa_s
 
-            # ââ Liquidity ââ
+            # ── Liquidity ──
             cr = (ca / cl) if ca and cl and cl > 0 else None
             qr = ((ca - (inv or 0)) / cl) if ca and cl and cl > 0 else None
             cashr = (cash_val / cl) if cash_val is not None and cl and cl > 0 else None
@@ -741,7 +741,7 @@ def render_profile_page(ticker: str) -> None:
             ocfr_s = _score_tiered(ocfr, [(1.5,5),(1,4),(0.5,3),(0.2,2),(0.05,1)])
             liq_total = cr_s + qr_s + cashr_s + ocfr_s
 
-            # ââ Leverage ââ
+            # ── Leverage ──
             de_ratio = (td / teq) if teq and teq != 0 else None
             int_cov = abs(oi / interest) if oi and interest and abs(interest) > 0 else None
             da = (td / ta) if ta and ta > 0 else None
@@ -781,7 +781,7 @@ def render_profile_page(ticker: str) -> None:
             az_s = _score_tiered(az, [(3,5),(2.5,4),(1.8,3),(1.2,2),(0.5,1)])
             lev_total = de_s + ic_s + da_s + ldc_s + az_s
 
-            # ââ Efficiency ââ
+            # ── Efficiency ──
             at = (rev / ta) if rev and ta and ta > 0 else None
             invt = (cogs / inv) if cogs and inv and inv > 0 else None
             rt = (rev / ar) if rev and ar and ar > 0 else None
@@ -790,7 +790,7 @@ def render_profile_page(ticker: str) -> None:
             rt_s = _score_tiered(rt, [(8,5),(5,4),(4,3),(2,2),(1,1)])
             eff_total = at_s + it_s + rt_s
 
-            # ââ Growth (EDGAR EPS + YF price CAGR) ââ
+            # ── Growth (EDGAR EPS + YF price CAGR) ──
             epsg_pct = None
             if eps_cur is not None and eps_prev is not None and eps_prev != 0:
                 epsg_pct = ((eps_cur / eps_prev) - 1) * 100
@@ -814,7 +814,7 @@ def render_profile_page(ticker: str) -> None:
             cagr_s = _score_tiered(cagr_v, [(25,5),(15,4),(8,3),(3,2),(0.01,1)])
             gro_total = epsg_s + cagr_s
 
-            # ââ Valuation (from Yahoo Finance) ââ
+            # ── Valuation (from Yahoo Finance) ──
             pe = _yf_data.get("trailingPE")
             pb = _yf_data.get("priceToBook")
             pe_s = 0
@@ -899,12 +899,12 @@ def render_profile_page(ticker: str) -> None:
 
     st.markdown("---")
 
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
     # 6. Company Ownership Section
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
 
     if ownership_data:
-        st.markdown("### ð¢ Company Ownership")
+        st.markdown("### 🏢 Company Ownership")
 
         own_col_left, own_col_right = st.columns(2)
 
@@ -929,12 +929,12 @@ def render_profile_page(ticker: str) -> None:
 
     st.markdown("---")
 
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
     # 7. Insider Activity Section
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
 
     if insider_trades:
-        st.markdown("### ð¥ Insider Activity")
+        st.markdown("### 👥 Insider Activity")
 
         insider_col_left, insider_col_right = st.columns(2)
 
@@ -969,10 +969,10 @@ def render_profile_page(ticker: str) -> None:
             else:
                 st.info("No recent insider trades available.")
 
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
     # Live Price Polling with Green/Red Flash (Yahoo Finance style)
     # Uses local price API (port 8502) to avoid CORS issues.
-    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ─────────────────────────────────────────────────────────────────────────
     import streamlit.components.v1 as components
     from price_api import API_PORT as _API_PORT
 
