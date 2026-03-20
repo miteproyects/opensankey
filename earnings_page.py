@@ -1,4 +1,5 @@
 """
+# v2 deploy trigger
 Earnings Calendar page for Quarter Charts.
 Shows upcoming earnings reports in a weekly treemap view,
 similar to quarterchart.com/earnings.
