@@ -285,7 +285,7 @@ def render_profile_page(ticker: str) -> None:
         if current_price:
             st.markdown(f"""
             <div id="qc-price-container" data-ticker="{ticker}" data-prev-price="{current_price:.2f}">
-                <div id="qc-price-value" style="font-size: 2rem; font-weight: 700; color: #1a1a2e; line-height: 1.2;">{current_price:.2f{'}'}</div>
+                <div id="qc-price-value" style="font-size: 2rem; font-weight: 700; color: #1a1a2e; line-height: 1.2;">${current_price:.2f}</div>
                 <div id="qc-change" style="font-size: 0.95rem; font-weight: 600; margin-top: 2px;"></div>
                 <div id="qc-close-time" style="font-size: 0.7rem; color: #6c757d; margin-top: 4px;"></div>
                 <div id="qc-afterhours" style="margin-top: 8px; display: none;">
