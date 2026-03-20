@@ -854,6 +854,19 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
     buf = BytesIO()
     company = info.get("shortName", info.get("longName", ticker))
 
+    # Fetch company logo for PDF title
+    _logo_img = None
+    try:
+        from PIL import Image as _PILImage
+        _logo_resp = requests.get(
+            f"https://financialmodelingprep.com/image-stock/{ticker}.png",
+            timeout=3,
+        )
+        if _logo_resp.status_code == 200 and len(_logo_resp.content) > 100:
+            _logo_img = _PILImage.open(BytesIO(_logo_resp.content)).convert("RGBA")
+    except Exception:
+        pass
+
     def _fmts(v):
         """Short format for labels."""
         av = abs(v)
@@ -1108,7 +1121,11 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
 
                 # ── Draw figure ──
                 fig = plt.figure(figsize=(16, 9), facecolor="white")
-                fig.text(0.5, 0.96, f"{company} ({ticker}) — Income Statement Flow",
+                if _logo_img is not None:
+                    logo_ax = fig.add_axes([0.20, 0.93, 0.03, 0.05])
+                    logo_ax.imshow(_logo_img)
+                    logo_ax.axis("off")
+                fig.text(0.5, 0.96, f"{company} ({ticker}) \u2014 Income Statement Flow",
                          ha="center", va="top", fontsize=20, fontweight="bold",
                          color="#0f172a")
 
@@ -1244,8 +1261,12 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
 
                 # ── Draw figure ──
                 fig = plt.figure(figsize=(16, 9), facecolor="white")
+                if _logo_img is not None:
+                    logo_ax2 = fig.add_axes([0.20, 0.93, 0.03, 0.05])
+                    logo_ax2.imshow(_logo_img)
+                    logo_ax2.axis("off")
                 fig.text(0.5, 0.96,
-                         f"{company} ({ticker}) — Balance Sheet Flow",
+                         f"{company} ({ticker}) \u2014 Balance Sheet Flow",
                          ha="center", va="top", fontsize=20, fontweight="bold",
                          color="#0f172a")
 
