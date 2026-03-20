@@ -90,7 +90,7 @@ st.set_page_config(
 )
 
 # Sidebar logo
-st.sidebar.image(BytesIO(base64.b64decode(LOGO_B64)), use_container_width=True)
+st.sidebar.image(BytesIO(base64.b64decode(LOGO_B64)), width=150)
 
 # Cache version: only clear caches manually when needed (not on every new session)
 # To force cache clear: bump this number AND uncomment the clear() line, then revert.
@@ -151,6 +151,23 @@ section[data-testid="stSidebar"] {
     order: 2 !important;
     min-width: 340px !important;
     width: 340px !important;
+}
+
+/* Reduce sidebar top spacing */
+section[data-testid="stSidebar"] [data-testid="stSidebarHeader"] {
+    padding: 0.5rem 1rem !important;
+    min-height: auto !important;
+}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
+    padding-top: 0.25rem !important;
+}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] > div > [data-testid="stVerticalBlock"] {
+    gap: 0.5rem !important;
+}
+section[data-testid="stSidebar"] img {
+    max-height: 60px !important;
+    width: auto !important;
+    object-fit: contain !important;
 }
 /* Make collapse button always visible — arrow flipped to >> (close right-side sidebar) */
 [data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCollapseButton"] {
