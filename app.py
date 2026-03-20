@@ -89,8 +89,6 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 
-# Sidebar logo
-st.sidebar.image(BytesIO(base64.b64decode(LOGO_B64)), use_container_width=True)
 
 # Cache version: only clear caches manually when needed (not on every new session)
 # To force cache clear: bump this number AND uncomment the clear() line, then revert.
