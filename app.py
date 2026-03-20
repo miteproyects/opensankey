@@ -90,7 +90,7 @@ st.set_page_config(
 )
 
 # Sidebar logo
-st.sidebar.image(BytesIO(base64.b64decode(LOGO_B64)), width=150)
+st.sidebar.image(BytesIO(base64.b64decode(LOGO_B64)), use_container_width=True)
 
 # Cache version: only clear caches manually when needed (not on every new session)
 # To force cache clear: bump this number AND uncomment the clear() line, then revert.
@@ -151,23 +151,6 @@ section[data-testid="stSidebar"] {
     order: 2 !important;
     min-width: 340px !important;
     width: 340px !important;
-}
-
-/* Reduce sidebar top spacing */
-section[data-testid="stSidebar"] [data-testid="stSidebarHeader"] {
-    padding: 0.5rem 1rem !important;
-    min-height: auto !important;
-}
-section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
-    padding-top: 0.25rem !important;
-}
-section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] > div > [data-testid="stVerticalBlock"] {
-    gap: 0.5rem !important;
-}
-section[data-testid="stSidebar"] img {
-    max-height: 60px !important;
-    width: auto !important;
-    object-fit: contain !important;
 }
 /* Make collapse button always visible — arrow flipped to >> (close right-side sidebar) */
 [data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCollapseButton"] {
@@ -235,53 +218,107 @@ section[data-testid="stSidebar"] img {
 /* ---- Nav bar (dark header) ---- */
 .nav-bar {
     background: var(--header-bg);
-    padding: 10px 24px;
+    padding: 0 32px;
     display: flex;
     align-items: center;
-    gap: 28px;
-    flex-wrap: wrap;
+    gap: 0;
+    flex-wrap: nowrap;
     margin: -0.5rem -1rem 16px -1rem;
     position: relative;
+    height: 56px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    z-index: 999;
 }
-/* Expand-sidebar button inside nav bar */
 .nav-expand-btn {
     display: none;
-    margin-left: auto;
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
     border-radius: 6px;
-    padding: 4px 10px;
+    padding: 6px 12px;
     color: #ffffff;
     font-size: 1rem;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s;
     line-height: 1;
+    margin-left: 8px;
 }
-.nav-expand-btn:hover {
-    background: rgba(255,255,255,0.25);
-}
-.nav-bar a, .nav-bar .nav-link {
-    color: #adb5bd;
-    text-decoration: none;
-    font-size: 0.9rem;
-    font-weight: 400;
-    transition: color 0.2s;
-    cursor: pointer;
-}
-.nav-bar a:hover, .nav-bar a.active,
-.nav-bar .nav-link:hover, .nav-bar .nav-link.active {
-    color: #ffffff;
-    font-weight: 700;
-}
-.nav-logo {
-    font-size: 1.2rem;
-    font-weight: 800;
-    color: #ffffff !important;
+.nav-expand-btn:hover { background: rgba(255,255,255,0.2); }
+.nav-links {
     display: flex;
     align-items: center;
-    gap: 8px;
-    line-height: 1.1;
+    gap: 0;
+    height: 100%;
+    flex: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
 }
+.nav-links::-webkit-scrollbar { display: none; }
+.nav-bar a, .nav-bar .nav-link {
+    color: rgba(255,255,255,0.65);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    transition: all 0.2s;
+    cursor: pointer;
+    padding: 0 16px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+}
+.nav-bar a:hover, .nav-bar .nav-link:hover {
+    color: #ffffff;
+    background: rgba(255,255,255,0.05);
+}
+.nav-bar a.active, .nav-bar .nav-link.active {
+    color: #ffffff;
+    font-weight: 600;
+    border-bottom-color: var(--accent, #2475fc);
+}
+.nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-right: 24px;
+    text-decoration: none !important;
+    flex-shrink: 0;
+    height: 100%;
+    border-bottom: none !important;
+    padding: 0 !important;
+}
+.nav-logo:hover { background: none !important; }
+.nav-logo img { height: 32px; width: 32px; border-radius: 6px; }
+.nav-logo-text {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #ffffff !important;
+    line-height: 1.15;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    height: 100%;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+.nav-right .nav-signin {
+    background: var(--accent, #2475fc) !important;
+    color: #ffffff !important;
+    border-radius: 6px !important;
+    padding: 7px 18px !important;
+    height: auto !important;
+    border-bottom: none !important;
+    font-weight: 600 !important;
+    font-size: 0.82rem !important;
+    margin-left: 8px;
+    transition: all 0.2s;
+}
+.nav-right .nav-signin:hover { opacity: 0.9; background: #1a5fd4 !important; }
 
 /* ---- Metric cards ---- */
 .metric-row {
@@ -757,16 +794,11 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
         padding-right: 0.5rem !important;
     }
     /* Nav bar: tighter spacing */
-    .nav-bar {
-        padding: 10px 16px !important;
-        gap: 16px !important;
-    }
-    .nav-bar a, .nav-bar .nav-link {
-        font-size: 0.82rem !important;
-    }
-    .nav-logo {
-        font-size: 1rem !important;
-    }
+    .nav-bar { padding: 0 16px !important; height: 50px !important; }
+    .nav-bar a, .nav-bar .nav-link { font-size: 0.8rem !important; padding: 0 10px !important; height: 50px !important; }
+    .nav-logo { margin-right: 16px !important; }
+    .nav-logo img { height: 28px !important; width: 28px !important; }
+    .nav-logo-text { font-size: 0.82rem !important; }
     /* Metric cards: smaller text */
     .metric-value {
         font-size: 1.1rem !important;
@@ -820,19 +852,13 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
                 pointer-events: auto;
             }
         }
-    /* Nav bar: wrap and compact */
-    .nav-bar {
-        padding: 8px 12px !important;
-        gap: 10px !important;
-        margin: -0.5rem -0.4rem 10px -0.4rem !important;
-    }
-    .nav-bar a, .nav-bar .nav-link {
-        font-size: 0.78rem !important;
-    }
-    .nav-logo {
-        font-size: 0.95rem !important;
-        gap: 5px !important;
-    }
+    /* Nav bar: scrollable on mobile */
+    .nav-bar { padding: 0 12px !important; height: 48px !important; margin: -0.5rem -0.4rem 10px -0.4rem !important; }
+    .nav-bar a, .nav-bar .nav-link { font-size: 0.75rem !important; padding: 0 8px !important; height: 48px !important; }
+    .nav-logo { margin-right: 12px !important; }
+    .nav-logo img { height: 26px !important; width: 26px !important; }
+    .nav-logo-text { font-size: 0.78rem !important; }
+    .nav-right .nav-signin { padding: 5px 12px !important; font-size: 0.75rem !important; }
 /* Metric cards: responsive grid */
 .metric-row {
     gap: 8px !important;
@@ -881,17 +907,12 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
         padding-left: 0.25rem !important;
         padding-right: 0.25rem !important;
     }
-    .nav-bar {
-        padding: 6px 8px !important;
-        gap: 8px !important;
-        margin: -0.5rem -0.25rem 8px -0.25rem !important;
-    }
-    .nav-bar a, .nav-bar .nav-link {
-        font-size: 0.72rem !important;
-    }
-    .nav-logo {
-        font-size: 0.85rem !important;
-    }
+    .nav-bar { padding: 0 8px !important; height: 44px !important; margin: -0.5rem -0.25rem 8px -0.25rem !important; }
+    .nav-bar a, .nav-bar .nav-link { font-size: 0.7rem !important; padding: 0 6px !important; height: 44px !important; }
+    .nav-logo { margin-right: 8px !important; }
+    .nav-logo img { height: 22px !important; width: 22px !important; }
+    .nav-logo-text { display: none !important; }
+    .nav-right .nav-signin { padding: 4px 10px !important; font-size: 0.7rem !important; }
 .metric-row {
     grid-template-columns: 1fr !important;
 }
@@ -944,12 +965,9 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
 
 /* ====== LANDSCAPE PHONE ====== */
 @media (max-height: 500px) and (orientation: landscape) {
-    .nav-bar {
-        padding: 4px 12px !important;
-    }
-    .block-container {
-        padding-top: 0.1rem !important;
-    }
+    .nav-bar { padding: 0 12px !important; height: 40px !important; }
+    .nav-bar a, .nav-bar .nav-link { height: 40px !important; }
+    .block-container { padding-top: 0.1rem !important; }
 }
 
 /* ====== PRINT ====== */
@@ -1706,19 +1724,26 @@ ticker = st.session_state.ticker
 current_page = st.session_state.page
 
 # Nav bar with page switching (using <a> links for reliable navigation)
-st.markdown(f"""
+st.markdown(f'''
 <div class="nav-bar">
-    <span class="nav-logo">📊 QUARTER<br>CHARTS</span>
-    <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="?page=sankey&ticker={ticker}" target="_self">{ticker} Sankey</a>
-    <a class="nav-link {'active' if current_page == 'charts' else ''}" href="?page=charts&ticker={ticker}" target="_self">{ticker} Charts</a>
-    <a class="nav-link {'active' if current_page == 'profile' else ''}" href="?page=profile&ticker={ticker}" target="_self">{ticker} Profile</a>
-    <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="?page=earnings&ticker={ticker}" target="_self">Earnings Calendar</a>
-    <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
-    <a href="?page=pricing&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'pricing' else ''}">Pricing</a>
-    <a href="?page=login&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'login' else ''}">Sign In</a>
+    <a class="nav-logo" href="/?page=charts&ticker={ticker}" target="_self">
+        <img src="data:image/png;base64,{LOGO_B64}" alt="Q">
+        <span class="nav-logo-text">Quarter<br>Charts</span>
+    </a>
+    <div class="nav-links">
+        <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="/?page=sankey&ticker={ticker}" target="_self">{ticker} Sankey</a>
+        <a class="nav-link {'active' if current_page == 'charts' else ''}" href="/?page=charts&ticker={ticker}" target="_self">{ticker} Charts</a>
+        <a class="nav-link {'active' if current_page == 'profile' else ''}" href="/?page=profile&ticker={ticker}" target="_self">{ticker} Profile</a>
+        <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="/?page=earnings&ticker={ticker}" target="_self">Earnings Calendar</a>
+        <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="/?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
+    </div>
+    <div class="nav-right">
+        <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'pricing' else ''}">Pricing</a>
+        <a href="/?page=login&ticker={ticker}" target="_self" class="nav-signin">Sign In</a>
+    </div>
     <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
 </div>
-""", unsafe_allow_html=True)
+''', unsafe_allow_html=True)
 
 # ── Sidebar expand click handler (must load with nav bar, not at page end) ──
 components.html("""<script>
