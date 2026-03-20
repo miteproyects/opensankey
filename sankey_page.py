@@ -523,6 +523,162 @@ BALANCE_NODE_METRICS = {
 }
 
 
+# ─── Node info: "What it means" + "How to read it" for Sankey popups ──────
+INCOME_NODE_INFO = {
+    "Revenue": {
+        "meaning": "Total sales or income generated from the company's core business operations before any costs are subtracted.",
+        "reading": "Revenue is the starting point of the Sankey flow. It splits into Cost of Revenue (consumed) and Gross Profit (retained). Growing revenue is the most fundamental growth signal.",
+    },
+    "Cost of Revenue": {
+        "meaning": "Direct costs attributable to producing the goods or services sold, including materials, manufacturing labor, and direct overhead.",
+        "reading": "This is value consumed from Revenue. A shrinking share of Revenue going to COGS means improving gross margins and better pricing power or efficiency.",
+    },
+    "Gross Profit": {
+        "meaning": "Revenue minus Cost of Revenue. The profit remaining after paying direct production costs.",
+        "reading": "Gross Profit flows into operating expenses and Operating Income. A growing Gross Profit with stable or expanding margins indicates a healthy, scalable business.",
+    },
+    "R&D": {
+        "meaning": "Research & Development spending. Investment in new products, technologies, and innovation.",
+        "reading": "R&D is value consumed from Gross Profit. High R&D spending signals investment in future growth (especially in tech). Ideally R&D grows slower than revenue over time.",
+    },
+    "SG&A": {
+        "meaning": "Selling, General & Administrative expenses. Includes sales teams, marketing, management salaries, office costs, and corporate overhead.",
+        "reading": "SG&A is value consumed from Gross Profit. Rising SG&A may indicate scaling sales efforts. Declining SG&A as a % of revenue shows operating leverage.",
+    },
+    "D&A": {
+        "meaning": "Depreciation & Amortization. Non-cash charges that allocate the cost of physical assets (depreciation) and intangible assets (amortization) over their useful life.",
+        "reading": "D&A is a non-cash expense that reduces Operating Income. High D&A relative to capex may indicate aging assets. It is added back in cash flow calculations.",
+    },
+    "Other OpEx": {
+        "meaning": "Other operating expenses not classified as R&D, SG&A, or D&A. May include restructuring charges, litigation costs, or one-time items.",
+        "reading": "Watch for spikes in Other OpEx which may indicate one-time charges. Consistently high Other OpEx warrants investigation into what costs are being categorized here.",
+    },
+    "Operating Income": {
+        "meaning": "Gross Profit minus all operating expenses (R&D, SG&A, D&A). Measures profit from core business operations before interest and taxes.",
+        "reading": "Operating Income shows core business profitability. It flows into Pretax Income after accounting for interest. Growing Operating Income faster than Revenue means improving operating leverage.",
+    },
+    "Interest Exp.": {
+        "meaning": "Interest paid on the company's debt obligations (bonds, loans, credit facilities).",
+        "reading": "Interest expense reduces Operating Income before arriving at Pretax Income. High interest expense relative to operating income indicates heavy debt load and financial risk.",
+    },
+    "Pretax Income": {
+        "meaning": "Income before income tax expense. Operating Income minus interest expense plus any non-operating income.",
+        "reading": "Pretax Income flows into Income Tax and Net Income. Comparing Pretax to Operating Income reveals the impact of debt financing on profitability.",
+    },
+    "Income Tax": {
+        "meaning": "Federal, state, and foreign income taxes owed on the company's pretax income for the period.",
+        "reading": "Tax is value consumed from Pretax Income. Effective tax rates of 15-25% are typical for US companies. Very low rates may use international structures or tax credits.",
+    },
+    "Net Income": {
+        "meaning": "The bottom line: total profit after all expenses, interest, and taxes. This is what belongs to shareholders.",
+        "reading": "Net Income is the final destination of the Sankey flow. It represents the value retained by the company. Growing Net Income as a percentage of Revenue shows improving overall efficiency.",
+    },
+}
+
+BALANCE_NODE_INFO = {
+    "Total Assets": {
+        "meaning": "Everything the company owns or controls that has economic value. The starting point of the balance sheet.",
+        "reading": "Total Assets split into Current Assets (liquid, < 1 year) and Non-Current Assets (long-term). Growing assets generally indicates a growing business.",
+    },
+    "Current Assets": {
+        "meaning": "Assets expected to be converted to cash or consumed within one year. Includes cash, investments, receivables, and inventory.",
+        "reading": "Current Assets should comfortably exceed Current Liabilities (current ratio > 1). High current assets relative to total assets means strong short-term liquidity.",
+    },
+    "Non-Current Assets": {
+        "meaning": "Long-term assets not expected to be converted to cash within one year. Includes property, equipment, goodwill, and investments.",
+        "reading": "Heavy non-current assets indicate a capital-intensive business. Watch for goodwill as a large percentage, which may indicate acquisition-heavy growth strategy.",
+    },
+    "Cash": {
+        "meaning": "Cash and cash equivalents. The most liquid asset, including bank deposits and short-term instruments convertible to cash within 90 days.",
+        "reading": "Strong cash position provides safety and flexibility. Compare to total debt to assess net cash/debt position. Tech companies often hold large cash reserves.",
+    },
+    "ST Investments": {
+        "meaning": "Short-term investments and marketable securities. Liquid investments that can be sold within one year.",
+        "reading": "ST Investments supplement cash. Together with cash, they form the company's total liquidity. Large ST Investment positions are common in cash-rich tech companies.",
+    },
+    "Receivables": {
+        "meaning": "Accounts receivable. Money owed to the company by customers for goods or services already delivered.",
+        "reading": "Rising receivables faster than revenue may indicate collection problems or aggressive revenue recognition. Compare Days Sales Outstanding (DSO) to industry norms.",
+    },
+    "Inventory": {
+        "meaning": "Goods available for sale or raw materials/work-in-progress. Relevant for manufacturing and retail companies.",
+        "reading": "Rising inventory faster than sales growth may signal demand weakness. Low inventory turnover ties up capital. Service companies typically have minimal inventory.",
+    },
+    "Other Current": {
+        "meaning": "Other current assets not specifically classified. May include prepaid expenses, tax receivables, or other short-term items.",
+        "reading": "Usually a smaller category. Significant increases warrant investigation into what specific items are driving the change.",
+    },
+    "PPE": {
+        "meaning": "Property, Plant & Equipment. Physical assets like land, buildings, machinery, and equipment, net of accumulated depreciation.",
+        "reading": "High PPE indicates capital-intensive operations (manufacturing, utilities). Rising PPE shows investment in physical capacity. Declining PPE may mean underinvestment.",
+    },
+    "Goodwill": {
+        "meaning": "The premium paid above fair value of net assets in acquisitions. Represents intangible value like brand, customer relationships, and synergies.",
+        "reading": "Large goodwill indicates acquisition-driven growth. Goodwill impairments are a risk if acquisitions underperform. Goodwill never increases organically.",
+    },
+    "Intangibles": {
+        "meaning": "Identifiable intangible assets such as patents, trademarks, software, and customer relationships acquired in business combinations.",
+        "reading": "Unlike goodwill, intangibles are amortized over time. High intangibles relative to total assets means the company's value is largely in intellectual property.",
+    },
+    "Investments": {
+        "meaning": "Long-term investments including equity stakes in other companies, joint ventures, and held-to-maturity securities.",
+        "reading": "Large investment portfolios are common in financial companies and conglomerates. Strategic investments may generate returns not captured in operating income.",
+    },
+    "Other Non-Current": {
+        "meaning": "Other long-term assets including deferred tax assets, right-of-use assets, and other non-current items.",
+        "reading": "Check for large deferred tax assets which may indicate accumulated losses. Right-of-use assets reflect operating lease commitments.",
+    },
+    "Total Liabilities": {
+        "meaning": "Total obligations the company owes to others. Splits into Current Liabilities (due within 1 year) and Non-Current Liabilities (long-term debt).",
+        "reading": "Compare Total Liabilities to Total Assets (debt-to-assets ratio). High leverage amplifies returns but increases risk. Declining leverage ratios are generally positive.",
+    },
+    "Current Liab.": {
+        "meaning": "Obligations due within one year including accounts payable, short-term debt, and accrued expenses.",
+        "reading": "Current Liabilities should be comfortably covered by Current Assets. Rising current liabilities faster than current assets may signal liquidity pressure.",
+    },
+    "Non-Current Liab.": {
+        "meaning": "Long-term obligations not due within one year, primarily long-term debt and lease obligations.",
+        "reading": "Long-term debt structure matters: fixed vs variable rate, maturity dates, and covenants. Manageable long-term debt at low rates can be advantageous.",
+    },
+    "Accounts Payable": {
+        "meaning": "Money the company owes to suppliers for goods and services received but not yet paid for.",
+        "reading": "Rising payables can indicate better negotiating power (longer payment terms) or cash flow management. Very high payables may signal payment difficulties.",
+    },
+    "Short-Term Debt": {
+        "meaning": "Debt obligations due within one year including current portion of long-term debt, commercial paper, and credit lines.",
+        "reading": "Short-term debt must be refinanced or repaid soon. High short-term debt with low cash creates refinancing risk. Compare to available cash and credit facilities.",
+    },
+    "Deferred Revenue": {
+        "meaning": "Payments received from customers for goods or services not yet delivered. Common in subscription and software businesses.",
+        "reading": "Growing deferred revenue is a positive sign as it indicates strong future revenue visibility. Declining deferred revenue may signal slowing new bookings.",
+    },
+    "Other CL": {
+        "meaning": "Other current liabilities including accrued expenses, tax payables, and other short-term obligations.",
+        "reading": "Usually includes routine accruals. Significant changes may reflect timing of tax payments, bonuses, or other periodic obligations.",
+    },
+    "Long-Term Debt": {
+        "meaning": "Bonds, loans, and other borrowings with maturities beyond one year. The primary component of long-term financing.",
+        "reading": "Evaluate debt levels relative to EBITDA (Debt/EBITDA ratio). Check debt maturity schedule for near-term refinancing needs. Low-rate fixed debt can be strategic.",
+    },
+    "Other LT Liab.": {
+        "meaning": "Other non-current liabilities including pension obligations, long-term lease liabilities, and deferred tax liabilities.",
+        "reading": "Large pension obligations can be a significant future burden. Deferred tax liabilities may indicate temporary timing differences that will reverse.",
+    },
+    "Equity": {
+        "meaning": "Stockholders' equity. The residual value after subtracting total liabilities from total assets. Represents shareholders' ownership stake.",
+        "reading": "Growing equity indicates value creation. Negative equity (liabilities > assets) is a red flag unless driven by aggressive share buybacks in profitable companies.",
+    },
+    "Retained Earnings": {
+        "meaning": "Cumulative net income retained in the business since inception, minus dividends paid to shareholders.",
+        "reading": "Growing retained earnings means the company is building value internally. Negative retained earnings indicate accumulated losses over the company's history.",
+    },
+    "Other Equity": {
+        "meaning": "Other equity components including additional paid-in capital, treasury stock (buybacks), and accumulated other comprehensive income.",
+        "reading": "Large treasury stock (negative) indicates significant share buybacks. AOCI fluctuations reflect unrealized gains/losses on investments and foreign currency.",
+    },
+}
+
+
 def _get_historical_series(df, yf_key):
     """Extract a full time-series row from a yfinance DataFrame.
 
@@ -655,6 +811,33 @@ def _show_metric_popup(ticker, node_label, view):
     }
     </style>
     """, unsafe_allow_html=True)
+
+    # ── Node info: "What it means" + "How to read it" ──
+    info_map = INCOME_NODE_INFO if view == "income" else BALANCE_NODE_INFO
+    node_info = info_map.get(clean_label, {})
+    if node_info:
+        meaning = node_info.get("meaning", "")
+        reading = node_info.get("reading", "")
+        if meaning:
+            st.markdown(
+                f'<div style="margin:4px 0 10px 0;">'
+                f'<span style="color:#2475fc;font-weight:600;font-size:0.82rem;'
+                f'text-transform:uppercase;letter-spacing:0.5px;">What it means</span>'
+                f'<p style="margin:4px 0 0 0;color:#495057;font-size:0.88rem;line-height:1.55;">'
+                f'{meaning}</p></div>',
+                unsafe_allow_html=True,
+            )
+        if reading:
+            st.markdown(
+                f'<div style="margin:0 0 10px 0;padding-top:8px;'
+                f'border-top:1px solid #f0f0f0;">'
+                f'<span style="color:#2475fc;font-weight:600;font-size:0.82rem;'
+                f'text-transform:uppercase;letter-spacing:0.5px;">How to read it</span>'
+                f'<p style="margin:4px 0 0 0;color:#495057;font-size:0.88rem;line-height:1.55;">'
+                f'{reading}</p></div>',
+                unsafe_allow_html=True,
+            )
+        st.divider()
 
     # ── Frequency toggle: Quarterly / Annual ──
     freq_key = f"tf_freq_{view}_{clean_label}"
@@ -804,7 +987,7 @@ def _inject_sankey_click_js(metric_map):
                     // Sankey nodes expose label; links expose source/target
                     var raw = pt.label || '';
                     // Strip value after <br>
-                    var label = raw.split('<br>')[0].replace(/\\n/g, '').trim();
+                    var label = raw.split('<br>')[0].replace(/\\n/g, '').replace(/[\u2139\uFE0F]/g, '').trim();
                     if (!label || !VALID.has(label)) return;
 
                     // Find pill buttons (Streamlit renders them in [role=radiogroup])
@@ -1369,7 +1552,7 @@ def _build_income_sankey(income_df, info):
     def add(name, val, color_idx, x, y):
         y = round(max(0.01, min(0.99, y)), 4)
         imap[name] = len(nodes)
-        nodes.append(f"{name}<br>{_fmt(val)}")
+        nodes.append(f"{name} \u2139\ufe0f<br>{_fmt(val)}")
         node_colors.append(colors[color_idx])
         node_x.append(x)
         node_y.append(y)
@@ -1543,7 +1726,7 @@ def _build_balance_sheet_sankey(balance_df, info):
         y = round(max(0.01, min(0.99, y)), 4)
         x = round(max(0.01, min(0.99, x)), 4)
         imap[name] = len(nodes)
-        nodes.append(f"{name}<br>{_fmt(val)}")
+        nodes.append(f"{name} \u2139\ufe0f<br>{_fmt(val)}")
         node_colors_list.append(color)
         node_x.append(x)
         node_y.append(y)
