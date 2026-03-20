@@ -9,6 +9,7 @@ Uses yfinance fast_info for minimal latency.
 import json
 import threading
 import time
+import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
@@ -16,7 +17,7 @@ import yfinance as yf
 
 # In-memory cache: ticker -> {price, prev_close, timestamp}
 _price_cache: dict = {}
-_CACHE_TTL = 1.5  # seconds – keep cache short for near real-time feel
+_CACHE_TTL = 1.5  # seconds â keep cache short for near real-time feel
 
 API_PORT = 8502
 
@@ -69,6 +70,59 @@ def _get_price(ticker: str) -> dict:
         price = float(fi.last_price) if fi.last_price else 0
         prev_close = float(fi.previous_close) if fi.previous_close else price
 
+        # Extended market data
+        info = t.info
+        market_state = info.get("marketState", "CLOSED")
+        reg_mkt_time = info.get("regularMarketTime")
+        close_time_str = ""
+        if reg_mkt_time:
+            try:
+                tz_name = info.get("exchangeTimezoneName", "US/Eastern")
+                import pytz
+                tz = pytz.timezone(tz_name)
+                dt = datetime.datetime.fromtimestamp(reg_mkt_time, tz=tz)
+                close_time_str = dt.strftime("%B %d at %I:%M:%S %p %Z")
+            except Exception:
+                close_time_str = ""
+
+        # After-hours / pre-market prices
+        post_price = info.get("postMarketPrice")
+        post_change = info.get("postMarketChange")
+        post_change_pct = info.get("postMarketChangePercent")
+        post_time = info.get("postMarketTime")
+        pre_price = info.get("preMarketPrice")
+        pre_change = info.get("preMarketChange")
+        pre_change_pct = info.get("preMarketChangePercent")
+        pre_time = info.get("preMarketTime")
+
+        ext_label = ""
+        ext_price = None
+        ext_change = None
+        ext_change_pct = None
+        ext_time_str = ""
+        if market_state in ("POST", "POSTPOST") and post_price:
+            ext_label = "After hours"
+            ext_price = round(float(post_price), 2)
+            ext_change = round(float(post_change), 2) if post_change else 0
+            ext_change_pct = round(float(post_change_pct) * 100, 2) if post_change_pct else 0
+            if post_time:
+                try:
+                    dt2 = datetime.datetime.fromtimestamp(post_time, tz)
+                    ext_time_str = dt2.strftime("%I:%M:%S %p %Z")
+                except Exception:
+                    pass
+        elif market_state in ("PRE", "PREPRE") and pre_price:
+            ext_label = "Pre-market"
+            ext_price = round(float(pre_price), 2)
+            ext_change = round(float(pre_change), 2) if pre_change else 0
+            ext_change_pct = round(float(pre_change_pct) * 100, 2) if pre_change_pct else 0
+            if pre_time:
+                try:
+                    dt2 = datetime.datetime.fromtimestamp(pre_time, tz)
+                    ext_time_str = dt2.strftime("%I:%M:%S %p %Z")
+                except Exception:
+                    pass
+
         data = {
             "price": round(price, 2),
             "prev_close": round(prev_close, 2),
@@ -76,6 +130,13 @@ def _get_price(ticker: str) -> dict:
             "change_pct": round(((price - prev_close) / prev_close) * 100, 2) if prev_close else 0,
             "ticker": ticker,
             "ok": True,
+            "market_state": market_state,
+            "close_time": close_time_str,
+            "ext_label": ext_label,
+            "ext_price": ext_price,
+            "ext_change": ext_change,
+            "ext_change_pct": ext_change_pct,
+            "ext_time": ext_time_str,
         }
     except Exception as e:
         data = {"ok": False, "error": str(e), "ticker": ticker}
@@ -101,7 +162,7 @@ def ensure_running():
             server = HTTPServer(("127.0.0.1", API_PORT), PriceHandler)
             server.serve_forever()
         except OSError:
-            # Port already in use (another Streamlit worker) — that's fine
+            # Port already in use (another Streamlit worker) â that's fine
             pass
 
     t = threading.Thread(target=_run, daemon=True)
