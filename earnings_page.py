@@ -160,7 +160,7 @@ def fetch_market_caps_batch(symbols: list) -> dict:
             for item in resp.json():
                 sym = item.get("symbol", "")
                 mc = item.get("mktCap", 0)
-                ex = item.get("exchangeShortName", "") or item.get("exchange", "")
+                ex = item.get("exchangeShortName", "") or item.get("exchange", "") or item.get("stockExchange", "")
                 caps[sym] = {"marketCap": mc, "exchange": ex}
         except Exception:
             continue
@@ -545,6 +545,19 @@ def render_earnings_page():
         st.write("DEBUG exchange values:", df[["symbol", "exchange"]].to_dict("records"))
     else:
         st.write("DEBUG: no exchange column in df. Columns:", list(df.columns))
+    # DEBUG: show raw profile response for first symbol
+    if _fmp_available() and not df.empty:
+        _test_sym = df["symbol"].iloc[0]
+        try:
+            _test_url = f"{_FMP_BASE}/profile/{_test_sym}?apikey={_fmp_key()}"
+            _test_resp = requests.get(_test_url, timeout=10)
+            _test_data = _test_resp.json()
+            if _test_data:
+                _keys = list(_test_data[0].keys())
+                _ex_fields = {k: _test_data[0].get(k) for k in _keys if "exchange" in k.lower() or "exch" in k.lower()}
+                st.write(f"DEBUG profile keys for {_test_sym}:", _ex_fields, "all keys:", _keys[:20])
+        except Exception as e:
+            st.write(f"DEBUG profile error: {e}")
 
     # ── Exchange filters (render first so Streamlit reads state) ──────────
     has_exchange = "exchange" in df.columns
