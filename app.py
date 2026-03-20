@@ -1600,7 +1600,7 @@ current_page = st.session_state.page
 # Nav bar with page switching (using <a> links for reliable navigation)
 st.markdown(f"""
 <div class="nav-bar">
-    <span class="nav-logo">📊 OPEN<br>SANKEY</span>
+    <span class="nav-logo">📊 QUARTER<br>CHARTS</span>
     <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="?page=sankey&ticker={ticker}" target="_self">{ticker} Sankey</a>
     <a class="nav-link {'active' if current_page == 'charts' else ''}" href="?page=charts&ticker={ticker}" target="_self">{ticker} Charts</a>
     <a class="nav-link {'active' if current_page == 'profile' else ''}" href="?page=profile&ticker={ticker}" target="_self">{ticker} Profile</a>
