@@ -4,7 +4,6 @@ Profile page rendering module for Quarter Charts.
 Exports a single function `render_profile_page(ticker: str)` that renders
 the complete company profile/info page using Streamlit.
 """
-
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
@@ -978,13 +977,13 @@ def render_profile_page(ticker: str) -> None:
     # Uses local price API (port 8502) to avoid CORS issues.
     # ─────────────────────────────────────────────────────────────────────────
     import streamlit.components.v1 as components
-    from price_api import API_PORT as _API_PORT
+    from price_api import ensure_running as _ensure_price_api
 
     _live_price_js = f"""
     <script>
     (function() {{
         const TICKER = "{ticker}";
-        const API_URL = "http://127.0.0.1:{_API_PORT}/price/" + TICKER;
+        const API_URL = window.location.origin + "/api/price/" + TICKER;
         const POLL_MS = 3000;
         let prevPrice = {current_price if current_price else 0};
         let prevExtPrice = 0;
@@ -1117,4 +1116,5 @@ def render_profile_page(ticker: str) -> None:
     </script>
     """
 
+    _ensure_price_api()
     components.html(_live_price_js, height=0, width=0)
