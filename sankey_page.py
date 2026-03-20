@@ -1777,6 +1777,16 @@ def render_sankey_page():
             color: #f8fafc;
             margin-bottom: 4px;
             letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sankey-company-logo {
+            height: 32px;
+            width: 32px;
+            object-fit: contain;
+            border-radius: 6px;
+            background: #fff;
         }
         .sankey-subtitle {
             color: #94a3b8;
@@ -1906,6 +1916,10 @@ def render_sankey_page():
             .sankey-title {
                 font-size: 1.2rem !important;
             }
+            .sankey-company-logo {
+                height: 26px !important;
+                width: 26px !important;
+            }
             .sankey-subtitle {
                 font-size: 0.8rem !important;
             }
@@ -1990,7 +2004,7 @@ def render_sankey_page():
         st.markdown(f"""
         <div class="sankey-header">
             <div class="sankey-header-left">
-                <div class="sankey-title">🔀 {company_name} — Sankey Diagram</div>
+                <div class="sankey-title"><img src="https://financialmodelingprep.com/image-stock/{ticker.upper()}.png" class="sankey-company-logo" onerror="this.style.display='none'"> {company_name} — Sankey Diagram</div>
                 <div class="sankey-subtitle">Annual financial flow visualization · Most recent fiscal year</div>
             </div>
         </div>
