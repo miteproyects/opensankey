@@ -16,7 +16,7 @@ import json
 import concurrent.futures
 
 
-# ââ FMP helpers (reuse from data_fetcher) âââââââââââââââââââââââââââââââââ
+# ── FMP helpers (reuse from data_fetcher) ─────────────────────────────────
 
 _FMP_BASE = "https://financialmodelingprep.com/api/v3"
 
@@ -29,7 +29,7 @@ def _fmp_available() -> bool:
     return bool(_fmp_key())
 
 
-# ââ Company name map for nicer display ââââââââââââââââââââââââââââââââââââ
+# ── Company name map for nicer display ────────────────────────────────────
 
 _COMPANY_NAMES = {
     "AAPL": "Apple", "MSFT": "Microsoft", "GOOGL": "Alphabet", "AMZN": "Amazon",
@@ -77,7 +77,7 @@ _COMPANY_NAMES = {
     "BIIB": "Biogen", "MRNA": "Moderna",
 }
 
-# ââ Expanded ticker list for yfinance fallback ââââââââââââââââââââââââââââ
+# ── Expanded ticker list for yfinance fallback ────────────────────────────
 
 _MAJOR_TICKERS = [
     # Mega-cap tech
@@ -118,7 +118,7 @@ _MAJOR_TICKERS = [
 ]
 
 
-# ââ Data fetching âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ── Data fetching ─────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_earnings_calendar(start_date: str, end_date: str) -> pd.DataFrame:
@@ -224,25 +224,25 @@ def _fetch_earnings_yfinance(start_date: str, end_date: str) -> pd.DataFrame:
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 
-# ââ Week calculation ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ── Week calculation ──────────────────────────────────────────────────────
 
 def get_week_range(offset: int = 0) -> tuple:
-    """Get MondayâFriday date range for a given week offset from current week."""
+    """Get Monday–Friday date range for a given week offset from current week."""
     today = datetime.now()
     monday = today - timedelta(days=today.weekday()) + timedelta(weeks=offset)
     friday = monday + timedelta(days=4)
     return monday, friday
 
 
-# ââ Treemap chart creation ââââââââââââââââââââââââââââââââââââââââââââââââ
+# ── Treemap chart creation ────────────────────────────────────────────────
 
 # Day color palettes matching quarterchart.com style (light teal/cyan shades)
 _DAY_COLORS = {
-    0: "#7dd3c8",  # Monday â lighter teal
-    1: "#5ec4b6",  # Tuesday â medium-light teal
-    2: "#4db6ac",  # Wednesday â medium teal
-    3: "#3aaa9e",  # Thursday â medium-dark teal
-    4: "#2e9e91",  # Friday â darker teal
+    0: "#7dd3c8",  # Monday — lighter teal
+    1: "#5ec4b6",  # Tuesday — medium-light teal
+    2: "#4db6ac",  # Wednesday — medium teal
+    3: "#3aaa9e",  # Thursday — medium-dark teal
+    4: "#2e9e91",  # Friday — darker teal
 }
 
 _DAY_HEADER_COLORS = {
@@ -362,12 +362,12 @@ def _hex_to_rgb(hex_color: str) -> tuple:
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
 
-# ââ Main page renderer ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ── Main page renderer ────────────────────────────────────────────────────
 
 def render_earnings_page():
     """Render the full Earnings Calendar page."""
 
-    # ââ Inject page-specific CSS âââââââââââââââââââââââââââââââââââââââââââ
+    # ── Inject page-specific CSS ───────────────────────────────────────────
     st.markdown("""
     <style>
     /* Earnings page specific styles */
@@ -466,7 +466,7 @@ def render_earnings_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # ââ Week navigation state âââââââââââââââââââââââââââââââââââââââââââââ
+    # ── Week navigation state ─────────────────────────────────────────────
     if "earnings_week_offset" not in st.session_state:
         st.session_state.earnings_week_offset = 0
 
@@ -474,15 +474,15 @@ def render_earnings_page():
     start_str = monday.strftime("%Y-%m-%d")
     end_str = friday.strftime("%Y-%m-%d")
 
-    # ââ Title âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ── Title ─────────────────────────────────────────────────────────────
     st.markdown('<h1 class="earnings-title">Earnings Calendar</h1>',
                 unsafe_allow_html=True)
 
-    # ââ Navigation row ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ── Navigation row ────────────────────────────────────────────────────
     nav_left, nav_center, nav_right = st.columns([1, 2, 1])
 
     with nav_left:
-        if st.button("â¹  Prev. Week", key="earn_prev", use_container_width=True):
+        if st.button("‹  Prev. Week", key="earn_prev", use_container_width=True):
             st.session_state.earnings_week_offset -= 1
             st.rerun()
 
@@ -494,12 +494,12 @@ def render_earnings_page():
         )
 
     with nav_right:
-        if st.button("Next Week  âº", key="earn_next", use_container_width=True):
+        if st.button("Next Week  ›", key="earn_next", use_container_width=True):
             st.session_state.earnings_week_offset += 1
             st.rerun()
 
-    # ââ Fetch data ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-    with st.spinner("Loading earnings calendarâ¦"):
+    # ── Fetch data ────────────────────────────────────────────────────────
+    with st.spinner("Loading earnings calendar…"):
         df = fetch_earnings_calendar(start_str, end_str)
 
     if df.empty:
@@ -518,7 +518,7 @@ def render_earnings_page():
     if "date" in df.columns:
         df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
 
-    # ââ Fetch market caps if not present ââââââââââââââââââââââââââââââââââ
+    # ── Fetch market caps if not present ──────────────────────────────────
     if "marketCap" not in df.columns:
         symbols = df["symbol"].unique().tolist()[:100]
         caps = fetch_market_caps_batch(symbols)
@@ -526,14 +526,14 @@ def render_earnings_page():
     else:
         df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce").fillna(0)
 
-    # ââ Count display âââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ── Count display ─────────────────────────────────────────────────────
     total = len(df)
     st.markdown(
         f'<p class="company-count">{total} companies reporting this week</p>',
         unsafe_allow_html=True,
     )
 
-    # ââ Render day-by-day treemaps ââââââââââââââââââââââââââââââââââââââââ
+    # ── Render day-by-day treemaps ────────────────────────────────────────
     days = []
     for i in range(5):  # Monday to Friday
         day_date = monday + timedelta(days=i)
@@ -553,7 +553,7 @@ def render_earnings_page():
         for day_name, day_df, _, day_idx in days[2:]:
             _render_day_section(day_name, day_df, day_idx)
 
-    # ââ Exchange filters ââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ── Exchange filters ──────────────────────────────────────────────────
     _render_exchange_filters()
 
 
