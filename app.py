@@ -12,6 +12,8 @@ import numpy as np
 from datetime import datetime
 from typing import Dict, Any
 import base64
+from PIL import Image
+from io import BytesIO
 
 from data_fetcher import (
     get_company_info,
