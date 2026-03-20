@@ -290,6 +290,15 @@ def render_profile_page(ticker: str) -> None:
                      padding: 2px 8px; border-radius: 4px; transition: background-color 0.3s ease;
                      display: inline-block;">${current_price:.2f}</div>
                 <div id="qc-price-change" style="font-size: 0.85rem; font-weight: 600; margin-top: 2px;"></div>
+                <div id="qc-close-time" style="font-size: 0.7rem; color: #6c757d; margin-top: 4px;"></div>
+                <div id="qc-afterhours" style="margin-top: 8px; display: none;">
+                    <div id="qc-ext-label" style="font-size: 0.7rem; color: #6c757d; margin-bottom: 2px;"></div>
+                    <div style="display: flex; align-items: baseline; gap: 8px;">
+                        <div id="qc-ext-price" style="font-size: 1.1rem; font-weight: 700;"></div>
+                        <div id="qc-ext-change" style="font-size: 0.85rem; font-weight: 600; margin-top: 2px;"></div>
+                    </div>
+                    <div id="qc-ext-time" style="font-size: 0.7rem; color: #6c757d; margin-top: 2px;"></div>
+                </div>
             </div>
             """, unsafe_allow_html=True)
         else:
@@ -983,6 +992,7 @@ def render_profile_page(ticker: str) -> None:
         const API_URL = "http://127.0.0.1:{_API_PORT}/price/" + TICKER;
         const POLL_MS = 2000;
         let prevPrice = {current_price if current_price else 0};
+        let prevExtPrice = 0;
 
         // Yahoo Finance-style colors
         const GREEN    = "#00C805";
@@ -1034,7 +1044,7 @@ def render_profile_page(ticker: str) -> None:
             }}
         }}
 
-        async function poll() {{
+        async function poll(){{
             try {{
                 const r = await fetch(API_URL);
                 if (!r.ok) return;
@@ -1044,11 +1054,11 @@ def render_profile_page(ticker: str) -> None:
                 const p = d.price;
                 const chg = d.change;
                 const pct = d.change_pct;
-                const dd = doc();
-                if (!dd) return;
-
-                const priceEl  = dd.getElementById('qc-price-value');
-                const changeEl = dd.getElementById('qc-price-change');
+                const dd = document.getElementById('qc-price-container');
+                const priceEl = document.getElementById('qc-price-value');
+                const changeEl = document.getElementById('qc-price-change');
+                const closeTimeEl = document.getElementById('qc-close-time');
+                const extBlock = document.getElementById('qc-afterhours');
 
                 // Flash on tick change
                 if (priceEl) {{
@@ -1056,15 +1066,41 @@ def render_profile_page(ticker: str) -> None:
                     else if (p < prevPrice) flash(priceEl, "down");
                     priceEl.textContent = '$' + p.toFixed(2);
                 }}
-
-                // Daily change line
                 if (changeEl) changeEl.innerHTML = fmtChange(chg, pct);
+                if (dd) updateOHLC(dd, p, chg, pct);
 
-                // Update candlestick OHLC bar
-                updateOHLC(dd, p, chg, pct);
+                // Close time
+                if (closeTimeEl && d.close_time) {{
+                    closeTimeEl.textContent = 'At close: ' + d.close_time;
+                }}
+
+                // After-hours / Pre-market
+                if (extBlock) {{
+                    if (d.ext_price) {{
+                        extBlock.style.display = 'block';
+                        const extLabelEl = document.getElementById('qc-ext-label');
+                        const extPriceEl = document.getElementById('qc-ext-price');
+                        const extChangeEl = document.getElementById('qc-ext-change');
+                        const extTimeEl = document.getElementById('qc-ext-time');
+
+                        if (extLabelEl) extLabelEl.textContent = d.ext_label || 'Extended hours';
+                        if (extPriceEl) {{
+                            const ep = d.ext_price;
+                            if (ep > prevExtPrice && prevExtPrice > 0) flash(extPriceEl, "up");
+                            else if (ep < prevExtPrice && prevExtPrice > 0) flash(extPriceEl, "down");
+                            extPriceEl.textContent = '$' + ep.toFixed(2);
+                            prevExtPrice = ep;
+                        }}
+                        if (extChangeEl) extChangeEl.innerHTML = fmtChange(d.ext_change, d.ext_change_pct);
+                        if (extTimeEl && d.ext_time) extTimeEl.textContent = d.ext_time;
+                    }} else {{
+                        extBlock.style.display = 'none';
+                    }}
+                }}
 
                 prevPrice = p;
             }} catch(e) {{}}
+        }}
         }}
 
         poll();
