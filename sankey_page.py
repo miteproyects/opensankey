@@ -2424,7 +2424,7 @@ def render_sankey_page():
         else:
             st.warning(f"No income statement data available for {ticker}.")
 
-        st.caption(f"📊 QuarterCharts · SEC EDGAR data · {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
+        st.caption(f"QuarterCharts · SEC EDGAR data · {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
 
     elif sankey_view == "balance":
         # ── Historical trend selector (popup) ──
@@ -2471,4 +2471,4 @@ def render_sankey_page():
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
 
-        st.caption(f"📊 QuarterCharts · SEC EDGAR data · {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
+        st.caption(f"QuarterCharts · SEC EDGAR data · {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
