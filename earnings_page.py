@@ -676,21 +676,26 @@ def _get_selected_exchanges() -> list:
 def _filter_by_exchange(df: pd.DataFrame) -> pd.DataFrame:
     """Filter DataFrame by selected exchange checkboxes."""
     if "exchange" not in df.columns:
-        return df  # No exchange data — skip filtering
+        return df
 
     selected = _get_selected_exchanges()
     all_exchanges = ["NYSE", "NASDAQ", "JPX", "HKSE", "EURONEXT", "TSX", "Others"]
 
-    # If all selected, no filtering needed
     if len(selected) == len(all_exchanges):
         return df
 
-    # Build set of allowed exchange values
-    allowed = set()
+    # Build set of ALL known exchange values (for categorization)
+    all_known = set()
+    for ex_name in _EXCHANGE_MAP:
+        for val in _EXCHANGE_MAP[ex_name]:
+            all_known.add(val.upper())
+
+    # Build set of SELECTED exchange values
+    selected_vals = set()
     for ex_name in selected:
         if ex_name in _EXCHANGE_MAP:
             for val in _EXCHANGE_MAP[ex_name]:
-                allowed.add(val.upper())
+                selected_vals.add(val.upper())
 
     include_others = "Others" in selected
 
@@ -698,15 +703,23 @@ def _filter_by_exchange(df: pd.DataFrame) -> pd.DataFrame:
         if pd.isna(exchange_val) or str(exchange_val).strip() == "":
             return include_others
         ex_upper = str(exchange_val).strip().upper()
-        # Check if it matches any known selected exchange
-        if ex_upper in allowed:
+        # Check if it matches a SELECTED exchange
+        if ex_upper in selected_vals:
             return True
-        # Check partial matches
+        # Check partial matches against selected exchanges
         for ex_name in selected:
             if ex_name != "Others" and ex_name in _EXCHANGE_MAP:
                 for pattern in _EXCHANGE_MAP[ex_name]:
                     if pattern.upper() in ex_upper or ex_upper in pattern.upper():
                         return True
+        # Check if it matches ANY known exchange (even deselected)
+        if ex_upper in all_known:
+            return False  # Known exchange but not selected
+        for ex_name in _EXCHANGE_MAP:
+            for pattern in _EXCHANGE_MAP[ex_name]:
+                if pattern.upper() in ex_upper or ex_upper in pattern.upper():
+                    return False  # Known exchange but not selected
+        # Truly unknown exchange — use "Others" setting
         return include_others
 
     mask = df["exchange"].apply(row_matches)
