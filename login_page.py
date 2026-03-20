@@ -1,5 +1,5 @@
 """
-Login / Sign-up page for OpenSankey.
+Login / Sign-up page for QuarterCharts.
 Renders a modern auth form with email+password and social login buttons.
 Manages session state for user authentication status.
 """
@@ -9,13 +9,13 @@ import streamlit as st
 def render_login_page():
     """Render the login / sign-up page."""
 
-    # ── Auth mode toggle ──
+    # ââ Auth mode toggle ââ
     if "auth_mode" not in st.session_state:
         st.session_state.auth_mode = "login"
 
     mode = st.session_state.auth_mode
 
-    # ── Page CSS ──
+    # ââ Page CSS ââ
     st.markdown("""
     <style>
     /* Center the auth card */
@@ -121,12 +121,12 @@ def render_login_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Auth card ──
+    # ââ Auth card ââ
     st.markdown('<div class="auth-wrapper">', unsafe_allow_html=True)
 
     if mode == "login":
         st.markdown('<div class="auth-title">Welcome back</div>', unsafe_allow_html=True)
-        st.markdown('<div class="auth-subtitle">Sign in to your OpenSankey account</div>', unsafe_allow_html=True)
+        st.markdown('<div class="auth-subtitle">Sign in to your QuarterCharts account</div>', unsafe_allow_html=True)
     else:
         st.markdown('<div class="auth-title">Create account</div>', unsafe_allow_html=True)
         st.markdown('<div class="auth-subtitle">Start analyzing financials for free</div>', unsafe_allow_html=True)
