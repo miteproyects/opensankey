@@ -9,13 +9,13 @@ import streamlit as st
 def render_login_page():
     """Render the login / sign-up page."""
 
-    # ââ Auth mode toggle ââ
+    # ── Auth mode toggle ──
     if "auth_mode" not in st.session_state:
         st.session_state.auth_mode = "login"
 
     mode = st.session_state.auth_mode
 
-    # ââ Page CSS ââ
+    # ── Page CSS ──
     st.markdown("""
     <style>
     /* Center the auth card */
@@ -121,7 +121,7 @@ def render_login_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # ââ Auth card ââ
+    # ── Auth card ──
     st.markdown('<div class="auth-wrapper">', unsafe_allow_html=True)
 
     if mode == "login":
