@@ -90,7 +90,7 @@ st.set_page_config(
 )
 
 # Sidebar logo
-# st.sidebar.image(BytesIO(base64.b64decode(LOGO_B64)), use_container_width=True)  # hidden to save space
+st.sidebar.image(BytesIO(base64.b64decode(LOGO_B64)), use_container_width=True)
 
 # Cache version: only clear caches manually when needed (not on every new session)
 # To force cache clear: bump this number AND uncomment the clear() line, then revert.
@@ -217,23 +217,24 @@ section[data-testid="stSidebar"] {
 
 /* ---- Nav bar (dark header) ---- */
 .nav-bar {
-    background: var(--header-bg);
-    padding: 0 32px;
+    background: linear-gradient(135deg, #1a1f2e 0%, #0f1219 100%);
+    padding: 0 36px;
     display: flex;
     align-items: center;
     gap: 0;
     flex-wrap: nowrap;
     margin: -0.5rem -1rem 16px -1rem;
     position: relative;
-    height: 56px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    height: 60px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 4px 20px rgba(0,0,0,0.25);
     z-index: 999;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .nav-expand-btn {
     display: none;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
     padding: 6px 12px;
     color: #ffffff;
     font-size: 1rem;
@@ -242,11 +243,11 @@ section[data-testid="stSidebar"] {
     line-height: 1;
     margin-left: 8px;
 }
-.nav-expand-btn:hover { background: rgba(255,255,255,0.2); }
+.nav-expand-btn:hover { background: rgba(255,255,255,0.12); }
 .nav-links {
     display: flex;
     align-items: center;
-    gap: 0;
+    gap: 2px;
     height: 100%;
     flex: 1;
     overflow-x: auto;
@@ -254,34 +255,35 @@ section[data-testid="stSidebar"] {
 }
 .nav-links::-webkit-scrollbar { display: none; }
 .nav-bar a, .nav-bar .nav-link {
-    color: rgba(255,255,255,0.65);
+    color: rgba(255,255,255,0.55);
     text-decoration: none;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 500;
-    letter-spacing: 0.01em;
-    transition: all 0.2s;
+    letter-spacing: 0.02em;
+    transition: all 0.2s ease;
     cursor: pointer;
-    padding: 0 16px;
-    height: 56px;
+    padding: 0 18px;
+    height: 60px;
     display: flex;
     align-items: center;
     white-space: nowrap;
     border-bottom: 2px solid transparent;
+    position: relative;
 }
 .nav-bar a:hover, .nav-bar .nav-link:hover {
-    color: #ffffff;
-    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.04);
 }
 .nav-bar a.active, .nav-bar .nav-link.active {
     color: #ffffff;
     font-weight: 600;
-    border-bottom-color: var(--accent, #2475fc);
+    border-bottom-color: #3b82f6;
 }
 .nav-logo {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-right: 24px;
+    gap: 12px;
+    margin-right: 32px;
     text-decoration: none !important;
     flex-shrink: 0;
     height: 100%;
@@ -289,36 +291,38 @@ section[data-testid="stSidebar"] {
     padding: 0 !important;
 }
 .nav-logo:hover { background: none !important; }
-.nav-logo img { height: 32px; width: 32px; border-radius: 6px; }
+.nav-logo svg { flex-shrink: 0; }
 .nav-logo-text {
-    font-size: 0.95rem;
+    font-size: 0.72rem;
     font-weight: 700;
     color: #ffffff !important;
-    line-height: 1.15;
-    letter-spacing: 0.03em;
+    line-height: 1.2;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
 }
 .nav-right {
     display: flex;
     align-items: center;
-    gap: 0;
+    gap: 4px;
     height: 100%;
     flex-shrink: 0;
     margin-left: auto;
 }
 .nav-right .nav-signin {
-    background: var(--accent, #2475fc) !important;
+    background: #3b82f6 !important;
     color: #ffffff !important;
-    border-radius: 6px !important;
-    padding: 7px 18px !important;
+    border-radius: 8px !important;
+    padding: 8px 20px !important;
     height: auto !important;
     border-bottom: none !important;
     font-weight: 600 !important;
-    font-size: 0.82rem !important;
-    margin-left: 8px;
-    transition: all 0.2s;
+    font-size: 0.8rem !important;
+    letter-spacing: 0.02em !important;
+    margin-left: 12px;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(59,130,246,0.3);
 }
-.nav-right .nav-signin:hover { opacity: 0.9; background: #1a5fd4 !important; }
+.nav-right .nav-signin:hover { background: #2563eb !important; box-shadow: 0 2px 8px rgba(59,130,246,0.4) !important; transform: translateY(-1px); }
 
 /* ---- Metric cards ---- */
 .metric-row {
@@ -756,32 +760,6 @@ section[data-testid="stSidebar"] div[data-testid="stExpander"] summary p {
 }
 
 /* ---- Plotly - no extra background override needed with light theme ---- */
-
-/* ── Aggressive sidebar top-spacing reduction ── */
-section[data-testid="stSidebar"] [data-testid="stSidebarHeader"] {
-    height: 0px !important;
-    min-height: 0px !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-}
-section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
-    padding-top: 0.5rem !important;
-}
-section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-    gap: 0.25rem !important;
-}
-section[data-testid="stSidebar"] .stForm {
-    padding: 0.25rem 0 !important;
-    margin: 0 !important;
-}
-section[data-testid="stSidebar"] img {
-    max-height: 40px !important;
-    width: auto !important;
-}
-section[data-testid="stSidebar"] [data-testid="stFullScreenFrame"] {
-    max-height: 45px !important;
-    overflow: hidden !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -820,11 +798,11 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
         padding-right: 0.5rem !important;
     }
     /* Nav bar: tighter spacing */
-    .nav-bar { padding: 0 16px !important; height: 50px !important; }
-    .nav-bar a, .nav-bar .nav-link { font-size: 0.8rem !important; padding: 0 10px !important; height: 50px !important; }
-    .nav-logo { margin-right: 16px !important; }
-    .nav-logo img { height: 28px !important; width: 28px !important; }
-    .nav-logo-text { font-size: 0.82rem !important; }
+    .nav-bar { padding: 0 20px !important; height: 52px !important; }
+    .nav-bar a, .nav-bar .nav-link { font-size: 0.78rem !important; padding: 0 12px !important; height: 52px !important; }
+    .nav-logo { margin-right: 20px !important; }
+    .nav-logo svg { width: 28px !important; height: 28px !important; }
+    .nav-logo-text { font-size: 0.65rem !important; }
     /* Metric cards: smaller text */
     .metric-value {
         font-size: 1.1rem !important;
@@ -879,12 +857,12 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
             }
         }
     /* Nav bar: scrollable on mobile */
-    .nav-bar { padding: 0 12px !important; height: 48px !important; margin: -0.5rem -0.4rem 10px -0.4rem !important; }
-    .nav-bar a, .nav-bar .nav-link { font-size: 0.75rem !important; padding: 0 8px !important; height: 48px !important; }
-    .nav-logo { margin-right: 12px !important; }
-    .nav-logo img { height: 26px !important; width: 26px !important; }
-    .nav-logo-text { font-size: 0.78rem !important; }
-    .nav-right .nav-signin { padding: 5px 12px !important; font-size: 0.75rem !important; }
+    .nav-bar { padding: 0 14px !important; height: 50px !important; margin: -0.5rem -0.4rem 10px -0.4rem !important; }
+    .nav-bar a, .nav-bar .nav-link { font-size: 0.75rem !important; padding: 0 10px !important; height: 50px !important; }
+    .nav-logo { margin-right: 14px !important; }
+    .nav-logo svg { width: 26px !important; height: 26px !important; }
+    .nav-logo-text { font-size: 0.62rem !important; }
+    .nav-right .nav-signin { padding: 6px 14px !important; font-size: 0.75rem !important; }
 /* Metric cards: responsive grid */
 .metric-row {
     gap: 8px !important;
@@ -933,12 +911,12 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
         padding-left: 0.25rem !important;
         padding-right: 0.25rem !important;
     }
-    .nav-bar { padding: 0 8px !important; height: 44px !important; margin: -0.5rem -0.25rem 8px -0.25rem !important; }
-    .nav-bar a, .nav-bar .nav-link { font-size: 0.7rem !important; padding: 0 6px !important; height: 44px !important; }
+    .nav-bar { padding: 0 10px !important; height: 46px !important; margin: -0.5rem -0.25rem 8px -0.25rem !important; }
+    .nav-bar a, .nav-bar .nav-link { font-size: 0.7rem !important; padding: 0 8px !important; height: 46px !important; }
     .nav-logo { margin-right: 8px !important; }
-    .nav-logo img { height: 22px !important; width: 22px !important; }
+    .nav-logo svg { width: 22px !important; height: 22px !important; }
     .nav-logo-text { display: none !important; }
-    .nav-right .nav-signin { padding: 4px 10px !important; font-size: 0.7rem !important; }
+    .nav-right .nav-signin { padding: 5px 12px !important; font-size: 0.7rem !important; }
 .metric-row {
     grid-template-columns: 1fr !important;
 }
@@ -991,8 +969,8 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
 
 /* ====== LANDSCAPE PHONE ====== */
 @media (max-height: 500px) and (orientation: landscape) {
-    .nav-bar { padding: 0 12px !important; height: 40px !important; }
-    .nav-bar a, .nav-bar .nav-link { height: 40px !important; }
+    .nav-bar { padding: 0 16px !important; height: 44px !important; }
+    .nav-bar a, .nav-bar .nav-link { height: 44px !important; }
     .block-container { padding-top: 0.1rem !important; }
 }
 
@@ -1753,7 +1731,10 @@ current_page = st.session_state.page
 st.markdown(f'''
 <div class="nav-bar">
     <a class="nav-logo" href="/?page=charts&ticker={ticker}" target="_self">
-        <img src="data:image/png;base64,{LOGO_B64}" alt="Q">
+        <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="34" height="34" rx="8" fill="#3b82f6"/>
+            <text x="17" y="24" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="22" font-weight="800" fill="white">Q</text>
+        </svg>
         <span class="nav-logo-text">Quarter<br>Charts</span>
     </a>
     <div class="nav-links">
