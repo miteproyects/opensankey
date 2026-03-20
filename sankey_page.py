@@ -2286,8 +2286,6 @@ def render_sankey_page():
 
         fig = _build_income_sankey(income_df, info)
         if fig:
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
             # ââ Historical trend selector (popup) ââ
             metric_options = list(INCOME_NODE_METRICS.keys())
             sel = st.pills("ð Click a metric to see historical trend",
@@ -2298,7 +2296,9 @@ def render_sankey_page():
                     _show_metric_popup(ticker, sel, "income")
                 _income_popup()
 
-            # Bridge: click Sankey node â auto-click matching pill
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+            # Bridge: click Sankey node → auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
         else:
             st.warning(f"No income statement data available for {ticker}.")
@@ -2326,8 +2326,6 @@ def render_sankey_page():
 
         fig = _build_balance_sheet_sankey(balance_df, info)
         if fig:
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
             # ââ Historical trend selector (popup) ââ
             metric_options = list(BALANCE_NODE_METRICS.keys())
             sel = st.pills("ð Click a metric to see historical trend",
@@ -2338,7 +2336,9 @@ def render_sankey_page():
                     _show_metric_popup(ticker, sel, "balance")
                 _balance_popup()
 
-            # Bridge: click Sankey node â auto-click matching pill
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+            # Bridge: click Sankey node → auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
