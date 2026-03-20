@@ -1040,7 +1040,7 @@ def _show_metric_popup(ticker, node_label, view):
         hovermode="x unified",
     )
 
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key=f"hist_{freq}_{period}")
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]}, key=f"hist_{freq}_{period}")
 
     # ── Navigation pills inside popup ──
     st.divider()
@@ -2418,7 +2418,7 @@ def render_sankey_page():
                     _show_metric_popup(ticker, active_metric, "income")
                 _income_popup()
 
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
 
             # Bridge: click Sankey node → auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
@@ -2463,7 +2463,7 @@ def render_sankey_page():
                     _show_metric_popup(ticker, active_metric, "balance")
                 _balance_popup()
 
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
 
             # Bridge: click Sankey node → auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
