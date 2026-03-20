@@ -200,8 +200,9 @@ def _fetch_stock_list_exchanges() -> dict:
                 for item in data
                 if item.get("symbol") and (item.get("exchangeShortName") or item.get("exchange"))
             }
-    except Exception:
-        pass
+    except Exception as e:
+        import traceback
+        st.warning(f"stock/list error: {e}")
     return {}
 
 
@@ -586,6 +587,12 @@ def render_earnings_page():
         symbols = df["symbol"].unique().tolist()[:200]
         exchange_map = _fetch_exchange_map(symbols)
         df["exchange"] = df["symbol"].map(lambda s: exchange_map.get(s, ""))
+        # DEBUG
+        st.write(f"DEBUG: {len(exchange_map)} exchanges found. FMP avail: {_fmp_available()}, symbols[:5]: {symbols[:5]}")
+        if exchange_map:
+            st.write(f"DEBUG sample: {dict(list(exchange_map.items())[:5])}")
+        else:
+            st.write("DEBUG: exchange_map is EMPTY")
     else:
         df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce").fillna(0)
         # FMP earnings data has marketCap but no exchange — enrich from profiles
