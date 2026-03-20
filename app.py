@@ -1746,7 +1746,7 @@ with st.sidebar:
             from urllib.parse import urlparse
             domain = urlparse(website).netloc or urlparse(website).path
             domain = domain.replace("www.", "")
-            logo_url = f"https://logo.clearbit.com/{domain}"
+                logo_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
         except Exception:
             pass
 
