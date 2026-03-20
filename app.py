@@ -1853,89 +1853,125 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("---")
+    st.markdown("----")
 
-    # ---- Quarterly / Annual toggle (segmented control) ----
-    period_col = st.columns(2)
-    with period_col[0]:
-        if st.button(
-            "Quarterly",
-            use_container_width=True,
-            type="primary" if st.session_state.quarterly else "secondary",
-        ):
-            st.session_state.quarterly = True
-            st.rerun()
-    with period_col[1]:
-        if st.button(
-            "Annual",
-            use_container_width=True,
-            type="primary" if not st.session_state.quarterly else "secondary",
-        ):
-            st.session_state.quarterly = False
-            st.rerun()
-
-    # ---- Timeframe buttons (segmented control) ----
-    tf_cols = st.columns(4)
-    for i, tf in enumerate(["1Y", "2Y", "4Y", "MAX"]):
-        with tf_cols[i]:
+    if current_page != "sankey":
+        # ---- Quarterly / Annual toggle (segmented control) ----
+        period_col = st.columns(2)
+        with period_col[0]:
             if st.button(
-                tf,
+                "Quarterly",
                 use_container_width=True,
-                type="primary" if st.session_state.timeframe == tf else "secondary",
-                key=f"tf_{tf}",
+                type="primary" if st.session_state.quarterly else "secondary",
             ):
-                st.session_state.timeframe = tf
+                st.session_state.quarterly = True
+                st.rerun()
+        with period_col[1]:
+            if st.button(
+                "Annual",
+                use_container_width=True,
+                type="primary" if not st.session_state.quarterly else "secondary",
+            ):
+                st.session_state.quarterly = False
                 st.rerun()
 
-    # Custom timeframe
-    with st.expander("🎯 Custom Timeframe"):
-        custom_n = st.number_input(
-            "Number of periods",
-            min_value=1,
-            max_value=40,
-            value=st.session_state.get("custom_n", 5),
-            key="custom_input",
+        # ---- Timeframe buttons (segmented control) ----
+        tf_cols = st.columns(4)
+        for i, tf in enumerate(["1Y", "2Y", "4Y", "MAX"]):
+            with tf_cols[i]:
+                if st.button(
+                    tf,
+                    use_container_width=True,
+                    type="primary" if st.session_state.timeframe == tf else "secondary",
+                    key=f"tf_{tf}",
+                ):
+                    st.session_state.timeframe = tf
+                    st.rerun()
+
+        # Custom timeframe
+        with st.expander("🎯 Custom Timeframe"):
+            custom_n = st.number_input(
+                "Number of periods",
+                min_value=1,
+                max_value=40,
+                value=st.session_state.get("custom_n", 5),
+                key="custom_input",
+            )
+            if st.button("Apply", use_container_width=True, key="apply_custom"):
+                st.session_state.timeframe = "CUSTOM"
+                st.session_state.custom_n = custom_n
+                st.rerun()
+
+        # ---- Analyst Forecast toggle ----
+        st.markdown("---")
+        st.session_state.show_forecast = st.toggle(
+            "📊 Analyst Forecast",
+            value=st.session_state.show_forecast,
         )
-        if st.button("Apply", use_container_width=True, key="apply_custom"):
-            st.session_state.timeframe = "CUSTOM"
-            st.session_state.custom_n = custom_n
-            st.rerun()
 
-    # ---- Analyst Forecast toggle ----
-    st.markdown("---")
-    st.session_state.show_forecast = st.toggle(
-        "📊 Analyst Forecast",
-        value=st.session_state.show_forecast,
-    )
+        # ---- Section checkboxes ----
+        st.markdown("---")
+        st.session_state.show_income = st.checkbox(
+            "Income Statement", value=st.session_state.show_income, key="cb_income"
+        )
+        st.session_state.show_cashflow = st.checkbox(
+            "Cash Flow Statement", value=st.session_state.show_cashflow, key="cb_cf"
+        )
+        st.session_state.show_balance = st.checkbox(
+            "Balance Sheet", value=st.session_state.show_balance, key="cb_bs"
+        )
+        st.session_state.show_metrics = st.checkbox(
+            "Key Metrics", value=st.session_state.show_metrics, key="cb_km"
+        )
 
-    # ---- Section checkboxes ----
-    st.markdown("---")
-    st.session_state.show_income = st.checkbox(
-        "Income Statement", value=st.session_state.show_income, key="cb_income"
-    )
-    st.session_state.show_cashflow = st.checkbox(
-        "Cash Flow Statement", value=st.session_state.show_cashflow, key="cb_cf"
-    )
-    st.session_state.show_balance = st.checkbox(
-        "Balance Sheet", value=st.session_state.show_balance, key="cb_bs"
-    )
-    st.session_state.show_metrics = st.checkbox(
-        "Key Metrics", value=st.session_state.show_metrics, key="cb_km"
-    )
+        # ---- Layout selector ----
+        st.markdown("---")
+        lc = st.columns(3)
+        for i, (ncols, icon) in enumerate([(1, "▬"), (2, "▦"), (3, "▩")]):
+            with lc[i]:
+                if st.button(
+                    icon,
+                    use_container_width=True,
+                    type="primary" if st.session_state.layout_cols == ncols else "secondary",
+                    key=f"layout_{ncols}",
+                ):
+                    st.session_state.layout_cols = ncols
+                    st.rerun()
 
-    # ---- Layout selector ----
-    st.markdown("---")
-    lc = st.columns(3)
-    for i, (ncols, icon) in enumerate([(1, "▬"), (2, "▦"), (3, "▩")]):
-        with lc[i]:
-            if st.button(
-                icon,
-                use_container_width=True,
-                type="primary" if st.session_state.layout_cols == ncols else "secondary",
-                key=f"layout_{ncols}",
-            ):
-                st.session_state.layout_cols = ncols
-                st.rerun()
+    else:
+        # ————— Sankey Period Comparison Selector —————
+        from datetime import datetime as _dt
+        st.markdown('<p style="font-size:0.85rem;font-weight:600;color:#495057;margin:0 0 6px;">Compare Periods</p>', unsafe_allow_html=True)
+
+        _compare_mode = st.radio(
+            "Compare by",
+            ["Annual", "Quarterly"],
+            key="sankey_compare_mode",
+            horizontal=True,
+        )
+
+        _cur_year = _dt.now().year
+        if _compare_mode == "Annual":
+            _years = [str(y) for y in range(_cur_year, _cur_year - 11, -1)]
+            st.session_state.sankey_period_a = st.selectbox(
+                "Period A (show in Sankey)", _years, index=0, key="sk_pa"
+            )
+            st.session_state.sankey_period_b = st.selectbox(
+                "Period B (compare to)", _years, index=1, key="sk_pb"
+            )
+            st.session_state.sankey_compare_quarterly = False
+        else:
+            _quarters = []
+            for _y in range(_cur_year, _cur_year - 5, -1):
+                for _q in range(4, 0, -1):
+                    _quarters.append(f"Q{_q} {_y}")
+            st.session_state.sankey_period_a = st.selectbox(
+                "Period A (show in Sankey)", _quarters, index=0, key="sk_qa"
+            )
+            st.session_state.sankey_period_b = st.selectbox(
+                "Period B (compare to)", _quarters, index=4, key="sk_qb"
+            )
+            st.session_state.sankey_compare_quarterly = True
 
     # ---- Status ----
     st.markdown(
