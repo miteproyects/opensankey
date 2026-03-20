@@ -335,6 +335,37 @@ section[data-testid="stSidebar"] {
     background: #fff;
 }
 
+/* ---- Fix popover width & position (info icon) ---- */
+[data-testid="stPopoverBody"] {
+    max-width: 420px !important;
+    min-width: 280px !important;
+}
+[data-testid="stPopover"] {
+    position: relative;
+}
+/* Style the info "i" button */
+[data-testid="stPopoverButton"] {
+    background: rgba(0,0,0,0.06) !important;
+    border: 1px solid rgba(0,0,0,0.12) !important;
+    border-radius: 50% !important;
+    width: 24px !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.75rem !important;
+    color: #6b7280 !important;
+    cursor: pointer !important;
+    line-height: 1 !important;
+}
+[data-testid="stPopoverButton"]:hover {
+    background: rgba(36,117,252,0.1) !important;
+    border-color: #2475fc !important;
+    color: #2475fc !important;
+}
+
 /* ---- Section header buttons – EXPANDED (dark, like original) ---- */
 .section-header-expanded {
     background: var(--header-bg) !important;
