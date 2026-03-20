@@ -10,7 +10,7 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# ââ Persistence âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ── Persistence ───────────────────────────────────────────────────────────
 
 _WATCHLIST_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "watchlist_data.json"
@@ -41,7 +41,7 @@ def _save_watchlist(tickers: list):
         pass
 
 
-# ââ Ticker validation âââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ── Ticker validation ─────────────────────────────────────────────────────
 
 def _validate_ticker(sym: str) -> dict | None:
     """
@@ -106,9 +106,9 @@ def _validate_ticker(sym: str) -> dict | None:
     return None
 
 
-# ââ Search helper âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ── Search helper ─────────────────────────────────────────────────────────
 
-# A small map of common company names â tickers for instant search
+# A small map of common company names → tickers for instant search
 _NAME_TO_TICKER = {
     "apple": "AAPL", "microsoft": "MSFT", "google": "GOOGL", "alphabet": "GOOGL",
     "amazon": "AMZN", "meta": "META", "facebook": "META", "nvidia": "NVDA",
@@ -154,7 +154,7 @@ def _search_by_name(query: str) -> str | None:
     return None
 
 
-# ââ Data fetching âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ── Data fetching ─────────────────────────────────────────────────────────
 
 def _fetch_single_ticker(sym: str) -> dict:
     """Fetch market data for a single ticker."""
@@ -245,7 +245,7 @@ def _fetch_ticker_all(sym: str) -> dict:
         import yfinance as yf
         t = yf.Ticker(sym)
 
-        # ââ fast_info: quick price + market cap ââ
+        # ── fast_info: quick price + market cap ──
         price = prev_close = market_cap = 0
         try:
             fi = t.fast_info
@@ -255,7 +255,7 @@ def _fetch_ticker_all(sym: str) -> dict:
         except Exception:
             pass
 
-        # ââ info dict: name, P/E, fallback price ââ
+        # ── info dict: name, P/E, fallback price ──
         info = {}
         try:
             info = t.info or {}
@@ -273,7 +273,7 @@ def _fetch_ticker_all(sym: str) -> dict:
         pe = info.get("trailingPE") or info.get("forwardPE")
         name = info.get("shortName") or info.get("longName") or sym
 
-        # ââ earnings date ââ
+        # ── earnings date ──
         earnings_date = None
         try:
             cal = t.calendar
@@ -331,7 +331,7 @@ def _fetch_watchlist_data(tickers_tuple: tuple) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# ââ Formatting helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ── Formatting helpers ────────────────────────────────────────────────────
 
 def _fmt_market_cap(mc: float) -> str:
     if not mc or mc <= 0:
@@ -368,16 +368,16 @@ def _fmt_pe(pe) -> str:
         return "N/A"
 
 
-# ââ Main page renderer ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ── Main page renderer ────────────────────────────────────────────────────
 
 def render_watchlist_page():
     """Render the full Watchlist page."""
 
-    # ââ Initialize session state âââââââââââââââââââââââââââââââââââââââââââ
+    # ── Initialize session state ───────────────────────────────────────────
     if "watchlist_tickers" not in st.session_state:
         st.session_state.watchlist_tickers = _load_watchlist()
 
-    # ââ Inject page-specific CSS âââââââââââââââââââââââââââââââââââââââââââ
+    # ── Inject page-specific CSS ───────────────────────────────────────────
     st.markdown("""
     <style>
     .watchlist-title {
@@ -486,7 +486,7 @@ def render_watchlist_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # ââ Title âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ── Title ─────────────────────────────────────────────────────────────
     st.markdown('<h1 class="watchlist-title">My Watchlist</h1>',
                 unsafe_allow_html=True)
     st.markdown(
@@ -495,7 +495,7 @@ def render_watchlist_page():
         unsafe_allow_html=True,
     )
 
-    # ââ Handle remove actions FIRST (before rendering) âââââââââââââââââââââ
+    # ── Handle remove actions FIRST (before rendering) ─────────────────────
     for key in list(st.session_state.keys()):
         if key.startswith("wl_remove_") and st.session_state[key]:
             sym = key.replace("wl_remove_", "")
@@ -504,7 +504,7 @@ def render_watchlist_page():
                 _save_watchlist(st.session_state.watchlist_tickers)
                 st.rerun()
 
-    # ââ Handle quick-add actions âââââââââââââââââââââââââââââââââââââââââââ
+    # ── Handle quick-add actions ───────────────────────────────────────────
     for key in list(st.session_state.keys()):
         if key.startswith("wl_qadd_") and st.session_state[key]:
             sym = key.replace("wl_qadd_", "")
@@ -514,7 +514,7 @@ def render_watchlist_page():
                 _save_watchlist(st.session_state.watchlist_tickers)
                 st.rerun()
 
-    # ââ Add Companies section âââââââââââââââââââââââââââââââââââââââââââââ
+    # ── Add Companies section ─────────────────────────────────────────────
     st.markdown('<p class="watchlist-section-title">Add Companies</p>',
                 unsafe_allow_html=True)
 
@@ -571,7 +571,7 @@ def render_watchlist_page():
     count = len(tickers)
     remaining = _MAX_COMPANIES - count
 
-    # ââ Your Companies ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ── Your Companies ────────────────────────────────────────────────────
     st.markdown(
         f'<p class="watchlist-section-title">'
         f'Your Companies ({count}/{_MAX_COMPANIES})</p>',
@@ -597,7 +597,7 @@ def render_watchlist_page():
         st.warning("Could not fetch market data. Please try again later.")
         return
 
-    # ââ Build table HTML ââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # ── Build table HTML ──────────────────────────────────────────────────
     rows_html = ""
     for _, row in df.iterrows():
         sym = row["symbol"]
@@ -622,7 +622,7 @@ def render_watchlist_page():
             f'<td>{change}</td>'
             f'<td>{pe}</td>'
             f'<td>{earnings_html}</td>'
-            f'<td style="text-align:center;font-size:1.3rem;color:#ffc107;">â</td>'
+            f'<td style="text-align:center;font-size:1.3rem;color:#ffc107;">★</td>'
             f'</tr>'
         )
 
@@ -641,7 +641,7 @@ def render_watchlist_page():
 
     st.markdown(table_html, unsafe_allow_html=True)
 
-    # ââ Remove buttons (â toggle â click to remove) âââââââââââââââââââââââ
+    # ── Remove buttons (★ toggle — click to remove) ───────────────────────
     st.markdown("---")
     st.markdown(
         '<p style="font-size:0.85rem; color:#888; margin-bottom:8px;">'
@@ -657,12 +657,12 @@ def render_watchlist_page():
             for i, sym in enumerate(btn_row):
                 with cols[i]:
                     st.button(
-                        f"â {sym}",
+                        f"★ {sym}",
                         key=f"wl_remove_{sym}",
                         use_container_width=True,
                     )
 
-    # ââ Quick-add popular tickers âââââââââââââââââââââââââââââââââââââââââ
+    # ── Quick-add popular tickers ─────────────────────────────────────────
     popular = [
         "NVDA", "AAPL", "GOOGL", "MSFT", "AMZN", "META", "TSLA",
         "TSM", "AVGO", "JPM", "V", "WMT", "NFLX", "ADBE",
