@@ -1,5 +1,5 @@
 """
-Quarter Charts – A local financial charting app.
+Quarter Charts â A local financial charting app.
 
 Run with:  streamlit run app.py
 """
@@ -40,9 +40,9 @@ from price_api import ensure_running as _start_price_api, API_PORT as _PRICE_API
 _start_price_api()  # Start background price server on port 8502
 
 # Lazy-load page modules: only import when their page is active (saves ~2s)
-# from profile_page import render_profile_page   — imported in page routing
-# from earnings_page import render_earnings_page  — imported in page routing
-# from watchlist_page import render_watchlist_page — imported in page routing
+# from profile_page import render_profile_page   â imported in page routing
+# from earnings_page import render_earnings_page  â imported in page routing
+# from watchlist_page import render_watchlist_page â imported in page routing
 from charts import (
     COLORS,
     create_income_chart,
@@ -73,7 +73,7 @@ from charts import (
 )
 
 
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 # Logo and favicon as base64
 FAVICON_B64 = "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"
@@ -81,7 +81,7 @@ FAVICON_B64 = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAGPElEQVR4AexWaWxUV
 LOGO_B64 = "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"
 
 # Page config
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 st.set_page_config(
     page_title="Quarter Charts",
     page_icon=Image.open(BytesIO(base64.b64decode(FAVICON_B64))),
@@ -99,9 +99,9 @@ st.sidebar.image(BytesIO(base64.b64decode(LOGO_B64)), use_container_width=True)
 #     st.cache_data.clear()
 #     st.session_state._cache_v = _CACHE_VERSION
 
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # Force light mode at browser level BEFORE any content renders
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 st.markdown(
     '<meta name="color-scheme" content="light only">'
     '<style>:root{color-scheme:light only !important}'
@@ -109,9 +109,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ───────────────────────────────────────────────────────────────────────────
-# Custom CSS – light theme matching Quarter Charts style
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Custom CSS â light theme matching Quarter Charts style
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 st.markdown("""
 <style>
 /* ---- Variables ---- */
@@ -129,7 +129,7 @@ st.markdown("""
     --red: #ea4335;
 }
 
-/* ---- Global – force white immediately to prevent dark flash on refresh ---- */
+/* ---- Global â force white immediately to prevent dark flash on refresh ---- */
 html, body, .stApp, [data-testid="stAppViewContainer"],
 [data-testid="stAppViewBlockContainer"], .main, .block-container,
 [data-testid="stMainBlockContainer"] {
@@ -143,7 +143,7 @@ html, body, .stApp, [data-testid="stAppViewContainer"],
     display: none !important;
 }
 
-/* Sidebar – move to right side */
+/* Sidebar â move to right side */
 section[data-testid="stSidebar"] {
     background-color: var(--sidebar-bg) !important;
     border-left: 1px solid var(--border);
@@ -152,7 +152,7 @@ section[data-testid="stSidebar"] {
     min-width: 340px !important;
     width: 340px !important;
 }
-/* Make collapse button always visible — arrow flipped to >> (close right-side sidebar) */
+/* Make collapse button always visible â arrow flipped to >> (close right-side sidebar) */
 [data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCollapseButton"] {
     visibility: visible !important;
     opacity: 1 !important;
@@ -175,7 +175,7 @@ section[data-testid="stSidebar"] {
 [data-testid="stSidebarCollapsedControl"] {
     left: auto !important;
     right: 0.5rem !important;
-    /* Hide Streamlit's default expand control — we use our nav-bar button */
+    /* Hide Streamlit's default expand control â we use our nav-bar button */
     opacity: 0 !important;
     pointer-events: none !important;
     position: fixed !important;
@@ -199,7 +199,7 @@ section[data-testid="stSidebar"] {
     display: none !important;
 }
 
-/* ── CSS-driven expand-button visibility (no JS needed) ────────── */
+/* ââ CSS-driven expand-button visibility (no JS needed) ââââââââââ */
 /* When sidebar is collapsed, show the nav-bar expand button via :has() */
 :has([data-testid="stSidebar"][aria-expanded="false"]) .nav-expand-btn {
     display: block !important;
@@ -392,7 +392,7 @@ section[data-testid="stSidebar"] {
     cursor: pointer !important;
     min-height: 3rem !important;
 }
-/* Pre-style PDF buttons before JS — only when row has no JS class yet */
+/* Pre-style PDF buttons before JS â only when row has no JS class yet */
 [data-testid="stHorizontalBlock"]:has([class*="st-key-hdr_show_"]):not(.section-row-expanded):not(.section-row-collapsed) [class*="st-key-gen_pdf_"] button,
 [data-testid="stHorizontalBlock"]:has([class*="st-key-hdr_show_"]):not(.section-row-expanded):not(.section-row-collapsed) [class*="st-key-dl_"] button {
     background: rgba(255,255,255,0.13) !important;
@@ -451,7 +451,7 @@ section[data-testid="stSidebar"] {
     color: #2475fc !important;
 }
 
-/* ---- Section header buttons – EXPANDED (dark, like original) ---- */
+/* ---- Section header buttons â EXPANDED (dark, like original) ---- */
 .section-header-expanded {
     background: var(--header-bg) !important;
     color: #ffffff !important;
@@ -475,7 +475,7 @@ section[data-testid="stSidebar"] {
     color: #ffffff !important;
 }
 
-/* ---- Section header buttons – COLLAPSED (light, like original) ---- */
+/* ---- Section header buttons â COLLAPSED (light, like original) ---- */
 .section-header-collapsed {
     background: #ffffff !important;
     color: var(--text) !important;
@@ -763,9 +763,9 @@ section[data-testid="stSidebar"] div[data-testid="stExpander"] summary p {
 </style>
 """, unsafe_allow_html=True)
 
-# ───────────────────────────────────────────────────────────────────────────
-# Global responsive CSS – all devices / all viewports
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Global responsive CSS â all devices / all viewports
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 st.markdown('<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">', unsafe_allow_html=True)
 st.markdown("""
 <style>
@@ -816,7 +816,7 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
 /* ====== MOBILE (lte 768px) ====== */
 /* ====== MOBILE (lte 768px) ====== */
         @media (max-width: 768px) {
-            /* Sidebar as overlay on mobile — collapsed by default */
+            /* Sidebar as overlay on mobile â collapsed by default */
             section[data-testid="stSidebar"] {
                 position: fixed !important;
                 top: 0 !important;
@@ -995,9 +995,9 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
 
 
 
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # Session state defaults
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # ---- Deferred sync: apply header-toggle flags BEFORE widgets render ----
 for _sk, _ck in [("show_income", "cb_income"), ("show_cashflow", "cb_cf"),
                   ("show_balance", "cb_bs"), ("show_metrics", "cb_km")]:
@@ -1041,9 +1041,9 @@ if "layout_cols" not in st.session_state:
     st.session_state.layout_cols = 1
 
 
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # Helpers
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 def _trim_timeframe(df: pd.DataFrame) -> pd.DataFrame:
     """Trim DataFrame rows to match the selected timeframe."""
@@ -1107,12 +1107,12 @@ def _fmt(val, pct=False, dollar=False, ratio=False) -> str:
     return f"{val:,.2f}"
 
 
-# ───────────────────────────────────────────────────────────────────────────
-# Chart info / explanations (ℹ️ icon next to each chart title)
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Chart info / explanations (â¹ï¸ icon next to each chart title)
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 CHART_INFO = {
-    # ── Income Statement ──
+    # ââ Income Statement ââ
     "Revenue, Gross Profit, Operating and Net Income": {
         "meaning": "Revenue is total sales. Gross Profit = Revenue minus cost of goods sold. "
                    "Operating Income = Gross Profit minus operating expenses (R&D, SGA). "
@@ -1125,7 +1125,7 @@ CHART_INFO = {
         "meaning": "Breaks down total revenue by product line or business division, "
                    "showing which segments drive the most sales.",
         "reading": "Diversified revenue across segments is healthier. A single dominant segment "
-                   "means high concentration risk. Watch for new segments gaining share — that's "
+                   "means high concentration risk. Watch for new segments gaining share â that's "
                    "a sign of successful expansion.",
     },
     "Revenue by Geography": {
@@ -1136,17 +1136,17 @@ CHART_INFO = {
     },
     "Gross, Operating and Net Profit Margin (%)": {
         "meaning": "Margins show profitability as a percentage of revenue. Gross Margin = "
-                   "(Revenue − COGS) / Revenue. Operating Margin includes operating costs. "
+                   "(Revenue â COGS) / Revenue. Operating Margin includes operating costs. "
                    "Net Margin is the final profit percentage after everything.",
         "reading": "Stable or expanding margins = pricing power and operational efficiency. "
                    "Declining margins could mean rising costs, competitive pressure, or heavy "
                    "investment phases. Compare to industry peers for context.",
     },
     "Earnings Per Share (EPS)": {
-        "meaning": "EPS = Net Income ÷ shares outstanding. It shows how much profit is earned "
+        "meaning": "EPS = Net Income Ã· shares outstanding. It shows how much profit is earned "
                    "per share of stock. Basic EPS uses actual shares; Diluted includes stock options.",
         "reading": "Steadily rising EPS is the single most important driver of stock price over time. "
-                   "Compare Basic vs Diluted — a big gap means heavy stock-based compensation. "
+                   "Compare Basic vs Diluted â a big gap means heavy stock-based compensation. "
                    "Declining EPS with growing revenue can indicate margin compression.",
     },
     "Revenue YoY Variation (%)": {
@@ -1185,7 +1185,7 @@ CHART_INFO = {
     },
     "Income Tax Expense": {
         "meaning": "The total income tax paid or accrued by the company for the period.",
-        "reading": "Rising tax expense usually means growing profits — a good sign. An unusually low "
+        "reading": "Rising tax expense usually means growing profits â a good sign. An unusually low "
                    "tax rate may be due to tax credits, loss carryforwards, or international structures. "
                    "Sudden jumps could indicate one-time items.",
     },
@@ -1206,7 +1206,7 @@ CHART_INFO = {
         "meaning": "SBC is the cost of stock options and equity awards given to employees. "
                    "It's a non-cash expense that dilutes existing shareholders.",
         "reading": "Some SBC is normal (attracts talent), but excessive SBC eats into real returns. "
-                   "Compare SBC to net income — if SBC is a large percentage, reported profits are "
+                   "Compare SBC to net income â if SBC is a large percentage, reported profits are "
                    "overstated relative to cash earnings.",
     },
     "Expense Ratios": {
@@ -1218,7 +1218,7 @@ CHART_INFO = {
     },
     "Effective Tax Rate (%)": {
         "meaning": "The actual percentage of pre-tax income paid as taxes, calculated as "
-                   "Tax Expense ÷ Pre-Tax Income.",
+                   "Tax Expense Ã· Pre-Tax Income.",
         "reading": "Most US companies have effective rates of 15-25%. Very low rates may use "
                    "international tax structures. Rising rates compress net margins. "
                    "Volatile rates often indicate one-time items or loss carryforwards.",
@@ -1230,7 +1230,7 @@ CHART_INFO = {
                    "shareholders). Rising share count means dilution from SBC or equity raises. "
                    "A widening gap between Basic and Diluted indicates heavy option grants.",
     },
-    # ── Cash Flow Statement ──
+    # ââ Cash Flow Statement ââ
     "Cash Flows": {
         "meaning": "Operating CF = cash from core business. Investing CF = cash spent on assets "
                    "(usually negative). Financing CF = cash from debt/equity (positive) or "
@@ -1252,7 +1252,7 @@ CHART_INFO = {
                    "Compare CapEx to depreciation: CapEx > depreciation means the company is "
                    "expanding its asset base, not just maintaining it.",
     },
-    # ── Balance Sheet ──
+    # ââ Balance Sheet ââ
     "Total Assets": {
         "meaning": "Everything the company owns: cash, receivables, inventory, property, "
                    "intellectual property, goodwill, and other assets.",
@@ -1265,7 +1265,7 @@ CHART_INFO = {
                    "lease obligations, and other commitments.",
         "reading": "Some leverage is healthy (amplifies returns). But liabilities growing faster "
                    "than assets = deteriorating balance sheet. Watch the current vs non-current "
-                   "split — high current liabilities need near-term cash to service.",
+                   "split â high current liabilities need near-term cash to service.",
     },
     "Stockholders Equity vs Total Debt": {
         "meaning": "Equity = Assets minus Liabilities (book value owned by shareholders). "
@@ -1274,16 +1274,16 @@ CHART_INFO = {
                    "Debt exceeding equity (D/E > 1) increases financial risk. Some mature companies "
                    "deliberately use debt for buybacks, reducing equity while boosting EPS.",
     },
-    # ── Key Metrics ──
+    # ââ Key Metrics ââ
     "P/E Ratio": {
-        "meaning": "Price-to-Earnings ratio = Stock Price ÷ EPS. Shows how much investors pay "
+        "meaning": "Price-to-Earnings ratio = Stock Price Ã· EPS. Shows how much investors pay "
                    "per dollar of earnings. Higher P/E = higher growth expectations.",
         "reading": "Rising P/E with stable earnings = market expects acceleration. Falling P/E "
                    "despite growing earnings = market skepticism or sector rotation. Compare to "
                    "the company's historical average and industry peers.",
     },
     "Market Capitalization": {
-        "meaning": "Market Capitalization = Stock Price × Shares Outstanding. It's the total "
+        "meaning": "Market Capitalization = Stock Price Ã Shares Outstanding. It's the total "
                    "market value of the company.",
         "reading": "Tracks the overall size and investor sentiment about the company over time. "
                    "Rising market cap with stable P/E means earnings are growing. A surge without "
@@ -1358,11 +1358,11 @@ def _chart_insight(fig, ticker: str) -> str:
             if len(y_vals) >= 3:
                 recent = y_vals[-3:]
                 if all(recent[i] < recent[i + 1] for i in range(len(recent) - 1)):
-                    insights.append("📈 The recent trend shows consistent growth over the last 3 periods.")
+                    insights.append("ð The recent trend shows consistent growth over the last 3 periods.")
                 elif all(recent[i] > recent[i + 1] for i in range(len(recent) - 1)):
-                    insights.append("📉 The recent trend shows decline over the last 3 periods.")
+                    insights.append("ð The recent trend shows decline over the last 3 periods.")
 
-        # Multiple traces — compare latest values
+        # Multiple traces â compare latest values
         if len(traces) >= 2 and len(y_vals) >= 1:
             for t in traces[1:]:
                 t_y = [float(v) for v in t.y if v is not None] if hasattr(t, "y") and t.y is not None else []
@@ -1370,7 +1370,7 @@ def _chart_insight(fig, ticker: str) -> str:
                     latest_ratio = last_val / t_y[-1] if t_y[-1] and t_y[-1] != 0 else None
                     if latest_ratio and latest_ratio > 1.5:
                         insights.append(
-                            f"{t0.name} is currently {latest_ratio:.1f}× larger than {t.name}."
+                            f"{t0.name} is currently {latest_ratio:.1f}Ã larger than {t.name}."
                         )
 
     except Exception:
@@ -1380,7 +1380,7 @@ def _chart_insight(fig, ticker: str) -> str:
 
 
 def _render_chart(fig, key: str):
-    """Render a chart title (with info ℹ️ icon) + Plotly chart below it."""
+    """Render a chart title (with info â¹ï¸ icon) + Plotly chart below it."""
     # Extract title stored in fig.layout.meta (plain string) by charts._layout()
     chart_title = ""
     meta = getattr(fig.layout, "meta", None)
@@ -1429,13 +1429,13 @@ def _render_chart(fig, key: str):
     st.plotly_chart(fig, use_container_width=True, key=key, config={
         "displayModeBar": "hover",
         "displaylogo": False,
-        "modeBarButtons": [["toImage"]],
+        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
     })
 
 
 def _share_row(chart_name: str, ticker: str):
     """Render a compact share link beneath a chart (no button, avoids layout issues)."""
-    # Use markdown link styled as small text — avoids button wrapping in narrow columns
+    # Use markdown link styled as small text â avoids button wrapping in narrow columns
     pass  # Share functionality removed to fix layout; can be re-added via chart toolbar
 
 
@@ -1689,7 +1689,7 @@ def _section_header(title: str, emoji: str, state_key: str, cb_key: str = "",
         with pdf_col:
             _pdf_state = f"_pdf_data_{charts_key}"
             if st.session_state.get(_pdf_state):
-                # PDF is pre-generated — show single-click download button
+                # PDF is pre-generated â show single-click download button
                 try:
                     st.download_button(
                         label="PDF",
@@ -1708,7 +1708,7 @@ def _section_header(title: str, emoji: str, state_key: str, cb_key: str = "",
                         key=f"dl_{charts_key}",
                     )
             else:
-                # PDF not yet generated (section not expanded yet) — show
+                # PDF not yet generated (section not expanded yet) â show
                 # disabled-looking placeholder that tells user to expand first
                 try:
                     st.button("PDF", key=f"gen_pdf_{charts_key}",
@@ -1720,9 +1720,9 @@ def _section_header(title: str, emoji: str, state_key: str, cb_key: str = "",
     return is_open
 
 
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # Navigation bar (dark, matching original)
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 ticker = st.session_state.ticker
 current_page = st.session_state.page
@@ -1749,7 +1749,7 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
-# ── Sidebar expand click handler (must load with nav bar, not at page end) ──
+# ââ Sidebar expand click handler (must load with nav bar, not at page end) ââ
 components.html("""<script>
 (function() {
     var doc = window.parent.document;
@@ -1810,17 +1810,17 @@ try {
 } catch(e) {}
 </script>""", height=0)
 
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # Hide Streamlit's "Running..." status widget on all pages
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 st.markdown("""<style>
     [data-testid="stStatusWidget"] { display: none !important; }
     .stSpinner { display: none !important; }
 </style>""", unsafe_allow_html=True)
 
-# ───────────────────────────────────────────────────────────────────────────
-# Sidebar (Charts page only – Profile page has no sidebar)
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Sidebar (Charts page only â Profile page has no sidebar)
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 with st.sidebar:
     # Styled GO button CSS
     st.markdown("""<style>
@@ -1858,7 +1858,7 @@ with st.sidebar:
             value=st.session_state.ticker,
             placeholder="e.g. AAPL, MSFT, TSLA",
         ).upper().strip()
-        submitted = st.form_submit_button("GO →")
+        submitted = st.form_submit_button("GO â")
 
     if submitted and new_ticker and new_ticker != st.session_state.ticker:
         if validate_ticker(new_ticker):
@@ -1935,7 +1935,7 @@ with st.sidebar:
                     st.rerun()
 
         # Custom timeframe
-        with st.expander("🎯 Custom Timeframe"):
+        with st.expander("ð¯ Custom Timeframe"):
             custom_n = st.number_input(
                 "Number of periods",
                 min_value=1,
@@ -1951,7 +1951,7 @@ with st.sidebar:
         # ---- Analyst Forecast toggle ----
         st.markdown("---")
         st.session_state.show_forecast = st.toggle(
-            "📊 Analyst Forecast",
+            "ð Analyst Forecast",
             value=st.session_state.show_forecast,
         )
 
@@ -1973,7 +1973,7 @@ with st.sidebar:
         # ---- Layout selector ----
         st.markdown("---")
         lc = st.columns(3)
-        for i, (ncols, icon) in enumerate([(1, "▬"), (2, "▦"), (3, "▩")]):
+        for i, (ncols, icon) in enumerate([(1, "â¬"), (2, "â¦"), (3, "â©")]):
             with lc[i]:
                 if st.button(
                     icon,
@@ -1985,7 +1985,8 @@ with st.sidebar:
                     st.rerun()
 
     else:
-        # ————— Sankey Period Comparison Selector —————
+        st.markdown('<style>[data-testid="stSidebar"] [data-testid="stImage"]{display:none!important}</style>', unsafe_allow_html=True)
+        # âââââ Sankey Period Comparison Selector âââââ
         from datetime import datetime as _dt
         st.markdown('<p style="font-size:0.85rem;font-weight:600;color:#495057;margin:0 0 6px;">Compare Periods</p>', unsafe_allow_html=True)
 
@@ -2027,9 +2028,9 @@ with st.sidebar:
     )
 
 
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # Page routing
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 if current_page == "profile":
     from profile_page import render_profile_page
@@ -2062,9 +2063,9 @@ if current_page == "watchlist":
     render_watchlist_page()
     st.stop()
 
-# ───────────────────────────────────────────────────────────────────────────
-# Main content area – fetch data & render charts (charts page only)
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Main content area â fetch data & render charts (charts page only)
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 quarterly = st.session_state.quarterly
 
@@ -2185,13 +2186,13 @@ if income_df.empty and balance_df.empty and cashflow_df.empty:
     st.stop()
 
 
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # Analyst Forecast Section (only if toggle is on)
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 if st.session_state.show_forecast and forecast:
-    # Analyst Forecast has no collapse – always show if toggled on
-    _section_header("Analyst Forecast", "📊", "show_forecast", "")
+    # Analyst Forecast has no collapse â always show if toggled on
+    _section_header("Analyst Forecast", "ð", "show_forecast", "")
 
     if st.session_state.show_forecast:
         fc_cols = st.columns(4)
@@ -2212,16 +2213,16 @@ if st.session_state.show_forecast and forecast:
 
         rec = forecast.get("recommendation", "")
         n_analysts = forecast.get("num_analysts", "N/A")
-        st.caption(f"Recommendation: **{rec.upper() if rec else 'N/A'}** · Analysts: **{n_analysts}**")
+        st.caption(f"Recommendation: **{rec.upper() if rec else 'N/A'}** Â· Analysts: **{n_analysts}**")
 
         _render_chart(create_analyst_forecast_chart(forecast), "analyst_chart")
 
 
-# ───────────────────────────────────────────────────────────────────────────
-# Income Statement Section – header ALWAYS visible
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Income Statement Section â header ALWAYS visible
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
-_section_header("Income Statement", "📊", "show_income", "cb_income", charts_key="income")
+_section_header("Income Statement", "ð", "show_income", "cb_income", charts_key="income")
 
 if st.session_state.show_income:
     income_charts = [
@@ -2272,11 +2273,11 @@ if st.session_state.show_income:
     render_charts(income_charts, "income")
 
 
-# ───────────────────────────────────────────────────────────────────────────
-# Cash Flow Section – header ALWAYS visible
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Cash Flow Section â header ALWAYS visible
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
-_section_header("Cash Flow Statement", "💰", "show_cashflow", "cb_cf", charts_key="cashflow")
+_section_header("Cash Flow Statement", "ð°", "show_cashflow", "cb_cf", charts_key="cashflow")
 
 if st.session_state.show_cashflow:
     render_charts([
@@ -2286,11 +2287,11 @@ if st.session_state.show_cashflow:
     ], "cashflow")
 
 
-# ───────────────────────────────────────────────────────────────────────────
-# Balance Sheet Section – header ALWAYS visible
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Balance Sheet Section â header ALWAYS visible
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
-_section_header("Balance Sheet", "🏦", "show_balance", "cb_bs", charts_key="balance")
+_section_header("Balance Sheet", "ð¦", "show_balance", "cb_bs", charts_key="balance")
 
 if st.session_state.show_balance:
     render_charts([
@@ -2300,11 +2301,11 @@ if st.session_state.show_balance:
     ], "balance")
 
 
-# ───────────────────────────────────────────────────────────────────────────
-# Key Metrics Section – header ALWAYS visible
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Key Metrics Section â header ALWAYS visible
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
-_section_header("Key Metrics", "📈", "show_metrics", "cb_km", charts_key="keymetrics")
+_section_header("Key Metrics", "ð", "show_metrics", "cb_km", charts_key="keymetrics")
 
 if st.session_state.show_metrics:
     km_charts = []
@@ -2345,9 +2346,9 @@ if st.session_state.show_metrics:
 
 
 
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # Footer
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 st.markdown(f"""
 <div class="footer">
@@ -2385,9 +2386,9 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # JavaScript: Style section header buttons + connected segmented controls
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 components.html("""
 <script>
@@ -2519,8 +2520,8 @@ components.html("""
 </script>
 """, height=0)
 
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # Auto-rerun once after PDFs are pre-generated so download buttons appear
-# ───────────────────────────────────────────────────────────────────────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 if st.session_state.pop("_need_pdf_rerun", False):
     st.rerun()
