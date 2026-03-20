@@ -256,24 +256,39 @@ section[data-testid="stSidebar"] {
 
 /* ---- Metric cards ---- */
 .metric-row {
-    display: flex;
-    gap: 12px;
-    margin: 10px 0 4px 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 8px 0;
 }
 .metric-card {
-    flex: 1;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 14px 12px;
     text-align: center;
-    padding: 8px 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    transition: box-shadow 0.2s;
+}
+.metric-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.metric-card.full-width {
+    grid-column: 1 / -1;
+    max-width: 50%;
+    margin: 0 auto;
 }
 .metric-label {
-    color: var(--muted);
-    font-size: 0.75rem;
-    font-weight: 400;
-    margin-bottom: 2px;
+    color: #6b7280;
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
 }
 .metric-value {
-    color: var(--text);
-    font-size: 1.3rem;
+    color: #111827;
+    font-size: 1.25rem;
     font-weight: 700;
 }
 .more-info-link {
@@ -789,21 +804,19 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
         font-size: 0.95rem !important;
         gap: 5px !important;
     }
-    /* Metric cards stack better */
-    .metric-row {
-        flex-wrap: wrap !important;
-        gap: 8px !important;
-    }
-    .metric-card {
-        flex: 1 1 45% !important;
-        min-width: 120px !important;
-    }
-    .metric-value {
-        font-size: 1rem !important;
-    }
-    .metric-label {
-        font-size: 0.7rem !important;
-    }
+/* Metric cards: responsive grid */
+.metric-row {
+    gap: 8px !important;
+}
+.metric-card {
+    padding: 10px 8px !important;
+}
+.metric-value {
+    font-size: 1.1rem !important;
+}
+.metric-label {
+    font-size: 0.68rem !important;
+}
     /* Section headers: smaller */
     .section-header-expanded,
     .section-header-collapsed,
@@ -850,12 +863,15 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
     .nav-logo {
         font-size: 0.85rem !important;
     }
-    .metric-card {
-        flex: 1 1 100% !important;
-    }
-    .metric-value {
-        font-size: 0.9rem !important;
-    }
+.metric-row {
+    grid-template-columns: 1fr !important;
+}
+.metric-card.full-width {
+    max-width: 100% !important;
+}
+.metric-value {
+    font-size: 1rem !important;
+}
     .section-header-expanded,
     .section-header-collapsed {
         padding: 8px 10px !important;
@@ -1818,7 +1834,7 @@ with st.sidebar:
             <div class="metric-label">P/E</div>
             <div class="metric-value">{f'{pe:.2f}' if pe else 'N/A'}</div>
         </div>
-        <div class="metric-card">
+        <div class="metric-card full-width">
             <div class="metric-label">PEG</div>
             <div class="metric-value">{f'{peg:.2f}' if peg else 'N/A'}</div>
         </div>
