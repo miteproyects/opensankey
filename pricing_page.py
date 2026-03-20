@@ -1,5 +1,5 @@
 """
-Pricing / Subscription page for OpenSankey.
+Pricing / Subscription page for QuarterCharts.
 Shows tiered pricing plans with feature comparison.
 """
 import streamlit as st
@@ -196,7 +196,7 @@ def render_pricing_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Hero section ──
+    # ââ Hero section ââ
     st.markdown("""
     <div class="pricing-hero">
         <h1>Simple, transparent pricing</h1>
@@ -204,7 +204,7 @@ def render_pricing_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Billing toggle ──
+    # ââ Billing toggle ââ
     if "billing_cycle" not in st.session_state:
         st.session_state.billing_cycle = "monthly"
 
@@ -230,7 +230,7 @@ def render_pricing_page():
     period = "/mo" if not is_annual else "/mo"
     billed_note = "billed annually" if is_annual else "billed monthly"
 
-    # ── Pricing cards ──
+    # ââ Pricing cards ââ
     cols = st.columns(3, gap="medium")
 
     with cols[0]:
@@ -262,7 +262,7 @@ def render_pricing_page():
                 <li>Income + Balance Sankey</li>
                 <li>All financial charts</li>
                 <li>Quarterly & Annual data</li>
-                <li>Historical trends (1Y–4Y+MAX)</li>
+                <li>Historical trends (1Yâ4Y+MAX)</li>
                 <li>Analyst forecast overlay</li>
                 <li>PDF export</li>
                 <li>Watchlist (unlimited tickers)</li>
@@ -288,11 +288,11 @@ def render_pricing_page():
                 <li>Dedicated account manager</li>
                 <li>Custom SLA</li>
             </ul>
-            <a class="pricing-cta cta-enterprise" href="mailto:hello@opensankey.com">Contact Sales</a>
+            <a class="pricing-cta cta-enterprise" href="mailto:hello@quartercharts.com">Contact Sales</a>
         </div>
         """, unsafe_allow_html=True)
 
-    # ── FAQ section ──
+    # ââ FAQ section ââ
     st.markdown("---")
     st.markdown("### Frequently Asked Questions")
 
@@ -313,4 +313,4 @@ def render_pricing_page():
 
     with st.expander("Do you offer discounts for students?"):
         st.write("Yes! Students and educators get 50% off Pro with a valid .edu email address. "
-                 "Contact us at hello@opensankey.com.")
+                 "Contact us at hello@quartercharts.com.")
