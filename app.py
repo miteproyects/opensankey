@@ -1876,11 +1876,16 @@ with st.sidebar:
     st.markdown(f'<div style="display:flex;align-items:center;gap:10px;"><img src="{logo_src}" style="width:32px;height:32px;border-radius:4px;object-fit:contain;background:#fff;" onerror="this.style.display=\'none\'" alt="{ticker} logo"/><span style="font-size:1.4rem;font-weight:600;">{company_name}</span></div>', unsafe_allow_html=True)
 
     # ---- Key metrics row ----
+    stock_price = info.get("current_price")
     mcap = info.get("market_cap_fmt", "N/A")
     pe = info.get("pe_ratio")
     peg = info.get("peg_ratio")
 
     st.markdown(f"""
+    <div class="metric-card full-width" style="background:linear-gradient(135deg,#1a1f2e,#0f1219);border:1px solid rgba(59,130,246,0.3);margin-bottom:12px">
+        <div class="metric-label" style="color:rgba(255,255,255,0.6)">STOCK PRICE</div>
+        <div class="metric-value" style="color:#fff;font-size:1.5rem">${f'{stock_price:.2f}' if stock_price else 'N/A'}</div>
+    </div>
     <div class="metric-row">
         <div class="metric-card">
             <div class="metric-label">Market Cap</div>
