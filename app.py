@@ -1429,7 +1429,7 @@ def _render_chart(fig, key: str):
     st.plotly_chart(fig, use_container_width=True, key=key, config={
         "displayModeBar": "hover",
         "displaylogo": False,
-        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+        "modeBarButtons": [["toImage"]],
     })
 
 
