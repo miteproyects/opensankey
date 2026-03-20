@@ -511,7 +511,7 @@ def render_earnings_page():
             "- The API is temporarily unavailable"
         )
         _render_day_grid_empty(monday)
-        _render_exchange_filters()
+        _render_exchange_filters(has_exchange_data=False)
         return
 
     # Ensure date column is string
@@ -526,14 +526,22 @@ def render_earnings_page():
     else:
         df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce").fillna(0)
 
-    # ── Count display ─────────────────────────────────────────────────────
+    # ── Exchange filters (render first so Streamlit reads state) ──────────
+    has_exchange = "exchange" in df.columns
+    _render_exchange_filters(has_exchange_data=has_exchange)
+
+    # ── Apply exchange filters ──────────────────────────────────────────────────
+    if has_exchange:
+        df = _filter_by_exchange(df)
+
+    # ── Count display ─────────────────────────────────────────────────────────
     total = len(df)
     st.markdown(
         f'<p class="company-count">{total} companies reporting this week</p>',
         unsafe_allow_html=True,
     )
 
-    # ── Render day-by-day treemaps ────────────────────────────────────────
+    # ── Render day-by-day treemaps ────────────────────────────────────────────
     days = []
     for i in range(5):  # Monday to Friday
         day_date = monday + timedelta(days=i)
@@ -552,9 +560,6 @@ def render_earnings_page():
     with col_right:
         for day_name, day_df, _, day_idx in days[2:]:
             _render_day_section(day_name, day_df, day_idx)
-
-    # ── Exchange filters ──────────────────────────────────────────────────
-    _render_exchange_filters()
 
 
 def _render_day_grid_empty(monday):
@@ -635,7 +640,66 @@ def _render_day_section(day_name: str, day_df: pd.DataFrame, day_idx: int = 0):
             )
 
 
-def _render_exchange_filters():
+# ── Exchange filter mapping ──────────────────────────────────────────────────────────
+# Maps filter checkbox names to actual FMP exchange values
+_EXCHANGE_MAP = {
+    "NYSE": ["NYSE", "New York Stock Exchange", "AMEX", "NYSEArca"],
+    "NASDAQ": ["NASDAQ", "NasdaqGS", "NasdaqGM", "NasdaqCM", "Nasdaq"],
+    "JPX": ["JPX", "TSE", "Tokyo"],
+    "HKSE": ["HKSE", "HKG", "Hong Kong"],
+    "EURONEXT": ["EURONEXT", "Paris", "Amsterdam", "Brussels", "Lisbon",
+                 "LSE", "London", "XETRA", "Frankfurt", "SIX", "Swiss"],
+    "TSX": ["TSX", "TSXV", "Toronto"],
+}
+
+
+def _get_selected_exchanges() -> list:
+    """Return list of selected exchange filter names from session state."""
+    exchanges = ["NYSE", "NASDAQ", "JPX", "HKSE", "EURONEXT", "TSX", "Others"]
+    return [ex for ex in exchanges if st.session_state.get(f"ex_{ex}", True)]
+
+
+def _filter_by_exchange(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter DataFrame by selected exchange checkboxes."""
+    if "exchange" not in df.columns:
+        return df  # No exchange data — skip filtering
+
+    selected = _get_selected_exchanges()
+    all_exchanges = ["NYSE", "NASDAQ", "JPX", "HKSE", "EURONEXT", "TSX", "Others"]
+
+    # If all selected, no filtering needed
+    if len(selected) == len(all_exchanges):
+        return df
+
+    # Build set of allowed exchange values
+    allowed = set()
+    for ex_name in selected:
+        if ex_name in _EXCHANGE_MAP:
+            for val in _EXCHANGE_MAP[ex_name]:
+                allowed.add(val.upper())
+
+    include_others = "Others" in selected
+
+    def row_matches(exchange_val):
+        if pd.isna(exchange_val) or str(exchange_val).strip() == "":
+            return include_others
+        ex_upper = str(exchange_val).strip().upper()
+        # Check if it matches any known selected exchange
+        if ex_upper in allowed:
+            return True
+        # Check partial matches
+        for ex_name in selected:
+            if ex_name != "Others" and ex_name in _EXCHANGE_MAP:
+                for pattern in _EXCHANGE_MAP[ex_name]:
+                    if pattern.upper() in ex_upper or ex_upper in pattern.upper():
+                        return True
+        return include_others
+
+    mask = df["exchange"].apply(row_matches)
+    return df[mask].copy()
+
+
+def _render_exchange_filters(has_exchange_data: bool = False):
     """Render exchange filter checkboxes at the bottom."""
     st.markdown("---")
     st.markdown(
@@ -646,15 +710,20 @@ def _render_exchange_filters():
     )
 
     exchanges = ["NYSE", "NASDAQ", "JPX", "HKSE", "EURONEXT", "TSX", "Others"]
+    is_disabled = not has_exchange_data
     n_cols = min(len(exchanges), 4)
     for row_start in range(0, len(exchanges), n_cols):
         row_exs = exchanges[row_start:row_start + n_cols]
         cols = st.columns(n_cols)
         for i, ex in enumerate(row_exs):
             with cols[i]:
-                st.checkbox(ex, value=True, key=f"ex_{ex}", disabled=True)
+                st.checkbox(
+                    ex, value=True, key=f"ex_{ex}",
+                    disabled=is_disabled,
+                )
 
-    st.caption(
-        "Exchange filtering is available with FMP API key. "
-        "Set the `FMP_API_KEY` environment variable to enable full features."
-    )
+    if not has_exchange_data:
+        st.caption(
+            "Exchange filtering is available with FMP API key. "
+            "Set the `FMP_API_KEY` environment variable to enable full features."
+        )
