@@ -1737,10 +1737,21 @@ with st.sidebar:
     info = get_company_info(ticker)
     company_name = info.get("company_name", ticker)
     logo_url = info.get("logo_url", "")
+    website = info.get("website", "")
     icon = get_company_icon(ticker, info.get("sector", ""), info.get("industry", ""))
 
+    # Build logo URL from website domain if no direct logo_url
+    if not logo_url and website and website != "N/A":
+        try:
+            from urllib.parse import urlparse
+            domain = urlparse(website).netloc or urlparse(website).path
+            domain = domain.replace("www.", "")
+            logo_url = f"https://logo.clearbit.com/{domain}"
+        except Exception:
+            pass
+
     if logo_url:
-        st.markdown(f'<div style="display:flex;align-items:center;gap:10px;"><img src="{logo_url}" style="width:32px;height:32px;border-radius:4px;object-fit:contain;" alt="{ticker} logo"/><span style="font-size:1.4rem;font-weight:600;">{company_name}</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="display:flex;align-items:center;gap:10px;"><img src="{logo_url}" style="width:32px;height:32px;border-radius:4px;object-fit:contain;" onerror="this.style.display=\'none\'" alt="{ticker} logo"/><span style="font-size:1.4rem;font-weight:600;">{company_name}</span></div>', unsafe_allow_html=True)
     else:
         st.markdown(f"### {icon} {company_name}")
 
