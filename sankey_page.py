@@ -952,6 +952,26 @@ def _show_metric_popup(ticker, node_label, view):
                 if not computed.empty and computed.sum() > 0:
                     series = computed.sort_index()
 
+    # ── Fallback: compute "Investments" as residual when not directly available ──
+    if (series is None or series.empty) and yf_key == "Investments And Advances":
+        nca = _get_historical_series(src_df, "Total Non Current Assets")
+        ppe = _get_historical_series(src_df, "Net PPE")
+        gw = _get_historical_series(src_df, "Goodwill")
+        intang = _get_historical_series(src_df, "Other Intangible Assets")
+        if nca is not None:
+            common = nca.index
+            for s in [ppe, gw, intang]:
+                if s is not None:
+                    common = common.intersection(s.index)
+            if len(common) > 0:
+                _ppe = ppe.reindex(common, fill_value=0) if ppe is not None else 0
+                _gw = gw.reindex(common, fill_value=0) if gw is not None else 0
+                _intang = intang.reindex(common, fill_value=0) if intang is not None else 0
+                computed = nca.reindex(common) - _ppe - _gw - _intang
+                computed = computed.clip(lower=0)
+                if not computed.empty and computed.sum() > 0:
+                    series = computed.sort_index()
+
     if series is None or series.empty:
         st.warning(f"No {freq_label.lower()} data available for **{clean_label}**.")
         return
