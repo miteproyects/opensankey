@@ -1731,9 +1731,9 @@ current_page = st.session_state.page
 st.markdown(f'''
 <div class="nav-bar">
     <a class="nav-logo" href="/?page=charts&ticker={ticker}" target="_self">
-        <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="34" height="34" rx="8" fill="#3b82f6"/>
-            <text x="17" y="24" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="22" font-weight="800" fill="white">Q</text>
+        <svg width="68" height="68" viewBox="0 0 68 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="34" height="34" rx="16" fill="#3b82f6"/>
+            <text x="34" y="48" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="44" font-weight="800" fill="white">Q</text>
         </svg>
         <span class="nav-logo-text">Quarter<br>Charts</span>
     </a>
