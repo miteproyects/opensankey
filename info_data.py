@@ -107,7 +107,7 @@ def _get_xbrl_value(facts: dict, tag_list: list, form_type: str = "10-K",
     """Extract a single XBRL value from CompanyFacts for the most recent filing.
 
     Tries ALL tags and picks the one with the most recent end date (handles
-    XBRL tag transitions like Revenues â RevenueFromContractâ¦).
+    XBRL tag transitions like Revenues → RevenueFromContract…).
 
     Parameters:
     - facts: Full CompanyFacts JSON dict
@@ -375,7 +375,7 @@ def get_fundamentals(ticker: str) -> List[List[Tuple[str, str, str]]]:
         if not facts:
             return [[("N/A", "N/A", "blue")] * 4] * 10
 
-        # ââ Income statement (current + previous year for growth) ââ
+        # ── Income statement (current + previous year for growth) ──
         rev_cur, rev_prev = _get_xbrl_two_years(facts, _XBRL_INCOME_TAGS["Total Revenue"])
         cogs = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Cost Of Revenue"])
         gp = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Gross Profit"])
@@ -386,7 +386,7 @@ def get_fundamentals(ticker: str) -> List[List[Tuple[str, str, str]]]:
         interest = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["Interest Expense"])
         eps = _get_xbrl_value(facts, _XBRL_INCOME_TAGS["EPS"], unit="USD/shares")
 
-        # ââ Balance sheet ââ
+        # ── Balance sheet ──
         tot_assets = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Total Assets"])
         cur_assets = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Assets"])
         cash = _get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Cash And Cash Equivalents"])
@@ -400,7 +400,7 @@ def get_fundamentals(ticker: str) -> List[List[Tuple[str, str, str]]]:
             tot_liab = tot_assets - equity  # Assets = Liabilities + Equity
         total_debt = (lt_debt or 0) + (_get_xbrl_value(facts, _XBRL_BALANCE_TAGS["Current Debt"]) or 0)
 
-        # ââ Margins & returns ââ
+        # ── Margins & returns ──
         gm = (gp / rev_cur) if rev_cur and gp else None
         om = (oi / rev_cur) if rev_cur and oi else None
         pm = (ni_cur / rev_cur) if rev_cur and ni_cur else None
@@ -408,23 +408,23 @@ def get_fundamentals(ticker: str) -> List[List[Tuple[str, str, str]]]:
         roa = (ni_cur / tot_assets) if tot_assets and ni_cur else None
         roce = (oi / (equity + (lt_debt or 0))) if oi and equity else None
 
-        # ââ Growth ââ
+        # ── Growth ──
         rev_growth = ((rev_cur / rev_prev) - 1) if rev_cur and rev_prev and rev_prev != 0 else None
         ni_growth = ((ni_cur / ni_prev) - 1) if ni_cur and ni_prev and ni_prev != 0 else None
 
-        # ââ Liquidity ââ
+        # ── Liquidity ──
         cr = (cur_assets / cur_liab) if cur_assets and cur_liab and cur_liab != 0 else None
         qr = ((cur_assets - (inventory or 0)) / cur_liab) if cur_assets and cur_liab and cur_liab != 0 else None
         cash_ratio = (cash / cur_liab) if cash and cur_liab and cur_liab != 0 else None
 
-        # ââ Leverage ââ
+        # ── Leverage ──
         de = (total_debt / equity) if equity and equity != 0 else None
         da = (total_debt / tot_assets) if tot_assets and tot_assets != 0 else None
         lt_de = ((lt_debt or 0) / equity) if equity and equity != 0 and lt_debt else None
         lt_cap = ((lt_debt or 0) / ((lt_debt or 0) + equity)) if equity and lt_debt else None
         int_cov = (oi / interest) if oi and interest and interest != 0 else None
 
-        # ââ Efficiency / turnover ââ
+        # ── Efficiency / turnover ──
         at = (rev_cur / tot_assets) if rev_cur and tot_assets and tot_assets != 0 else None
         inv_to = (cogs / inventory) if cogs and inventory and inventory != 0 else None
         rec_to = (rev_cur / ar) if rev_cur and ar and ar != 0 else None
@@ -432,7 +432,7 @@ def get_fundamentals(ticker: str) -> List[List[Tuple[str, str, str]]]:
         def _r2(v):
             return f"{v:.2f}" if v is not None else "N/A"
 
-        # ââ Valuation multiples from Yahoo Finance ââ
+        # ── Valuation multiples from Yahoo Finance ──
         info = _yf_info(ticker)
         ev = info.get("enterpriseValue")
         pe = info.get("trailingPE")
@@ -451,7 +451,7 @@ def get_fundamentals(ticker: str) -> List[List[Tuple[str, str, str]]]:
         if price and fcf_yf and shares_yf and shares_yf > 0 and fcf_yf > 0:
             pfcf = price / (fcf_yf / shares_yf)
 
-        # ââ Build rows ââ
+        # ── Build rows ──
         rows = [
             [("EV", _fmt_num(ev, prefix="$"), "blue"),
              ("P/E", _r2(pe), "blue"),
@@ -576,7 +576,7 @@ def get_dcf_data(ticker: str) -> Dict[str, Any]:
     discount_rate, shares_outstanding, net_debt.
     """
     try:
-        # ââ Yahoo Finance data (preferred for FCF, shares, beta) ââ
+        # ── Yahoo Finance data (preferred for FCF, shares, beta) ──
         info = _yf_info(ticker)
 
         # FCF: prefer YF (accounts for all capex properly)
@@ -639,7 +639,7 @@ def get_dcf_data(ticker: str) -> Dict[str, Any]:
         wacc = 0.70 * cost_of_equity + 0.30 * 0.05
         wacc = max(0.06, min(0.15, wacc))  # clamp 6-15%
 
-        # Growth rates â use YF earnings growth as anchor if available
+        # Growth rates — use YF earnings growth as anchor if available
         eg = info.get("earningsGrowth")
         rg = info.get("revenueGrowth")
         base_growth = 0.06  # default
@@ -895,7 +895,7 @@ def get_score(ticker: str) -> int:
         return 0
 
     try:
-        # ââ EDGAR data ââ
+        # ── EDGAR data ──
         cik = _ticker_to_cik(ticker)
         facts = _fetch_edgar_facts(cik) if cik else None
         if not facts:
@@ -929,10 +929,10 @@ def get_score(ticker: str) -> int:
         ni_cur, ni_prev = _get_xbrl_two_years(facts, _XBRL_INCOME_TAGS["Net Income"])
         eps_cur, eps_prev = _get_xbrl_two_years(facts, _XBRL_INCOME_TAGS["EPS"], unit="USD/shares")
 
-        # ââ Yahoo Finance data ââ
+        # ── Yahoo Finance data ──
         info = _yf_info(ticker)
 
-        # ââ Profitability (20 pts) ââ
+        # ── Profitability (20 pts) ──
         gm_pct = (gp / rev * 100) if rev and gp else 0
         pm_pct = (ni / rev * 100) if rev and ni else 0
         roe_pct = (ni / teq * 100) if teq and ni and teq != 0 else 0
@@ -942,7 +942,7 @@ def get_score(ticker: str) -> int:
               + _st(roe_pct, [(25,5),(15,4),(10,3),(5,2),(0.01,1)])
               + _st(roa_pct, [(15,5),(10,4),(5,3),(2,2),(0.01,1)]))
 
-        # ââ Liquidity (20 pts) ââ
+        # ── Liquidity (20 pts) ──
         cr = (ca / cl) if ca and cl and cl > 0 else None
         qr = ((ca - (inv or 0)) / cl) if ca and cl and cl > 0 else None
         cashr = (cash / cl) if cash is not None and cl and cl > 0 else None
@@ -952,7 +952,7 @@ def get_score(ticker: str) -> int:
              + _st(cashr, [(1,5),(0.5,4),(0.3,3),(0.15,2),(0.05,1)])
              + _st(ocfr, [(1.5,5),(1,4),(0.5,3),(0.2,2),(0.05,1)]))
 
-        # ââ Leverage (25 pts) ââ
+        # ── Leverage (25 pts) ──
         de_ratio = (td / teq) if teq and teq != 0 else None
         int_cov = abs(oi / interest) if oi and interest and abs(interest) > 0 else None
         da = (td / ta) if ta and ta > 0 else None
@@ -990,7 +990,7 @@ def get_score(ticker: str) -> int:
              + da_s + ldc_s
              + _st(az, [(3,5),(2.5,4),(1.8,3),(1.2,2),(0.5,1)]))
 
-        # ââ Efficiency (15 pts) ââ
+        # ── Efficiency (15 pts) ──
         at = (rev / ta) if rev and ta and ta > 0 else None
         invt = (cogs / inv) if cogs and inv and inv > 0 else None
         rt = (rev / ar) if rev and ar and ar > 0 else None
@@ -998,7 +998,7 @@ def get_score(ticker: str) -> int:
              + _st(invt, [(8,5),(5,4),(4,3),(2,2),(1,1)])
              + _st(rt, [(8,5),(5,4),(4,3),(2,2),(1,1)]))
 
-        # ââ Growth (10 pts) ââ
+        # ── Growth (10 pts) ──
         epsg_pct = None
         if eps_cur is not None and eps_prev is not None and eps_prev != 0:
             epsg_pct = ((eps_cur / eps_prev) - 1) * 100
@@ -1019,7 +1019,7 @@ def get_score(ticker: str) -> int:
         gro = (_st(epsg_pct, [(30,5),(15,4),(5,3),(0.01,2)])
              + _st(cagr_v, [(25,5),(15,4),(8,3),(3,2),(0.01,1)]))
 
-        # ââ Valuation (10 pts) ââ
+        # ── Valuation (10 pts) ──
         pe = info.get("trailingPE")
         pb = info.get("priceToBook")
         pe_s = 0
@@ -1052,53 +1052,53 @@ def get_company_icon(ticker: str, sector: str = "", industry: str = "") -> str:
     """Return a representative emoji for a company based on ticker, sector, or industry."""
     _ticker_icons = {
         # Tech / Chips
-        "NVDA": "ð¢", "AMD": "ð´", "INTC": "ðµ", "QCOM": "ð¡", "AVGO": "ð¡",
-        "TSM": "ð­", "MU": "ð¾", "MRVL": "ð¡", "ARM": "ð§ ", "SMCI": "ð¥ï¸",
+        "NVDA": "🟢", "AMD": "🔴", "INTC": "🔵", "QCOM": "📡", "AVGO": "📡",
+        "TSM": "🏭", "MU": "💾", "MRVL": "📡", "ARM": "🧠", "SMCI": "🖥️",
         # Big Tech
-        "AAPL": "ð", "MSFT": "ðª", "GOOG": "ð", "GOOGL": "ð",
-        "AMZN": "ð¦", "META": "ðï¸", "NFLX": "ð¬", "TSLA": "â¡",
+        "AAPL": "🍎", "MSFT": "🪟", "GOOG": "🔍", "GOOGL": "🔍",
+        "AMZN": "📦", "META": "👁️", "NFLX": "🎬", "TSLA": "⚡",
         # Consumer / Food & Drink
-        "KO": "ð¥¤", "PEP": "ð¥¤", "SBUX": "â", "MCD": "ð",
-        "WMT": "ð", "COST": "ð", "TGT": "ð¯", "NKE": "ð",
-        "DIS": "ð°", "CMCSA": "ðº", "HD": "ð¨", "LOW": "ð ",
+        "KO": "🥤", "PEP": "🥤", "SBUX": "☕", "MCD": "🍔",
+        "WMT": "🛒", "COST": "🛒", "TGT": "🎯", "NKE": "👟",
+        "DIS": "🏰", "CMCSA": "📺", "HD": "🔨", "LOW": "🏠",
         # Finance
-        "JPM": "ð¦", "BAC": "ð¦", "GS": "ð¦", "MS": "ð¦",
-        "V": "ð³", "MA": "ð³", "AXP": "ð³", "PYPL": "ð°",
-        "BRK.A": "ð¦", "BRK.B": "ð¦", "BLK": "â¬",
+        "JPM": "🏦", "BAC": "🏦", "GS": "🏦", "MS": "🏦",
+        "V": "💳", "MA": "💳", "AXP": "💳", "PYPL": "💰",
+        "BRK.A": "🦎", "BRK.B": "🦎", "BLK": "⬛",
         # Healthcare / Pharma
-        "JNJ": "ð", "PFE": "ð", "MRK": "ð", "ABBV": "ð",
-        "UNH": "ð¥", "LLY": "ð", "NVO": "ð", "MRNA": "ð§¬",
+        "JNJ": "💊", "PFE": "💊", "MRK": "💊", "ABBV": "💊",
+        "UNH": "🏥", "LLY": "💊", "NVO": "💉", "MRNA": "🧬",
         # Energy
-        "XOM": "ð¢ï¸", "CVX": "ð¢ï¸", "COP": "ð¢ï¸", "SLB": "â½",
+        "XOM": "🛢️", "CVX": "🛢️", "COP": "🛢️", "SLB": "⛽",
         # Automotive
-        "F": "ð", "GM": "ð", "TM": "ð", "RIVN": "ð»",
+        "F": "🚗", "GM": "🚙", "TM": "🚗", "RIVN": "🛻",
         # Airlines / Travel
-        "DAL": "âï¸", "UAL": "âï¸", "LUV": "âï¸", "BA": "âï¸",
-        "ABNB": "ð¡", "BKNG": "ð§³", "MAR": "ð¨", "HLT": "ð¨",
+        "DAL": "✈️", "UAL": "✈️", "LUV": "✈️", "BA": "✈️",
+        "ABNB": "🏡", "BKNG": "🧳", "MAR": "🏨", "HLT": "🏨",
         # Social / Gaming
-        "SNAP": "ð»", "PINS": "ð", "SPOT": "ðµ", "RBLX": "ð®",
-        "EA": "ð®", "TTWO": "ð®", "ATVI": "ð®", "U": "ð®",
+        "SNAP": "👻", "PINS": "📌", "SPOT": "🎵", "RBLX": "🎮",
+        "EA": "🎮", "TTWO": "🎮", "ATVI": "🎮", "U": "🎮",
         # Crypto / Fintech
-        "COIN": "ðª", "SQ": "ð²", "MSTR": "â¿",
+        "COIN": "🪙", "SQ": "💲", "MSTR": "₿",
         # Telecom
-        "T": "ð±", "VZ": "ð±", "TMUS": "ð±",
+        "T": "📱", "VZ": "📱", "TMUS": "📱",
         # Defense
-        "LMT": "ð¡ï¸", "RTX": "ð", "NOC": "ð¡ï¸", "GD": "ð¡ï¸",
+        "LMT": "🛡️", "RTX": "🚀", "NOC": "🛡️", "GD": "🛡️",
         # Space
-        "SPCE": "ð", "RKLB": "ð",
+        "SPCE": "🚀", "RKLB": "🚀",
     }
     if ticker in _ticker_icons:
         return _ticker_icons[ticker]
 
     _sector_icons = {
-        "Technology": "ð»", "Communication Services": "ð¡",
-        "Consumer Cyclical": "ðï¸", "Consumer Defensive": "ð",
-        "Financial Services": "ð¦", "Healthcare": "ð¥",
-        "Energy": "â¡", "Industrials": "ðï¸",
-        "Basic Materials": "âï¸", "Real Estate": "ð¢",
-        "Utilities": "ð¡",
+        "Technology": "💻", "Communication Services": "📡",
+        "Consumer Cyclical": "🛍️", "Consumer Defensive": "🛒",
+        "Financial Services": "🏦", "Healthcare": "🏥",
+        "Energy": "⚡", "Industrials": "🏗️",
+        "Basic Materials": "⛏️", "Real Estate": "🏢",
+        "Utilities": "💡",
     }
     if sector in _sector_icons:
         return _sector_icons[sector]
 
-    return "ð"
+    return "📊"
