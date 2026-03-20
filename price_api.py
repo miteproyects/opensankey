@@ -10,10 +10,10 @@ import json
 import threading
 import time
 import datetime
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse
 
 import yfinance as yf
+import tornado.web
+import tornado.ioloop
 
 # In-memory cache: ticker -> {price, prev_close, timestamp}
 _price_cache: dict = {}
@@ -22,40 +22,22 @@ _CACHE_TTL = 1.5  # seconds â keep cache short for near real-time feel
 API_PORT = 8502
 
 
-class PriceHandler(BaseHTTPRequestHandler):
-    """Handle GET /price/{TICKER} requests."""
+class PriceTornadoHandler(tornado.web.RequestHandler):
+    """Handle GET /api/price/{TICKER} requests via Tornado."""
 
-    def do_GET(self):
-        path = urlparse(self.path).path.strip("/")
-        parts = path.split("/")
+    def set_default_headers(self):
+        self.set_header("Access-Control-Allow-Origin", "*")
+        self.set_header("Content-Type", "application/json")
+        self.set_header("Cache-Control", "no-cache, no-store")
+        self.set_header("Access-Control-Allow-Methods", "GET, OPTIONS")
 
-        # CORS headers for cross-origin iframe requests
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET")
-        self.send_header("Cache-Control", "no-cache, no-store")
-        self.end_headers()
+    def get(self, ticker):
+        data = _get_price(ticker.upper())
+        self.write(json.dumps(data))
 
-        if len(parts) == 2 and parts[0] == "price":
-            ticker = parts[1].upper()
-            data = _get_price(ticker)
-            self.wfile.write(json.dumps(data).encode())
-        else:
-            self.wfile.write(json.dumps({"error": "Use /price/{TICKER}"}).encode())
-
-    def do_OPTIONS(self):
-        """Handle CORS preflight."""
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "*")
-        self.end_headers()
-
-    def log_message(self, format, *args):
-        """Suppress request logging to keep console clean."""
-        pass
-
+    def options(self, ticker):
+        self.set_status(204)
+        self.finish()
 
 def _get_price(ticker: str) -> dict:
     """Get live price with short cache to avoid hammering yfinance."""
@@ -150,20 +132,75 @@ _lock = threading.Lock()
 
 
 def ensure_running():
-    """Start the price API server if not already running (idempotent)."""
+    """Inject /api/price/{ticker} into Streamlit's Tornado server (same port).
+
+    Falls back to a standalone server on port 8502 if injection fails.
+    """
     global _server_started
     with _lock:
         if _server_started:
             return
         _server_started = True
 
-    def _run():
+    def _inject():
         try:
-            server = HTTPServer(("127.0.0.1", API_PORT), PriceHandler)
-            server.serve_forever()
-        except OSError:
-            # Port already in use (another Streamlit worker) â that's fine
-            pass
+            from streamlit.web.server.server import Server
+            srv = Server.get_current()
+            app = getattr(srv, '_app', None)
+            if app is None:
+                for name in dir(srv):
+                    val = getattr(srv, name, None)
+                    if isinstance(val, tornado.web.Application):
+                        app = val
+                        break
+            if app is not None:
+                app.add_handlers(r".*", [
+                    (r"/api/price/([\w.]+)", PriceTornadoHandler),
+                ])
+                print("[price_api] Injected /api/price/ into Streamlit server")
+                return
+        except Exception as e:
+            print(f"[price_api] Injection failed: {e}")
+        _fallback()
 
-    t = threading.Thread(target=_run, daemon=True)
-    t.start()
+    def _fallback():
+        from http.server import HTTPServer, BaseHTTPRequestHandler
+        from urllib.parse import urlparse
+
+        class FallbackHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                path = urlparse(self.path).path.strip("/")
+                parts = path.split("/")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Cache-Control", "no-cache, no-store")
+                self.end_headers()
+                ticker = parts[-1].upper() if parts else ""
+                data = _get_price(ticker)
+                self.wfile.write(json.dumps(data).encode())
+
+            def do_OPTIONS(self):
+                self.send_response(204)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+                self.end_headers()
+
+            def log_message(self, fmt, *args):
+                pass
+
+        def _run():
+            try:
+                server = HTTPServer(("0.0.0.0", API_PORT), FallbackHandler)
+                server.serve_forever()
+            except OSError:
+                pass
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        print(f"[price_api] Fallback server on port {API_PORT}")
+
+    try:
+        tornado.ioloop.IOLoop.current().call_later(2.0, _inject)
+    except Exception:
+        _fallback()
