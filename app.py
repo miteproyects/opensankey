@@ -324,6 +324,17 @@ section[data-testid="stSidebar"] {
     white-space: nowrap !important;
 }
 
+/* ---- Section header logo (injected by JS) ---- */
+.section-logo {
+    height: 22px;
+    width: 22px;
+    object-fit: contain;
+    border-radius: 4px;
+    margin-right: 8px;
+    vertical-align: middle;
+    background: #fff;
+}
+
 /* ---- Section header buttons – EXPANDED (dark, like original) ---- */
 .section-header-expanded {
     background: var(--header-bg) !important;
@@ -1545,7 +1556,7 @@ def _section_header(title: str, emoji: str, state_key: str, cb_key: str = "",
 
     with hdr_col:
         if st.button(
-            f"{emoji}  {_ticker} {title}  {arrow}",
+            f"{_ticker} {title}  {arrow}",
             key=btn_key,
             use_container_width=True,
         ):
@@ -2268,6 +2279,20 @@ components.html("""
                 (text.indexOf(String.fromCharCode(0x25B2)) !== -1)
                     ? 'section-header-expanded' : 'section-header-collapsed'
             );
+
+            // Inject company logo into section header button
+            if (!allBtns[i].querySelector('.section-logo')) {
+                var words = text.trim().split(/\s+/);
+                var ticker = words[0];
+                if (ticker && ticker.length <= 6) {
+                    var img = document.createElement('img');
+                    img.src = 'https://financialmodelingprep.com/image-stock/' + ticker + '.png';
+                    img.className = 'section-logo';
+                    img.onerror = function() { this.style.display = 'none'; };
+                    var span = allBtns[i].querySelector('p') || allBtns[i];
+                    span.insertBefore(img, span.firstChild);
+                }
+            }
 
             // Style the parent stHorizontalBlock row (contains header + PDF columns)
             var row = allBtns[i].closest('[data-testid="stHorizontalBlock"]');
