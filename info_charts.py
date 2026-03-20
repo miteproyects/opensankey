@@ -1,5 +1,5 @@
 """
-Info charts module for Open Sankey.
+Info charts module for Quarter Charts.
 
 Creates Plotly charts for company profile/info page:
 - Ownership splits (pie chart)
