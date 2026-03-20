@@ -818,7 +818,8 @@ def _show_metric_popup(ticker, node_label, view):
     # Determine which mapping to use
     metric_map = INCOME_NODE_METRICS if view == "income" else BALANCE_NODE_METRICS
 
-    clean_label = node_label.split("<br>")[0] if "<br>" in node_label else node_label
+    clean_label = node_label.split("<br>")[0].strip()
+    if "  " in clean_label: clean_label = clean_label.split("  ")[0].strip()
     yf_key = metric_map.get(clean_label)
     if not yf_key:
         return
@@ -1086,8 +1087,8 @@ def _inject_sankey_click_js(metric_map):
                     var pt = data.points[0];
                     // Sankey nodes expose label; links expose source/target
                     var raw = pt.label || '';
-                    // Strip value after <br>
-                    var label = raw.split('<br>')[0].replace(/\\n/g, '').trim();
+                    // Strip value after <br> or double-space
+                    var label = raw.split(/<br>|  /)[0].replace(/\\n/g, '').trim();
                     if (!label || !VALID.has(label)) return;
 
                     // Find pill buttons (Streamlit renders them in [role=radiogroup])
@@ -1652,7 +1653,7 @@ def _build_income_sankey(income_df, info):
     def add(name, val, color_idx, x, y):
         y = round(max(0.01, min(0.99, y)), 4)
         imap[name] = len(nodes)
-        nodes.append(f"{name}<br>{_fmt(val)}")
+        nodes.append(f"{name}  {_fmt(val)}")
         node_colors.append(colors[color_idx])
         node_x.append(x)
         node_y.append(y)
@@ -1826,7 +1827,7 @@ def _build_balance_sheet_sankey(balance_df, info):
         y = round(max(0.01, min(0.99, y)), 4)
         x = round(max(0.01, min(0.99, x)), 4)
         imap[name] = len(nodes)
-        nodes.append(f"{name}<br>{_fmt(val)}")
+        nodes.append(f"{name}  {_fmt(val)}")
         node_colors_list.append(color)
         node_x.append(x)
         node_y.append(y)
