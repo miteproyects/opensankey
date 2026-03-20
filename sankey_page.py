@@ -931,6 +931,27 @@ def _show_metric_popup(ticker, node_label, view):
 
     series = _get_historical_series(src_df, yf_key)
 
+    # ── Fallback: compute "Other OpEx" as residual when not directly available ──
+    if (series is None or series.empty) and yf_key == "Other Operating Expenses":
+        gp = _get_historical_series(src_df, "Gross Profit")
+        rd = _get_historical_series(src_df, "Research And Development")
+        sga = _get_historical_series(src_df, "Selling General And Administration")
+        da = _get_historical_series(src_df, "Reconciled Depreciation")
+        oi = _get_historical_series(src_df, "Operating Income")
+        if gp is not None and oi is not None:
+            common = gp.index
+            for s in [rd, sga, da, oi]:
+                if s is not None:
+                    common = common.intersection(s.index)
+            if len(common) > 0:
+                _rd = rd.reindex(common, fill_value=0) if rd is not None else 0
+                _sga = sga.reindex(common, fill_value=0) if sga is not None else 0
+                _da = da.reindex(common, fill_value=0) if da is not None else 0
+                computed = gp.reindex(common) - _rd - _sga - _da - oi.reindex(common)
+                computed = computed.clip(lower=0)
+                if not computed.empty and computed.sum() > 0:
+                    series = computed.sort_index()
+
     if series is None or series.empty:
         st.warning(f"No {freq_label.lower()} data available for **{clean_label}**.")
         return
