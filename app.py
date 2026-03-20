@@ -1545,7 +1545,7 @@ def _section_header(title: str, emoji: str, state_key: str, cb_key: str = "",
 
     with hdr_col:
         if st.button(
-            f"{emoji}  {title}  {arrow}",
+            f"{emoji}  {_ticker} {title}  {arrow}",
             key=btn_key,
             use_container_width=True,
         ):
