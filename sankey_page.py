@@ -955,6 +955,20 @@ def _show_metric_popup(ticker, node_label, view):
 
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key=f"hist_{freq}_{period}")
 
+    # ── Navigation pills inside popup ──
+    st.divider()
+    all_metrics = list(metric_map.keys())
+    popup_nav_key = f"popup_nav_{view}"
+    nav_sel = st.pills(
+        "Navigate metrics",
+        all_metrics,
+        default=clean_label,
+        key=popup_nav_key,
+    )
+    if nav_sel and nav_sel != clean_label:
+        st.session_state[f"popup_active_{view}"] = nav_sel
+        st.rerun()
+
 
 def _inject_sankey_click_js(metric_map):
     """Inject JS that bridges Sankey node clicks to the matching pill button.
@@ -2291,12 +2305,15 @@ def render_sankey_page():
             sel = st.pills("ð Click a metric to see historical trend",
                            metric_options, key="income_metric_pill")
             if sel:
-                @st.dialog(f"{sel} â Historical Trend", width="large")
+                # Track active metric in popup (allows navigation inside dialog)
+                if f"popup_active_income" not in st.session_state or st.session_state.get("popup_trigger_income") != sel:
+                    st.session_state["popup_active_income"] = sel
+                    st.session_state["popup_trigger_income"] = sel
+                active_metric = st.session_state["popup_active_income"]
+                @st.dialog(f"{active_metric} — Historical Trend", width="large")
                 def _income_popup():
-                    _show_metric_popup(ticker, sel, "income")
+                    _show_metric_popup(ticker, active_metric, "income")
                 _income_popup()
-
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
             # Bridge: click Sankey node → auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
@@ -2331,12 +2348,15 @@ def render_sankey_page():
             sel = st.pills("ð Click a metric to see historical trend",
                            metric_options, key="balance_metric_pill")
             if sel:
-                @st.dialog(f"{sel} â Historical Trend", width="large")
+                # Track active metric in popup (allows navigation inside dialog)
+                if f"popup_active_balance" not in st.session_state or st.session_state.get("popup_trigger_balance") != sel:
+                    st.session_state["popup_active_balance"] = sel
+                    st.session_state["popup_trigger_balance"] = sel
+                active_metric = st.session_state["popup_active_balance"]
+                @st.dialog(f"{active_metric} — Historical Trend", width="large")
                 def _balance_popup():
-                    _show_metric_popup(ticker, sel, "balance")
+                    _show_metric_popup(ticker, active_metric, "balance")
                 _balance_popup()
-
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
             # Bridge: click Sankey node → auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
