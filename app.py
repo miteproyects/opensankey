@@ -2391,9 +2391,25 @@ components.html("""
     setTimeout(applyStyles, 1500);
     setTimeout(applyStyles, 3000);
 
+    // Fix popover width via JS (emotion CSS overrides regular CSS)
+    function fixPopoverWidth() {{
+        var popovers = doc.querySelectorAll('[data-testid="stPopoverBody"]');
+        for (var i = 0; i < popovers.length; i++) {{
+            var el = popovers[i];
+            el.style.setProperty('max-width', '420px', 'important');
+            el.style.setProperty('min-width', '300px', 'important');
+            el.style.setProperty('width', 'auto', 'important');
+        }}
+    }}
+
+    setTimeout(fixPopoverWidth, 500);
+    setTimeout(fixPopoverWidth, 1500);
+
+
     // Re-apply on DOM mutations (Streamlit re-renders)
     var observer = new MutationObserver(function() {
         setTimeout(applyStyles, 100);
+        setTimeout(fixPopoverWidth, 50);
     });
     observer.observe(doc.body, { childList: true, subtree: true });
 
