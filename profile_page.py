@@ -983,7 +983,7 @@ def render_profile_page(ticker: str) -> None:
     <script>
     (function() {{
         const TICKER = "{ticker}";
-        const API_URL = window.location.origin + "/api/price/" + TICKER;
+        const API_URL = window.parent.location.origin + "/api/price/" + TICKER;
         const POLL_MS = 3000;
         let prevPrice = {current_price if current_price else 0};
         let prevExtPrice = 0;
