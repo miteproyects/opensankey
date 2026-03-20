@@ -2415,6 +2415,22 @@ components.html("""
 
     // Sidebar click handler is in a separate early-loading components.html
     // near the nav bar (not here) so it loads before the page finishes.
+
+    // Fix popover width - Streamlit emotion CSS overrides regular CSS
+    (function() {
+        var popoverObserver = new MutationObserver(function(mutations) {
+            var popovers = document.querySelectorAll('[data-testid="stPopoverBody"]');
+            popovers.forEach(function(el) {
+                if (!el._popoverFixed) {
+                    el.style.setProperty('max-width', '420px', 'important');
+                    el.style.setProperty('min-width', '280px', 'important');
+                    el._popoverFixed = true;
+                }
+            });
+        });
+        popoverObserver.observe(document.body, { childList: true, subtree: true });
+    })();
+
 })();
 </script>
 """, height=0)
