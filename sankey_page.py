@@ -1,7 +1,7 @@
 """
-Sankey diagram page – Income Statement & Balance Sheet visualizations.
+Sankey diagram page â Income Statement & Balance Sheet visualizations.
 Fixed-position nodes with vivid 11-color palette, KPI metric cards,
-and Pretax Income waterfall matching OpenSankey deployed style.
+and Pretax Income waterfall matching QuarterCharts deployed style.
 """
 import streamlit as st
 import streamlit.components.v1 as components
@@ -11,7 +11,7 @@ from io import BytesIO
 import numpy as np
 import requests
 
-# ─── Demo / sample data for when Yahoo Finance is rate-limited ─────────────
+# âââ Demo / sample data for when Yahoo Finance is rate-limited âââââââââââââ
 def _get_demo_data(ticker: str):
     """Return hardcoded sample financial data so Sankey always renders."""
     # NVDA-like data (FY2025 approximate values in USD)
@@ -52,7 +52,7 @@ def _get_demo_data(ticker: str):
     return income_df, balance_df, info
 
 
-# ─── Vivid 11-color palette (one per node) ────────────────────────────────
+# âââ Vivid 11-color palette (one per node) ââââââââââââââââââââââââââââââââ
 VIVID = [
     "#22c55e",  # 0  Revenue (green)
     "#ef4444",  # 1  COGS (red)
@@ -145,13 +145,13 @@ def _yoy_delta(current, previous):
     return f"{pct:+.1f}% YoY"
 
 
-# ─── SEC EDGAR data source ──────────────────────────────────────────────────
+# âââ SEC EDGAR data source ââââââââââââââââââââââââââââââââââââââââââââââââââ
 _SEC_HEADERS = {
-    "User-Agent": "OpenSankey contact@opensankey.com",
+    "User-Agent": "QuarterCharts contact@quartercharts.com",
     "Accept-Encoding": "gzip, deflate",
 }
 
-# XBRL tag mappings: DataFrame row name → list of possible us-gaap tags (first match wins)
+# XBRL tag mappings: DataFrame row name â list of possible us-gaap tags (first match wins)
 _XBRL_INCOME_TAGS = {
     "Total Revenue": [
         "Revenues",
@@ -298,7 +298,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
 
     Args:
         facts: Full CompanyFacts JSON
-        tag_map: Dict mapping display_name → list of XBRL tags
+        tag_map: Dict mapping display_name â list of XBRL tags
         form_filter: "10-K" for annual, "10-Q" for quarterly
         quarterly_income: If True, compute individual-quarter income values.
                           Uses frame-based data (CYxxxxQn) when available,
@@ -331,7 +331,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
             vals = {}
 
             if form_filter == "10-K":
-                # ── Annual data: straightforward, one entry per year ──
+                # ââ Annual data: straightforward, one entry per year ââ
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
@@ -346,7 +346,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                         vals[end] = (val, filed)
 
             elif form_filter == "10-Q" and not quarterly_income:
-                # ── Balance sheet: point-in-time values ──
+                # ââ Balance sheet: point-in-time values ââ
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
@@ -360,14 +360,14 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                             vals[end] = (val, filed)
 
             elif form_filter == "10-Q" and quarterly_income:
-                # ══════════════════════════════════════════════════════
+                # ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
                 # QUARTERLY INCOME: YTD-subtraction approach
-                # ══════════════════════════════════════════════════════
+                # ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
                 # SEC EDGAR 10-Q entries for income items report
                 # CUMULATIVE year-to-date values:
-                #   Q1 → 3-month value (individual = cumulative)
-                #   Q2 → 6-month cumulative (Q1+Q2)
-                #   Q3 → 9-month cumulative (Q1+Q2+Q3)
+                #   Q1 â 3-month value (individual = cumulative)
+                #   Q2 â 6-month cumulative (Q1+Q2)
+                #   Q3 â 9-month cumulative (Q1+Q2+Q3)
                 # Recent years also have CYxxxxQn frame entries with
                 # individual quarter values, but older years do not.
                 #
@@ -378,9 +378,9 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                 #           Q2_ind = cum_Q2 - cum_Q1
                 #           Q3_ind = cum_Q3 - cum_Q2
                 #   Pass 3: Q4 = FY_annual - cum_Q3
-                # ══════════════════════════════════════════════════════
+                # ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
-                # ── Pass 1: Collect frame-based individual quarter values ──
+                # ââ Pass 1: Collect frame-based individual quarter values ââ
                 for e in entries:
                     frame = e.get("frame", "")
                     end = e.get("end", "")
@@ -392,10 +392,10 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                         if end not in vals or filed > vals[end][1]:
                             vals[end] = (val, filed)
 
-                # ── Pass 2: YTD subtraction for missing quarters ──
+                # ââ Pass 2: YTD subtraction for missing quarters ââ
                 # Collect cumulative (max val) per end date from 10-Q
-                cum_by_end = {}  # end_date → (max_val, filed, fp)
-                fy_annual = {}   # end_date → (val, filed)
+                cum_by_end = {}  # end_date â (max_val, filed, fp)
+                fy_annual = {}   # end_date â (val, filed)
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
@@ -432,7 +432,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
 
                     prev_cum = cum_val
 
-                # ── Pass 3: Q4 = FY_annual - Q3_cumulative ──
+                # ââ Pass 3: Q4 = FY_annual - Q3_cumulative ââ
                 for fy_end, (fy_val, fy_filed) in fy_annual.items():
                     if fy_end in vals:
                         continue
@@ -449,7 +449,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
 
             if vals:
                 # Pick the tag whose data is most recent (handles tag
-                # transitions like Revenues → RevenueFromContract…)
+                # transitions like Revenues â RevenueFromContractâ¦)
                 tag_max_date = max(vals.keys())
                 if best_vals is None or tag_max_date > best_max_date:
                     best_vals = vals
@@ -480,7 +480,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
     return df
 
 
-# ─── Node label → metric mapping ─────────────────────────────────────────
+# âââ Node label â metric mapping âââââââââââââââââââââââââââââââââââââââââ
 # Maps the display name in each Sankey node to the DataFrame row key.
 # Used to pull historical time-series when a user clicks a node.
 
@@ -533,7 +533,7 @@ def _get_historical_series(df, yf_key):
     1. Exact substring match (handles legacy spaced indices)
     2. Space-removed substring match (handles CamelCase indices like
        "TotalRevenue" when yf_key is "Total Revenue")
-    3. Word-stem matching — all significant word stems (first 5 chars of
+    3. Word-stem matching â all significant word stems (first 5 chars of
        words >= 3 chars) must appear in the index name
     """
     if df is None or df.empty:
@@ -622,7 +622,7 @@ def _show_metric_popup(ticker, node_label, view):
     if not yf_key:
         return
 
-    # ── Inject custom CSS for the timeframe buttons ──
+    # ââ Inject custom CSS for the timeframe buttons ââ
     st.markdown("""
     <style>
     .tf-row {
@@ -656,12 +656,12 @@ def _show_metric_popup(ticker, node_label, view):
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Frequency toggle: Quarterly / Annual ──
+    # ââ Frequency toggle: Quarterly / Annual ââ
     freq_key = f"tf_freq_{view}_{clean_label}"
     if freq_key not in st.session_state:
         st.session_state[freq_key] = "Quarterly"
 
-    # ── Period toggle: 1Y / 2Y / 4Y / MAX ──
+    # ââ Period toggle: 1Y / 2Y / 4Y / MAX ââ
     period_key = f"tf_period_{view}_{clean_label}"
     if period_key not in st.session_state:
         st.session_state[period_key] = "4Y"
@@ -689,7 +689,7 @@ def _show_metric_popup(ticker, node_label, view):
     freq = st.session_state[freq_key]
     period = st.session_state[period_key]
 
-    # ── Fetch data based on frequency ──
+    # ââ Fetch data based on frequency ââ
     if freq == "Quarterly":
         q_income, q_balance = _fetch_quarterly_data(ticker)
         src_df = q_income if view == "income" else q_balance
@@ -707,7 +707,7 @@ def _show_metric_popup(ticker, node_label, view):
         st.warning(f"No {freq_label.lower()} data available for **{clean_label}**.")
         return
 
-    # ── Filter by period ──
+    # ââ Filter by period ââ
     if period != "MAX":
         years = int(period.replace("Y", ""))
         cutoff = pd.Timestamp.now() - pd.DateOffset(years=years)
@@ -748,7 +748,7 @@ def _show_metric_popup(ticker, node_label, view):
 
     fig.update_layout(
         title=dict(
-            text=f"{clean_label} — {freq_label} ({period_label})",
+            text=f"{clean_label} â {freq_label} ({period_label})",
             font=dict(size=16, family="Inter, sans-serif", color="#1e293b"),
         ),
         height=400,
@@ -778,7 +778,7 @@ def _inject_sankey_click_js(metric_map):
 
     When a user clicks a Sankey node, the JS extracts the node label,
     finds the corresponding pill button in the parent document, and clicks it.
-    This triggers the existing st.pills → st.dialog flow.
+    This triggers the existing st.pills â st.dialog flow.
     """
     # Build a JS set of valid pill labels for fast lookup
     valid_labels = list(metric_map.keys())
@@ -837,18 +837,18 @@ def _inject_sankey_click_js(metric_map):
 
 
 def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
-    """Generate a professional PDF with waterfall / stacked-bar chart + KPI cards.
+    """Generate a professional PDF with actual Sankey flow diagram + KPI cards.
 
-    Income Statement  → waterfall chart showing Revenue → Net Income flow.
-    Balance Sheet     → stacked horizontal bars (Assets vs Liabilities & Equity).
+    Income Statement  â Sankey diagram matching the on-screen Plotly version.
+    Balance Sheet     â Sankey diagram matching the on-screen Plotly version.
     Uses matplotlib only (no kaleido needed).  Returns PDF bytes.
     """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
+    from matplotlib.path import Path
     from matplotlib.backends.backend_pdf import PdfPages
-    from matplotlib.ticker import FuncFormatter
     import numpy as np
 
     buf = BytesIO()
@@ -862,13 +862,13 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
         if av >= 1e6:  return f"${v/1e6:.0f}M"
         return f"${v:,.0f}"
 
-    def _fmt_axis(v, _pos):
-        if abs(v) >= 1e12: return f"${v/1e12:.1f}T"
-        if abs(v) >= 1e9:  return f"${v/1e9:.0f}B"
-        if abs(v) >= 1e6:  return f"${v/1e6:.0f}M"
-        return f"${v:,.0f}"
+    def _hex_to_rgba(hex_color, alpha=0.35):
+        """Convert hex color to RGBA tuple for matplotlib."""
+        h = hex_color.lstrip("#")
+        r, g, b = int(h[0:2], 16) / 255, int(h[2:4], 16) / 255, int(h[4:6], 16) / 255
+        return (r, g, b, alpha)
 
-    def _draw_kpi_row(fig, kpis, y_bottom=0.85, height=0.07):
+    def _draw_kpi_row(fig, kpis, y_bottom=0.88, height=0.06):
         """Draw a KPI card row at the top of a figure."""
         ax_kpi = fig.add_axes([0.06, y_bottom, 0.88, height])
         ax_kpi.set_xlim(0, len(kpis))
@@ -882,30 +882,140 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
         ax_kpi.add_patch(bg)
         for i, (lbl, val) in enumerate(kpis):
             xc = i + 0.5
-            ax_kpi.text(xc, 0.75, lbl, ha="center", va="center",
-                        fontsize=10, color="#64748b")
+            ax_kpi.text(xc, 0.72, lbl, ha="center", va="center",
+                        fontsize=9, color="#64748b")
             ax_kpi.text(xc, 0.25, _fmts(val), ha="center", va="center",
-                        fontsize=16, color="#1e293b", fontweight="bold")
+                        fontsize=14, color="#1e293b", fontweight="bold")
             if i < len(kpis) - 1:
                 ax_kpi.axvline(x=i + 1, color="#e2e8f0", linewidth=1.5)
+
+    def _draw_sankey(ax, node_list, link_list, total_height):
+        """Draw a Sankey diagram on ax.
+
+        node_list: [(label, value, x, y_center, color), ...]
+           x in [0,1], y_center in [0,1] (0=bottom, 1=top)
+        link_list: [(src_idx, tgt_idx, value, color), ...]
+        total_height: the max value for scaling bar heights.
+        """
+        if not node_list:
+            return
+
+        ax.set_xlim(-0.05, 1.08)
+        ax.set_ylim(-0.05, 1.05)
+        ax.axis("off")
+
+        bar_w = 0.025  # node bar width
+        scale = 0.85 / max(total_height, 1)  # scale factor to convert value â y height
+
+        # Precompute node positions (in axis coords)
+        node_rects = []  # (x, y_bottom, width, height, color, label, value)
+        for label, value, nx, ny, color in node_list:
+            h = max(abs(value) * scale, 0.008)  # minimum visible height
+            y_bot = ny - h / 2
+            node_rects.append((nx, y_bot, bar_w, h, color, label, value))
+
+        # Track how much of each node's top/bottom is used by links
+        node_out_offset = [0.0] * len(node_list)  # outgoing: from top down
+        node_in_offset = [0.0] * len(node_list)   # incoming: from top down
+
+        # Draw links as bezier curves
+        for src_i, tgt_i, val, lcolor in link_list:
+            if val <= 0:
+                continue
+            s_x, s_yb, s_w, s_h, _, _, _ = node_rects[src_i]
+            t_x, t_yb, t_w, t_h, _, _, _ = node_rects[tgt_i]
+
+            link_h = max(val * scale, 0.003)
+
+            # Source: start from top, go down
+            s_top = s_yb + s_h - node_out_offset[src_i]
+            s_y1 = s_top
+            s_y0 = s_top - link_h
+            node_out_offset[src_i] += link_h
+
+            # Target: start from top, go down
+            t_top = t_yb + t_h - node_in_offset[tgt_i]
+            t_y1 = t_top
+            t_y0 = t_top - link_h
+            node_in_offset[tgt_i] += link_h
+
+            # Draw bezier band from (s_x + s_w, s_y0..s_y1) to (t_x, t_y0..t_y1)
+            x0 = s_x + s_w
+            x1 = t_x
+            xm = (x0 + x1) / 2
+
+            # Upper edge
+            verts_upper = [
+                (x0, s_y1),
+                (xm, s_y1),
+                (xm, t_y1),
+                (x1, t_y1),
+            ]
+            # Lower edge (reversed)
+            verts_lower = [
+                (x1, t_y0),
+                (xm, t_y0),
+                (xm, s_y0),
+                (x0, s_y0),
+            ]
+
+            verts = verts_upper + verts_lower + [(x0, s_y1)]
+            codes = [
+                Path.MOVETO,
+                Path.CURVE4, Path.CURVE4, Path.CURVE4,
+                Path.LINETO,
+                Path.CURVE4, Path.CURVE4, Path.CURVE4,
+                Path.CLOSEPOLY,
+            ]
+
+            path = Path(verts, codes)
+            rgba = _hex_to_rgba(lcolor, 0.35)
+            patch = mpatches.PathPatch(path, facecolor=rgba, edgecolor="none",
+                                       linewidth=0, zorder=1)
+            ax.add_patch(patch)
+
+        # Draw node bars
+        for i, (nx, y_bot, w, h, color, label, value) in enumerate(node_rects):
+            rect = mpatches.FancyBboxPatch(
+                (nx, y_bot), w, h,
+                boxstyle="round,pad=0.002",
+                facecolor=color, edgecolor="none", linewidth=0, zorder=3,
+            )
+            ax.add_patch(rect)
+
+            # Label to the right (or left for rightmost column)
+            txt = f"{label}\n{_fmts(value)}"
+            if nx > 0.85:
+                ax.text(nx + w + 0.012, y_bot + h / 2, txt,
+                        ha="left", va="center", fontsize=8,
+                        color="#1e293b", fontweight="medium", zorder=4)
+            elif nx < 0.08:
+                ax.text(nx - 0.012, y_bot + h / 2, txt,
+                        ha="right", va="center", fontsize=8,
+                        color="#1e293b", fontweight="medium", zorder=4)
+            else:
+                ax.text(nx + w + 0.012, y_bot + h / 2, txt,
+                        ha="left", va="center", fontsize=7.5,
+                        color="#1e293b", fontweight="medium", zorder=4)
 
     try:
         with PdfPages(buf) as pdf:
             if view == "income":
-                # ── Extract data ──
-                revenue      = _safe(income_df, "Total Revenue")
-                cogs         = abs(_safe(income_df, "Cost Of Revenue"))
-                gross_profit = _safe(income_df, "Gross Profit") or (revenue - cogs)
-                rd           = abs(_safe(income_df, "Research And Development"))
-                sga          = abs(_safe(income_df, "Selling General And Administration"))
-                da           = abs(_safe(income_df, "Reconciled Depreciation"))
+                # ââ Extract data (same as _build_income_sankey) ââ
+                revenue       = _safe(income_df, "Total Revenue")
+                cogs          = abs(_safe(income_df, "Cost Of Revenue"))
+                gross_profit  = _safe(income_df, "Gross Profit")
+                rd            = abs(_safe(income_df, "Research And Development"))
+                sga           = abs(_safe(income_df, "Selling General And Administration"))
+                da            = abs(_safe(income_df, "Reconciled Depreciation"))
                 if da == 0:
                     da = abs(_safe(income_df, "Depreciation And Amortization"))
-                op_income    = _safe(income_df, "Operating Income")
-                interest     = abs(_safe(income_df, "Interest Expense"))
-                pretax       = _safe(income_df, "Pretax Income") or _safe(income_df, "Income Before Tax")
-                tax          = abs(_safe(income_df, "Tax Provision"))
-                net_income   = _safe(income_df, "Net Income")
+                other_opex    = abs(_safe(income_df, "Other Operating Expense"))
+                op_income     = _safe(income_df, "Operating Income")
+                interest      = abs(_safe(income_df, "Interest Expense"))
+                pretax        = _safe(income_df, "Pretax Income") or _safe(income_df, "Income Before Tax")
+                tax           = abs(_safe(income_df, "Tax Provision"))
+                net_income    = _safe(income_df, "Net Income")
 
                 if revenue == 0:
                     return b""
@@ -914,56 +1024,91 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 if gross_profit == 0:
                     gross_profit = revenue - cogs
                 if op_income == 0:
-                    op_income = gross_profit - rd - sga - da
+                    op_income = gross_profit - rd - sga - da - other_opex
                 if pretax == 0:
                     pretax = op_income - interest
                 if net_income == 0:
                     net_income = pretax - tax
 
-                # ── Build waterfall steps ──
-                # (label, amount, type, color)
-                steps = [("Revenue", revenue, "total", "#22c55e")]
-                if cogs > 0:
-                    steps.append(("COGS", -cogs, "expense", "#ef4444"))
-                steps.append(("Gross Profit", gross_profit, "subtotal", "#3b82f6"))
-                if sga > 0:
-                    steps.append(("SG&A", -sga, "expense", "#f97316"))
+                # Ensure positive
+                revenue = max(revenue, 0)
+                cogs = max(cogs, 0)
+                gross_profit = max(gross_profit, 0)
+                rd = max(rd, 0)
+                sga = max(sga, 0)
+                da = max(da, 0)
+                other_opex = max(other_opex, 0)
+                op_income = max(op_income, 0)
+                interest = max(interest, 0)
+                pretax = max(pretax, 0)
+                tax = max(tax, 0)
+                net_income = max(net_income, 0)
+
+                # ââ Build nodes: (label, value, x, y_center, color) ââ
+                # Layout: 5 columns matching the Plotly Sankey
+                X1, X2, X3, X4, X5 = 0.02, 0.22, 0.48, 0.70, 0.88
+                nodes = []
+                nmap = {}
+
+                def add_n(name, val, x, y, ci):
+                    nmap[name] = len(nodes)
+                    nodes.append((name, val, x, y, VIVID[ci]))
+
+                add_n("Revenue", revenue, X1, 0.50, 0)
+                add_n("Cost of Revenue", cogs, X2, 0.88, 1)
+                add_n("Gross Profit", gross_profit, X2, 0.38, 2)
+
+                # Expenses in column 3
+                exp_y = 0.92
+                exp_gap = 0.14
+                n_exp = 0
                 if rd > 0:
-                    steps.append(("R&D", -rd, "expense", "#f59e0b"))
+                    add_n("R&D", rd, X3, exp_y - n_exp * exp_gap, 3)
+                    n_exp += 1
+                if sga > 0:
+                    add_n("SG&A", sga, X3, exp_y - n_exp * exp_gap, 4)
+                    n_exp += 1
                 if da > 0:
-                    steps.append(("D&A", -da, "expense", "#a855f7"))
-                steps.append(("Operating Inc.", max(op_income, 0), "subtotal", "#06b6d4"))
+                    add_n("D&A", da, X3, exp_y - n_exp * exp_gap, 5)
+                    n_exp += 1
+                if other_opex > 0:
+                    add_n("Other OpEx", other_opex, X3, exp_y - n_exp * exp_gap, 5)
+                    n_exp += 1
+                oi_y = min(exp_y - n_exp * exp_gap - 0.12, 0.35)
+                add_n("Operating Income", op_income, X3, oi_y, 6)
+
                 if interest > 0:
-                    steps.append(("Interest", -interest, "expense", "#64748b"))
-                steps.append(("Pretax Income", max(pretax, 0), "subtotal", "#6366f1"))
+                    add_n("Interest Exp.", interest, X4, oi_y + 0.12, 7)
+                pt_y = oi_y - 0.08
+                add_n("Pretax Income", pretax, X4, pt_y, 8)
+
                 if tax > 0:
-                    steps.append(("Tax", -tax, "expense", "#ec4899"))
-                steps.append(("Net Income", max(net_income, 0), "subtotal", "#84cc16"))
+                    add_n("Income Tax", tax, X5, pt_y + 0.10, 9)
+                net_y = pt_y - 0.10
+                add_n("Net Income", net_income, X5, max(net_y, 0.08), 10)
 
-                n = len(steps)
-                labels  = [s[0] for s in steps]
-                amounts = [s[1] for s in steps]
-                types   = [s[2] for s in steps]
-                colors  = [s[3] for s in steps]
+                # ââ Build links: (src_idx, tgt_idx, value, color) ââ
+                links = []
+                def lnk(s, t, v, ci):
+                    si, ti = nmap.get(s, -1), nmap.get(t, -1)
+                    if si >= 0 and ti >= 0 and v > 0:
+                        links.append((si, ti, v, VIVID[ci]))
 
-                # Compute waterfall bar positions
-                bottoms = []
-                heights = []
-                running = 0.0
-                for _l, amt, typ, _c in steps:
-                    if typ in ("total", "subtotal"):
-                        bottoms.append(0)
-                        heights.append(abs(amt))
-                        running = abs(amt)
-                    else:  # expense
-                        new_running = running + amt
-                        bottoms.append(max(new_running, 0))
-                        heights.append(abs(amt))
-                        running = max(new_running, 0)
+                lnk("Revenue", "Cost of Revenue", cogs, 1)
+                lnk("Revenue", "Gross Profit", gross_profit, 2)
+                if rd > 0: lnk("Gross Profit", "R&D", rd, 3)
+                if sga > 0: lnk("Gross Profit", "SG&A", sga, 4)
+                if da > 0: lnk("Gross Profit", "D&A", da, 5)
+                if other_opex > 0: lnk("Gross Profit", "Other OpEx", other_opex, 5)
+                lnk("Gross Profit", "Operating Income", op_income, 6)
+                if interest > 0: lnk("Operating Income", "Interest Exp.", interest, 7)
+                lnk("Operating Income", "Pretax Income", pretax, 8)
+                if tax > 0: lnk("Pretax Income", "Income Tax", tax, 9)
+                lnk("Pretax Income", "Net Income", net_income, 10)
 
-                # ── Draw figure ──
+                # ââ Draw figure ââ
                 fig = plt.figure(figsize=(16, 9), facecolor="white")
-                fig.text(0.5, 0.96, f"{company} ({ticker}) — Income Statement Flow",
+                fig.text(0.5, 0.96, f"{company} ({ticker}) â Income Statement Flow",
                          ha="center", va="top", fontsize=20, fontweight="bold",
                          color="#0f172a")
 
@@ -972,107 +1117,135 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                     ("Operating Income", op_income), ("Net Income", net_income),
                 ])
 
-                ax = fig.add_axes([0.08, 0.08, 0.88, 0.72])
-                x_pos = np.arange(n)
-                ax.bar(x_pos, heights, bottom=bottoms, color=colors, width=0.55,
-                       edgecolor="white", linewidth=1, zorder=3)
-
-                # Connector lines between expense steps
-                for i in range(n - 1):
-                    if types[i + 1] == "expense":
-                        y_line = bottoms[i + 1] + heights[i + 1]
-                        ax.plot([x_pos[i] + 0.275, x_pos[i + 1] - 0.275],
-                                [y_line, y_line],
-                                color="#94a3b8", linewidth=0.8, linestyle="--",
-                                zorder=2)
-
-                # Value labels
-                offset = revenue * 0.015
-                for i in range(n):
-                    val = abs(amounts[i])
-                    y_top = bottoms[i] + heights[i] + offset
-                    txt = (f"\u2212{_fmts(val)}" if types[i] == "expense"
-                           else _fmts(val))
-                    ax.text(x_pos[i], y_top, txt, ha="center", va="bottom",
-                            fontsize=9, fontweight="bold", color="#374151")
-
-                ax.set_xticks(x_pos)
-                ax.set_xticklabels(labels, fontsize=10, fontweight="medium",
-                                   color="#374151")
-                ax.yaxis.set_major_formatter(FuncFormatter(_fmt_axis))
-                ax.set_xlim(-0.6, n - 0.4)
-                ax.set_ylim(0, revenue * 1.15)
-                ax.grid(axis="y", alpha=0.12, zorder=1, color="#94a3b8")
-                ax.spines["top"].set_visible(False)
-                ax.spines["right"].set_visible(False)
-                ax.spines["bottom"].set_color("#cbd5e1")
-                ax.spines["left"].set_color("#cbd5e1")
-                ax.tick_params(axis="y", labelsize=9, colors="#64748b")
-                ax.tick_params(axis="x", length=0)
+                ax = fig.add_axes([0.06, 0.05, 0.88, 0.78])
+                _draw_sankey(ax, nodes, links, revenue)
 
                 fig.text(0.5, 0.01,
-                         f"OpenSankey  \u00b7  SEC EDGAR data  \u00b7  {ticker}",
+                         f"QuarterCharts  \u00b7  SEC EDGAR data  \u00b7  {ticker}",
                          ha="center", va="bottom", fontsize=8, color="#94a3b8")
                 pdf.savefig(fig, facecolor="white", dpi=150)
                 plt.close(fig)
 
             else:
-                # ── Balance Sheet stacked horizontal bars ──
-                total_assets = _safe(balance_df, "Total Assets")
+                # ââ Balance Sheet Sankey ââ
+                total_assets      = _safe(balance_df, "Total Assets")
                 if total_assets == 0:
                     return b""
 
-                cash         = _safe(balance_df, "Cash And Cash Equivalents")
-                receivables  = (_safe(balance_df, "Accounts Receivable")
-                                or _safe(balance_df, "Receivables"))
-                ppe          = (_safe(balance_df, "Net PPE")
-                                or _safe(balance_df, "Property Plant Equipment"))
-                goodwill     = _safe(balance_df, "Goodwill")
-                short_invest = _safe(balance_df, "Other Short Term Investments")
-                investments  = (_safe(balance_df, "Investments And Advances")
-                                or _safe(balance_df, "Long Term Equity Investment"))
-                total_liab   = (_safe(balance_df, "Total Liabilities Net Minority Interest")
-                                or _safe(balance_df, "Total Liab"))
-                current_liab = _safe(balance_df, "Current Liabilities")
-                long_debt    = _safe(balance_df, "Long Term Debt")
-                equity       = (_safe(balance_df, "Stockholders Equity")
-                                or _safe(balance_df, "Total Stockholders Equity"))
-                if equity == 0 and total_assets > 0 and total_liab > 0:
+                current_assets    = _safe(balance_df, "Current Assets")
+                noncurrent_assets = _safe(balance_df, "Total Non Current Assets")
+                cash              = _safe(balance_df, "Cash And Cash Equivalents")
+                short_invest      = _safe(balance_df, "Other Short Term Investments")
+                receivables       = _safe(balance_df, "Accounts Receivable") or _safe(balance_df, "Receivables")
+                inventory         = _safe(balance_df, "Inventory")
+                ppe               = _safe(balance_df, "Net PPE") or _safe(balance_df, "Property Plant Equipment")
+                goodwill          = _safe(balance_df, "Goodwill")
+                intangibles       = _safe(balance_df, "Intangible Assets") or _safe(balance_df, "Other Intangible Assets")
+                investments       = _safe(balance_df, "Investments And Advances") or _safe(balance_df, "Long Term Equity Investment")
+
+                total_liab        = _safe(balance_df, "Total Liabilities Net Minority Interest") or _safe(balance_df, "Total Liab")
+                current_liab      = _safe(balance_df, "Current Liabilities")
+                noncurrent_liab   = _safe(balance_df, "Total Non Current Liabilities Net Minority Interest")
+                accounts_payable  = _safe(balance_df, "Accounts Payable") or _safe(balance_df, "Payables")
+                short_debt        = _safe(balance_df, "Current Debt") or _safe(balance_df, "Short Long Term Debt")
+                long_debt         = _safe(balance_df, "Long Term Debt")
+                equity            = _safe(balance_df, "Stockholders Equity") or _safe(balance_df, "Total Stockholders Equity")
+                retained          = _safe(balance_df, "Retained Earnings")
+
+                if noncurrent_assets == 0 and total_assets > current_assets:
+                    noncurrent_assets = total_assets - current_assets
+                if noncurrent_liab == 0 and total_liab > current_liab:
+                    noncurrent_liab = total_liab - current_liab
+                if equity == 0 and total_assets > total_liab:
                     equity = total_assets - total_liab
 
-                # Build asset & funding breakdown items
-                asset_items = []
-                if cash > 0:
-                    asset_items.append(("Cash", cash, "#06b6d4"))
-                if short_invest > 0:
-                    asset_items.append(("ST Invest.", short_invest, "#a855f7"))
-                if receivables > 0:
-                    asset_items.append(("Receivables", receivables, "#3b82f6"))
-                if ppe > 0:
-                    asset_items.append(("PPE", ppe, "#8b5cf6"))
-                if goodwill > 0:
-                    asset_items.append(("Goodwill", goodwill, "#6366f1"))
-                if investments > 0:
-                    asset_items.append(("Investments", investments, "#a855f7"))
-                other_a = max(0, total_assets - sum(x[1] for x in asset_items))
-                if other_a > 0:
-                    asset_items.append(("Other Assets", other_a, "#94a3b8"))
+                C = BS_COLORS
+                nodes = []
+                nmap = {}
+                def add_n(name, val, x, y, color):
+                    nmap[name] = len(nodes)
+                    nodes.append((name, val, x, y, color))
 
-                fund_items = []
-                if current_liab > 0:
-                    fund_items.append(("Current Liab.", current_liab, "#f59e0b"))
-                if long_debt > 0:
-                    fund_items.append(("Long-Term Debt", long_debt, "#ef4444"))
-                other_l = max(0, total_liab - current_liab - long_debt)
-                if other_l > 0:
-                    fund_items.append(("Other Liab.", other_l, "#f97316"))
+                # Column 1: Total Assets
+                add_n("Total Assets", total_assets, 0.02, 0.50, C["asset"])
+
+                # Column 2: Current / Non-Current / Liabilities / Equity
+                ca_y = 0.80
+                nca_y = 0.55
+                tl_y = 0.30
+                eq_y = 0.10
+                if current_assets > 0:
+                    add_n("Current Assets", current_assets, 0.22, ca_y, C["asset"])
+                if noncurrent_assets > 0:
+                    add_n("Non-Current Assets", noncurrent_assets, 0.22, nca_y, C["asset2"])
+                if total_liab > 0:
+                    add_n("Total Liabilities", total_liab, 0.22, tl_y, C["liability"])
                 if equity > 0:
-                    fund_items.append(("Equity", equity, "#22c55e"))
+                    add_n("Equity", equity, 0.22, eq_y, C["equity"])
 
-                # ── Draw figure ──
+                # Column 3: sub-categories
+                y_pos = 0.92
+                if cash > 0:
+                    add_n("Cash", cash, 0.48, y_pos, C["cash"]); y_pos -= 0.11
+                if receivables > 0:
+                    add_n("Receivables", receivables, 0.48, y_pos, C["asset"]); y_pos -= 0.11
+                if inventory > 0:
+                    add_n("Inventory", inventory, 0.48, y_pos, C["asset2"]); y_pos -= 0.11
+                if ppe > 0:
+                    add_n("PPE", ppe, 0.48, y_pos, C["ppe"]); y_pos -= 0.11
+                if goodwill > 0:
+                    add_n("Goodwill", goodwill, 0.48, y_pos, C["invest"]); y_pos -= 0.11
+                if current_liab > 0:
+                    add_n("Current Liab.", current_liab, 0.48, y_pos, C["payable"]); y_pos -= 0.11
+                if long_debt > 0:
+                    add_n("Long-Term Debt", long_debt, 0.48, y_pos, C["debt"]); y_pos -= 0.11
+                if retained > 0:
+                    add_n("Retained Earnings", retained, 0.48, max(y_pos, 0.05), C["retained"])
+
+                # ââ Links ââ
+                links = []
+                def lnk(s, t, v, color):
+                    si, ti = nmap.get(s, -1), nmap.get(t, -1)
+                    if si >= 0 and ti >= 0 and v > 0:
+                        links.append((si, ti, v, color))
+
+                if current_assets > 0:
+                    lnk("Total Assets", "Current Assets", current_assets, C["asset"])
+                if noncurrent_assets > 0:
+                    lnk("Total Assets", "Non-Current Assets", noncurrent_assets, C["asset2"])
+                if total_liab > 0:
+                    lnk("Total Assets", "Total Liabilities", total_liab, C["liability"])
+                if equity > 0:
+                    lnk("Total Assets", "Equity", equity, C["equity"])
+
+                # Current asset details
+                if cash > 0:
+                    lnk("Current Assets", "Cash", cash, C["cash"])
+                if receivables > 0:
+                    lnk("Current Assets", "Receivables", receivables, C["asset"])
+                if inventory > 0:
+                    lnk("Current Assets", "Inventory", inventory, C["asset2"])
+
+                # Non-current details
+                if ppe > 0:
+                    lnk("Non-Current Assets", "PPE", ppe, C["ppe"])
+                if goodwill > 0:
+                    lnk("Non-Current Assets", "Goodwill", goodwill, C["invest"])
+
+                # Liability details
+                if current_liab > 0:
+                    lnk("Total Liabilities", "Current Liab.", current_liab, C["payable"])
+                if long_debt > 0:
+                    lnk("Total Liabilities", "Long-Term Debt", long_debt, C["debt"])
+
+                # Equity details
+                if retained > 0:
+                    lnk("Equity", "Retained Earnings", retained, C["retained"])
+
+                # ââ Draw figure ââ
                 fig = plt.figure(figsize=(16, 9), facecolor="white")
                 fig.text(0.5, 0.96,
-                         f"{company} ({ticker}) — Balance Sheet Breakdown",
+                         f"{company} ({ticker}) â Balance Sheet Flow",
                          ha="center", va="top", fontsize=20, fontweight="bold",
                          color="#0f172a")
 
@@ -1081,46 +1254,11 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                     ("Equity", equity), ("Cash", cash),
                 ])
 
-                ax = fig.add_axes([0.12, 0.08, 0.82, 0.72])
-                bar_h = 0.45
-                rows = [
-                    (asset_items, 1.0, "Assets"),
-                    (fund_items, 0.3, "Liabilities\n& Equity"),
-                ]
-                for items, y_pos, row_lbl in rows:
-                    left = 0
-                    for lbl, val, clr in items:
-                        ax.barh(y_pos, val, left=left, height=bar_h, color=clr,
-                                edgecolor="white", linewidth=1.5, zorder=3)
-                        mid = left + val / 2
-                        ratio = val / total_assets
-                        if ratio > 0.08:
-                            ax.text(mid, y_pos, f"{lbl}\n{_fmts(val)}",
-                                    ha="center", va="center",
-                                    fontsize=8, fontweight="bold", color="white",
-                                    zorder=4)
-                        elif ratio > 0.04:
-                            ax.text(mid, y_pos, _fmts(val), ha="center",
-                                    va="center", fontsize=7, fontweight="bold",
-                                    color="white", zorder=4)
-                        left += val
-                    ax.text(-total_assets * 0.01, y_pos, row_lbl, ha="right",
-                            va="center", fontsize=11, fontweight="bold",
-                            color="#374151")
-
-                ax.set_xlim(0, total_assets * 1.02)
-                ax.set_ylim(-0.1, 1.5)
-                ax.xaxis.set_major_formatter(FuncFormatter(_fmt_axis))
-                ax.set_yticks([])
-                ax.spines["top"].set_visible(False)
-                ax.spines["right"].set_visible(False)
-                ax.spines["left"].set_visible(False)
-                ax.spines["bottom"].set_color("#cbd5e1")
-                ax.grid(axis="x", alpha=0.12, zorder=1, color="#94a3b8")
-                ax.tick_params(axis="x", labelsize=9, colors="#64748b")
+                ax = fig.add_axes([0.06, 0.05, 0.88, 0.78])
+                _draw_sankey(ax, nodes, links, total_assets)
 
                 fig.text(0.5, 0.01,
-                         f"OpenSankey  \u00b7  SEC EDGAR data  \u00b7  {ticker}",
+                         f"QuarterCharts  \u00b7  SEC EDGAR data  \u00b7  {ticker}",
                          ha="center", va="bottom", fontsize=8, color="#94a3b8")
                 pdf.savefig(fig, facecolor="white", dpi=150)
                 plt.close(fig)
@@ -1151,10 +1289,10 @@ def _fetch_sankey_data(ticker: str):
 def _build_income_sankey(income_df, info):
     """Build income statement Sankey with fixed positions & 11 vivid nodes.
 
-    Flow: Revenue → COGS + Gross Profit → R&D + SG&A + D&A + Operating Income
-          → Interest + Pretax Income → Tax + Net Income
+    Flow: Revenue â COGS + Gross Profit â R&D + SG&A + D&A + Operating Income
+          â Interest + Pretax Income â Tax + Net Income
     """
-    # ── Extract values ──
+    # ââ Extract values ââ
     revenue       = _safe(income_df, "Total Revenue")
     cogs          = abs(_safe(income_df, "Cost Of Revenue"))
     gross_profit  = _safe(income_df, "Gross Profit")
@@ -1197,7 +1335,7 @@ def _build_income_sankey(income_df, info):
     tax = max(tax, 0)
     net_income = max(net_income, 0)
 
-    # ── Fixed X/Y positions for precise layout ──
+    # ââ Fixed X/Y positions for precise layout ââ
     X1, X2, X3, X4, X5 = 0.02, 0.25, 0.55, 0.78, 0.99
     colors = VIVID
 
@@ -1257,7 +1395,7 @@ def _build_income_sankey(income_df, info):
         net_y = tax_y + 0.12
     add("Net Income", net_income, 10, X5, min(net_y, 0.97))
 
-    # ── Links ──
+    # ââ Links ââ
     srcs, tgts, vals, lcolors = [], [], [], []
 
     def link(src, tgt, val, ci=0):
@@ -1330,7 +1468,7 @@ def _build_income_sankey(income_df, info):
 
 
 def _build_balance_sheet_sankey(balance_df, info):
-    """Build a balance sheet Sankey with fixed positions — no node crossing.
+    """Build a balance sheet Sankey with fixed positions â no node crossing.
 
     Layout (4 columns, top-to-bottom order matches link order):
       Col 1: Total Assets
@@ -1338,7 +1476,7 @@ def _build_balance_sheet_sankey(balance_df, info):
       Col 3: Sub-categories (CA details, NCA details, CL, NCL, Eq details)
       Col 4: Leaf details
     """
-    # ── Extract values ──
+    # ââ Extract values ââ
     total_assets      = _safe(balance_df, "Total Assets")
     current_assets    = _safe(balance_df, "Current Assets")
     noncurrent_assets = _safe(balance_df, "Total Non Current Assets")
@@ -1375,7 +1513,7 @@ def _build_balance_sheet_sankey(balance_df, info):
 
     C = BS_COLORS
 
-    # ── Node builder with position tracking ──
+    # ââ Node builder with position tracking ââ
     nodes, node_colors_list, node_x, node_y = [], [], [], []
     links_src, links_tgt, links_val, links_col = [], [], [], []
     imap = {}
@@ -1398,14 +1536,14 @@ def _build_balance_sheet_sankey(balance_df, info):
             links_val.append(val)
             links_col.append(_rgba(color))
 
-    # ── X columns ──
+    # ââ X columns ââ
     X1, X2, X3, X4 = 0.01, 0.25, 0.55, 0.88
 
-    # ────────────────────────────────────────────────────────────
+    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     # SLOT-BASED LAYOUT: enumerate ALL leaf items in strict order,
     # assign uniform Y slots, then derive parent positions from
     # children's center.  This guarantees zero crossing.
-    # ────────────────────────────────────────────────────────────
+    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
     # Build ordered item groups: (group_key, parent_col2_name, items_list)
     # Each item: (name, val, color)
@@ -1502,7 +1640,7 @@ def _build_balance_sheet_sankey(balance_df, info):
         if g_idx < n_groups - 1:
             slot_idx += gap_slots  # skip gap
 
-    # ── Place Col 3 intermediate nodes (Current Liab., Non-Current Liab.) ──
+    # ââ Place Col 3 intermediate nodes (Current Liab., Non-Current Liab.) ââ
     # and Col 2 parent nodes at the center of their children
     col2_parent_ys = {}  # parent_name -> center_y
 
@@ -1542,8 +1680,8 @@ def _build_balance_sheet_sankey(balance_df, info):
     overall_y = sum(sum(v) / len(v) for _, v in all_col2_ys) / max(len(all_col2_ys), 1)
     add("Total Assets", total_assets, C["asset"], X1, overall_y)
 
-    # ── Create ALL links in strict top-to-bottom order ──
-    # Col 1 → Col 2 links (in Y order of Col 2 targets)
+    # ââ Create ALL links in strict top-to-bottom order ââ
+    # Col 1 â Col 2 links (in Y order of Col 2 targets)
     col2_ordered = sorted(col2_parent_ys.keys(),
                           key=lambda k: sum(col2_parent_ys[k]) / len(col2_parent_ys[k]))
     for parent_name in col2_ordered:
@@ -1556,15 +1694,15 @@ def _build_balance_sheet_sankey(balance_df, info):
         elif parent_name == "Equity":
             link("Total Assets", "Equity", equity, C["equity"])
 
-    # Col 2 → Col 3/Col 4 links (per group, in order)
+    # Col 2 â Col 3/Col 4 links (per group, in order)
     for g_idx, (col2_parent, col3_parent, items, x_col) in enumerate(groups):
         if col3_parent is not None:
-            # Col 2 → Col 3 intermediate
+            # Col 2 â Col 3 intermediate
             if col3_parent == "Current Liab.":
                 link("Total Liabilities", "Current Liab.", current_liab, C["liability"])
             elif col3_parent == "Non-Current Liab.":
                 link("Total Liabilities", "Non-Current Liab.", noncurrent_liab, C["liability"])
-            # Col 3 intermediate → Col 4 leaf items
+            # Col 3 intermediate â Col 4 leaf items
             link_parent = col3_parent
         else:
             link_parent = col2_parent
@@ -1644,7 +1782,7 @@ def render_sankey_page():
             color: #94a3b8;
             font-size: 0.9rem;
         }
-        /* ── Sankey header row: title + PDF download button ── */
+        /* ââ Sankey header row: title + PDF download button ââ */
         /* Target the stHorizontalBlock that contains the PDF download key */
         [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]),
         [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) {
@@ -1758,7 +1896,7 @@ def render_sankey_page():
             display: inline-block;
         }
 
-        /* ── Sankey Responsive ── */
+        /* ââ Sankey Responsive ââ */
         @media (max-width: 768px) {
             .sankey-header {
                 padding: 16px 14px 14px !important;
@@ -1832,7 +1970,7 @@ def render_sankey_page():
     if income_df.empty and balance_df.empty:
         income_df, balance_df, info = _get_demo_data(ticker)
         using_demo = True
-        st.info(f"📊 Showing sample data for **{ticker.upper()}** — SEC EDGAR data is temporarily unavailable. Refresh in a minute for live data.")
+        st.info(f"ð Showing sample data for **{ticker.upper()}** â SEC EDGAR data is temporarily unavailable. Refresh in a minute for live data.")
 
     company_name = info.get("shortName", info.get("longName", ticker))
 
@@ -1845,22 +1983,22 @@ def render_sankey_page():
 
     view_label = "Income Statement" if sankey_view == "income" else "Balance Sheet"
 
-    # ── Header row: title (HTML) + PDF download button (st.download_button) ──
+    # ââ Header row: title (HTML) + PDF download button (st.download_button) ââ
     hdr_col, pdf_col = st.columns([0.87, 0.13])
 
     with hdr_col:
         st.markdown(f"""
         <div class="sankey-header">
             <div class="sankey-header-left">
-                <div class="sankey-title">🔀 {company_name} — Sankey Diagram</div>
-                <div class="sankey-subtitle">Annual financial flow visualization · Most recent fiscal year</div>
+                <div class="sankey-title">ð {company_name} â Sankey Diagram</div>
+                <div class="sankey-subtitle">Annual financial flow visualization Â· Most recent fiscal year</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
     with pdf_col:
         # Pre-generate or retrieve cached PDF
-        _pdf_key = f"_sankey_pdf_v2_{ticker}_{sankey_view}"
+        _pdf_key = f"_sankey_pdf_v3_{ticker}_{sankey_view}"
         if not st.session_state.get(_pdf_key):
             _pdf_bytes = _generate_sankey_pdf(income_df, balance_df, info, ticker, sankey_view)
             if _pdf_bytes:
@@ -1878,7 +2016,7 @@ def render_sankey_page():
                 )
             except TypeError:
                 st.download_button(
-                    label="⬇ PDF",
+                    label="â¬ PDF",
                     data=st.session_state[_pdf_key],
                     file_name=f"{ticker}_{sankey_view}_sankey.pdf",
                     mime="application/pdf",
@@ -1902,7 +2040,7 @@ def render_sankey_page():
     """, unsafe_allow_html=True)
 
     if sankey_view == "income":
-        # ── KPI Metric Cards ──
+        # ââ KPI Metric Cards ââ
         revenue      = _safe(income_df, "Total Revenue")
         gross_profit = _safe(income_df, "Gross Profit")
         cogs_kpi     = abs(_safe(income_df, "Cost Of Revenue"))
@@ -1932,25 +2070,25 @@ def render_sankey_page():
         if fig:
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-            # ── Historical trend selector (popup) ──
+            # ââ Historical trend selector (popup) ââ
             metric_options = list(INCOME_NODE_METRICS.keys())
-            sel = st.pills("📈 Click a metric to see historical trend",
+            sel = st.pills("ð Click a metric to see historical trend",
                            metric_options, key="income_metric_pill")
             if sel:
-                @st.dialog(f"{sel} — Historical Trend", width="large")
+                @st.dialog(f"{sel} â Historical Trend", width="large")
                 def _income_popup():
                     _show_metric_popup(ticker, sel, "income")
                 _income_popup()
 
-            # Bridge: click Sankey node → auto-click matching pill
+            # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
         else:
             st.warning(f"No income statement data available for {ticker}.")
 
-        st.caption(f"📊 OpenSankey · SEC EDGAR data · {ticker}")
+        st.caption(f"ð QuarterCharts Â· SEC EDGAR data Â· {ticker}")
 
     elif sankey_view == "balance":
-        # ── KPI Metric Cards for Balance Sheet ──
+        # ââ KPI Metric Cards for Balance Sheet ââ
         total_assets = _safe(balance_df, "Total Assets")
         total_liab   = _safe(balance_df, "Total Liabilities Net Minority Interest") or _safe(balance_df, "Total Liab")
         equity_val   = _safe(balance_df, "Stockholders Equity") or _safe(balance_df, "Total Stockholders Equity")
@@ -1968,19 +2106,19 @@ def render_sankey_page():
         if fig:
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-            # ── Historical trend selector (popup) ──
+            # ââ Historical trend selector (popup) ââ
             metric_options = list(BALANCE_NODE_METRICS.keys())
-            sel = st.pills("📈 Click a metric to see historical trend",
+            sel = st.pills("ð Click a metric to see historical trend",
                            metric_options, key="balance_metric_pill")
             if sel:
-                @st.dialog(f"{sel} — Historical Trend", width="large")
+                @st.dialog(f"{sel} â Historical Trend", width="large")
                 def _balance_popup():
                     _show_metric_popup(ticker, sel, "balance")
                 _balance_popup()
 
-            # Bridge: click Sankey node → auto-click matching pill
+            # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
 
-        st.caption(f"📊 OpenSankey · SEC EDGAR data · {ticker}")
+        st.caption(f"ð QuarterCharts Â· SEC EDGAR data Â· {ticker}")
