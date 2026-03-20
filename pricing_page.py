@@ -196,7 +196,7 @@ def render_pricing_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # ââ Hero section ââ
+    # ── Hero section ──
     st.markdown("""
     <div class="pricing-hero">
         <h1>Simple, transparent pricing</h1>
@@ -204,7 +204,7 @@ def render_pricing_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # ââ Billing toggle ââ
+    # ── Billing toggle ──
     if "billing_cycle" not in st.session_state:
         st.session_state.billing_cycle = "monthly"
 
@@ -230,7 +230,7 @@ def render_pricing_page():
     period = "/mo" if not is_annual else "/mo"
     billed_note = "billed annually" if is_annual else "billed monthly"
 
-    # ââ Pricing cards ââ
+    # ── Pricing cards ──
     cols = st.columns(3, gap="medium")
 
     with cols[0]:
@@ -262,7 +262,7 @@ def render_pricing_page():
                 <li>Income + Balance Sankey</li>
                 <li>All financial charts</li>
                 <li>Quarterly & Annual data</li>
-                <li>Historical trends (1Yâ4Y+MAX)</li>
+                <li>Historical trends (1Y–4Y+MAX)</li>
                 <li>Analyst forecast overlay</li>
                 <li>PDF export</li>
                 <li>Watchlist (unlimited tickers)</li>
@@ -292,7 +292,7 @@ def render_pricing_page():
         </div>
         """, unsafe_allow_html=True)
 
-    # ââ FAQ section ââ
+    # ── FAQ section ──
     st.markdown("---")
     st.markdown("### Frequently Asked Questions")
 
