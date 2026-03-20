@@ -137,12 +137,57 @@ def _yoy(current, previous):
     return None
 
 
-def _yoy_delta(current, previous):
+def _yoy_delta(current, previous, label="YoY"):
     """Format YoY as delta string for st.metric."""
     pct = _yoy(current, previous)
     if pct is None:
         return None
-    return f"{pct:+.1f}% YoY"
+    return f"{pct:+.1f}% {label}"
+
+
+def _reorder_df_for_comparison(df, period_a, period_b, quarterly=False):
+    """Reorder DataFrame columns so period_a is col 0, period_b is col 1."""
+    if df is None or df.empty or df.shape[1] < 2:
+        return df
+    cols = list(df.columns)
+    col_dates = []
+    for c in cols:
+        try:
+            col_dates.append(pd.Timestamp(c))
+        except Exception:
+            col_dates.append(None)
+
+    def _find(period_str):
+        if quarterly:
+            parts = period_str.split()
+            q_num = int(parts[0][1])
+            yr = int(parts[1])
+            for i, d in enumerate(col_dates):
+                if d and d.year == yr and ((d.month - 1) // 3 + 1) == q_num:
+                    return i
+        else:
+            yr = int(period_str)
+            for i, d in enumerate(col_dates):
+                if d and d.year == yr:
+                    return i
+            for i, d in enumerate(col_dates):
+                if d and d.year == yr + 1 and d.month <= 6:
+                    return i
+        return None
+
+    idx_a = _find(period_a) if period_a else 0
+    idx_b = _find(period_b) if period_b else 1
+    if idx_a is None:
+        idx_a = 0
+    if idx_b is None:
+        idx_b = 1 if idx_a != 1 else min(2, len(cols) - 1)
+    if idx_a == idx_b:
+        idx_b = (idx_a + 1) % len(cols)
+    new_order = [idx_a, idx_b]
+    for i in range(len(cols)):
+        if i not in new_order:
+            new_order.append(i)
+    return df.iloc[:, new_order]
 
 
 # âââ SEC EDGAR data source ââââââââââââââââââââââââââââââââââââââââââââââââââ
@@ -1488,7 +1533,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _fetch_sankey_data(ticker: str):
+def _fetch_sankey_data(ticker: str, quarterly: bool = False):
     """Fetch income statement & balance sheet data from SEC EDGAR for Sankey diagrams."""
     try:
         cik = _ticker_to_cik(ticker)
@@ -2194,7 +2239,8 @@ def render_sankey_page():
     using_demo = False
     with st.spinner(f"Loading {ticker} financial data..."):
         try:
-            income_df, balance_df, info = _fetch_sankey_data(ticker)
+            _sq = st.session_state.get("sankey_compare_quarterly", False)
+            income_df, balance_df, info = _fetch_sankey_data(ticker, quarterly=_sq)
         except Exception:
             income_df, balance_df, info = pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
 
@@ -2202,7 +2248,20 @@ def render_sankey_page():
     if income_df.empty and balance_df.empty:
         income_df, balance_df, info = _get_demo_data(ticker)
         using_demo = True
-        st.info(f"ð Showing sample data for **{ticker.upper()}** â SEC EDGAR data is temporarily unavailable. Refresh in a minute for live data.")
+        st.info(f"\ud83d\udcc8 Showing sample data for **{ticker.upper()}** \u2013 SEC EDGAR data is temporarily unavailable. Refresh in a minute for live data.")
+
+    # --- Period comparison (from sidebar selectors) ---
+    _pa = st.session_state.get("sankey_period_a", None)
+    _pb = st.session_state.get("sankey_period_b", None)
+    _sq2 = st.session_state.get("sankey_compare_quarterly", False)
+    if _pa and _pb and _pa != _pb:
+        income_df = _reorder_df_for_comparison(income_df, _pa, _pb, _sq2)
+        balance_df = _reorder_df_for_comparison(balance_df, _pa, _pb, _sq2)
+        _compare_label = f"vs {_pb}"
+        _compare_note = f"Comparing {_pa} vs {_pb}"
+    else:
+        _compare_label = "YoY"
+        _compare_note = None
 
     company_name = info.get("shortName", info.get("longName", ticker))
 
@@ -2223,7 +2282,7 @@ def render_sankey_page():
         <div class="sankey-header">
             <div class="sankey-header-left">
                 <div class="sankey-title"><img src="https://financialmodelingprep.com/image-stock/{ticker.upper()}.png" class="sankey-company-logo" onerror="this.style.display='none'"> {company_name} â Sankey Diagram</div>
-                <div class="sankey-subtitle">Annual financial flow visualization Â· Most recent fiscal year</div>
+                <div class="sankey-subtitle">{_compare_note + " \u00b7 " if _compare_note else ""}Annual financial flow visualization</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -2291,10 +2350,10 @@ def render_sankey_page():
                 gp_prev = rev_prev - cogs_prev
 
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Revenue", _fmt(revenue), _yoy_delta(revenue, rev_prev))
-        m2.metric("Gross Profit", _fmt(gross_profit), _yoy_delta(gross_profit, gp_prev))
-        m3.metric("Operating Income", _fmt(op_income), _yoy_delta(op_income, oi_prev))
-        m4.metric("Net Income", _fmt(net_income), _yoy_delta(net_income, ni_prev))
+        m1.metric("Revenue", _fmt(revenue), _yoy_delta(revenue, rev_prev, _compare_label))
+        m2.metric("Gross Profit", _fmt(gross_profit), _yoy_delta(gross_profit, gp_prev, _compare_label))
+        m3.metric("Operating Income", _fmt(op_income), _yoy_delta(op_income, oi_prev, _compare_label))
+        m4.metric("Net Income", _fmt(net_income), _yoy_delta(net_income, ni_prev, _compare_label))
 
         st.divider()
 
@@ -2315,14 +2374,12 @@ def render_sankey_page():
                     _show_metric_popup(ticker, active_metric, "income")
                 _income_popup()
 
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
             # Bridge: click Sankey node → auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
         else:
             st.warning(f"No income statement data available for {ticker}.")
 
-        st.caption(f"ð QuarterCharts Â· SEC EDGAR data Â· {ticker}")
+        st.caption(f"ð QuarterCharts Â· SEC EDGAR data Â· {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
 
     elif sankey_view == "balance":
         # ââ KPI Metric Cards for Balance Sheet ââ
@@ -2336,10 +2393,10 @@ def render_sankey_page():
         cash_prev    = _safe_prev(balance_df, "Cash And Cash Equivalents")
 
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Total Assets", _fmt(total_assets), _yoy_delta(total_assets, ta_prev))
-        m2.metric("Total Liabilities", _fmt(total_liab), _yoy_delta(total_liab, tl_prev))
-        m3.metric("Equity", _fmt(equity_val), _yoy_delta(equity_val, eq_prev))
-        m4.metric("Cash", _fmt(cash_val), _yoy_delta(cash_val, cash_prev))
+        m1.metric("Total Assets", _fmt(total_assets), _yoy_delta(total_assets, ta_prev, _compare_label))
+        m2.metric("Total Liabilities", _fmt(total_liab), _yoy_delta(total_liab, tl_prev, _compare_label))
+        m3.metric("Equity", _fmt(equity_val), _yoy_delta(equity_val, eq_prev, _compare_label))
+        m4.metric("Cash", _fmt(cash_val), _yoy_delta(cash_val, cash_prev, _compare_label))
 
         st.divider()
 
@@ -2360,11 +2417,9 @@ def render_sankey_page():
                     _show_metric_popup(ticker, active_metric, "balance")
                 _balance_popup()
 
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
             # Bridge: click Sankey node → auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
 
-        st.caption(f"ð QuarterCharts Â· SEC EDGAR data Â· {ticker}")
+        st.caption(f"ð QuarterCharts Â· SEC EDGAR data Â· {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
