@@ -1878,7 +1878,7 @@ with st.sidebar:
     <div class="sidebar-metrics">
         <div class="price-row">
             <span class="price-label">Stock Price</span>
-            <span class="price-value">${f'${stock_price:.2f}' if stock_price else 'N/A'}</span>
+            <span class="price-value">{f'${stock_price:.2f}' if stock_price else 'N/A'}</span>
         </div>
         <div class="metrics-grid">
             <div class="mini-metric">
