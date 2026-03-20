@@ -278,8 +278,21 @@ def render_profile_page(ticker: str) -> None:
     col1, col2, col3, col4 = st.columns([2, 1.5, 2, 1.2])
 
     with col1:
-        icon = get_company_icon(ticker, company_data.get("sector", ""), company_data.get("industry", ""))
-        st.markdown(f"### {icon} **{name}** ({ticker})")
+        website = company_data.get("website", "")
+        logo_url = ""
+        if website and website != "N/A":
+            try:
+                from urllib.parse import urlparse
+                domain = urlparse(website).netloc or urlparse(website).path
+                domain = domain.replace("www.", "")
+                logo_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
+            except Exception:
+                pass
+        if logo_url:
+            st.markdown(f'<div style="display:flex;align-items:center;gap:10px;"><img src="{logo_url}" style="width:32px;height:32px;border-radius:4px;object-fit:contain;" onerror="this.style.display=\'none\'" alt="{ticker} logo"/><span style="font-size:1.4rem;font-weight:600;">{name} ({ticker})</span></div>', unsafe_allow_html=True)
+        else:
+            icon = get_company_icon(ticker, company_data.get("sector", ""), company_data.get("industry", ""))
+            st.markdown(f"### {icon} **{name}** ({ticker})")
 
     with col2:
         if current_price:
