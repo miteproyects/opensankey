@@ -90,7 +90,7 @@ st.set_page_config(
 )
 
 # Sidebar logo
-st.sidebar.image(BytesIO(base64.b64decode(LOGO_B64)), use_container_width=True)
+# st.sidebar.image(BytesIO(base64.b64decode(LOGO_B64)), use_container_width=True)  # hidden to save space
 
 # Cache version: only clear caches manually when needed (not on every new session)
 # To force cache clear: bump this number AND uncomment the clear() line, then revert.
@@ -756,6 +756,32 @@ section[data-testid="stSidebar"] div[data-testid="stExpander"] summary p {
 }
 
 /* ---- Plotly - no extra background override needed with light theme ---- */
+
+/* ── Aggressive sidebar top-spacing reduction ── */
+section[data-testid="stSidebar"] [data-testid="stSidebarHeader"] {
+    height: 0px !important;
+    min-height: 0px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
+    padding-top: 0.5rem !important;
+}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+    gap: 0.25rem !important;
+}
+section[data-testid="stSidebar"] .stForm {
+    padding: 0.25rem 0 !important;
+    margin: 0 !important;
+}
+section[data-testid="stSidebar"] img {
+    max-height: 40px !important;
+    width: auto !important;
+}
+section[data-testid="stSidebar"] [data-testid="stFullScreenFrame"] {
+    max-height: 45px !important;
+    overflow: hidden !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
