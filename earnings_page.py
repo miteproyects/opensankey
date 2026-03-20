@@ -206,12 +206,56 @@ def _fetch_stock_list_exchanges() -> dict:
     return {}
 
 
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _fetch_exchanges_yfinance(symbols_tuple: tuple) -> dict:
+    """Fetch exchange info via yfinance fast_info (cached 24h). Used when FMP is unavailable."""
+    try:
+        import yfinance as yf
+    except ImportError:
+        return {}
+
+    _YF_EXCHANGE_TO_CATEGORY = {
+        "NMS": "NASDAQ", "NGM": "NASDAQ", "NCM": "NASDAQ", "NAQ": "NASDAQ",
+        "NYQ": "NYSE", "NYS": "NYSE", "PCX": "NYSE", "ASE": "NYSE", "BTS": "NYSE",
+        "JPX": "JPX", "TYO": "JPX",
+        "HKG": "HKSE",
+        "PAR": "EURONEXT", "AMS": "EURONEXT", "BRU": "EURONEXT", "LIS": "EURONEXT",
+        "LSE": "EURONEXT", "LON": "EURONEXT", "FRA": "EURONEXT", "GER": "EURONEXT",
+        "SIX": "EURONEXT",
+        "TOR": "TSX", "VAN": "TSX", "CNQ": "TSX",
+    }
+
+    result = {}
+
+    def _get_exchange(sym):
+        try:
+            t = yf.Ticker(sym)
+            ex = getattr(t.fast_info, "exchange", "") or ""
+            return sym, _YF_EXCHANGE_TO_CATEGORY.get(ex, ex if ex else "")
+        except Exception:
+            return sym, ""
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(_get_exchange, sym) for sym in symbols_tuple]
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                sym, ex = future.result()
+                if ex:
+                    result[sym] = ex
+            except Exception:
+                pass
+
+    return result
+
+
 def _fetch_exchange_map(symbols: list) -> dict:
-    """Map symbols to exchanges using cached stock list, with suffix fallback."""
+    """Map symbols to exchanges using cached stock list, yfinance fallback, and suffix detection."""
     if not symbols:
         return {}
     all_exchanges = _fetch_stock_list_exchanges()
     result = {}
+    missing = []
     for sym in symbols:
         ex = all_exchanges.get(sym, "")
         if ex:
@@ -220,8 +264,13 @@ def _fetch_exchange_map(symbols: list) -> dict:
             detected = _detect_exchange_from_suffix(sym)
             if detected:
                 result[sym] = detected
+            else:
+                missing.append(sym)
+    # Fallback: use yfinance for symbols not found via FMP or suffix
+    if missing:
+        yf_exchanges = _fetch_exchanges_yfinance(tuple(missing))
+        result.update(yf_exchanges)
     return result
-
 def _fetch_single_ticker_earnings(sym, sd_date, ed_date):
     """Fetch earnings info for a single ticker. Returns dict or None."""
     try:
@@ -587,12 +636,6 @@ def render_earnings_page():
         symbols = df["symbol"].unique().tolist()[:200]
         exchange_map = _fetch_exchange_map(symbols)
         df["exchange"] = df["symbol"].map(lambda s: exchange_map.get(s, ""))
-        # DEBUG
-        st.write(f"DEBUG: {len(exchange_map)} exchanges found. FMP avail: {_fmp_available()}, symbols[:5]: {symbols[:5]}")
-        if exchange_map:
-            st.write(f"DEBUG sample: {dict(list(exchange_map.items())[:5])}")
-        else:
-            st.write("DEBUG: exchange_map is EMPTY")
     else:
         df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce").fillna(0)
         # FMP earnings data has marketCap but no exchange — enrich from profiles
