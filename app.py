@@ -323,41 +323,56 @@ section[data-testid="stSidebar"] {
 .nav-right .nav-signin:hover { background: #2563eb !important; box-shadow: 0 2px 8px rgba(59,130,246,0.4) !important; transform: translateY(-1px); }
 
 /* ---- Metric cards ---- */
-.metric-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin: 8px 0;
-}
-.metric-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
+.sidebar-metrics {
+    background: linear-gradient(135deg, #1a1f2e, #0f1219);
+    border: 1px solid rgba(59,130,246,0.2);
     border-radius: 10px;
-    padding: 14px 12px;
-    text-align: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-    transition: box-shadow 0.2s;
+    padding: 10px 12px;
+    margin: 6px 0;
 }
-.metric-card:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+.sidebar-metrics .price-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-bottom: 7px;
+    margin-bottom: 7px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
 }
-.metric-card.full-width {
-    grid-column: 1 / -1;
-    max-width: 50%;
-    margin: 0 auto;
-}
-.metric-label {
-    color: #6b7280;
-    font-size: 0.72rem;
+.sidebar-metrics .price-label {
+    color: rgba(255,255,255,0.5);
+    font-size: 0.6rem;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 4px;
 }
-.metric-value {
-    color: #111827;
-    font-size: 1.25rem;
+.sidebar-metrics .price-value {
+    color: #fff;
+    font-size: 1.15rem;
     font-weight: 700;
+}
+.sidebar-metrics .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+}
+.sidebar-metrics .mini-metric {
+    text-align: center;
+    padding: 2px 0;
+}
+.sidebar-metrics .mini-metric:not(:last-child) {
+    border-right: 1px solid rgba(255,255,255,0.08);
+}
+.sidebar-metrics .mini-label {
+    color: rgba(255,255,255,0.4);
+    font-size: 0.55rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 1px;
+}
+.sidebar-metrics .mini-value {
+    color: rgba(255,255,255,0.9);
+    font-size: 0.8rem;
+    font-weight: 600;
 }
 .more-info-link {
     color: var(--accent);
@@ -802,9 +817,6 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
     .nav-logo svg { width: 28px !important; height: 28px !important; }
     .nav-logo-text { font-size: 0.65rem !important; }
     /* Metric cards: smaller text */
-    .metric-value {
-        font-size: 1.1rem !important;
-    }
     /* Footer: tighter */
     .footer {
         padding: 24px 16px !important;
@@ -862,18 +874,7 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
     .nav-logo-text { font-size: 0.62rem !important; }
     .nav-right .nav-signin { padding: 6px 14px !important; font-size: 0.75rem !important; }
 /* Metric cards: responsive grid */
-.metric-row {
-    gap: 8px !important;
-}
-.metric-card {
-    padding: 10px 8px !important;
-}
-.metric-value {
-    font-size: 1.1rem !important;
-}
-.metric-label {
-    font-size: 0.68rem !important;
-}
+
     /* Section headers: smaller */
     .section-header-expanded,
     .section-header-collapsed,
@@ -915,15 +916,7 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
     .nav-logo svg { width: 22px !important; height: 22px !important; }
     .nav-logo-text { display: none !important; }
     .nav-right .nav-signin { padding: 5px 12px !important; font-size: 0.7rem !important; }
-.metric-row {
-    grid-template-columns: 1fr !important;
-}
-.metric-card.full-width {
-    max-width: 100% !important;
-}
-.metric-value {
-    font-size: 1rem !important;
-}
+
     .section-header-expanded,
     .section-header-collapsed {
         padding: 8px 10px !important;
@@ -1882,22 +1875,24 @@ with st.sidebar:
     peg = info.get("peg_ratio")
 
     st.markdown(f"""
-    <div class="metric-card full-width" style="background:linear-gradient(135deg,#1a1f2e,#0f1219);border:1px solid rgba(59,130,246,0.3);margin-bottom:12px">
-        <div class="metric-label" style="color:rgba(255,255,255,0.6)">STOCK PRICE</div>
-        <div class="metric-value" style="color:#fff;font-size:1.5rem">${f'{stock_price:.2f}' if stock_price else 'N/A'}</div>
-    </div>
-    <div class="metric-row">
-        <div class="metric-card">
-            <div class="metric-label">Market Cap</div>
-            <div class="metric-value">{mcap}</div>
+    <div class="sidebar-metrics">
+        <div class="price-row">
+            <span class="price-label">Stock Price</span>
+            <span class="price-value">${f'${stock_price:.2f}' if stock_price else 'N/A'}</span>
         </div>
-        <div class="metric-card">
-            <div class="metric-label">P/E</div>
-            <div class="metric-value">{f'{pe:.2f}' if pe else 'N/A'}</div>
-        </div>
-        <div class="metric-card full-width">
-            <div class="metric-label">PEG</div>
-            <div class="metric-value">{f'{peg:.2f}' if peg else 'N/A'}</div>
+        <div class="metrics-grid">
+            <div class="mini-metric">
+                <div class="mini-label">MCap</div>
+                <div class="mini-value">{mcap}</div>
+            </div>
+            <div class="mini-metric">
+                <div class="mini-label">P/E</div>
+                <div class="mini-value">{f'{pe:.2f}' if pe else 'N/A'}</div>
+            </div>
+            <div class="mini-metric">
+                <div class="mini-label">PEG</div>
+                <div class="mini-value">{f'{peg:.2f}' if peg else 'N/A'}</div>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
