@@ -738,6 +738,10 @@ def _render_exchange_filters(has_exchange_data: bool = False):
 
     exchanges = ["NYSE", "NASDAQ", "JPX", "HKSE", "EURONEXT", "TSX", "Others"]
     is_disabled = not has_exchange_data
+    # Initialize session state defaults (only once)
+    for ex in exchanges:
+        if f"ex_{ex}" not in st.session_state:
+            st.session_state[f"ex_{ex}"] = True
     n_cols = min(len(exchanges), 4)
     for row_start in range(0, len(exchanges), n_cols):
         row_exs = exchanges[row_start:row_start + n_cols]
@@ -745,7 +749,7 @@ def _render_exchange_filters(has_exchange_data: bool = False):
         for i, ex in enumerate(row_exs):
             with cols[i]:
                 st.checkbox(
-                    ex, value=True, key=f"ex_{ex}",
+                    ex, key=f"ex_{ex}",
                     disabled=is_disabled,
                 )
 
