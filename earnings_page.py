@@ -183,66 +183,38 @@ def _detect_exchange_from_suffix(symbol: str) -> str:
     return ""
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def _fetch_exchange_map(symbols: list) -> dict:
-    """Fetch exchange info for symbols via FMP quote, profile, search fallback, then suffix."""
-    if not _fmp_available() or not symbols:
+@st.cache_data(ttl=86400, show_spinner=False)
+def _fetch_stock_list_exchanges() -> dict:
+    """Fetch exchange info for ALL stocks via FMP /stock/list (cached 24h)."""
+    if not _fmp_available():
         return {}
+    try:
+        url = f"{_FMP_BASE}/stock/list?apikey={_fmp_key()}"
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list):
+            return {
+                item.get("symbol", ""): item.get("exchangeShortName", "") or item.get("exchange", "")
+                for item in data
+                if item.get("symbol") and (item.get("exchangeShortName") or item.get("exchange"))
+            }
+    except Exception:
+        pass
+    return {}
+
+
+def _fetch_exchange_map(symbols: list) -> dict:
+    """Map symbols to exchanges using cached stock list, with suffix fallback."""
+    if not symbols:
+        return {}
+    all_exchanges = _fetch_stock_list_exchanges()
     result = {}
-    batch_size = 50
-    for i in range(0, len(symbols), batch_size):
-        batch = symbols[i:i + batch_size]
-        syms = ",".join(batch)
-        try:
-            url = f"{_FMP_BASE}/quote/{syms}?apikey={_fmp_key()}"
-            resp = requests.get(url, timeout=15)
-            resp.raise_for_status()
-            data = resp.json()
-            if isinstance(data, list):
-                for item in data:
-                    sym = item.get("symbol", "")
-                    ex = item.get("exchange", "") or item.get("exchangeShortName", "")
-                    if sym and ex:
-                        result[sym] = ex
-        except Exception:
-            pass
-        missing = [s for s in batch if not result.get(s)]
-        if missing:
-            try:
-                syms2 = ",".join(missing)
-                url2 = f"{_FMP_BASE}/profile/{syms2}?apikey={_fmp_key()}"
-                resp2 = requests.get(url2, timeout=15)
-                resp2.raise_for_status()
-                data2 = resp2.json()
-                if isinstance(data2, list):
-                    for item in data2:
-                        sym = item.get("symbol", "")
-                        ex = (item.get("exchangeShortName", "")
-                              or item.get("exchange", "")
-                              or item.get("stockExchange", ""))
-                        if sym and ex:
-                            result[sym] = ex
-            except Exception:
-                pass
-    # Fallback: /search endpoint for still-missing symbols (available on free tier)
-    still_missing = [s for s in symbols if not result.get(s)]
-    for sym in still_missing[:50]:
-        try:
-            url3 = f"{_FMP_BASE}/search?query={sym}&limit=1&apikey={_fmp_key()}"
-            resp3 = requests.get(url3, timeout=10)
-            resp3.raise_for_status()
-            data3 = resp3.json()
-            if data3 and isinstance(data3, list):
-                for item in data3:
-                    if item.get("symbol", "").upper() == sym.upper():
-                        ex = item.get("exchangeShortName", "") or item.get("stockExchange", "")
-                        if ex:
-                            result[sym] = ex
-                            break
-        except Exception:
-            pass
     for sym in symbols:
-        if not result.get(sym):
+        ex = all_exchanges.get(sym, "")
+        if ex:
+            result[sym] = ex
+        else:
             detected = _detect_exchange_from_suffix(sym)
             if detected:
                 result[sym] = detected
@@ -564,7 +536,7 @@ def render_earnings_page():
     nav_left, nav_center, nav_right = st.columns([1, 2, 1])
 
     with nav_left:
-        if st.button("‹  Prev. Week", key="earn_prev", use_container_width=True):
+        if st.button("<  Prev. Week", key="earn_prev", use_container_width=True):
             st.session_state.earnings_week_offset -= 1
             st.rerun()
 
@@ -576,7 +548,7 @@ def render_earnings_page():
         )
 
     with nav_right:
-        if st.button("Next Week  ›", key="earn_next", use_container_width=True):
+        if st.button("Next Week  >", key="earn_next", use_container_width=True):
             st.session_state.earnings_week_offset += 1
             st.rerun()
 
