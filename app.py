@@ -1454,11 +1454,32 @@ def _generate_section_pdf(figures: list, section_title: str, ticker: str) -> byt
     buf = BytesIO()
     added = 0
 
+    # Fetch company logo for title page
+    _logo_img = None
+    try:
+        import requests as _req
+        from PIL import Image as _PILImage
+        _logo_resp = _req.get(
+            f"https://financialmodelingprep.com/image-stock/{ticker}.png",
+            timeout=3,
+        )
+        if _logo_resp.status_code == 200 and len(_logo_resp.content) > 100:
+            _logo_img = _PILImage.open(BytesIO(_logo_resp.content)).convert("RGBA")
+    except Exception:
+        pass
+
     with PdfPages(buf) as pdf:
         # Title page
         tfig = plt.figure(figsize=(11, 1))
-        tfig.text(0.5, 0.5, f"{ticker} \u2014 {section_title}",
-                  ha="center", va="center", fontsize=20, fontweight="bold")
+        if _logo_img is not None:
+            logo_ax = tfig.add_axes([0.28, 0.1, 0.06, 0.8])
+            logo_ax.imshow(_logo_img)
+            logo_ax.axis("off")
+            tfig.text(0.55, 0.5, f"{ticker} \u2014 {section_title}",
+                      ha="center", va="center", fontsize=20, fontweight="bold")
+        else:
+            tfig.text(0.5, 0.5, f"{ticker} \u2014 {section_title}",
+                      ha="center", va="center", fontsize=20, fontweight="bold")
         tfig.patch.set_facecolor("white")
         pdf.savefig(tfig, bbox_inches="tight")
         plt.close(tfig)
