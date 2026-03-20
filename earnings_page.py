@@ -540,13 +540,22 @@ def render_earnings_page():
                 lambda s: profiles.get(s, {}).get("exchange", "")
             )
 
+    # ── DEBUG: show exchange values ──────────────────────────────────────
+    if "exchange" in df.columns:
+        st.write("DEBUG exchange values:", df[["symbol", "exchange"]].to_dict("records"))
+    else:
+        st.write("DEBUG: no exchange column in df. Columns:", list(df.columns))
+
     # ── Exchange filters (render first so Streamlit reads state) ──────────
     has_exchange = "exchange" in df.columns
     _render_exchange_filters(has_exchange_data=has_exchange)
 
     # ── Apply exchange filters ──────────────────────────────────────────────────
+    st.write("DEBUG selected:", _get_selected_exchanges())
     if has_exchange:
+        before_count = len(df)
         df = _filter_by_exchange(df)
+        st.write(f"DEBUG filter: {before_count} -> {len(df)} rows")
 
     # ── Count display ─────────────────────────────────────────────────────────
     total = len(df)
