@@ -2374,6 +2374,21 @@ def render_sankey_page():
     st.markdown(f'<div style="text-align:center;color:#888;font-size:0.85rem;margin-top:-0.5rem;margin-bottom:0.5rem">{_compare_note + " · " if _compare_note else ""}Annual financial flow visualization</div>', unsafe_allow_html=True)
 
     if sankey_view == "income":
+        # ── Historical trend selector (popup) ──
+        metric_options = list(INCOME_NODE_METRICS.keys())
+        sel = st.pills("📈 Click a metric to see historical trend",
+                       metric_options, key="income_metric_pill")
+        if sel:
+            # Track active metric in popup (allows navigation inside dialog)
+            if f"popup_active_income" not in st.session_state or st.session_state.get("popup_trigger_income") != sel:
+                st.session_state["popup_active_income"] = sel
+                st.session_state["popup_trigger_income"] = sel
+            active_metric = st.session_state["popup_active_income"]
+            @st.dialog(f"{active_metric} — Historical Trend", width="large")
+            def _income_popup():
+                _show_metric_popup(ticker, active_metric, "income")
+            _income_popup()
+
         # ── KPI Metric Cards ──
         revenue      = _safe(income_df, "Total Revenue")
         gross_profit = _safe(income_df, "Gross Profit")
@@ -2402,20 +2417,6 @@ def render_sankey_page():
 
         fig = _build_income_sankey(income_df, info)
         if fig:
-            # ── Historical trend selector (popup) ──
-            metric_options = list(INCOME_NODE_METRICS.keys())
-            sel = st.pills("📈 Click a metric to see historical trend",
-                           metric_options, key="income_metric_pill")
-            if sel:
-                # Track active metric in popup (allows navigation inside dialog)
-                if f"popup_active_income" not in st.session_state or st.session_state.get("popup_trigger_income") != sel:
-                    st.session_state["popup_active_income"] = sel
-                    st.session_state["popup_trigger_income"] = sel
-                active_metric = st.session_state["popup_active_income"]
-                @st.dialog(f"{active_metric} — Historical Trend", width="large")
-                def _income_popup():
-                    _show_metric_popup(ticker, active_metric, "income")
-                _income_popup()
 
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
 
@@ -2427,6 +2428,21 @@ def render_sankey_page():
         st.caption(f"📊 QuarterCharts · SEC EDGAR data · {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
 
     elif sankey_view == "balance":
+        # ── Historical trend selector (popup) ──
+        metric_options = list(BALANCE_NODE_METRICS.keys())
+        sel = st.pills("📈 Click a metric to see historical trend",
+                       metric_options, key="balance_metric_pill")
+        if sel:
+            # Track active metric in popup (allows navigation inside dialog)
+            if f"popup_active_balance" not in st.session_state or st.session_state.get("popup_trigger_balance") != sel:
+                st.session_state["popup_active_balance"] = sel
+                st.session_state["popup_trigger_balance"] = sel
+            active_metric = st.session_state["popup_active_balance"]
+            @st.dialog(f"{active_metric} — Historical Trend", width="large")
+            def _balance_popup():
+                _show_metric_popup(ticker, active_metric, "balance")
+            _balance_popup()
+
         # ── KPI Metric Cards for Balance Sheet ──
         total_assets = _safe(balance_df, "Total Assets")
         total_liab   = _safe(balance_df, "Total Liabilities Net Minority Interest") or _safe(balance_df, "Total Liab")
@@ -2447,20 +2463,6 @@ def render_sankey_page():
 
         fig = _build_balance_sheet_sankey(balance_df, info)
         if fig:
-            # ── Historical trend selector (popup) ──
-            metric_options = list(BALANCE_NODE_METRICS.keys())
-            sel = st.pills("📈 Click a metric to see historical trend",
-                           metric_options, key="balance_metric_pill")
-            if sel:
-                # Track active metric in popup (allows navigation inside dialog)
-                if f"popup_active_balance" not in st.session_state or st.session_state.get("popup_trigger_balance") != sel:
-                    st.session_state["popup_active_balance"] = sel
-                    st.session_state["popup_trigger_balance"] = sel
-                active_metric = st.session_state["popup_active_balance"]
-                @st.dialog(f"{active_metric} — Historical Trend", width="large")
-                def _balance_popup():
-                    _show_metric_popup(ticker, active_metric, "balance")
-                _balance_popup()
 
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
 
