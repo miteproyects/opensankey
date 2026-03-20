@@ -2324,7 +2324,6 @@ def render_sankey_page():
         <div class="sankey-header">
             <div class="sankey-header-left">
                 <div class="sankey-title"><img src="https://financialmodelingprep.com/image-stock/{ticker.upper()}.png" class="sankey-company-logo" onerror="this.style.display='none'"> {company_name} — Sankey Diagram</div>
-                <div class="sankey-subtitle">{_compare_note + " \u00b7 " if _compare_note else ""}Annual financial flow visualization</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
