@@ -2372,6 +2372,8 @@ def render_sankey_page():
     </div>
     """, unsafe_allow_html=True)
 
+    st.markdown(f'<div style="text-align:center;color:#888;font-size:0.85rem;margin-top:-0.5rem;margin-bottom:0.5rem">{_compare_note + " · " if _compare_note else ""}Annual financial flow visualization</div>', unsafe_allow_html=True)
+
     if sankey_view == "income":
         # ── KPI Metric Cards ──
         revenue      = _safe(income_df, "Total Revenue")
