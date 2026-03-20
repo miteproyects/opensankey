@@ -144,7 +144,7 @@ def fetch_earnings_calendar(start_date: str, end_date: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_market_caps_batch(symbols: list) -> dict:
-    """Fetch market caps for a batch of symbols via FMP profile endpoint."""
+    """Fetch market caps + exchange for a batch of symbols via FMP profile."""
     if not _fmp_available() or not symbols:
         return {}
 
@@ -160,7 +160,8 @@ def fetch_market_caps_batch(symbols: list) -> dict:
             for item in resp.json():
                 sym = item.get("symbol", "")
                 mc = item.get("mktCap", 0)
-                caps[sym] = mc
+                ex = item.get("exchangeShortName", "") or item.get("exchange", "")
+                caps[sym] = {"marketCap": mc, "exchange": ex}
         except Exception:
             continue
     return caps
@@ -518,13 +519,26 @@ def render_earnings_page():
     if "date" in df.columns:
         df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
 
-    # ── Fetch market caps if not present ──────────────────────────────────
+    # ── Fetch market caps + exchange if not present ─────────────────────
     if "marketCap" not in df.columns:
-        symbols = df["symbol"].unique().tolist()[:100]
-        caps = fetch_market_caps_batch(symbols)
-        df["marketCap"] = df["symbol"].map(caps).fillna(0)
+        symbols = df["symbol"].unique().tolist()[:200]
+        profiles = fetch_market_caps_batch(symbols)
+        df["marketCap"] = df["symbol"].map(
+            lambda s: profiles.get(s, {}).get("marketCap", 0)
+        ).fillna(0)
+        if "exchange" not in df.columns:
+            df["exchange"] = df["symbol"].map(
+                lambda s: profiles.get(s, {}).get("exchange", "")
+            )
     else:
         df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce").fillna(0)
+        # FMP earnings data has marketCap but no exchange — enrich from profiles
+        if "exchange" not in df.columns:
+            symbols = df["symbol"].unique().tolist()[:200]
+            profiles = fetch_market_caps_batch(symbols)
+            df["exchange"] = df["symbol"].map(
+                lambda s: profiles.get(s, {}).get("exchange", "")
+            )
 
     # ── Exchange filters (render first so Streamlit reads state) ──────────
     has_exchange = "exchange" in df.columns
