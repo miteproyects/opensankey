@@ -154,10 +154,24 @@ def ensure_running():
                         app = val
                         break
             if app is not None:
+                rule = tornado.web.url(
+                    r"/api/price/([\w.]+)", PriceTornadoHandler
+                )
+                # Insert into existing wildcard router rules at the front
+                # so it takes priority over Streamlit's catch-all
+                router = getattr(app, 'wildcard_router', None)
+                if router and hasattr(router, 'rules'):
+                    for group in router.rules:
+                        target = getattr(group, 'target', None)
+                        if target and hasattr(target, 'rules'):
+                            target.rules.insert(0, rule)
+                            print("[price_api] Injected /api/price/ into Streamlit router")
+                            return
+                # Fallback: try add_handlers (works if no catch-all)
                 app.add_handlers(r".*", [
                     (r"/api/price/([\w.]+)", PriceTornadoHandler),
                 ])
-                print("[price_api] Injected /api/price/ into Streamlit server")
+                print("[price_api] Injected /api/price/ via add_handlers")
                 return
         except Exception as e:
             print(f"[price_api] Injection failed: {e}")
