@@ -43,10 +43,10 @@ def _period_sort_key(label: str):
     Returns (year, sub) for ascending chronological order."""
     parts = label.split()
     if len(parts) == 2 and parts[0].startswith("Q"):
-        # "Q1 2024" → (2024, 1)
+        # "Q1 2024" â (2024, 1)
         return (int(parts[1]), int(parts[0][1]))
     if len(parts) == 2 and parts[0] == "FY":
-        # "FY 2024" → (2024, 0)
+        # "FY 2024" â (2024, 0)
         return (int(parts[1]), 0)
     # Try last element as year (handles "2024" or other formats)
     for p in reversed(parts):
@@ -74,13 +74,13 @@ _SEC_TICKER_MAP: Dict[str, int] = {}  # populated lazily
 
 
 def _sec_load_ticker_map() -> Dict[str, int]:
-    """Load SEC ticker → CIK mapping (cached in module-level dict)."""
+    """Load SEC ticker â CIK mapping (cached in module-level dict)."""
     global _SEC_TICKER_MAP
     if _SEC_TICKER_MAP:
         return _SEC_TICKER_MAP
     url = "https://www.sec.gov/files/company_tickers.json"
     try:
-        resp = _requests.get(url, timeout=15, headers={"User-Agent": "OpenSankey/1.0 contact@example.com"})
+        resp = _requests.get(url, timeout=15, headers={"User-Agent": "QuarterCharts/1.0 contact@example.com"})
         resp.raise_for_status()
         data = resp.json()
         for entry in data.values():
@@ -104,7 +104,7 @@ def _sec_fetch_company_facts(ticker: str) -> Optional[dict]:
     cik_padded = str(cik).zfill(10)
     url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik_padded}.json"
     try:
-        resp = _requests.get(url, timeout=20, headers={"User-Agent": "OpenSankey/1.0 contact@example.com"})
+        resp = _requests.get(url, timeout=20, headers={"User-Agent": "QuarterCharts/1.0 contact@example.com"})
         resp.raise_for_status()
         return resp.json()
     except Exception as exc:
@@ -112,8 +112,8 @@ def _sec_fetch_company_facts(ticker: str) -> Optional[dict]:
         return None
 
 
-# SEC EDGAR us-gaap concept → friendly name mappings
-# Income statement (duration-based → use CY####Q# frames)
+# SEC EDGAR us-gaap concept â friendly name mappings
+# Income statement (duration-based â use CY####Q# frames)
 _SEC_INCOME_MAP = {
     # Revenue (companies use different tags across eras)
     "Revenues": "Revenue",
@@ -147,7 +147,7 @@ _SEC_INCOME_MAP = {
     "WeightedAverageNumberOfDilutedSharesOutstanding": "Diluted Average Shares",
 }
 
-# Balance sheet (instantaneous → use CY####Q#I frames)
+# Balance sheet (instantaneous â use CY####Q#I frames)
 _SEC_BS_MAP = {
     "Assets": "Total Assets",
     "AssetsCurrent": "Current Assets",
@@ -165,7 +165,7 @@ _SEC_BS_MAP = {
     "LongTermDebtAndCapitalLeaseObligations": "Total Debt",
 }
 
-# Cash flow (duration-based → use CY####Q# frames)
+# Cash flow (duration-based â use CY####Q# frames)
 _SEC_CF_MAP = {
     "NetCashProvidedByUsedInOperatingActivities": "Operating CF",
     "NetCashProvidedByUsedInInvestingActivities": "Investing CF",
@@ -212,7 +212,7 @@ def _sec_extract_facts(
     if not us_gaap:
         return pd.DataFrame()
 
-    # Collect data: period_label → {metric: value}
+    # Collect data: period_label â {metric: value}
     records: Dict[str, Dict[str, float]] = {}
     # Also collect annual data for Q4 derivation
     annual_records: Dict[str, Dict[str, float]] = {}
@@ -373,7 +373,7 @@ def _sec_get_cash_flow(ticker: str, quarterly: bool = True) -> pd.DataFrame:
 # quarterchart.com data source (free, no API key)
 # ---------------------------------------------------------------------------
 # Extracts segment data from the inline JSON blob on quarterchart.com/chart/{TICKER}.
-# Data is in fiscal-year labels – we convert to calendar quarters using the
+# Data is in fiscal-year labels â we convert to calendar quarters using the
 # company's fiscal-year-end month from yfinance.
 
 
@@ -384,7 +384,7 @@ def _opensankey_fetch_json(ticker: str) -> Optional[dict]:
     try:
         resp = _requests.get(
             url, timeout=15,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; OpenSankey/1.0)"},
+            headers={"User-Agent": "Mozilla/5.0 (compatible; QuarterCharts/1.0)"},
         )
         resp.raise_for_status()
         html = resp.text
@@ -405,7 +405,7 @@ def _opensankey_fetch_json(ticker: str) -> Optional[dict]:
         blob = json.loads(html[start:end])
         return blob
     except Exception as exc:
-        print(f"[OpenSankey] Failed to fetch {ticker}: {exc}")
+        print(f"[QuarterCharts] Failed to fetch {ticker}: {exc}")
         return None
 
 
@@ -431,27 +431,27 @@ def _fiscal_to_calendar_label(fiscal_label: str, fy_end_month: int) -> str:
     fiscal quarter only barely crosses into January 2026.
 
     Example (NVIDIA, FY ends January = month 1):
-      FY2026 Q4 (Nov-Jan) → middle = Dec → **Q4 2025**
-      FY2026 Q1 (Feb-Apr) → middle = Mar → Q1 2025
+      FY2026 Q4 (Nov-Jan) â middle = Dec â **Q4 2025**
+      FY2026 Q1 (Feb-Apr) â middle = Mar â Q1 2025
 
     Annual: uses the middle of the fiscal year (6 months from start).
     """
     parts = fiscal_label.split()
 
     if fy_end_month == 12:
-        # Standard calendar FY — no shift needed
+        # Standard calendar FY â no shift needed
         if len(parts) == 2 and parts[0] == "FY":
-            return parts[1]  # "FY 2025" → "2025"
+            return parts[1]  # "FY 2025" â "2025"
         return fiscal_label  # "Q1 2025" stays the same
 
-    # --- Annual: "FY YYYY" → calendar year of mid-point ---
+    # --- Annual: "FY YYYY" â calendar year of mid-point ---
     if len(parts) == 2 and parts[0] == "FY":
         fy_year = int(parts[1])
         mid_raw = fy_end_month + 6  # middle of 12-month fiscal year
         cal_year = fy_year - 1 if mid_raw <= 12 else fy_year
         return str(cal_year)
 
-    # --- Quarterly: "Qn YYYY" → calendar quarter via middle month ---
+    # --- Quarterly: "Qn YYYY" â calendar quarter via middle month ---
     if len(parts) != 2 or not parts[0].startswith("Q"):
         return fiscal_label
     fq = int(parts[0][1])      # fiscal quarter 1-4
@@ -461,7 +461,7 @@ def _fiscal_to_calendar_label(fiscal_label: str, fy_end_month: int) -> str:
     mid_month_raw = fy_end_month + 3 * fq - 1
     mid_month = ((mid_month_raw - 1) % 12) + 1
 
-    # Calendar year: if mid_month_raw ≤ 12 → still in fy_year-1
+    # Calendar year: if mid_month_raw â¤ 12 â still in fy_year-1
     cal_year = fy_year - 1 if mid_month_raw <= 12 else fy_year
 
     # Calendar quarter from the middle month
@@ -494,7 +494,7 @@ def _opensankey_get_segments(
         if not labels or not datasets:
             return pd.DataFrame()
 
-        # Fiscal → calendar conversion
+        # Fiscal â calendar conversion
         fy_end_month = _get_fy_end_month(ticker)
 
         records: Dict[str, Dict[str, float]] = {}
@@ -529,7 +529,7 @@ def _opensankey_get_segments(
         return df
 
     except Exception as exc:
-        print(f"[OpenSankey] segments/{ticker}: {exc}")
+        print(f"[QuarterCharts] segments/{ticker}: {exc}")
         return pd.DataFrame()
 
 
@@ -581,7 +581,7 @@ def _fmp_get_segments(ticker: str, seg_type: str, quarterly: bool = True) -> pd.
     for url in urls:
         try:
             resp = _requests.get(url, timeout=10)
-            print(f"[FMP] {endpoint} → {resp.status_code}")
+            print(f"[FMP] {endpoint} â {resp.status_code}")
             if resp.status_code in (402, 403):
                 continue
             resp.raise_for_status()
@@ -620,7 +620,7 @@ def _fmp_get_segments(ticker: str, seg_type: str, quarterly: bool = True) -> pd.
         if label in records:
             continue
 
-        # Parse segment values — new stable API nests them under "data"
+        # Parse segment values â new stable API nests them under "data"
         seg_data = item.get("data", None)
         if isinstance(seg_data, dict):
             # New stable format: {"data": {"Automotive": 123, "Gaming": 456}}
@@ -669,7 +669,7 @@ def _sec_get_segment_revenue(ticker: str, quarterly: bool = True) -> Dict[str, p
     Returns
     -------
     dict
-        {"product": DataFrame, "geography": DataFrame} — each may be empty.
+        {"product": DataFrame, "geography": DataFrame} â each may be empty.
     """
     result = {"product": pd.DataFrame(), "geography": pd.DataFrame()}
 
@@ -677,7 +677,7 @@ def _sec_get_segment_revenue(ticker: str, quarterly: bool = True) -> Dict[str, p
     if cik is None:
         return result
     cik_padded = str(cik).zfill(10)
-    headers = {"User-Agent": "OpenSankey/1.0 contact@example.com"}
+    headers = {"User-Agent": "QuarterCharts/1.0 contact@example.com"}
 
     # 1) Get list of recent filings
     try:
@@ -883,10 +883,10 @@ def _cached_revenue_by_product(ticker: str, quarterly: bool, _fmp: str = "") -> 
     try:
         df = _opensankey_get_segments(ticker, 0, quarterly=quarterly)
         if not df.empty and len(df) >= 2:
-            print(f"[OpenSankey] product-segments/{ticker}: {len(df)} periods, {len(df.columns)} segments")
+            print(f"[QuarterCharts] product-segments/{ticker}: {len(df)} periods, {len(df.columns)} segments")
             return df
     except Exception as exc:
-        print(f"[OpenSankey] product-segments/{ticker}: {exc}")
+        print(f"[QuarterCharts] product-segments/{ticker}: {exc}")
 
     # --- Fallback: FMP ---
     if _fmp:
@@ -902,7 +902,7 @@ def _cached_revenue_by_product(ticker: str, quarterly: bool, _fmp: str = "") -> 
 
 
 def get_revenue_by_product(ticker: str, quarterly: bool = True) -> pd.DataFrame:
-    """Fetch revenue by product/operating segment (quarterchart.com → FMP fallback)."""
+    """Fetch revenue by product/operating segment (quarterchart.com â FMP fallback)."""
     return _cached_revenue_by_product(ticker, quarterly, _fmp=_fmp_key())
 
 
@@ -913,10 +913,10 @@ def _cached_revenue_by_geography(ticker: str, quarterly: bool, _fmp: str = "") -
     try:
         df = _opensankey_get_segments(ticker, 1, quarterly=quarterly)
         if not df.empty and len(df) >= 2:
-            print(f"[OpenSankey] geo-segments/{ticker}: {len(df)} periods, {len(df.columns)} segments")
+            print(f"[QuarterCharts] geo-segments/{ticker}: {len(df)} periods, {len(df.columns)} segments")
             return df
     except Exception as exc:
-        print(f"[OpenSankey] geo-segments/{ticker}: {exc}")
+        print(f"[QuarterCharts] geo-segments/{ticker}: {exc}")
 
     # --- Fallback: FMP ---
     if _fmp:
@@ -932,7 +932,7 @@ def _cached_revenue_by_geography(ticker: str, quarterly: bool, _fmp: str = "") -
 
 
 def get_revenue_by_geography(ticker: str, quarterly: bool = True) -> pd.DataFrame:
-    """Fetch revenue by geographic region (quarterchart.com → FMP fallback)."""
+    """Fetch revenue by geographic region (quarterchart.com â FMP fallback)."""
     return _cached_revenue_by_geography(ticker, quarterly, _fmp=_fmp_key())
 
 
@@ -942,10 +942,10 @@ def _camel2title(s: str, acronyms: Optional[List[str]] = None) -> str:
     Mirrors yfinance ``utils.camel2title`` logic so our index names match the
     standard yfinance DataFrame output.
 
-    Examples (no acronyms):  TotalRevenue → Total Revenue
-    Examples (acronyms=["EPS"]): BasicEPS → Basic EPS
+    Examples (no acronyms):  TotalRevenue â Total Revenue
+    Examples (acronyms=["EPS"]): BasicEPS â Basic EPS
     """
-    # Step 1: insert space between lower→upper transitions
+    # Step 1: insert space between lowerâupper transitions
     out = _re.sub(r"([a-z])([A-Z])", r"\1 \2", s)
 
     if acronyms:
@@ -1000,16 +1000,16 @@ def format_large_number(num: Optional[float]) -> str:
 def _quarter_label(date: pd.Timestamp) -> str:
     """Convert a period-end timestamp to a calendar quarter label.
 
-    Uses the **middle month** of the reporting period (≈ 1 month before the
+    Uses the **middle month** of the reporting period (â 1 month before the
     period end) so that a fiscal quarter barely crossing into a new calendar
     quarter is attributed to the quarter where the majority of the period falls.
 
     Examples (NVIDIA, FY ends January):
-      period end Jan 26 2026 → mid ≈ Dec 2025 → Q4 2025
-      period end Apr 27 2025 → mid ≈ Mar 2025 → Q1 2025
+      period end Jan 26 2026 â mid â Dec 2025 â Q4 2025
+      period end Apr 27 2025 â mid â Mar 2025 â Q1 2025
     For standard Dec-FY companies results are unchanged:
-      period end Mar 31 → mid ≈ Feb → Q1  (same)
-      period end Jun 30 → mid ≈ May → Q2  (same)
+      period end Mar 31 â mid â Feb â Q1  (same)
+      period end Jun 30 â mid â May â Q2  (same)
     """
     mid = date - pd.DateOffset(months=1)
     q = (mid.month - 1) // 3 + 1
@@ -1017,7 +1017,7 @@ def _quarter_label(date: pd.Timestamp) -> str:
 
 
 def _safe_get(df: pd.DataFrame, names: List[str]) -> Optional[pd.Series]:
-    """Return the first matching row from *df* (metrics × dates) given candidate names."""
+    """Return the first matching row from *df* (metrics Ã dates) given candidate names."""
     for name in names:
         if name in df.index:
             return df.loc[name]
@@ -1064,7 +1064,7 @@ def _fetch_fmp_statement(ticker: str, statement: str, limit: int = 20, quarterly
     return data  # Return raw JSON list - will be transformed by statement-specific functions
 
 
-# FMP field name → our friendly name mappings
+# FMP field name â our friendly name mappings
 _FMP_INCOME_MAP = {
     "revenue": "Revenue",
     "costOfRevenue": "Cost Of Revenue",
@@ -1163,16 +1163,16 @@ def _fetch_extended_quarterly_raw(ticker_str: str, api_name: str, max_quarters: 
     ticker_str : str
         Stock ticker symbol.
     api_name : str
-        One of ``"financials"``, ``"balance-sheet"``, ``"cash-flow"`` – matching
+        One of ``"financials"``, ``"balance-sheet"``, ``"cash-flow"`` â matching
         the keys in ``yfinance.const.fundamentals_keys``.
     max_quarters : int
-        Stop once we have at least this many quarters (default 20 ≈ 5 years).
+        Stop once we have at least this many quarters (default 20 â 5 years).
 
     Returns
     -------
     pd.DataFrame
         Raw DataFrame in yfinance convention (index = metric names, columns =
-        ``pd.Timestamp`` dates sorted newest → oldest).  Returns empty DataFrame
+        ``pd.Timestamp`` dates sorted newest â oldest).  Returns empty DataFrame
         on failure.
     """
     try:
@@ -1192,7 +1192,7 @@ def _fetch_extended_quarterly_raw(ticker_str: str, api_name: str, max_quarters: 
     end_ts = int(pd.Timestamp.now("UTC").ceil("D").timestamp())
     min_ts = int(pd.Timestamp("2010-01-01").timestamp())
 
-    for _batch in range(5):  # max 5 batches → ~25 quarters
+    for _batch in range(5):  # max 5 batches â ~25 quarters
         type_params = ",".join(f"quarterly{k}" for k in keys)
         url = (
             f"https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/"
@@ -1236,7 +1236,7 @@ def _fetch_extended_quarterly_raw(ticker_str: str, api_name: str, max_quarters: 
         if not batch_timestamps:
             break
 
-        # Nothing new in this batch → stop (we've exhausted the API)
+        # Nothing new in this batch â stop (we've exhausted the API)
         if not new_data_found and _batch > 0:
             break
 
@@ -1250,7 +1250,7 @@ def _fetch_extended_quarterly_raw(ticker_str: str, api_name: str, max_quarters: 
     if not all_data:
         return pd.DataFrame()
 
-    # Build a DataFrame matching yfinance's convention (metrics × dates)
+    # Build a DataFrame matching yfinance's convention (metrics Ã dates)
     dates_sorted = sorted(all_data.keys(), reverse=True)
     all_metrics = sorted({m for d in all_data.values() for m in d})
     df = pd.DataFrame(index=all_metrics, columns=dates_sorted, dtype=float)
@@ -1267,7 +1267,7 @@ def _build_period_df(
     quarterly: bool = True,
 ) -> pd.DataFrame:
     """
-    Transform a raw yfinance statement (metrics×dates) into a chart-ready DataFrame
+    Transform a raw yfinance statement (metricsÃdates) into a chart-ready DataFrame
     with period labels as the index and friendly metric names as columns.
 
     Parameters
@@ -1307,7 +1307,7 @@ def _build_period_df(
     df = pd.DataFrame.from_dict(records, orient="index")
     df.index.name = "Period"
 
-    # Sort ascending by date  – custom sort: "Q1 2024" < "Q2 2024" etc.
+    # Sort ascending by date  â custom sort: "Q1 2024" < "Q2 2024" etc.
     df = _sort_df_chronological(df)
     return df
 
@@ -1489,9 +1489,9 @@ _BS_MAP: Dict[str, List[str]] = {
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_balance_sheet(ticker: str, quarterly: bool = True) -> pd.DataFrame:
-    """Return a chart-ready balance sheet DataFrame (period × metrics).
+    """Return a chart-ready balance sheet DataFrame (period Ã metrics).
 
-    Data source priority: SEC EDGAR → FMP → yfinance.
+    Data source priority: SEC EDGAR â FMP â yfinance.
     """
     # 1) SEC EDGAR
     try:
@@ -1570,9 +1570,9 @@ _CF_MAP: Dict[str, List[str]] = {
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_cash_flow(ticker: str, quarterly: bool = True) -> pd.DataFrame:
-    """Return a chart-ready cash flow DataFrame (period × metrics).
+    """Return a chart-ready cash flow DataFrame (period Ã metrics).
 
-    Data source priority: SEC EDGAR → FMP → yfinance.
+    Data source priority: SEC EDGAR â FMP â yfinance.
     """
     # 1) SEC EDGAR
     try:
@@ -1592,7 +1592,7 @@ def get_cash_flow(ticker: str, quarterly: bool = True) -> pd.DataFrame:
                 print(f"[SEC] cash-flow/{ticker}: {len(df)} periods")
                 return df
             else:
-                print(f"[SEC] cash-flow/{ticker}: sparse quarters ({list(df.index[:6])}…), skipping")
+                print(f"[SEC] cash-flow/{ticker}: sparse quarters ({list(df.index[:6])}â¦), skipping")
     except Exception as exc:
         print(f"[SEC] cash-flow/{ticker} error: {exc}")
 
@@ -1644,7 +1644,7 @@ def compute_margins(income_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute_eps(income_df: pd.DataFrame, info: Dict[str, Any]) -> pd.DataFrame:
-    """Compute EPS series – both Basic and Diluted when available."""
+    """Compute EPS series â both Basic and Diluted when available."""
     if income_df.empty:
         return pd.DataFrame()
     out = pd.DataFrame(index=income_df.index)
