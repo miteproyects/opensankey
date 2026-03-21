@@ -294,13 +294,13 @@ def render_profile_page(ticker: str) -> None:
                 transition: box-shadow 0.3s ease;
             ">
                 <div style="font-size: 0.7rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">Live Price</div>
-                <div id="qc-price-value" style="font-size: 2.2rem; font-weight: 800; color: #0f172a; line-height: 1.1; letter-spacing: -0.02em;">${current_price:.2f}</div>
+                <div id="qc-price-value" style="font-size: clamp(1.5rem, 3.5vw, 2rem); font-weight: 800; color: #0f172a; line-height: 1.1; letter-spacing: -0.02em; white-space: nowrap;">${current_price:.2f}</div>
                 <div id="qc-change" style="font-size: 0.9rem; font-weight: 600; margin-top: 6px;"></div>
                 <div id="qc-close-time" style="font-size: 0.65rem; color: #94a3b8; margin-top: 3px;"></div>
                 <div id="qc-afterhours" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(0,0,0,0.06); display: none;">
                     <div style="display: flex; align-items: baseline; gap: 8px;">
                         <div id="qc-ext-price" style="font-size: 1.1rem; font-weight: 700; color: #0f172a;"></div>
-                        <div id="qc-ext-change" style="font-size: 0.8rem; font-weight: 600;"></div>
+                        <div id="qc-ext-change" style="font-size: 0.8rem; font-weight: 600; white-space: nowrap;"></div>
                     </div>
                     <div id="qc-ext-time" style="font-size: 0.65rem; color: #94a3b8; margin-top: 2px;"></div>
                 </div>
@@ -316,7 +316,7 @@ def render_profile_page(ticker: str) -> None:
                 box-shadow: 0 4px 24px rgba(0,0,0,0.06);
             ">
                 <div style="font-size: 0.7rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;">Price</div>
-                <div style="font-size: 2rem; font-weight: 800; color: #0f172a; margin-top: 4px;">N/A</div>
+                <div style="font-size: clamp(1.5rem, 3.5vw, 2rem); font-weight: 800; color: #0f172a; margin-top: 4px;">N/A</div>
             </div>
             """, unsafe_allow_html=True)
 
