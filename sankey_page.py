@@ -1928,7 +1928,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     prev_map["Other CL"] = max(0, prev_map.get("Current Liab.", 0) - _kcl)
     prev_map["Other LT Liab."] = max(0, prev_map.get("Non-Current Liab.", 0) - prev_map.get("Long-Term Debt", 0))
     prev_map["Other Equity"] = max(0, prev_map.get("Equity", 0) - prev_map.get("Retained Earnings", 0))
-        prev_map["Total Equity"] = prev_map.get("Equity", 0)
+    prev_map["Total Equity"] = prev_map.get("Equity", 0)
 
     if total_assets == 0:
         return None
