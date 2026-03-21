@@ -871,7 +871,7 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
     .nav-bar a, .nav-bar .nav-link { font-size: 0.75rem !important; padding: 0 10px !important; height: 50px !important; }
     .nav-logo { margin-right: 14px !important; }
     .nav-logo svg { width: 26px !important; height: 26px !important; }
-    .nav-logo-text { font-size: 2.5rem !important; }
+    .nav-logo-text { font-size: 1.25rem !important; }
     .nav-right .nav-signin { padding: 6px 14px !important; font-size: 0.75rem !important; }
 /* Metric cards: responsive grid */
 
