@@ -275,7 +275,7 @@ def render_profile_page(ticker: str) -> None:
                 upside_pct = ((fair_value - current_price) / current_price) * 100
 
     # Header layout: name+ticker | price | fair value+upside | score badge
-    col1, col2, col3, col4 = st.columns([2, 1.5, 2, 1.2])
+    col1, col2, col3, col4 = st.columns([1.8, 1.8, 1.8, 1.2])
 
     with col1:
         logo_src = f"https://financialmodelingprep.com/image-stock/{ticker.upper()}.png"
@@ -288,10 +288,11 @@ def render_profile_page(ticker: str) -> None:
                 background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9));
                 border: 1px solid rgba(0,0,0,0.06);
                 border-radius: 16px;
-                padding: 18px 22px;
+                padding: 14px 16px;
                 box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
                 backdrop-filter: blur(8px);
                 transition: box-shadow 0.3s ease;
+                overflow: hidden;
             ">
                 <div style="font-size: 0.7rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">Live Price</div>
                 <div id="qc-price-value" style="font-size: clamp(1.5rem, 3.5vw, 2rem); font-weight: 800; color: #0f172a; line-height: 1.1; letter-spacing: -0.02em; white-space: nowrap;">${current_price:.2f}</div>
@@ -314,6 +315,7 @@ def render_profile_page(ticker: str) -> None:
                 border-radius: 16px;
                 padding: 18px 22px;
                 box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+                overflow: hidden;
             ">
                 <div style="font-size: 0.7rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;">Price</div>
                 <div style="font-size: clamp(1.5rem, 3.5vw, 2rem); font-weight: 800; color: #0f172a; margin-top: 4px;">N/A</div>
@@ -329,10 +331,11 @@ def render_profile_page(ticker: str) -> None:
                 background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9));
                 border: 1px solid rgba(0,0,0,0.06);
                 border-radius: 16px;
-                padding: 18px 22px;
+                padding: 14px 16px;
                 box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
                 backdrop-filter: blur(8px);
                 text-align: center;
+                overflow: hidden;
             ">
                 <div style="font-size: 0.7rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">Fair Value (DCF)</div>
                 <div style="font-size: 1.8rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;">${fair_value:.2f}</div>
@@ -362,6 +365,7 @@ def render_profile_page(ticker: str) -> None:
                 padding: 18px 22px;
                 box-shadow: 0 4px 24px rgba(0,0,0,0.06);
                 text-align: center;
+                overflow: hidden;
             ">
                 <div style="font-size: 0.7rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;">Fair Value</div>
                 <div style="font-size: 1.8rem; font-weight: 800; color: #0f172a; margin-top: 4px;">N/A</div>
