@@ -2118,7 +2118,7 @@ def render_sankey_page():
             padding: 8px 4px !important;
             gap: 0 !important;
             align-items: center !important;
-            margin-top: 17px !important;
+            margin-top: 23px !important;
             margin-bottom: 4px !important;
         }
         [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]) [data-testid="stColumn"],
