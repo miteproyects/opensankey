@@ -7,7 +7,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
 import pandas as pd
-from io import BytesIO 
+from io import BytesIO
 import numpy as np
 import requests
 
@@ -2070,7 +2070,7 @@ def render_sankey_page():
             margin-bottom: 20px;
             border: 1px solid rgba(255,255,255,0.06);
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: space-between;
         }
         .sankey-header-left {
