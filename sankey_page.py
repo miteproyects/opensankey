@@ -889,6 +889,19 @@ def _show_metric_popup(ticker, node_label, view):
                             use_container_width=True):
                 st.session_state[period_key] = lbl
 
+    # ââ Navigation pills inside popup ââ
+    st.divider()
+    all_metrics = list(metric_map.keys())
+    popup_nav_key = f"popup_nav_{view}"
+    nav_sel = st.pills(
+        "Navigate metrics",
+        all_metrics,
+        default=clean_label,
+        key=popup_nav_key,
+    )
+    if nav_sel and nav_sel != clean_label:
+        st.session_state[f"popup_active_{view}"] = nav_sel
+        st.rerun()
     freq = st.session_state[freq_key]
     period = st.session_state[period_key]
 
@@ -1042,19 +1055,6 @@ def _show_metric_popup(ticker, node_label, view):
             )
         st.divider()
 
-    # ââ Navigation pills inside popup ââ
-    st.divider()
-    all_metrics = list(metric_map.keys())
-    popup_nav_key = f"popup_nav_{view}"
-    nav_sel = st.pills(
-        "Navigate metrics",
-        all_metrics,
-        default=clean_label,
-        key=popup_nav_key,
-    )
-    if nav_sel and nav_sel != clean_label:
-        st.session_state[f"popup_active_{view}"] = nav_sel
-        st.rerun()
 
 
 def _inject_sankey_click_js(metric_map):
