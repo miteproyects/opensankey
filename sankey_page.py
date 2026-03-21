@@ -2470,11 +2470,6 @@ def render_sankey_page():
         gp_prev      = _safe_prev(income_df, "Gross Profit")
         oi_prev      = _safe_prev(income_df, "Operating Income")
         ni_prev      = _safe_prev(income_df, "Net Income")
-        if _same_period:
-            rev_prev = revenue
-            gp_prev = gross_profit
-            oi_prev = op_income
-            ni_prev = net_income
         # Compute derived Gross Profit when XBRL tag is missing
         if gross_profit == 0 and revenue > 0 and cogs_kpi > 0:
             gross_profit = revenue - cogs_kpi
@@ -2482,6 +2477,12 @@ def render_sankey_page():
             cogs_prev = abs(_safe_prev(income_df, "Cost Of Revenue"))
             if cogs_prev > 0:
                 gp_prev = rev_prev - cogs_prev
+
+        if _same_period:
+            rev_prev = revenue
+            gp_prev = gross_profit
+            oi_prev = op_income
+            ni_prev = net_income
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Revenue", _fmt(revenue), _yoy_delta(revenue, rev_prev, _compare_label))
