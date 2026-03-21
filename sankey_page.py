@@ -1,5 +1,5 @@
 """
-Sankey diagram page Ã¢ÂÂ Income Statement & Balance Sheet visualizations.
+Sankey diagram page ÃÂ¢ÃÂÃÂ Income Statement & Balance Sheet visualizations.
 Fixed-position nodes with vivid 11-color palette, KPI metric cards,
 and Pretax Income waterfall matching QuarterCharts deployed style.
 """
@@ -11,7 +11,7 @@ from io import BytesIO
 import numpy as np
 import requests
 
-# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Demo / sample data for when Yahoo Finance is rate-limited Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Demo / sample data for when Yahoo Finance is rate-limited ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 def _get_demo_data(ticker: str):
     """Return hardcoded sample financial data so Sankey always renders."""
     # NVDA-like data (FY2025 approximate values in USD)
@@ -52,7 +52,7 @@ def _get_demo_data(ticker: str):
     return income_df, balance_df, info
 
 
-# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Vivid 11-color palette (one per node) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Vivid 11-color palette (one per node) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 VIVID = [
     "#22c55e",  # 0  Revenue (green)
     "#ef4444",  # 1  COGS (red)
@@ -190,13 +190,13 @@ def _reorder_df_for_comparison(df, period_a, period_b, quarterly=False):
     return df.iloc[:, new_order]
 
 
-# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ SEC EDGAR data source Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ SEC EDGAR data source ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 _SEC_HEADERS = {
     "User-Agent": "QuarterCharts contact@quartercharts.com",
     "Accept-Encoding": "gzip, deflate",
 }
 
-# XBRL tag mappings: DataFrame row name Ã¢ÂÂ list of possible us-gaap tags (first match wins)
+# XBRL tag mappings: DataFrame row name ÃÂ¢ÃÂÃÂ list of possible us-gaap tags (first match wins)
 _XBRL_INCOME_TAGS = {
     "Total Revenue": [
         "Revenues",
@@ -343,7 +343,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
 
     Args:
         facts: Full CompanyFacts JSON
-        tag_map: Dict mapping display_name Ã¢ÂÂ list of XBRL tags
+        tag_map: Dict mapping display_name ÃÂ¢ÃÂÃÂ list of XBRL tags
         form_filter: "10-K" for annual, "10-Q" for quarterly
         quarterly_income: If True, compute individual-quarter income values.
                           Uses frame-based data (CYxxxxQn) when available,
@@ -376,7 +376,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
             vals = {}
 
             if form_filter == "10-K":
-                # Ã¢ÂÂÃ¢ÂÂ Annual data: straightforward, one entry per year Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Annual data: straightforward, one entry per year ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
@@ -391,7 +391,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                         vals[end] = (val, filed)
 
             elif form_filter == "10-Q" and not quarterly_income:
-                # Ã¢ÂÂÃ¢ÂÂ Balance sheet: point-in-time values Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Balance sheet: point-in-time values ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
@@ -405,14 +405,14 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                             vals[end] = (val, filed)
 
             elif form_filter == "10-Q" and quarterly_income:
-                # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 # QUARTERLY INCOME: YTD-subtraction approach
-                # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 # SEC EDGAR 10-Q entries for income items report
                 # CUMULATIVE year-to-date values:
-                #   Q1 Ã¢ÂÂ 3-month value (individual = cumulative)
-                #   Q2 Ã¢ÂÂ 6-month cumulative (Q1+Q2)
-                #   Q3 Ã¢ÂÂ 9-month cumulative (Q1+Q2+Q3)
+                #   Q1 ÃÂ¢ÃÂÃÂ 3-month value (individual = cumulative)
+                #   Q2 ÃÂ¢ÃÂÃÂ 6-month cumulative (Q1+Q2)
+                #   Q3 ÃÂ¢ÃÂÃÂ 9-month cumulative (Q1+Q2+Q3)
                 # Recent years also have CYxxxxQn frame entries with
                 # individual quarter values, but older years do not.
                 #
@@ -423,9 +423,9 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                 #           Q2_ind = cum_Q2 - cum_Q1
                 #           Q3_ind = cum_Q3 - cum_Q2
                 #   Pass 3: Q4 = FY_annual - cum_Q3
-                # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 
-                # Ã¢ÂÂÃ¢ÂÂ Pass 1: Collect frame-based individual quarter values Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Pass 1: Collect frame-based individual quarter values ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 for e in entries:
                     frame = e.get("frame", "")
                     end = e.get("end", "")
@@ -437,10 +437,10 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                         if end not in vals or filed > vals[end][1]:
                             vals[end] = (val, filed)
 
-                # Ã¢ÂÂÃ¢ÂÂ Pass 2: YTD subtraction for missing quarters Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Pass 2: YTD subtraction for missing quarters ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 # Collect cumulative (max val) per end date from 10-Q
-                cum_by_end = {}  # end_date Ã¢ÂÂ (max_val, filed, fp)
-                fy_annual = {}   # end_date Ã¢ÂÂ (val, filed)
+                cum_by_end = {}  # end_date ÃÂ¢ÃÂÃÂ (max_val, filed, fp)
+                fy_annual = {}   # end_date ÃÂ¢ÃÂÃÂ (val, filed)
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
@@ -477,7 +477,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
 
                     prev_cum = cum_val
 
-                # Ã¢ÂÂÃ¢ÂÂ Pass 3: Q4 = FY_annual - Q3_cumulative Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Pass 3: Q4 = FY_annual - Q3_cumulative ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 for fy_end, (fy_val, fy_filed) in fy_annual.items():
                     if fy_end in vals:
                         continue
@@ -494,7 +494,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
 
             if vals:
                 # Pick the tag whose data is most recent (handles tag
-                # transitions like Revenues Ã¢ÂÂ RevenueFromContractÃ¢ÂÂ¦)
+                # transitions like Revenues ÃÂ¢ÃÂÃÂ RevenueFromContractÃÂ¢ÃÂÃÂ¦)
                 tag_max_date = max(vals.keys())
                 if best_vals is None or tag_max_date > best_max_date:
                     best_vals = vals
@@ -525,7 +525,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
     return df
 
 
-# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Node label Ã¢ÂÂ metric mapping Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Node label ÃÂ¢ÃÂÃÂ metric mapping ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 # Maps the display name in each Sankey node to the DataFrame row key.
 # Used to pull historical time-series when a user clicks a node.
 
@@ -568,7 +568,7 @@ BALANCE_NODE_METRICS = {
 }
 
 
-# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Node info: "What it means" + "How to read it" for Sankey popups Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Node info: "What it means" + "How to read it" for Sankey popups ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 INCOME_NODE_INFO = {
     "Revenue": {
         "meaning": "Total sales or income generated from the company's core business operations before any costs are subtracted.",
@@ -734,7 +734,7 @@ def _get_historical_series(df, yf_key):
     1. Exact substring match (handles legacy spaced indices)
     2. Space-removed substring match (handles CamelCase indices like
        "TotalRevenue" when yf_key is "Total Revenue")
-    3. Word-stem matching Ã¢ÂÂ all significant word stems (first 5 chars of
+    3. Word-stem matching ÃÂ¢ÃÂÃÂ all significant word stems (first 5 chars of
        words >= 3 chars) must appear in the index name
     """
     if df is None or df.empty:
@@ -824,7 +824,7 @@ def _show_metric_popup(ticker, node_label, view):
     if not yf_key:
         return
 
-    # Ã¢ÂÂÃ¢ÂÂ Inject custom CSS for the timeframe buttons Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Inject custom CSS for the timeframe buttons ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     st.markdown("""
     <style>
     .tf-row {
@@ -858,7 +858,7 @@ def _show_metric_popup(ticker, node_label, view):
     </style>
     """, unsafe_allow_html=True)
 
-    # Ã¢ÂÂÃ¢ÂÂ Node info: "What it means" + "How to read it" Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Node info: "What it means" + "How to read it" ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     info_map = INCOME_NODE_INFO if view == "income" else BALANCE_NODE_INFO
     node_info = info_map.get(clean_label, {})
     if node_info:
@@ -885,12 +885,12 @@ def _show_metric_popup(ticker, node_label, view):
             )
         st.divider()
 
-    # Ã¢ÂÂÃ¢ÂÂ Frequency toggle: Quarterly / Annual Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Frequency toggle: Quarterly / Annual ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     freq_key = f"tf_freq_{view}_{clean_label}"
     if freq_key not in st.session_state:
         st.session_state[freq_key] = "Quarterly"
 
-    # Ã¢ÂÂÃ¢ÂÂ Period toggle: 1Y / 2Y / 4Y / MAX Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Period toggle: 1Y / 2Y / 4Y / MAX ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     period_key = f"tf_period_{view}_{clean_label}"
     if period_key not in st.session_state:
         st.session_state[period_key] = "4Y"
@@ -918,7 +918,7 @@ def _show_metric_popup(ticker, node_label, view):
     freq = st.session_state[freq_key]
     period = st.session_state[period_key]
 
-    # Ã¢ÂÂÃ¢ÂÂ Fetch data based on frequency Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Fetch data based on frequency ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     if freq == "Quarterly":
         q_income, q_balance = _fetch_quarterly_data(ticker)
         src_df = q_income if view == "income" else q_balance
@@ -932,7 +932,7 @@ def _show_metric_popup(ticker, node_label, view):
 
     series = _get_historical_series(src_df, yf_key)
 
-    # Ã¢ÂÂÃ¢ÂÂ Fallback: compute "Other OpEx" as residual when not directly available Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Fallback: compute "Other OpEx" as residual when not directly available ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     if (series is None or series.empty) and yf_key == "Other Operating Expenses":
         gp = _get_historical_series(src_df, "Gross Profit")
         rd = _get_historical_series(src_df, "Research And Development")
@@ -953,7 +953,7 @@ def _show_metric_popup(ticker, node_label, view):
                 if not computed.empty and computed.sum() > 0:
                     series = computed.sort_index()
 
-    # Ã¢ÂÂÃ¢ÂÂ Fallback: compute "Investments" as residual when not directly available Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Fallback: compute "Investments" as residual when not directly available ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     if (series is None or series.empty) and yf_key == "Investments And Advances":
         nca = _get_historical_series(src_df, "Total Non Current Assets")
         ppe = _get_historical_series(src_df, "Net PPE")
@@ -977,7 +977,7 @@ def _show_metric_popup(ticker, node_label, view):
         st.warning(f"No {freq_label.lower()} data available for **{clean_label}**.")
         return
 
-    # Ã¢ÂÂÃ¢ÂÂ Filter by period Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Filter by period ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     if period != "MAX":
         years = int(period.replace("Y", ""))
         cutoff = pd.Timestamp.now() - pd.DateOffset(years=years)
@@ -1018,7 +1018,7 @@ def _show_metric_popup(ticker, node_label, view):
 
     fig.update_layout(
         title=dict(
-            text=f"{clean_label} Ã¢ÂÂ {freq_label} ({period_label})",
+            text=f"{clean_label} ÃÂ¢ÃÂÃÂ {freq_label} ({period_label})",
             font=dict(size=16, family="Inter, sans-serif", color="#1e293b"),
         ),
         height=400,
@@ -1042,7 +1042,7 @@ def _show_metric_popup(ticker, node_label, view):
 
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]}, key=f"hist_{freq}_{period}")
 
-    # Ã¢ÂÂÃ¢ÂÂ Navigation pills inside popup Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Navigation pills inside popup ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     st.divider()
     all_metrics = list(metric_map.keys())
     popup_nav_key = f"popup_nav_{view}"
@@ -1062,7 +1062,7 @@ def _inject_sankey_click_js(metric_map):
 
     When a user clicks a Sankey node, the JS extracts the node label,
     finds the corresponding pill button in the parent document, and clicks it.
-    This triggers the existing st.pills Ã¢ÂÂ st.dialog flow.
+    This triggers the existing st.pills ÃÂ¢ÃÂÃÂ st.dialog flow.
     """
     # Build a JS set of valid pill labels for fast lookup
     valid_labels = list(metric_map.keys())
@@ -1123,8 +1123,8 @@ def _inject_sankey_click_js(metric_map):
 def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
     """Generate a professional PDF with actual Sankey flow diagram + KPI cards.
 
-    Income Statement  Ã¢ÂÂ Sankey diagram matching the on-screen Plotly version.
-    Balance Sheet     Ã¢ÂÂ Sankey diagram matching the on-screen Plotly version.
+    Income Statement  ÃÂ¢ÃÂÃÂ Sankey diagram matching the on-screen Plotly version.
+    Balance Sheet     ÃÂ¢ÃÂÃÂ Sankey diagram matching the on-screen Plotly version.
     Uses matplotlib only (no kaleido needed).  Returns PDF bytes.
     """
     import matplotlib
@@ -1202,7 +1202,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
         ax.axis("off")
 
         bar_w = 0.025  # node bar width
-        scale = 0.85 / max(total_height, 1)  # scale factor to convert value Ã¢ÂÂ y height
+        scale = 0.85 / max(total_height, 1)  # scale factor to convert value ÃÂ¢ÃÂÃÂ y height
 
         # Precompute node positions (in axis coords)
         node_rects = []  # (x, y_bottom, width, height, color, label, value)
@@ -1298,7 +1298,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
     try:
         with PdfPages(buf) as pdf:
             if view == "income":
-                # Ã¢ÂÂÃ¢ÂÂ Extract data (same as _build_income_sankey) Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Extract data (same as _build_income_sankey) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 revenue       = _safe(income_df, "Total Revenue")
                 cogs          = abs(_safe(income_df, "Cost Of Revenue"))
                 gross_profit  = _safe(income_df, "Gross Profit")
@@ -1341,7 +1341,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 tax = max(tax, 0)
                 net_income = max(net_income, 0)
 
-                # Ã¢ÂÂÃ¢ÂÂ Build nodes: (label, value, x, y_center, color) Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Build nodes: (label, value, x, y_center, color) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 # Layout: 5 columns matching the Plotly Sankey
                 X1, X2, X3, X4, X5 = 0.02, 0.22, 0.48, 0.70, 0.88
                 nodes = []
@@ -1384,7 +1384,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 net_y = pt_y - 0.10
                 add_n("Net Income", net_income, X5, max(net_y, 0.08), 10)
 
-                # Ã¢ÂÂÃ¢ÂÂ Build links: (src_idx, tgt_idx, value, color) Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Build links: (src_idx, tgt_idx, value, color) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 links = []
                 def lnk(s, t, v, ci):
                     si, ti = nmap.get(s, -1), nmap.get(t, -1)
@@ -1403,7 +1403,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 if tax > 0: lnk("Pretax Income", "Income Tax", tax, 9)
                 lnk("Pretax Income", "Net Income", net_income, 10)
 
-                # Ã¢ÂÂÃ¢ÂÂ Draw figure Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Draw figure ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 fig = plt.figure(figsize=(16, 9), facecolor="white")
                 if _logo_img is not None:
                     logo_ax = fig.add_axes([0.20, 0.93, 0.03, 0.05])
@@ -1428,7 +1428,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 plt.close(fig)
 
             else:
-                # Ã¢ÂÂÃ¢ÂÂ Balance Sheet Sankey Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Balance Sheet Sankey ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 total_assets      = _safe(balance_df, "Total Assets")
                 if total_assets == 0:
                     return b""
@@ -1503,7 +1503,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 if retained > 0:
                     add_n("Retained Earnings", retained, 0.48, max(y_pos, 0.05), C["retained"])
 
-                # Ã¢ÂÂÃ¢ÂÂ Links Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Links ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 links = []
                 def lnk(s, t, v, color):
                     si, ti = nmap.get(s, -1), nmap.get(t, -1)
@@ -1543,7 +1543,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 if retained > 0:
                     lnk("Equity", "Retained Earnings", retained, C["retained"])
 
-                # Ã¢ÂÂÃ¢ÂÂ Draw figure Ã¢ÂÂÃ¢ÂÂ
+                # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Draw figure ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
                 fig = plt.figure(figsize=(16, 9), facecolor="white")
                 if _logo_img is not None:
                     logo_ax2 = fig.add_axes([0.20, 0.93, 0.03, 0.05])
@@ -1594,10 +1594,10 @@ def _fetch_sankey_data(ticker: str, quarterly: bool = False):
 def _build_income_sankey(income_df, info):
     """Build income statement Sankey with fixed positions & 11 vivid nodes.
 
-    Flow: Revenue Ã¢ÂÂ COGS + Gross Profit Ã¢ÂÂ R&D + SG&A + D&A + Operating Income
-          Ã¢ÂÂ Interest + Pretax Income Ã¢ÂÂ Tax + Net Income
+    Flow: Revenue ÃÂ¢ÃÂÃÂ COGS + Gross Profit ÃÂ¢ÃÂÃÂ R&D + SG&A + D&A + Operating Income
+          ÃÂ¢ÃÂÃÂ Interest + Pretax Income ÃÂ¢ÃÂÃÂ Tax + Net Income
     """
-    # Ã¢ÂÂÃ¢ÂÂ Extract values Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Extract values ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     revenue       = _safe(income_df, "Total Revenue")
     cogs          = abs(_safe(income_df, "Cost Of Revenue"))
     gross_profit  = _safe(income_df, "Gross Profit")
@@ -1640,7 +1640,7 @@ def _build_income_sankey(income_df, info):
     tax = max(tax, 0)
     net_income = max(net_income, 0)
 
-    # Ã¢ÂÂÃ¢ÂÂ Fixed X/Y positions for precise layout Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Fixed X/Y positions for precise layout ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     X1, X2, X3, X4, X5 = 0.02, 0.25, 0.55, 0.78, 0.99
     colors = VIVID
 
@@ -1700,7 +1700,7 @@ def _build_income_sankey(income_df, info):
         net_y = tax_y + 0.12
     add("Net Income", net_income, 10, X5, min(net_y, 0.97))
 
-    # Ã¢ÂÂÃ¢ÂÂ Links Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Links ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     srcs, tgts, vals, lcolors = [], [], [], []
 
     def link(src, tgt, val, ci=0):
@@ -1773,7 +1773,7 @@ def _build_income_sankey(income_df, info):
 
 
 def _build_balance_sheet_sankey(balance_df, info):
-    """Build a balance sheet Sankey with fixed positions Ã¢ÂÂ no node crossing.
+    """Build a balance sheet Sankey with fixed positions ÃÂ¢ÃÂÃÂ no node crossing.
 
     Layout (4 columns, top-to-bottom order matches link order):
       Col 1: Total Assets
@@ -1781,7 +1781,7 @@ def _build_balance_sheet_sankey(balance_df, info):
       Col 3: Sub-categories (CA details, NCA details, CL, NCL, Eq details)
       Col 4: Leaf details
     """
-    # Ã¢ÂÂÃ¢ÂÂ Extract values Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Extract values ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     total_assets      = _safe(balance_df, "Total Assets")
     current_assets    = _safe(balance_df, "Current Assets")
     noncurrent_assets = _safe(balance_df, "Total Non Current Assets")
@@ -1818,7 +1818,7 @@ def _build_balance_sheet_sankey(balance_df, info):
 
     C = BS_COLORS
 
-    # Ã¢ÂÂÃ¢ÂÂ Node builder with position tracking Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Node builder with position tracking ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     nodes, node_colors_list, node_x, node_y = [], [], [], []
     links_src, links_tgt, links_val, links_col = [], [], [], []
     imap = {}
@@ -1841,14 +1841,14 @@ def _build_balance_sheet_sankey(balance_df, info):
             links_val.append(val)
             links_col.append(_rgba(color))
 
-    # Ã¢ÂÂÃ¢ÂÂ X columns Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ X columns ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     X1, X2, X3, X4 = 0.01, 0.25, 0.55, 0.88
 
-    # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     # SLOT-BASED LAYOUT: enumerate ALL leaf items in strict order,
     # assign uniform Y slots, then derive parent positions from
     # children's center.  This guarantees zero crossing.
-    # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 
     # Build ordered item groups: (group_key, parent_col2_name, items_list)
     # Each item: (name, val, color)
@@ -1945,7 +1945,7 @@ def _build_balance_sheet_sankey(balance_df, info):
         if g_idx < n_groups - 1:
             slot_idx += gap_slots  # skip gap
 
-    # Ã¢ÂÂÃ¢ÂÂ Place Col 3 intermediate nodes (Current Liab., Non-Current Liab.) Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Place Col 3 intermediate nodes (Current Liab., Non-Current Liab.) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     # and Col 2 parent nodes at the center of their children
     col2_parent_ys = {}  # parent_name -> center_y
 
@@ -1985,8 +1985,8 @@ def _build_balance_sheet_sankey(balance_df, info):
     overall_y = sum(sum(v) / len(v) for _, v in all_col2_ys) / max(len(all_col2_ys), 1)
     add("Total Assets", total_assets, C["asset"], X1, overall_y)
 
-    # Ã¢ÂÂÃ¢ÂÂ Create ALL links in strict top-to-bottom order Ã¢ÂÂÃ¢ÂÂ
-    # Col 1 Ã¢ÂÂ Col 2 links (in Y order of Col 2 targets)
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Create ALL links in strict top-to-bottom order ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+    # Col 1 ÃÂ¢ÃÂÃÂ Col 2 links (in Y order of Col 2 targets)
     col2_ordered = sorted(col2_parent_ys.keys(),
                           key=lambda k: sum(col2_parent_ys[k]) / len(col2_parent_ys[k]))
     for parent_name in col2_ordered:
@@ -1999,15 +1999,15 @@ def _build_balance_sheet_sankey(balance_df, info):
         elif parent_name == "Equity":
             link("Total Assets", "Equity", equity, C["equity"])
 
-    # Col 2 Ã¢ÂÂ Col 3/Col 4 links (per group, in order)
+    # Col 2 ÃÂ¢ÃÂÃÂ Col 3/Col 4 links (per group, in order)
     for g_idx, (col2_parent, col3_parent, items, x_col) in enumerate(groups):
         if col3_parent is not None:
-            # Col 2 Ã¢ÂÂ Col 3 intermediate
+            # Col 2 ÃÂ¢ÃÂÃÂ Col 3 intermediate
             if col3_parent == "Current Liab.":
                 link("Total Liabilities", "Current Liab.", current_liab, C["liability"])
             elif col3_parent == "Non-Current Liab.":
                 link("Total Liabilities", "Non-Current Liab.", noncurrent_liab, C["liability"])
-            # Col 3 intermediate Ã¢ÂÂ Col 4 leaf items
+            # Col 3 intermediate ÃÂ¢ÃÂÃÂ Col 4 leaf items
             link_parent = col3_parent
         else:
             link_parent = col2_parent
@@ -2097,7 +2097,7 @@ def render_sankey_page():
             color: #94a3b8;
             font-size: 0.9rem;
         }
-        /* Ã¢ÂÂÃ¢ÂÂ Sankey header row: title + PDF download button Ã¢ÂÂÃ¢ÂÂ */
+        /* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Sankey header row: title + PDF download button ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
         /* Target the stHorizontalBlock that contains the PDF download key */
         [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]),
         [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) {
@@ -2211,7 +2211,7 @@ def render_sankey_page():
             display: inline-block;
         }
 
-        /* Ã¢ÂÂÃ¢ÂÂ Sankey Responsive Ã¢ÂÂÃ¢ÂÂ */
+        /* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Sankey Responsive ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
         @media (max-width: 768px) {
             .sankey-header {
                 padding: 16px 14px 14px !important;
@@ -2316,7 +2316,7 @@ def render_sankey_page():
 
     view_label = "Income Statement" if sankey_view == "income" else "Balance Sheet"
 
-    # Ã¢ÂÂÃ¢ÂÂ Header row: title (HTML) + PDF download button (st.download_button) Ã¢ÂÂÃ¢ÂÂ
+    # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Header row: title (HTML) + PDF download button (st.download_button) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
     hdr_col, pdf_col = st.columns([0.87, 0.13])
 
     with hdr_col:
@@ -2348,7 +2348,7 @@ def render_sankey_page():
                 )
             except TypeError:
                 st.download_button(
-                    label="Ã¢Â¬Â PDF",
+                    label="ÃÂ¢ÃÂ¬ÃÂ PDF",
                     data=st.session_state[_pdf_key],
                     file_name=f"{ticker}_{sankey_view}_sankey.pdf",
                     mime="application/pdf",
@@ -2372,7 +2372,7 @@ def render_sankey_page():
     """, unsafe_allow_html=True)
 
     if sankey_view == "income":
-        # Ã¢ÂÂÃ¢ÂÂ Historical trend selector (popup) Ã¢ÂÂÃ¢ÂÂ
+        # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Historical trend selector (popup) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
         metric_options = list(INCOME_NODE_METRICS.keys())
         st.markdown('<div style="display:flex;align-items:center;gap:8px;margin:0.25rem 0 0.5rem 0"><div style="width:3px;height:18px;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:2px;flex-shrink:0"></div><span style="font-size:0.88rem;font-weight:600;color:#1e293b;letter-spacing:0.01em">Click a Metric or Sankey Node to View Historical Trends</span><span style="font-size:0.76rem;color:#94a3b8"></span></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
@@ -2383,13 +2383,13 @@ def render_sankey_page():
                 st.session_state["popup_active_income"] = sel
                 st.session_state["popup_trigger_income"] = sel
             active_metric = st.session_state["popup_active_income"]
-            @st.dialog(f"{active_metric} Ã¢ÂÂ Historical Trend", width="large")
+            @st.dialog(f"{active_metric} ÃÂ¢ÃÂÃÂ Historical Trend", width="large")
             def _income_popup():
                 _show_metric_popup(ticker, active_metric, "income")
             _income_popup()
-        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:0.5rem"><div style="display:inline-flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap">{'<span style=\x22display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.1));border:1px solid rgba(99,102,241,0.2);border-radius:20px;padding:4px 14px;font-size:0.82rem;font-weight:600;color:#6366f1;letter-spacing:0.01em\x22><svg width=\x2214\x22 height=\x2214\x22 viewBox=\x220 0 24 24\x22 fill=\x22none\x22 stroke=\x22#6366f1\x22 stroke-width=\x222.5\x22 stroke-linecap=\x22round\x22><path d=\x22M8 7h8M8 12h8m-4-10v20\x22/><path d=\x22M3 3l18 18\x22 stroke-dasharray=\x224 3\x22 opacity=\x220.4\x22/></svg>' + _compare_note + '</span><span style=\x22color:#cbd5e1;font-size:1rem\x22>&#x2022;</span>' if _compare_note else ''}<span style="font-size:1.1rem;font-weight:700;background:linear-gradient(135deg,#334155,#1e293b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.01em">Annual Financial Flow</span><span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.08));border:1px solid rgba(16,185,129,0.2);border-radius:20px;padding:3px 12px;font-size:0.75rem;font-weight:500;color:#059669;letter-spacing:0.02em"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>LIVE</span></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:0.5rem"><div style="display:inline-flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap">{'<span style=\x22display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.1));border:1px solid rgba(99,102,241,0.2);border-radius:20px;padding:4px 14px;font-size:0.82rem;font-weight:600;color:#6366f1;letter-spacing:0.01em\x22><svg width=\x2214\x22 height=\x2214\x22 viewBox=\x220 0 24 24\x22 fill=\x22none\x22 stroke=\x22#6366f1\x22 stroke-width=\x222.5\x22 stroke-linecap=\x22round\x22><path d=\x22M8 7h8M8 12h8m-4-10v20\x22/><path d=\x22M3 3l18 18\x22 stroke-dasharray=\x224 3\x22 opacity=\x220.4\x22/></svg>' + _compare_note + '</span><span style=\x22color:#cbd5e1;font-size:1rem\x22>&#x2022;</span>' if _compare_note else ''}</div></div>', unsafe_allow_html=True)
 
-        # Ã¢ÂÂÃ¢ÂÂ KPI Metric Cards Ã¢ÂÂÃ¢ÂÂ
+        # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ KPI Metric Cards ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
         revenue      = _safe(income_df, "Total Revenue")
         gross_profit = _safe(income_df, "Gross Profit")
         cogs_kpi     = abs(_safe(income_df, "Cost Of Revenue"))
@@ -2420,7 +2420,7 @@ def render_sankey_page():
 
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
 
-            # Bridge: click Sankey node Ã¢ÂÂ auto-click matching pill
+            # Bridge: click Sankey node ÃÂ¢ÃÂÃÂ auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
         else:
             st.warning(f"No income statement data available for {ticker}.")
@@ -2428,7 +2428,7 @@ def render_sankey_page():
         st.caption(f"QuarterCharts \u00b7 SEC EDGAR data \u00b7 {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
 
     elif sankey_view == "balance":
-        # Ã¢ÂÂÃ¢ÂÂ Historical trend selector (popup) Ã¢ÂÂÃ¢ÂÂ
+        # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Historical trend selector (popup) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
         metric_options = list(BALANCE_NODE_METRICS.keys())
         st.markdown('<div style="display:flex;align-items:center;gap:8px;margin:0.25rem 0 0.5rem 0"><div style="width:3px;height:18px;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:2px;flex-shrink:0"></div><span style="font-size:0.88rem;font-weight:600;color:#1e293b;letter-spacing:0.01em">Click a Metric or Sankey Node to View Historical Trends</span><span style="font-size:0.76rem;color:#94a3b8"></span></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
@@ -2439,13 +2439,13 @@ def render_sankey_page():
                 st.session_state["popup_active_balance"] = sel
                 st.session_state["popup_trigger_balance"] = sel
             active_metric = st.session_state["popup_active_balance"]
-            @st.dialog(f"{active_metric} Ã¢ÂÂ Historical Trend", width="large")
+            @st.dialog(f"{active_metric} ÃÂ¢ÃÂÃÂ Historical Trend", width="large")
             def _balance_popup():
                 _show_metric_popup(ticker, active_metric, "balance")
             _balance_popup()
-        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:0.5rem"><div style="display:inline-flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap">{'<span style=\x22display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.1));border:1px solid rgba(99,102,241,0.2);border-radius:20px;padding:4px 14px;font-size:0.82rem;font-weight:600;color:#6366f1;letter-spacing:0.01em\x22><svg width=\x2214\x22 height=\x2214\x22 viewBox=\x220 0 24 24\x22 fill=\x22none\x22 stroke=\x22#6366f1\x22 stroke-width=\x222.5\x22 stroke-linecap=\x22round\x22><path d=\x22M8 7h8M8 12h8m-4-10v20\x22/><path d=\x22M3 3l18 18\x22 stroke-dasharray=\x224 3\x22 opacity=\x220.4\x22/></svg>' + _compare_note + '</span><span style=\x22color:#cbd5e1;font-size:1rem\x22>&#x2022;</span>' if _compare_note else ''}<span style="font-size:1.1rem;font-weight:700;background:linear-gradient(135deg,#334155,#1e293b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.01em">Annual Financial Flow</span><span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.08));border:1px solid rgba(16,185,129,0.2);border-radius:20px;padding:3px 12px;font-size:0.75rem;font-weight:500;color:#059669;letter-spacing:0.02em"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>LIVE</span></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:0.5rem"><div style="display:inline-flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap">{'<span style=\x22display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.1));border:1px solid rgba(99,102,241,0.2);border-radius:20px;padding:4px 14px;font-size:0.82rem;font-weight:600;color:#6366f1;letter-spacing:0.01em\x22><svg width=\x2214\x22 height=\x2214\x22 viewBox=\x220 0 24 24\x22 fill=\x22none\x22 stroke=\x22#6366f1\x22 stroke-width=\x222.5\x22 stroke-linecap=\x22round\x22><path d=\x22M8 7h8M8 12h8m-4-10v20\x22/><path d=\x22M3 3l18 18\x22 stroke-dasharray=\x224 3\x22 opacity=\x220.4\x22/></svg>' + _compare_note + '</span><span style=\x22color:#cbd5e1;font-size:1rem\x22>&#x2022;</span>' if _compare_note else ''}</div></div>', unsafe_allow_html=True)
 
-        # Ã¢ÂÂÃ¢ÂÂ KPI Metric Cards for Balance Sheet Ã¢ÂÂÃ¢ÂÂ
+        # ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ KPI Metric Cards for Balance Sheet ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
         total_assets = _safe(balance_df, "Total Assets")
         total_liab   = _safe(balance_df, "Total Liabilities Net Minority Interest") or _safe(balance_df, "Total Liab")
         equity_val   = _safe(balance_df, "Stockholders Equity") or _safe(balance_df, "Total Stockholders Equity")
@@ -2468,7 +2468,7 @@ def render_sankey_page():
 
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
 
-            # Bridge: click Sankey node Ã¢ÂÂ auto-click matching pill
+            # Bridge: click Sankey node ÃÂ¢ÃÂÃÂ auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
