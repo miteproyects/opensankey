@@ -477,7 +477,7 @@ section[data-testid="stSidebar"] {
 }
         [data-testid="stHorizontalBlock"].section-row-expanded:has([class*="st-key-hdr_show_income"]),
         [data-testid="stHorizontalBlock"].section-row-collapsed:has([class*="st-key-hdr_show_income"]) {
-            margin-top: 88px !important;
+            margin-top: 94px !important;
         }
 .section-row-collapsed {
     background: #ffffff !important;
