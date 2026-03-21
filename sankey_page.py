@@ -1630,15 +1630,30 @@ def _build_income_sankey(income_df, info):
         gross_profit = revenue - cogs
 
     # Level 2: Gross Profit = expenses + Operating Income
+    # Preserve reported OI; cap D&A first (often overlaps with COGS)
     if operating_inc == 0 and gross_profit > 0:
         operating_inc = gross_profit - rd_expense - sga_expense - dep_amort - other_opex
-    known_exp = rd_expense + sga_expense + dep_amort + other_opex
-    if known_exp + operating_inc != gross_profit and gross_profit > 0:
-        other_opex_adj = gross_profit - known_exp - operating_inc + other_opex
-        if other_opex_adj >= 0:
-            other_opex = other_opex_adj
+    if gross_profit > 0 and operating_inc > 0:
+        opex_budget = gross_profit - operating_inc
+        total = rd_expense + sga_expense + dep_amort + other_opex
+        if total <= opex_budget:
+            other_opex = opex_budget - rd_expense - sga_expense - dep_amort
         else:
-            operating_inc = gross_profit - known_exp
+            other_opex = 0
+            if rd_expense + sga_expense + dep_amort <= opex_budget:
+                other_opex = opex_budget - rd_expense - sga_expense - dep_amort
+            elif rd_expense + sga_expense <= opex_budget:
+                dep_amort = opex_budget - rd_expense - sga_expense
+            elif rd_expense <= opex_budget:
+                dep_amort = 0
+                sga_expense = opex_budget - rd_expense
+            else:
+                dep_amort = 0
+                sga_expense = 0
+                rd_expense = opex_budget
+    elif gross_profit > 0:
+        known_exp = rd_expense + sga_expense + dep_amort + other_opex
+        operating_inc = max(0, gross_profit - known_exp)
 
     # Level 3: Operating Income = Interest + Pretax Income
     if pretax_income == 0:
@@ -1682,14 +1697,27 @@ def _build_income_sankey(income_df, info):
             cogs = revenue
     total_exp = rd_expense + sga_expense + dep_amort + other_opex
     if total_exp + operating_inc != gross_profit and gross_profit > 0:
-        diff = gross_profit - total_exp - operating_inc
-        if diff > 0:
-            other_opex += diff
-        elif operating_inc + diff >= 0:
-            operating_inc += diff
+        if operating_inc > 0:
+            opex_budget = gross_profit - operating_inc
+            other_opex = 0
+            if rd_expense + sga_expense + dep_amort <= opex_budget:
+                other_opex = opex_budget - rd_expense - sga_expense - dep_amort
+            elif rd_expense + sga_expense <= opex_budget:
+                dep_amort = opex_budget - rd_expense - sga_expense
+            elif rd_expense <= opex_budget:
+                dep_amort = 0
+                sga_expense = opex_budget - rd_expense
+            else:
+                dep_amort = 0
+                sga_expense = 0
+                rd_expense = opex_budget
         else:
-            operating_inc = 0
-            other_opex = max(0, gross_profit - rd_expense - sga_expense - dep_amort)
+            diff = gross_profit - total_exp - operating_inc
+            if diff > 0:
+                other_opex += diff
+            else:
+                operating_inc = 0
+                other_opex = max(0, gross_profit - rd_expense - sga_expense - dep_amort)
     if interest_exp + pretax_income != operating_inc:
         pretax_income = operating_inc - interest_exp
         if pretax_income < 0:
