@@ -2062,15 +2062,14 @@ def render_sankey_page():
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         .sankey-header {
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-            border-radius: 12px;
-            padding: 24px 28px 20px;
-            margin-bottom: 20px;
-            border: 1px solid rgba(255,255,255,0.06);
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 8px 16px !important;
+            margin: 0 !important;
             display: flex !important;
             align-items: center !important;
-            justify-content: space-between !important;
-    margin-top: 5px;
+            justify-content: center !important;
         }
         .sankey-header-left {
             flex: 1;
