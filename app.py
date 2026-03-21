@@ -101,7 +101,7 @@ st.set_page_config(
 st.markdown(
     '<meta name="color-scheme" content="light only">'
     '<style>:root{color-scheme:light only !important}'
-    'html,body,.stApp{background:#fff!important;color:#212529!important}</style>',
+    'html,body,.stApp{background:#fff!important;color:#212529!important}[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(hr){margin-top:-6px;margin-bottom:-6px}</style>',
     unsafe_allow_html=True,
 )
 
