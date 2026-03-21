@@ -279,7 +279,7 @@ def render_profile_page(ticker: str) -> None:
 
     with col1:
         logo_src = f"https://financialmodelingprep.com/image-stock/{ticker.upper()}.png"
-        st.markdown(f'<div style="display:flex;flex-direction:column;gap:4px;"><img src="{logo_src}" style="width:80px;height:80px;border-radius:10px;object-fit:contain;background:#fff;padding:4px;box-shadow:0 1px 4px rgba(0,0,0,0.08);" onerror="this.style.display=\'none\'" alt="{ticker} logo"/><span style="font-size:1.4rem;font-weight:600;line-height:1.2;">{name} ({ticker})</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;"><img src="{logo_src}" style="width:80px;height:80px;border-radius:10px;object-fit:contain;background:#fff;padding:4px;box-shadow:0 1px 4px rgba(0,0,0,0.08);" onerror="this.style.display=\'none\'" alt="{ticker} logo"/><span style="font-size:1.4rem;font-weight:600;line-height:1.2;">{name} ({ticker})</span></div>', unsafe_allow_html=True)
 
     with col2:
         if current_price:
