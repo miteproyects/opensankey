@@ -2092,8 +2092,9 @@ def render_sankey_page():
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            background: #eef2ff;
-            color: #4f46e5;
+            background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.95));
+            border: 1px solid rgba(59,130,246,0.3);
+            color: #93c5fd;
             padding: 6px 14px;
             border-radius: 20px;
             font-size: 0.95rem;
@@ -2400,7 +2401,7 @@ def render_sankey_page():
             def _income_popup():
                 _show_metric_popup(ticker, active_metric, "income")
             _income_popup()
-        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:0.5rem">{("<span class=sankey-compare-pill>&#x21C5; " + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:0.5rem">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
         # ââ KPI Metric Cards ââ
         revenue      = _safe(income_df, "Total Revenue")
@@ -2456,7 +2457,7 @@ def render_sankey_page():
             def _balance_popup():
                 _show_metric_popup(ticker, active_metric, "balance")
             _balance_popup()
-        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:0.5rem">{("<span class=sankey-compare-pill>&#x21C5; " + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:0.5rem">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
         # ââ KPI Metric Cards for Balance Sheet ââ
         total_assets = _safe(balance_df, "Total Assets")
