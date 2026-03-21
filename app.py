@@ -289,7 +289,7 @@ section[data-testid="stSidebar"] {
 .nav-logo:hover { background: none !important; }
 .nav-logo img { flex-shrink: 0; height: 48px; width: auto; }
 .nav-logo-text {
-    font-size: 1.25rem;
+    font-size: 0.9375rem;
     font-weight: 700;
     color: #ffffff !important;
     line-height: 1.2;
@@ -813,7 +813,7 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
     .nav-bar a, .nav-bar .nav-link { font-size: 0.78rem !important; padding: 0 12px !important; height: 52px !important; }
     .nav-logo { margin-right: 20px !important; }
     .nav-logo svg { width: 28px !important; height: 28px !important; }
-    .nav-logo-text { font-size: 1.25rem !important; }
+    .nav-logo-text { font-size: 0.9375rem !important; }
     /* Metric cards: smaller text */
     /* Footer: tighter */
     .footer {
@@ -869,7 +869,7 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
     .nav-bar a, .nav-bar .nav-link { font-size: 0.75rem !important; padding: 0 10px !important; height: 50px !important; }
     .nav-logo { margin-right: 14px !important; }
     .nav-logo svg { width: 26px !important; height: 26px !important; }
-    .nav-logo-text { font-size: 1.25rem !important; }
+    .nav-logo-text { font-size: 0.9375rem !important; }
     .nav-right .nav-signin { padding: 6px 14px !important; font-size: 0.75rem !important; }
 /* Metric cards: responsive grid */
 
