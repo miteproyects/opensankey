@@ -734,7 +734,7 @@ def _get_historical_series(df, yf_key):
     1. Exact substring match (handles legacy spaced indices)
     2. Space-removed substring match (handles CamelCase indices like
        "TotalRevenue" when yf_key is "Total Revenue")
-    3. Word-stem matching â all significant word stems (first 5 chars of
+    3. Word-stem matching — all significant word stems (first 5 chars of
        words >= 3 chars) must appear in the index name
     """
     if df is None or df.empty:
@@ -1018,7 +1018,7 @@ def _show_metric_popup(ticker, node_label, view):
 
     fig.update_layout(
         title=dict(
-            text=f"{clean_label} â {freq_label} ({period_label})",
+            text=f"{clean_label} — {freq_label} ({period_label})",
             font=dict(size=16, family="Inter, sans-serif", color="#1e293b"),
         ),
         height=400,
@@ -1773,7 +1773,7 @@ def _build_income_sankey(income_df, info):
 
 
 def _build_balance_sheet_sankey(balance_df, info):
-    """Build a balance sheet Sankey with fixed positions â no node crossing.
+    """Build a balance sheet Sankey with fixed positions — no node crossing.
 
     Layout (4 columns, top-to-bottom order matches link order):
       Col 1: Total Assets
@@ -2072,7 +2072,6 @@ def render_sankey_page():
             display: flex;
             align-items: center;
             justify-content: space-between;
-    margin-top: 2px;
         }
         .sankey-header-left {
             flex: 1;
@@ -2081,7 +2080,7 @@ def render_sankey_page():
             font-size: 1.6rem;
             font-weight: 700;
             color: #f8fafc;
-            margin-bottom: 4px;
+            margin-bottom: 0;
             letter-spacing: -0.02em;
             display: flex;
             align-items: center;
@@ -2336,7 +2335,7 @@ def render_sankey_page():
         st.markdown(f"""
         <div class="sankey-header">
             <div class="sankey-header-left">
-                <div class="sankey-title"><img src="https://financialmodelingprep.com/image-stock/{ticker.upper()}.png" class="sankey-company-logo" onerror="this.style.display='none'"> {company_name} â Sankey Diagram</div>
+                <div class="sankey-title"><img src="https://financialmodelingprep.com/image-stock/{ticker.upper()}.png" class="sankey-company-logo" onerror="this.style.display='none'"> {company_name} &mdash; Sankey Diagram</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -2396,7 +2395,7 @@ def render_sankey_page():
                 st.session_state["popup_active_income"] = sel
                 st.session_state["popup_trigger_income"] = sel
             active_metric = st.session_state["popup_active_income"]
-            @st.dialog(f"{active_metric} â Historical Trend", width="large")
+            @st.dialog(f"{active_metric} — Historical Trend", width="large")
             def _income_popup():
                 _show_metric_popup(ticker, active_metric, "income")
             _income_popup()
@@ -2452,7 +2451,7 @@ def render_sankey_page():
                 st.session_state["popup_active_balance"] = sel
                 st.session_state["popup_trigger_balance"] = sel
             active_metric = st.session_state["popup_active_balance"]
-            @st.dialog(f"{active_metric} â Historical Trend", width="large")
+            @st.dialog(f"{active_metric} — Historical Trend", width="large")
             def _balance_popup():
                 _show_metric_popup(ticker, active_metric, "balance")
             _balance_popup()
