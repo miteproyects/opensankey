@@ -977,7 +977,7 @@ def render_profile_page(ticker: str) -> None:
     # Uses local price API (port 8502) to avoid CORS issues.
     # ─────────────────────────────────────────────────────────────────────────
     import streamlit.components.v1 as components
-        _live_price_js = f"""
+    _live_price_js = f"""
     <script>
     (function() {{{{
         const TICKER = "{ticker}";
