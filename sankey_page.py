@@ -552,7 +552,7 @@ BALANCE_NODE_METRICS = {
     "ST Investments":     "Other Short Term Investments",
     "Receivables":        "Accounts Receivable",
     "Inventory":          "Inventory",
-    "PP&E":               "Net PPE",
+    "PPE":                "Net PPE",
     "Goodwill":           "Goodwill",
     "Intangibles":        "Other Intangible Assets",
     "Investments":        "Investments And Advances",
@@ -565,7 +565,6 @@ BALANCE_NODE_METRICS = {
     "Long-Term Debt":     "Long Term Debt",
     "Equity":             "Stockholders Equity",
     "Retained Earnings":  "Retained Earnings",
-    "Total Equity":       "Stockholders Equity",
 }
 
 
@@ -859,32 +858,6 @@ def _show_metric_popup(ticker, node_label, view):
     </style>
     """, unsafe_allow_html=True)
 
-    # ââ Node info: "What it means" + "How to read it" ââ
-    info_map = INCOME_NODE_INFO if view == "income" else BALANCE_NODE_INFO
-    node_info = info_map.get(clean_label, {})
-    if node_info:
-        meaning = node_info.get("meaning", "")
-        reading = node_info.get("reading", "")
-        if meaning:
-            st.markdown(
-                f'<div style="margin:4px 0 10px 0;">'
-                f'<span style="color:#2475fc;font-weight:600;font-size:0.82rem;'
-                f'text-transform:uppercase;letter-spacing:0.5px;">What it means</span>'
-                f'<p style="margin:4px 0 0 0;color:#495057;font-size:0.88rem;line-height:1.55;">'
-                f'{meaning}</p></div>',
-                unsafe_allow_html=True,
-            )
-        if reading:
-            st.markdown(
-                f'<div style="margin:0 0 10px 0;padding-top:8px;'
-                f'border-top:1px solid #f0f0f0;">'
-                f'<span style="color:#2475fc;font-weight:600;font-size:0.82rem;'
-                f'text-transform:uppercase;letter-spacing:0.5px;">How to read it</span>'
-                f'<p style="margin:4px 0 0 0;color:#495057;font-size:0.88rem;line-height:1.55;">'
-                f'{reading}</p></div>',
-                unsafe_allow_html=True,
-            )
-        st.divider()
 
     # ââ Frequency toggle: Quarterly / Annual ââ
     freq_key = f"tf_freq_{view}_{clean_label}"
@@ -1042,6 +1015,32 @@ def _show_metric_popup(ticker, node_label, view):
     )
 
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]}, key=f"hist_{freq}_{period}")
+    # ââ Node info: "What it means" + "How to read it" ââ
+    info_map = INCOME_NODE_INFO if view == "income" else BALANCE_NODE_INFO
+    node_info = info_map.get(clean_label, {})
+    if node_info:
+        meaning = node_info.get("meaning", "")
+        reading = node_info.get("reading", "")
+        if meaning:
+            st.markdown(
+                f'<div style="margin:4px 0 10px 0;">'
+                f'<span style="color:#2475fc;font-weight:600;font-size:0.82rem;'
+                f'text-transform:uppercase;letter-spacing:0.5px;">What it means</span>'
+                f'<p style="margin:4px 0 0 0;color:#495057;font-size:0.88rem;line-height:1.55;">'
+                f'{meaning}</p></div>',
+                unsafe_allow_html=True,
+            )
+        if reading:
+            st.markdown(
+                f'<div style="margin:0 0 10px 0;padding-top:8px;'
+                f'border-top:1px solid #f0f0f0;">'
+                f'<span style="color:#2475fc;font-weight:600;font-size:0.82rem;'
+                f'text-transform:uppercase;letter-spacing:0.5px;">How to read it</span>'
+                f'<p style="margin:4px 0 0 0;color:#495057;font-size:0.88rem;line-height:1.55;">'
+                f'{reading}</p></div>',
+                unsafe_allow_html=True,
+            )
+        st.divider()
 
     # ââ Navigation pills inside popup ââ
     st.divider()
