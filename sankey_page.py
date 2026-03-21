@@ -2065,8 +2065,8 @@ def render_sankey_page():
             background: transparent !important;
             border: none !important;
             border-radius: 0 !important;
-            padding: 8px 16px !important;
-            margin: 5px 0 0 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
