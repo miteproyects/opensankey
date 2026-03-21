@@ -1760,13 +1760,16 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         y = round(max(0.01, min(0.99, y)), 4)
         imap[name] = len(nodes)
         pct = _yoy(val, prev_val)
-        nodes.append(f"{name}  {_fmt(val)}")
-        if pct is not None:
+        pct_suffix = ""
+        if pct is not None and not same_period:
             arrow = "\u2191" if pct >= 0 else "\u2193"
             clr = "#16a34a" if pct >= 0 else "#dc2626"
             bg = "rgba(22,163,74,0.13)" if pct >= 0 else "rgba(220,38,38,0.13)"
-            if not same_period:
-                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg, lw=len(f"{name}  {_fmt(val)}")))
+            if x >= 0.65:
+                pct_suffix = f"  {arrow}{pct:+.1f}%"
+            else:
+                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}%", clr=clr, bg=bg, lw=len(f"{name}  {_fmt(val)}")))
+        nodes.append(f"{name}  {_fmt(val)}{pct_suffix}")
         node_colors.append(colors[color_idx])
         node_x.append(x)
         node_y.append(y)
@@ -1977,13 +1980,16 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         imap[name] = len(nodes)
         pv = prev_map.get(name, 0)
         pct = _yoy(val, pv)
-        nodes.append(f"{name}  {_fmt(val)}")
-        if pct is not None:
+        pct_suffix = ""
+        if pct is not None and not same_period:
             arrow = "\u2191" if pct >= 0 else "\u2193"
             clr = "#16a34a" if pct >= 0 else "#dc2626"
             bg = "rgba(22,163,74,0.13)" if pct >= 0 else "rgba(220,38,38,0.13)"
-            if not same_period:
-                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg, lw=len(f"{name}  {_fmt(val)}")))
+            if x >= 0.65:
+                pct_suffix = f"  {arrow}{pct:+.1f}%"
+            else:
+                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}%", clr=clr, bg=bg, lw=len(f"{name}  {_fmt(val)}")))
+        nodes.append(f"{name}  {_fmt(val)}{pct_suffix}")
         node_colors_list.append(color)
         node_x.append(x)
         node_y.append(y)
