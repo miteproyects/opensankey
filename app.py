@@ -1802,12 +1802,15 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     with st.form("ticker_form", clear_on_submit=False, border=False):
-        new_ticker = st.text_input(
-            "Ticker",
-            value=st.session_state.ticker,
-            placeholder="e.g. AAPL, MSFT, TSLA",
-        ).upper().strip()
-        submitted = st.form_submit_button("GO →")
+        col_input, col_btn = st.columns([3, 1], vertical_alignment="bottom")
+        with col_input:
+            new_ticker = st.text_input(
+                "Ticker",
+                value=st.session_state.ticker,
+                placeholder="e.g. AAPL, MSFT, TSLA",
+            ).upper().strip()
+        with col_btn:
+            submitted = st.form_submit_button("GO →")
 
     if submitted and new_ticker and new_ticker != st.session_state.ticker:
         if validate_ticker(new_ticker):
