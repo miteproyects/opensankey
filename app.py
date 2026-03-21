@@ -426,7 +426,7 @@ section[data-testid="stSidebar"] {
     text-align: left !important;
     cursor: pointer !important;
     min-height: 3rem !important;
-    margin-top: 33px !important;
+    margin-top: 26px !important;
 }
 .section-header-expanded:hover {
     background: #343a40 !important;
@@ -451,7 +451,7 @@ section[data-testid="stSidebar"] {
     text-align: left !important;
     cursor: pointer !important;
     min-height: 3rem !important;
-    margin-top: 33px !important;
+    margin-top: 26px !important;
 }
 .section-header-collapsed:hover {
     background: #f8f9fa !important;
@@ -1828,14 +1828,7 @@ with st.sidebar:
 
     ticker = st.session_state.ticker
 
-    # ---- Company header ----
     info = get_company_info(ticker)
-    company_name = info.get("company_name", ticker)
-    logo_src = f"https://financialmodelingprep.com/image-stock/{ticker.upper()}.png"
-
-    st.markdown(f'<div style="display:flex;align-items:center;gap:10px;"><img src="{logo_src}" style="width:32px;height:32px;border-radius:4px;object-fit:contain;background:#fff;" onerror="this.style.display=\'none\'" alt="{ticker} logo"/><span style="font-size:1.4rem;font-weight:600;">{company_name}</span></div>', unsafe_allow_html=True)
-
-
     st.markdown("----")
 
     if current_page != "sankey":
