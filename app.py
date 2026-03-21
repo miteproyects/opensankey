@@ -36,8 +36,6 @@ from data_fetcher import (
     _opensankey_get_segments,
 )
 from info_data import get_company_icon
-from price_api import ensure_running as _start_price_api, API_PORT as _PRICE_API_PORT
-_start_price_api()  # Start background price server on port 8502
 
 # Lazy-load page modules: only import when their page is active (saves ~2s)
 # from profile_page import render_profile_page   — imported in page routing
