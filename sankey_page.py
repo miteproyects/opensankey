@@ -1591,7 +1591,7 @@ def _fetch_sankey_data(ticker: str, quarterly: bool = False):
         return pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
 
 
-def _build_income_sankey(income_df, info, compare_label="YoY"):
+def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False):
     """Build income statement Sankey with fixed positions and vivid nodes.
 
     Flow: Revenue -> COGS + Gross Profit -> Expenses + Operating Income
@@ -1765,7 +1765,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY"):
             arrow = "\u2191" if pct >= 0 else "\u2193"
             clr = "#16a34a" if pct >= 0 else "#dc2626"
             bg = "rgba(22,163,74,0.13)" if pct >= 0 else "rgba(220,38,38,0.13)"
-            node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg))
+            if not same_period:
+                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg))
         node_colors.append(colors[color_idx])
         node_x.append(x)
         node_y.append(y)
@@ -1860,7 +1861,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY"):
     return fig
 
 
-def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY"):
+def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_period=False):
     """Build a balance sheet Sankey with fixed positions -- no node crossing.
 
     All flows are reconciled so that parent = sum of children at every level.
@@ -1909,7 +1910,19 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY"):
         "Deferred Rev.": _p("Current Deferred Revenue"),
         "Equity": _p("Stockholders Equity") or _p("Total Stockholders Equity"),
         "Retained Earnings": _p("Retained Earnings"),
+        "PP&E": _p("Net PPE") or _p("Property Plant Equipment"),
+        "Investments": _p("Investments And Advances") or _p("Long Term Equity Investment"),
+        "Deferred Revenue": _p("Current Deferred Revenue"),
     }
+    # Compute residual "Other" prev values
+    _kca = sum(prev_map.get(k, 0) for k in ["Cash", "ST Investments", "Receivables", "Inventory"])
+    prev_map["Other Current"] = max(0, prev_map.get("Current Assets", 0) - _kca)
+    _knca = sum(prev_map.get(k, 0) for k in ["PP&E", "Goodwill", "Intangibles", "Investments"])
+    prev_map["Other Non-Current"] = max(0, prev_map.get("Non-Current Assets", 0) - _knca)
+    _kcl = sum(prev_map.get(k, 0) for k in ["Accounts Payable", "Short-Term Debt", "Deferred Revenue"])
+    prev_map["Other CL"] = max(0, prev_map.get("Current Liab.", 0) - _kcl)
+    prev_map["Other LT Liab."] = max(0, prev_map.get("Non-Current Liab.", 0) - prev_map.get("Long-Term Debt", 0))
+    prev_map["Other Equity"] = max(0, prev_map.get("Equity", 0) - prev_map.get("Retained Earnings", 0))
 
     if total_assets == 0:
         return None
@@ -1967,7 +1980,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY"):
             arrow = "\u2191" if pct >= 0 else "\u2193"
             clr = "#16a34a" if pct >= 0 else "#dc2626"
             bg = "rgba(22,163,74,0.13)" if pct >= 0 else "rgba(220,38,38,0.13)"
-            node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg))
+            if not same_period:
+                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg))
         node_colors_list.append(color)
         node_x.append(x)
         node_y.append(y)
@@ -2512,7 +2526,7 @@ def render_sankey_page():
 
         st.divider()
 
-        fig = _build_income_sankey(income_df, info, _compare_label)
+        fig = _build_income_sankey(income_df, info, _compare_label, _same_period)
         if fig:
 
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
@@ -2565,7 +2579,7 @@ def render_sankey_page():
 
         st.divider()
 
-        fig = _build_balance_sheet_sankey(balance_df, info, _compare_label)
+        fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period)
         if fig:
 
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
