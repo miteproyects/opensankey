@@ -234,7 +234,7 @@ section[data-testid="stSidebar"] {
     display: none;
     position: fixed;
     top: 0.375rem;
-    left: 0.375rem;
+    right: 0.375rem;
     z-index: 1000000;
     background: #f0f2f6;
     border: 1px solid #d0d2d6;
@@ -1695,7 +1695,7 @@ st.markdown(f'''
         <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
     </div>
 </div>
-    <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
+    <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#187;</button>
 ''', unsafe_allow_html=True)
 
 # Ã¢ÂÂÃ¢ÂÂ Sidebar expand click handler (must load with nav bar, not at page end) Ã¢ÂÂÃ¢ÂÂ
