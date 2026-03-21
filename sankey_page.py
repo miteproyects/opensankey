@@ -1592,12 +1592,14 @@ def _fetch_sankey_data(ticker: str, quarterly: bool = False):
 
 
 def _build_income_sankey(income_df, info):
-    """Build income statement Sankey with fixed positions & 11 vivid nodes.
+    """Build income statement Sankey with fixed positions and vivid nodes.
 
-    Flow: Revenue â COGS + Gross Profit â R&D + SG&A + D&A + Operating Income
-          â Interest + Pretax Income â Tax + Net Income
+    Flow: Revenue -> COGS + Gross Profit -> Expenses + Operating Income
+          -> Interest + Pretax Income -> Tax + Net Income
+
+    All flows are reconciled so that parent = sum of children at every level.
     """
-    # ââ Extract values ââ
+    # Extract values
     revenue       = _safe(income_df, "Total Revenue")
     cogs          = abs(_safe(income_df, "Cost Of Revenue"))
     gross_profit  = _safe(income_df, "Gross Profit")
@@ -1616,17 +1618,49 @@ def _build_income_sankey(income_df, info):
     if revenue == 0:
         return None
 
-    # Fix derived values
+    # --- Reconcile flows top-down (parent is authoritative) ---
+    # Level 1: Revenue = COGS + Gross Profit
     if gross_profit == 0 and revenue > 0:
         gross_profit = revenue - cogs
+    if cogs == 0 and revenue > 0 and gross_profit > 0:
+        cogs = revenue - gross_profit
+    level1_sum = cogs + gross_profit
+    if level1_sum != revenue and level1_sum > 0:
+        cogs = round(cogs * revenue / level1_sum)
+        gross_profit = revenue - cogs
+
+    # Level 2: Gross Profit = expenses + Operating Income
     if operating_inc == 0 and gross_profit > 0:
         operating_inc = gross_profit - rd_expense - sga_expense - dep_amort - other_opex
+    known_exp = rd_expense + sga_expense + dep_amort + other_opex
+    if known_exp + operating_inc != gross_profit and gross_profit > 0:
+        other_opex_adj = gross_profit - known_exp - operating_inc + other_opex
+        if other_opex_adj >= 0:
+            other_opex = other_opex_adj
+        else:
+            operating_inc = gross_profit - known_exp
+
+    # Level 3: Operating Income = Interest + Pretax Income
     if pretax_income == 0:
         pretax_income = operating_inc - interest_exp
+    if interest_exp + pretax_income != operating_inc and operating_inc > 0:
+        interest_adj = operating_inc - pretax_income
+        if interest_adj >= 0:
+            interest_exp = interest_adj
+        else:
+            pretax_income = operating_inc - interest_exp
+
+    # Level 4: Pretax Income = Tax + Net Income
     if net_income == 0:
         net_income = pretax_income - tax
+    if tax + net_income != pretax_income and pretax_income > 0:
+        tax_adj = pretax_income - net_income
+        if tax_adj >= 0:
+            tax = tax_adj
+        else:
+            net_income = pretax_income - tax
 
-    # Ensure all positive
+    # Ensure all positive for Sankey
     revenue = max(revenue, 0)
     cogs = max(cogs, 0)
     gross_profit = max(gross_profit, 0)
@@ -1640,10 +1674,35 @@ def _build_income_sankey(income_df, info):
     tax = max(tax, 0)
     net_income = max(net_income, 0)
 
-    # ââ Fixed X/Y positions for precise layout ââ
+    # Final reconciliation after clamping to zero
+    if cogs + gross_profit != revenue:
+        gross_profit = revenue - cogs
+        if gross_profit < 0:
+            gross_profit = 0
+            cogs = revenue
+    total_exp = rd_expense + sga_expense + dep_amort + other_opex
+    if total_exp + operating_inc != gross_profit and gross_profit > 0:
+        diff = gross_profit - total_exp - operating_inc
+        if diff > 0:
+            other_opex += diff
+        elif operating_inc + diff >= 0:
+            operating_inc += diff
+        else:
+            operating_inc = 0
+            other_opex = max(0, gross_profit - rd_expense - sga_expense - dep_amort)
+    if interest_exp + pretax_income != operating_inc:
+        pretax_income = operating_inc - interest_exp
+        if pretax_income < 0:
+            pretax_income = 0
+            interest_exp = operating_inc
+    if tax + net_income != pretax_income:
+        net_income = pretax_income - tax
+        if net_income < 0:
+            net_income = 0
+            tax = pretax_income
+
     X1, X2, X3, X4, X5 = 0.02, 0.25, 0.55, 0.78, 0.99
     colors = VIVID
-
     nodes = []
     node_colors = []
     node_x = []
@@ -1658,14 +1717,10 @@ def _build_income_sankey(income_df, info):
         node_x.append(x)
         node_y.append(y)
 
-    # Column 1: Revenue
     add("Revenue", revenue, 0, X1, 0.45)
-
-    # Column 2: COGS (top) + Gross Profit (bottom)
     add("Cost of Revenue", cogs, 1, X2, 0.05)
     add("Gross Profit", gross_profit, 2, X2, 0.58)
 
-    # Column 3: Expenses (top) + Operating Income (bottom)
     exp_y = 0.04
     exp_gap = 0.13
     n_exp = 0
@@ -1685,14 +1740,12 @@ def _build_income_sankey(income_df, info):
     oi_y = max(exp_y + n_exp * exp_gap + 0.16, 0.60)
     add("Operating Income", operating_inc, 6, X3, oi_y)
 
-    # Column 4: Interest + Pretax Income
     if interest_exp > 0:
         inter_y = max(oi_y - 0.08, 0.50)
         add("Interest Exp.", interest_exp, 7, X4, inter_y)
     pt_y = oi_y + 0.14
     add("Pretax Income", pretax_income, 8, X4, pt_y)
 
-    # Column 5: Tax + Net Income
     tax_y = pt_y + 0.04
     net_y = pt_y + 0.14
     if tax > 0:
@@ -1700,7 +1753,6 @@ def _build_income_sankey(income_df, info):
         net_y = tax_y + 0.12
     add("Net Income", net_income, 10, X5, min(net_y, 0.97))
 
-    # ââ Links ââ
     srcs, tgts, vals, lcolors = [], [], [], []
 
     def link(src, tgt, val, ci=0):
@@ -1713,7 +1765,6 @@ def _build_income_sankey(income_df, info):
 
     link("Revenue", "Cost of Revenue", cogs, 1)
     link("Revenue", "Gross Profit", gross_profit, 2)
-
     if rd_expense > 0:
         link("Gross Profit", "R&D", rd_expense, 3)
     if sga_expense > 0:
@@ -1723,11 +1774,9 @@ def _build_income_sankey(income_df, info):
     if other_opex > 0:
         link("Gross Profit", "Other OpEx", other_opex, 5)
     link("Gross Profit", "Operating Income", operating_inc, 6)
-
     if interest_exp > 0:
         link("Operating Income", "Interest Exp.", interest_exp, 7)
     link("Operating Income", "Pretax Income", pretax_income, 8)
-
     if tax > 0:
         link("Pretax Income", "Income Tax", tax, 9)
     link("Pretax Income", "Net Income", net_income, 10)
@@ -1737,51 +1786,24 @@ def _build_income_sankey(income_df, info):
 
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
-        textfont=dict(
-            size=13,
-            family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
-            color="#1e293b",
-        ),
-        node=dict(
-            pad=18,
-            thickness=24,
-            line=dict(color="rgba(0,0,0,0)", width=0),
-            label=nodes,
-            color=node_colors,
-            x=node_x,
-            y=node_y,
-            hovertemplate="<b>%{label}</b><extra></extra>",
-        ),
-        link=dict(
-            source=srcs,
-            target=tgts,
-            value=vals,
-            color=lcolors,
-            hovertemplate="Flow: %{value:$,.0f}<extra></extra>",
-        ),
+        textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
+        node=dict(pad=18, thickness=24, line=dict(color="rgba(0,0,0,0)", width=0),
+                  label=nodes, color=node_colors, x=node_x, y=node_y,
+                  hovertemplate="<b>%{label}</b><extra></extra>"),
+        link=dict(source=srcs, target=tgts, value=vals, color=lcolors,
+                  hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
     ))
-
-    fig.update_layout(
-        height=650,
-        margin=dict(l=10, r=10, t=10, b=20),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
-    )
-
+    fig.update_layout(height=700, margin=dict(l=10, r=10, t=10, b=20),
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
 
 
 def _build_balance_sheet_sankey(balance_df, info):
-    """Build a balance sheet Sankey with fixed positions — no node crossing.
+    """Build a balance sheet Sankey with fixed positions -- no node crossing.
 
-    Layout (4 columns, top-to-bottom order matches link order):
-      Col 1: Total Assets
-      Col 2: Current Assets, Non-Current Assets, Total Liabilities, Equity
-      Col 3: Sub-categories (CA details, NCA details, CL, NCL, Eq details)
-      Col 4: Leaf details
+    All flows are reconciled so that parent = sum of children at every level.
     """
-    # ââ Extract values ââ
     total_assets      = _safe(balance_df, "Total Assets")
     current_assets    = _safe(balance_df, "Current Assets")
     noncurrent_assets = _safe(balance_df, "Total Non Current Assets")
@@ -1793,7 +1815,6 @@ def _build_balance_sheet_sankey(balance_df, info):
     goodwill          = _safe(balance_df, "Goodwill")
     intangibles       = _safe(balance_df, "Intangible Assets") or _safe(balance_df, "Other Intangible Assets")
     investments       = _safe(balance_df, "Investments And Advances") or _safe(balance_df, "Long Term Equity Investment")
-
     total_liab        = _safe(balance_df, "Total Liabilities Net Minority Interest") or _safe(balance_df, "Total Liab")
     current_liab      = _safe(balance_df, "Current Liabilities")
     noncurrent_liab   = _safe(balance_df, "Total Non Current Liabilities Net Minority Interest")
@@ -1801,24 +1822,49 @@ def _build_balance_sheet_sankey(balance_df, info):
     short_debt        = _safe(balance_df, "Current Debt") or _safe(balance_df, "Short Long Term Debt")
     long_debt         = _safe(balance_df, "Long Term Debt")
     deferred_rev      = _safe(balance_df, "Current Deferred Revenue")
-
     equity            = _safe(balance_df, "Stockholders Equity") or _safe(balance_df, "Total Stockholders Equity")
     retained          = _safe(balance_df, "Retained Earnings")
 
     if total_assets == 0:
         return None
 
-    # Fix derived
+    # Reconcile: Assets = CA + NCA
     if noncurrent_assets == 0 and total_assets > 0 and current_assets > 0:
         noncurrent_assets = total_assets - current_assets
+    if current_assets == 0 and total_assets > 0 and noncurrent_assets > 0:
+        current_assets = total_assets - noncurrent_assets
+    if current_assets + noncurrent_assets != total_assets and current_assets > 0:
+        noncurrent_assets = total_assets - current_assets
+
+    # Reconcile: Assets = Liab + Equity
+    if total_liab == 0 and equity > 0:
+        total_liab = total_assets - equity
+    if equity == 0 and total_liab > 0:
+        equity = total_assets - total_liab
+    if total_liab == 0 and equity == 0:
+        total_liab = current_liab + noncurrent_liab
+        if total_liab > 0:
+            equity = total_assets - total_liab
+        else:
+            equity = total_assets
+    if total_liab + equity != total_assets:
+        equity = total_assets - total_liab
+        if equity < 0:
+            equity = 0
+            total_liab = total_assets
+
+    # Reconcile: Liab = CL + NCL
     if noncurrent_liab == 0 and total_liab > 0 and current_liab > 0:
         noncurrent_liab = total_liab - current_liab
-    if equity == 0 and total_assets > 0 and total_liab > 0:
-        equity = total_assets - total_liab
+    if current_liab == 0 and total_liab > 0 and noncurrent_liab > 0:
+        current_liab = total_liab - noncurrent_liab
+    if current_liab + noncurrent_liab != total_liab and total_liab > 0:
+        noncurrent_liab = total_liab - current_liab
+        if noncurrent_liab < 0:
+            noncurrent_liab = 0
+            current_liab = total_liab
 
     C = BS_COLORS
-
-    # ââ Node builder with position tracking ââ
     nodes, node_colors_list, node_x, node_y = [], [], [], []
     links_src, links_tgt, links_val, links_col = [], [], [], []
     imap = {}
@@ -1841,152 +1887,101 @@ def _build_balance_sheet_sankey(balance_df, info):
             links_val.append(val)
             links_col.append(_rgba(color))
 
-    # ââ X columns ââ
-    X1, X2, X3, X4 = 0.01, 0.25, 0.55, 0.88
-
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-    # SLOT-BASED LAYOUT: enumerate ALL leaf items in strict order,
-    # assign uniform Y slots, then derive parent positions from
-    # children's center.  This guarantees zero crossing.
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-
-    # Build ordered item groups: (group_key, parent_col2_name, items_list)
-    # Each item: (name, val, color)
     ca_items = []
-    if cash > 0:
-        ca_items.append(("Cash", cash, C["cash"]))
-    if short_invest > 0:
-        ca_items.append(("ST Investments", short_invest, C["invest"]))
-    if receivables > 0:
-        ca_items.append(("Receivables", receivables, C["asset"]))
-    if inventory > 0:
-        ca_items.append(("Inventory", inventory, C["asset"]))
-    other_ca = max(0, current_assets - cash - short_invest - receivables - inventory)
-    if other_ca > 0:
-        ca_items.append(("Other Current", other_ca, C["other"]))
+    if cash > 0: ca_items.append(("Cash", cash, C["cash"]))
+    if short_invest > 0: ca_items.append(("ST Investments", short_invest, C["invest"]))
+    if receivables > 0: ca_items.append(("Receivables", receivables, C["asset"]))
+    if inventory > 0: ca_items.append(("Inventory", inventory, C["asset"]))
+    known_ca = cash + short_invest + receivables + inventory
+    other_ca = max(0, current_assets - known_ca)
+    if other_ca > 0: ca_items.append(("Other Current", other_ca, C["other"]))
 
     nca_items = []
-    if ppe > 0:
-        nca_items.append(("PPE", ppe, C["ppe"]))
-    if goodwill > 0:
-        nca_items.append(("Goodwill", goodwill, C["asset2"]))
-    if intangibles > 0:
-        nca_items.append(("Intangibles", intangibles, C["asset2"]))
-    if investments > 0:
-        nca_items.append(("Investments", investments, C["invest"]))
+    if ppe > 0: nca_items.append(("PP&E", ppe, C["asset2"]))
+    if goodwill > 0: nca_items.append(("Goodwill", goodwill, C["asset2"]))
+    if intangibles > 0: nca_items.append(("Intangibles", intangibles, C["asset2"]))
+    if investments > 0: nca_items.append(("Investments", investments, C["invest"]))
     known_nca = ppe + goodwill + intangibles + investments
     other_nca = max(0, noncurrent_assets - known_nca)
-    if other_nca > 0:
-        nca_items.append(("Other Non-Current", other_nca, C["other"]))
+    if other_nca > 0: nca_items.append(("Other Non-Current", other_nca, C["other"]))
 
     cl_items = []
-    if accounts_payable > 0:
-        cl_items.append(("Accounts Payable", accounts_payable, C["payable"]))
-    if short_debt > 0:
-        cl_items.append(("Short-Term Debt", short_debt, C["debt"]))
-    if deferred_rev > 0:
-        cl_items.append(("Deferred Revenue", deferred_rev, C["liability"]))
+    if accounts_payable > 0: cl_items.append(("Accounts Payable", accounts_payable, C["payable"]))
+    if short_debt > 0: cl_items.append(("Short-Term Debt", short_debt, C["debt"]))
+    if deferred_rev > 0: cl_items.append(("Deferred Revenue", deferred_rev, C["liability"]))
     known_cl = accounts_payable + short_debt + deferred_rev
     other_cl_val = max(0, current_liab - known_cl)
-    if other_cl_val > 0:
-        cl_items.append(("Other CL", other_cl_val, C["other"]))
+    if other_cl_val > 0: cl_items.append(("Other CL", other_cl_val, C["other"]))
 
     ncl_items = []
-    if long_debt > 0:
-        ncl_items.append(("Long-Term Debt", long_debt, C["debt"]))
+    if long_debt > 0: ncl_items.append(("Long-Term Debt", long_debt, C["debt"]))
     other_ncl = max(0, noncurrent_liab - long_debt)
-    if other_ncl > 0:
-        ncl_items.append(("Other LT Liab.", other_ncl, C["other"]))
+    if other_ncl > 0: ncl_items.append(("Other LT Liab.", other_ncl, C["other"]))
 
     eq_items = []
-    if equity > 0 and retained and retained > 0:
-        eq_items.append(("Retained Earnings", retained, C["retained"]))
-        other_eq = max(0, equity - retained)
-        if other_eq > 0:
-            eq_items.append(("Other Equity", other_eq, C["other"]))
+    if equity > 0:
+        if retained and retained > 0:
+            eq_items.append(("Retained Earnings", retained, C["retained"]))
+            other_eq = max(0, equity - retained)
+            if other_eq > 0: eq_items.append(("Other Equity", other_eq, C["other"]))
+        else:
+            eq_items.append(("Total Equity", equity, C["equity"]))
 
-    # Groups in strict top-to-bottom order
-    # Each group: (col2_parent, col3_parent_or_None, items, col_for_items)
     groups = []
-    if ca_items:
-        groups.append(("Current Assets", None, ca_items, X3))
-    if nca_items:
-        groups.append(("Non-Current Assets", None, nca_items, X3))
-    if cl_items:
-        groups.append(("Total Liabilities", "Current Liab.", cl_items, X4))
-    if ncl_items:
-        groups.append(("Total Liabilities", "Non-Current Liab.", ncl_items, X4))
-    if eq_items:
-        groups.append(("Equity", None, eq_items, X3))
+    if ca_items: groups.append(("Current Assets", None, ca_items, 0.55))
+    if nca_items: groups.append(("Non-Current Assets", None, nca_items, 0.55))
+    if cl_items: groups.append(("Total Liabilities", "Current Liab.", cl_items, 0.78))
+    if ncl_items: groups.append(("Total Liabilities", "Non-Current Liab.", ncl_items, 0.78))
+    if eq_items: groups.append(("Equity", None, eq_items, 0.55))
 
-    # Count total slots (leaf items) + inter-group gaps
-    total_leaf_items = sum(len(items) for _, _, items, _ in groups)
+    if not groups:
+        return None
+
     n_groups = len(groups)
-    gap_slots = 2  # each gap between groups = 2 empty slots worth of space
-
-    total_slots = total_leaf_items + gap_slots * max(n_groups - 1, 0)
-    if total_slots == 0:
-        total_slots = 1
-
-    slot_height = 0.96 / total_slots  # Y range [0.02, 0.98]
-
-    # Assign Y positions to all leaf items, record group Y ranges
+    total_items = sum(len(items) for _, _, items, _ in groups)
+    gap_slots = 2
+    total_slots = total_items + gap_slots * max(0, n_groups - 1)
+    slot_height = 0.96 / max(total_slots, 1)
     slot_idx = 0
-    group_y_ranges = []  # (y_first, y_last) for each group
+    group_y_ranges = []
+    X1, X2, X3, X4 = 0.01, 0.22, 0.50, 0.78
 
     for g_idx, (col2_parent, col3_parent, items, x_col) in enumerate(groups):
         y_first = 0.02 + slot_idx * slot_height
-        for i, (nm, vl, cl) in enumerate(items):
+        for nm, vl, cl in items:
             y = 0.02 + slot_idx * slot_height
             add(nm, vl, cl, x_col, y)
             slot_idx += 1
         y_last = 0.02 + (slot_idx - 1) * slot_height
         group_y_ranges.append((y_first, y_last))
         if g_idx < n_groups - 1:
-            slot_idx += gap_slots  # skip gap
+            slot_idx += gap_slots
 
-    # ââ Place Col 3 intermediate nodes (Current Liab., Non-Current Liab.) ââ
-    # and Col 2 parent nodes at the center of their children
-    col2_parent_ys = {}  # parent_name -> center_y
-
+    col2_parent_ys = {}
     for g_idx, (col2_parent, col3_parent, items, x_col) in enumerate(groups):
         y_first, y_last = group_y_ranges[g_idx]
         y_center = (y_first + y_last) / 2
-
         if col3_parent is not None:
-            # This group has an intermediate node (e.g., "Current Liab.")
-            # Place it at the center of its children
-            if col3_parent == "Current Liab." and current_liab > 0:
-                add("Current Liab.", current_liab, C["liability"], X3, y_center)
-            elif col3_parent == "Non-Current Liab." and noncurrent_liab > 0:
-                add("Non-Current Liab.", noncurrent_liab, C["liability"], X3, y_center)
-
-        # Track Col 2 parent center (may span multiple groups)
-        if col2_parent not in col2_parent_ys:
-            col2_parent_ys[col2_parent] = [y_center]
+            if col3_parent not in imap:
+                val = current_liab if "Current" in col3_parent else noncurrent_liab
+                add(col3_parent, val, C["liability"], X3, y_center)
+            col2_parent_ys.setdefault(col2_parent, []).append(y_center)
         else:
-            col2_parent_ys[col2_parent].append(y_center)
+            col2_parent_ys.setdefault(col2_parent, []).append(y_center)
 
-    # Place Col 2 parents at the mean center of all their groups
-    for parent_name, centers in col2_parent_ys.items():
-        y = sum(centers) / len(centers)
+    for parent_name, ys in col2_parent_ys.items():
+        center = sum(ys) / len(ys)
         if parent_name == "Current Assets":
-            add("Current Assets", current_assets, C["asset"], X2, y)
+            add("Current Assets", current_assets, C["asset"], X2, center)
         elif parent_name == "Non-Current Assets":
-            add("Non-Current Assets", noncurrent_assets, C["asset2"], X2, y)
+            add("Non-Current Assets", noncurrent_assets, C["asset2"], X2, center)
         elif parent_name == "Total Liabilities":
-            add("Total Liabilities", total_liab, C["liability"], X2, y)
+            add("Total Liabilities", total_liab, C["liability"], X2, center)
         elif parent_name == "Equity":
-            add("Equity", equity, C["equity"], X2, y)
+            add("Equity", equity, C["equity"], X2, center)
 
-    # Place Col 1: Total Assets at the overall center
-    all_col2_ys = sorted(col2_parent_ys.items(),
-                         key=lambda kv: sum(kv[1]) / len(kv[1]))
-    overall_y = sum(sum(v) / len(v) for _, v in all_col2_ys) / max(len(all_col2_ys), 1)
-    add("Total Assets", total_assets, C["asset"], X1, overall_y)
+    add("Total Assets", total_assets, C["asset"], X1, 0.45)
 
-    # ââ Create ALL links in strict top-to-bottom order ââ
-    # Col 1 â Col 2 links (in Y order of Col 2 targets)
     col2_ordered = sorted(col2_parent_ys.keys(),
                           key=lambda k: sum(col2_parent_ys[k]) / len(col2_parent_ys[k]))
     for parent_name in col2_ordered:
@@ -1999,19 +1994,15 @@ def _build_balance_sheet_sankey(balance_df, info):
         elif parent_name == "Equity":
             link("Total Assets", "Equity", equity, C["equity"])
 
-    # Col 2 â Col 3/Col 4 links (per group, in order)
     for g_idx, (col2_parent, col3_parent, items, x_col) in enumerate(groups):
         if col3_parent is not None:
-            # Col 2 â Col 3 intermediate
             if col3_parent == "Current Liab.":
                 link("Total Liabilities", "Current Liab.", current_liab, C["liability"])
             elif col3_parent == "Non-Current Liab.":
                 link("Total Liabilities", "Non-Current Liab.", noncurrent_liab, C["liability"])
-            # Col 3 intermediate â Col 4 leaf items
             link_parent = col3_parent
         else:
             link_parent = col2_parent
-
         for nm, vl, cl in items:
             if vl and vl > 0:
                 link(link_parent, nm, vl, cl)
@@ -2021,38 +2012,16 @@ def _build_balance_sheet_sankey(balance_df, info):
 
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
-        textfont=dict(
-            size=13,
-            family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
-            color="#1e293b",
-        ),
-        node=dict(
-            pad=18,
-            thickness=24,
-            line=dict(color="rgba(0,0,0,0)", width=0),
-            label=nodes,
-            color=node_colors_list,
-            x=node_x,
-            y=node_y,
-            hovertemplate="<b>%{label}</b><extra></extra>",
-        ),
-        link=dict(
-            source=links_src,
-            target=links_tgt,
-            value=links_val,
-            color=links_col,
-            hovertemplate="Flow: %{value:$,.0f}<extra></extra>",
-        ),
+        textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
+        node=dict(pad=18, thickness=24, line=dict(color="rgba(0,0,0,0)", width=0),
+                  label=nodes, color=node_colors_list, x=node_x, y=node_y,
+                  hovertemplate="<b>%{label}</b><extra></extra>"),
+        link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
+                  hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
     ))
-
-    fig.update_layout(
-        height=700,
-        margin=dict(l=10, r=10, t=10, b=20),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
-    )
-
+    fig.update_layout(height=700, margin=dict(l=10, r=10, t=10, b=20),
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
 
 
