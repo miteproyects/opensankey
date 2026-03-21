@@ -101,7 +101,7 @@ st.set_page_config(
 st.markdown(
     '<meta name="color-scheme" content="light only">'
     '<style>:root{color-scheme:light only !important}'
-    'html,body,.stApp{background:#fff!important;color:#212529!important}[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(hr){margin-top:-6px;margin-bottom:-6px}</style>',
+    'html,body,.stApp{background:#fff!important;color:#212529!important}[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(hr){margin-top:-11px;margin-bottom:-11px}[data-testid="stSidebarUserContent"]{margin-top:-9px!important}</style>',
     unsafe_allow_html=True,
 )
 
@@ -426,7 +426,7 @@ section[data-testid="stSidebar"] {
     text-align: left !important;
     cursor: pointer !important;
     min-height: 3rem !important;
-    margin-top: 33px !important;
+    margin-top: 26px !important;
 }
 .section-header-expanded:hover {
     background: #343a40 !important;
@@ -451,7 +451,7 @@ section[data-testid="stSidebar"] {
     text-align: left !important;
     cursor: pointer !important;
     min-height: 3rem !important;
-    margin-top: 33px !important;
+    margin-top: 26px !important;
 }
 .section-header-collapsed:hover {
     background: #f8f9fa !important;
