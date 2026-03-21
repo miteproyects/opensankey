@@ -1919,7 +1919,7 @@ with st.sidebar:
         st.markdown('<style>[data-testid="stSidebar"] [data-testid="stImage"]{display:none!important}</style>', unsafe_allow_html=True)
         # ————— Sankey Period Comparison Selector —————
         from datetime import datetime as _dt
-        st.markdown('<p style="font-size:0.85rem;font-weight:600;color:#495057;margin:0 0 6px;">Compare Periods By</p>', unsafe_allow_html=True)
+        st.markdown('<p style="font-size:2.55rem;font-weight:600;color:#495057;margin:0 0 6px;">Compare Periods By:</p>', unsafe_allow_html=True)
 
         _compare_mode = st.radio(
             "Compare by",
