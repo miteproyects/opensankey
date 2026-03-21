@@ -426,6 +426,7 @@ section[data-testid="stSidebar"] {
     text-align: left !important;
     cursor: pointer !important;
     min-height: 3rem !important;
+    margin-top: 26px !important;
 }
 .section-header-expanded:hover {
     background: #343a40 !important;
@@ -450,6 +451,7 @@ section[data-testid="stSidebar"] {
     text-align: left !important;
     cursor: pointer !important;
     min-height: 3rem !important;
+    margin-top: 26px !important;
 }
 .section-header-collapsed:hover {
     background: #f8f9fa !important;
