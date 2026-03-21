@@ -1811,7 +1811,7 @@ with st.sidebar:
         col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
         with col_input:
             new_ticker = st.text_input(
-                "Ticker",
+                "Type a Ticker to Explore Data:",
                 value=st.session_state.ticker,
                 placeholder="e.g. AAPL, MSFT, TSLA",
             ).upper().strip()
