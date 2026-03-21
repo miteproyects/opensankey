@@ -2425,9 +2425,7 @@ def render_sankey_page():
         else:
             st.warning(f"No income statement data available for {ticker}.")
 
-        from app import LOGO_B64 as _LB
-        _cap = f"QuarterCharts \u00b7 SEC EDGAR data \u00b7 {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else "")
-        st.markdown(f'<p style="font-size:0.85rem;color:#94a3b8;text-align:center;"><img src="data:image/png;base64,{_LB}" style="height:16px;vertical-align:middle;margin-right:6px"/>{_cap}</p>', unsafe_allow_html=True)
+        st.caption(f"QuarterCharts \u00b7 SEC EDGAR data \u00b7 {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
 
     elif sankey_view == "balance":
         # ── Historical trend selector (popup) ──
@@ -2475,6 +2473,4 @@ def render_sankey_page():
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
 
-        from app import LOGO_B64 as _LB
-        _cap = f"QuarterCharts \u00b7 SEC EDGAR data \u00b7 {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else "")
-        st.markdown(f'<p style="font-size:0.85rem;color:#94a3b8;text-align:center;"><img src="data:image/png;base64,{_LB}" style="height:16px;vertical-align:middle;margin-right:6px"/>{_cap}</p>', unsafe_allow_html=True)
+        st.caption(f"QuarterCharts \u00b7 SEC EDGAR data \u00b7 {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
