@@ -2072,6 +2072,7 @@ def render_sankey_page():
             display: flex !important;
             align-items: center !important;
             justify-content: space-between !important;
+    margin-top: 2px;
         }
         .sankey-header-left {
             flex: 1;
