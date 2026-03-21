@@ -342,7 +342,6 @@ section[data-testid="stSidebar"] {
     padding: 0 4px !important;
     gap: 0 !important;
     align-items: center !important;
-    margin-top: 48px !important;
         }
 [class*="st-key-hdr_show_"] button:not(.section-header-expanded):not(.section-header-collapsed) {
     background: transparent !important;
@@ -476,6 +475,10 @@ section[data-testid="stSidebar"] {
     gap: 0 !important;
     align-items: center !important;
 }
+        [data-testid="stHorizontalBlock"].section-row-expanded:has([class*="st-key-hdr_show_income"]),
+        [data-testid="stHorizontalBlock"].section-row-collapsed:has([class*="st-key-hdr_show_income"]) {
+            margin-top: 88px !important;
+        }
 .section-row-collapsed {
     background: #ffffff !important;
     border-radius: 12px !important;
