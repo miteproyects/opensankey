@@ -1679,6 +1679,7 @@ st.markdown(f'''
         <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="/?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
     </div>
     <div class="nav-right">
+        <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
     </div>
     <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
 </div>
@@ -1787,20 +1788,9 @@ with st.sidebar:
     }
     </style>""", unsafe_allow_html=True)
 
-    # ── Pricing & Sign In row at the top of the sidebar ──
+    # Sign In button at the top of the sidebar
     st.markdown(f"""
-    <div style="display:flex; align-items:center; gap:10px; margin:-8px 0 14px 0; padding:8px 12px;
-                background:rgba(30,41,59,0.65); border-radius:10px; border:1px solid rgba(148,163,184,0.12);">
-        <a href="/?page=pricing&ticker={ticker}" target="_self"
-           style="flex:1; display:flex; align-items:center; gap:6px; color:#94a3b8; font-size:0.8rem;
-                  font-weight:500; text-decoration:none; transition:color 0.2s;"
-           onmouseover="this.style.color='#e2e8f0'" onmouseout="this.style.color='#94a3b8'">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-            </svg>
-            Pricing
-        </a>
+    <div style="display:flex; justify-content:flex-end; margin:-8px 0 14px 0;">
         <a href="/?page=login&ticker={ticker}" target="_self"
            style="display:inline-flex; align-items:center; gap:5px; background:#3b82f6; color:#fff;
                   font-size:0.78rem; font-weight:600; padding:5px 16px; border-radius:6px;
