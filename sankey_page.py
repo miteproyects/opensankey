@@ -7,7 +7,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
 import pandas as pd
-from io import BytesIO 
+from io import BytesIO
 import numpy as np
 import requests
 
@@ -1853,7 +1853,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             text=p["text"], showarrow=False,
             font=dict(size=10, color=p["clr"], family="Inter, sans-serif"),
             bgcolor=p["bg"], borderpad=3, bordercolor=p["clr"],
-            borderwidth=0.5, xanchor="left", yanchor="top", yshift=-8,
+            borderwidth=0.5, xanchor="right" if p["x"] > 0.85 else "left", yanchor="top", yshift=-8,
         )
     fig.update_layout(height=900, margin=dict(l=10, r=10, t=10, b=20),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -2134,7 +2134,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             text=p["text"], showarrow=False,
             font=dict(size=10, color=p["clr"], family="Inter, sans-serif"),
             bgcolor=p["bg"], borderpad=3, bordercolor=p["clr"],
-            borderwidth=0.5, xanchor="left", yanchor="top", yshift=-8,
+            borderwidth=0.5, xanchor="right" if p["x"] > 0.85 else "left", yanchor="top", yshift=-8,
         )
     fig.update_layout(height=900, margin=dict(l=10, r=10, t=10, b=20),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
