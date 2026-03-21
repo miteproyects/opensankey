@@ -1810,7 +1810,7 @@ with st.sidebar:
                 placeholder="e.g. AAPL, MSFT, TSLA",
             ).upper().strip()
         with col_btn:
-            submitted = st.form_submit_button("GO â")
+            submitted = st.form_submit_button("GO")
 
     if submitted and new_ticker and new_ticker != st.session_state.ticker:
         if validate_ticker(new_ticker):
