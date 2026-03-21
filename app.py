@@ -1841,15 +1841,23 @@ with st.sidebar:
 
     # ── Pricing & Sign In row at the top of the sidebar ──
     st.markdown(f"""
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin:-10px 0 12px 0; padding:0 2px;">
+    <div style="display:flex; align-items:center; gap:10px; margin:-8px 0 14px 0; padding:8px 12px;
+                background:rgba(30,41,59,0.65); border-radius:10px; border:1px solid rgba(148,163,184,0.12);">
         <a href="/?page=pricing&ticker={ticker}" target="_self"
-           style="color:#93c5fd; font-size:0.82rem; font-weight:600; text-decoration:none; letter-spacing:0.03em;">
+           style="flex:1; display:flex; align-items:center; gap:6px; color:#94a3b8; font-size:0.8rem;
+                  font-weight:500; text-decoration:none; transition:color 0.2s;"
+           onmouseover="this.style.color='#e2e8f0'" onmouseout="this.style.color='#94a3b8'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
             Pricing
         </a>
         <a href="/?page=login&ticker={ticker}" target="_self"
-           style="background:#3b82f6; color:#fff; font-size:0.78rem; font-weight:600;
-                  padding:6px 18px; border-radius:8px; text-decoration:none; text-align:center;
-                  transition:background 0.2s;">
+           style="display:inline-flex; align-items:center; gap:5px; background:#3b82f6; color:#fff;
+                  font-size:0.78rem; font-weight:600; padding:5px 16px; border-radius:6px;
+                  text-decoration:none; white-space:nowrap; transition:background 0.2s; box-shadow:0 1px 3px rgba(59,130,246,0.25);"
+           onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'">
             Sign In
         </a>
     </div>
