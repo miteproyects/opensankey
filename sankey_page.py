@@ -1761,7 +1761,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY"):
         pct = _yoy(val, prev_val)
         if pct is not None:
             arrow = "\u2191" if pct >= 0 else "\u2193"
-            nodes.append(f"{name}  {_fmt(val)}  {arrow} {pct:+.1f}% {compare_label}")
+            clr = "#16a34a" if pct >= 0 else "#dc2626"
+            nodes.append(f"{name}  {_fmt(val)}<br><span style='color:{clr};font-size:11px'>{arrow} {pct:+.1f}% {compare_label}</span>")
         else:
             nodes.append(f"{name}  {_fmt(val)}")
         node_colors.append(colors[color_idx])
@@ -1838,13 +1839,13 @@ def _build_income_sankey(income_df, info, compare_label="YoY"):
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
-        node=dict(pad=18, thickness=24, line=dict(color="rgba(0,0,0,0)", width=0),
+        node=dict(pad=32, thickness=24, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors, x=node_x, y=node_y,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
         link=dict(source=srcs, target=tgts, value=vals, color=lcolors,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
     ))
-    fig.update_layout(height=700, margin=dict(l=10, r=10, t=10, b=20),
+    fig.update_layout(height=900, margin=dict(l=10, r=10, t=10, b=20),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
@@ -1953,7 +1954,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY"):
         pct = _yoy(val, pv)
         if pct is not None:
             arrow = "\u2191" if pct >= 0 else "\u2193"
-            nodes.append(f"{name}  {_fmt(val)}  {arrow} {pct:+.1f}% {compare_label}")
+            clr = "#16a34a" if pct >= 0 else "#dc2626"
+            nodes.append(f"{name}  {_fmt(val)}<br><span style='color:{clr};font-size:11px'>{arrow} {pct:+.1f}% {compare_label}</span>")
         else:
             nodes.append(f"{name}  {_fmt(val)}")
         node_colors_list.append(color)
@@ -2096,13 +2098,13 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY"):
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
-        node=dict(pad=18, thickness=24, line=dict(color="rgba(0,0,0,0)", width=0),
+        node=dict(pad=32, thickness=24, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors_list, x=node_x, y=node_y,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
         link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
     ))
-    fig.update_layout(height=700, margin=dict(l=10, r=10, t=10, b=20),
+    fig.update_layout(height=900, margin=dict(l=10, r=10, t=10, b=20),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
