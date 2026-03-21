@@ -979,7 +979,7 @@ def render_profile_page(ticker: str) -> None:
     import streamlit.components.v1 as components
     _live_price_js = f"""
     <script>
-    (function() {{{{
+    (function() {{
         const TICKER = "{ticker}";
         const YF_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(
             "https://query1.finance.yahoo.com/v8/finance/chart/" + TICKER + "?range=1d&interval=1m&includePrePost=true"
@@ -991,56 +991,56 @@ def render_profile_page(ticker: str) -> None:
         const GREEN_BG = "rgba(0, 200, 5, 0.25)";
         const RED_BG   = "rgba(255, 51, 0, 0.25)";
 
-        function doc() {{{{
-            try {{{{ return window.parent.document; }}}} catch(e) {{{{ return null; }}}}
-        }}}}
+        function doc() {{
+            try {{ return window.parent.document; }} catch(e) {{ return null; }}
+        }}
 
-        function flash(el, dir) {{{{
+        function flash(el, dir) {{
             if (!el) return;
             el.style.backgroundColor = dir > 0 ? GREEN_BG : RED_BG;
             setTimeout(() => el.style.backgroundColor = "transparent", 600);
-        }}}}
+        }}
 
-        function changeBadge(chg, pct) {{{{
+        function changeBadge(chg, pct) {{
             const s = chg >= 0 ? "+" : "";
             const c = chg >= 0 ? GREEN : RED;
             return '<span style="color:' + c + ';font-weight:600;">'
                  + s + chg.toFixed(2) + ' (' + s + pct.toFixed(2) + '%)</span>';
-        }}}}
+        }}
 
-        function updateOHLC(d, price, chg, pct) {{{{
+        function updateOHLC(d, price, chg, pct) {{
             const titles = d.querySelectorAll('.gtitle');
-            for (let i = 0; i < titles.length; i++) {{{{
+            for (let i = 0; i < titles.length; i++) {{
                 const txt = titles[i].textContent;
-                if (txt.includes('C ')) {{{{
+                if (txt.includes('C ')) {{
                     const svg = titles[i].closest('svg');
                     if (!svg) continue;
                     const spans = svg.querySelectorAll('text');
                     const sgn = chg >= 0 ? "+" : "";
                     const col = chg >= 0 ? GREEN : RED;
-                    for (let j = 0; j < spans.length; j++) {{{{
-                        if (spans[j].textContent.trim().startsWith('C ')) {{{{
+                    for (let j = 0; j < spans.length; j++) {{
+                        if (spans[j].textContent.trim().startsWith('C ')) {{
                             const parts = spans[j].textContent.split('C ');
-                            if (parts.length > 1) {{{{
+                            if (parts.length > 1) {{
                                 spans[j].textContent = parts[0] + 'C ' + price.toFixed(2);
                                 spans[j].style.fill = col;
-                            }}}}
-                        }}}}
-                        if (/^[+\\-]\\d/.test(spans[j].textContent.trim())) {{{{
+                            }}
+                        }}
+                        if (/^[+\\-]\\d/.test(spans[j].textContent.trim())) {{
                             spans[j].textContent = sgn + chg.toFixed(2) + ' (' + sgn + pct.toFixed(2) + '%)';
                             spans[j].style.fill = col;
-                        }}}}
-                    }}}}
-                }}}}
-            }}}}
-        }}}}
+                        }}
+                    }}
+                }}
+            }}
+        }}
 
-        function poll() {{{{
+        function poll() {{
             const dd = doc();
             if (!dd) return;
             fetch(YF_URL)
               .then(r => r.json())
-              .then(data => {{{{
+              .then(data => {{
                 const res = data.chart.result[0];
                 const meta = res.meta;
                 const ts = res.timestamp || [];
@@ -1064,26 +1064,26 @@ def render_profile_page(ticker: str) -> None:
                 const changeEl = dd.getElementById("qc-change");
                 const closeTimeEl = dd.getElementById("qc-close-time");
 
-                if (priceEl) {{{{
+                if (priceEl) {{
                     const oldP = parseFloat(priceEl.textContent.replace('$',''));
                     priceEl.textContent = "$" + regPrice.toFixed(2);
                     if (prevPrice !== null && regPrice !== oldP) flash(priceEl, regPrice - oldP);
                     prevPrice = regPrice;
-                }}}}
+                }}
 
-                if (changeEl) {{{{
+                if (changeEl) {{
                     changeEl.innerHTML = changeBadge(chg, pct);
-                }}}}
+                }}
 
                 // Determine market state and show close time
                 let marketLabel = "";
                 const regTime = new Date(meta.regularMarketTime * 1000);
-                if (now >= regStart && now <= regEnd) {{{{
+                if (now >= regStart && now <= regEnd) {{
                     marketLabel = "";
-                }}}} else {{{{
-                    const opts = {{{{ month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true }}}};
+                }} else {{
+                    const opts = {{ month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true }};
                     marketLabel = "At close: " + regTime.toLocaleString('en-US', opts) + " EDT";
-                }}}}
+                }}
                 if (closeTimeEl) closeTimeEl.textContent = marketLabel;
 
                 // Update OHLC bar on chart
@@ -1091,26 +1091,26 @@ def render_profile_page(ticker: str) -> None:
 
                 // Extended hours (after-hours / pre-market)
                 const ahDiv = dd.getElementById("qc-afterhours");
-                if (ahDiv && (now > regEnd || now < regStart)) {{{{
+                if (ahDiv && (now > regEnd || now < regStart)) {{
                     // Find the latest non-null close from data points
                     let lastExtPrice = null;
-                    for (let i = ts.length - 1; i >= 0; i--) {{{{
-                        if (closes[i] != null && ts[i] > regEnd) {{{{
+                    for (let i = ts.length - 1; i >= 0; i--) {{
+                        if (closes[i] != null && ts[i] > regEnd) {{
                             lastExtPrice = closes[i];
                             break;
-                        }}}}
-                    }}}}
-                    if (lastExtPrice === null) {{{{
+                        }}
+                    }}
+                    if (lastExtPrice === null) {{
                         // Try pre-market
-                        for (let i = ts.length - 1; i >= 0; i--) {{{{
-                            if (closes[i] != null && ts[i] < regStart) {{{{
+                        for (let i = ts.length - 1; i >= 0; i--) {{
+                            if (closes[i] != null && ts[i] < regStart) {{
                                 lastExtPrice = closes[i];
                                 break;
-                            }}}}
-                        }}}}
-                    }}}}
+                            }}
+                        }}
+                    }}
 
-                    if (lastExtPrice !== null && lastExtPrice !== regPrice) {{{{
+                    if (lastExtPrice !== null && lastExtPrice !== regPrice) {{
                         ahDiv.style.display = "block";
                         const extChg = lastExtPrice - regPrice;
                         const extPct = (extChg / regPrice) * 100;
@@ -1124,27 +1124,27 @@ def render_profile_page(ticker: str) -> None:
                         const extTimeEl = dd.getElementById("qc-ext-time");
 
                         if (extPriceEl) extPriceEl.textContent = "$" + lastExtPrice.toFixed(2);
-                        if (extChangeEl) {{{{
+                        if (extChangeEl) {{
                             extChangeEl.innerHTML = '<span style="color:' + extCol + ';font-weight:600;">' + extSign + extChg.toFixed(2) + ' (' + extSign + extPct.toFixed(2) + '%)</span>';
-                        }}}}
-                        if (extTimeEl) {{{{
+                        }}
+                        if (extTimeEl) {{
                             const lastTs = new Date(ts[ts.length-1] * 1000);
-                            const tOpts = {{{{ hour:'numeric', minute:'2-digit', hour12:true }}}};
+                            const tOpts = {{ hour:'numeric', minute:'2-digit', hour12:true }};
                             extTimeEl.textContent = extLabel + ": " + lastTs.toLocaleString('en-US', tOpts) + " EDT";
-                        }}}}
-                    }}}} else {{{{
+                        }}
+                    }} else {{
                         ahDiv.style.display = "none";
-                    }}}}
-                }}}} else if (ahDiv) {{{{
+                    }}
+                }} else if (ahDiv) {{
                     ahDiv.style.display = "none";
-                }}}}
-              }}}})
+                }}
+              }})
               .catch(e => console.log("[QC price] error:", e));
-        }}}}
+        }}
 
         setInterval(poll, POLL_MS);
         setTimeout(poll, 500);
-    }}}})();
+    }})();
     </script>
     """
     components.html(_live_price_js, height=0, width=0)
