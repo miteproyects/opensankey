@@ -7,7 +7,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
 import pandas as pd
-from io import BytesIO
+from io import BytesIO 
 import numpy as np
 import requests
 
@@ -2070,7 +2070,7 @@ def render_sankey_page():
             margin-bottom: 20px;
             border: 1px solid rgba(255,255,255,0.06);
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
         }
         .sankey-header-left {
@@ -2375,8 +2375,8 @@ def render_sankey_page():
         # ── Historical trend selector (popup) ──
         metric_options = list(INCOME_NODE_METRICS.keys())
         st.markdown('<div style="display:flex;align-items:center;gap:8px;margin:0.25rem 0 -0.75rem 0"><div style="width:3px;height:18px;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:2px;flex-shrink:0"></div><span style="font-size:0.88rem;font-weight:600;color:#1e293b;letter-spacing:0.01em">Explore Historical Trends</span><span style="font-size:0.76rem;color:#94a3b8">&mdash; click a metric or Sankey node</span></div>', unsafe_allow_html=True)
-        sel = st.pills("Trends", label_visibility="collapsed",
-                       metric_options, key="income_metric_pill")
+        sel = st.pills("Trends", metric_options, label_visibility="collapsed",
+                       key="income_metric_pill")
         if sel:
             # Track active metric in popup (allows navigation inside dialog)
             if f"popup_active_income" not in st.session_state or st.session_state.get("popup_trigger_income") != sel:
@@ -2433,8 +2433,8 @@ def render_sankey_page():
         # ── Historical trend selector (popup) ──
         metric_options = list(BALANCE_NODE_METRICS.keys())
         st.markdown('<div style="display:flex;align-items:center;gap:8px;margin:0.25rem 0 -0.75rem 0"><div style="width:3px;height:18px;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:2px;flex-shrink:0"></div><span style="font-size:0.88rem;font-weight:600;color:#1e293b;letter-spacing:0.01em">Explore Historical Trends</span><span style="font-size:0.76rem;color:#94a3b8">&mdash; click a metric or Sankey node</span></div>', unsafe_allow_html=True)
-        sel = st.pills("Trends", label_visibility="collapsed",
-                       metric_options, key="balance_metric_pill")
+        sel = st.pills("Trends", metric_options, label_visibility="collapsed",
+                       key="balance_metric_pill")
         if sel:
             # Track active metric in popup (allows navigation inside dialog)
             if f"popup_active_balance" not in st.session_state or st.session_state.get("popup_trigger_balance") != sel:
