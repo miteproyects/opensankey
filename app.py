@@ -289,7 +289,7 @@ section[data-testid="stSidebar"] {
 .nav-logo:hover { background: none !important; }
 .nav-logo img { flex-shrink: 0; height: 48px; width: auto; }
 .nav-logo-text {
-    font-size: 0.72rem;
+    font-size: 1.25rem;
     font-weight: 700;
     color: #ffffff !important;
     line-height: 1.2;
@@ -813,7 +813,7 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
     .nav-bar a, .nav-bar .nav-link { font-size: 0.78rem !important; padding: 0 12px !important; height: 52px !important; }
     .nav-logo { margin-right: 20px !important; }
     .nav-logo svg { width: 28px !important; height: 28px !important; }
-    .nav-logo-text { font-size: 0.65rem !important; }
+    .nav-logo-text { font-size: 1.25rem !important; }
     /* Metric cards: smaller text */
     /* Footer: tighter */
     .footer {
