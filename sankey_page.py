@@ -2068,6 +2068,7 @@ def render_sankey_page():
             border-radius: 12px;
             padding: 24px 28px;
             margin-bottom: 20px;
+            margin-top: 2px;
             border: 1px solid rgba(255,255,255,0.06);
             display: flex;
             align-items: center;
