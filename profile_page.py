@@ -284,69 +284,134 @@ def render_profile_page(ticker: str) -> None:
     with col2:
         if current_price:
             st.markdown(f"""
-            <div id="qc-price-container" data-ticker="{ticker}" data-prev-price="{current_price:.2f}">
-                <div id="qc-price-value" style="font-size: 2rem; font-weight: 700; color: #1a1a2e; line-height: 1.2;">${current_price:.2f}</div>
-                <div id="qc-change" style="font-size: 0.95rem; font-weight: 600; margin-top: 2px;"></div>
-                <div id="qc-close-time" style="font-size: 0.7rem; color: #6c757d; margin-top: 4px;"></div>
-                <div id="qc-afterhours" style="margin-top: 8px; display: none;">
+            <div id="qc-price-container" data-ticker="{ticker}" data-prev-price="{current_price:.2f}" style="
+                background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9));
+                border: 1px solid rgba(0,0,0,0.06);
+                border-radius: 16px;
+                padding: 18px 22px;
+                box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+                backdrop-filter: blur(8px);
+                transition: box-shadow 0.3s ease;
+            ">
+                <div style="font-size: 0.7rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">Live Price</div>
+                <div id="qc-price-value" style="font-size: 2.2rem; font-weight: 800; color: #0f172a; line-height: 1.1; letter-spacing: -0.02em;">${current_price:.2f}</div>
+                <div id="qc-change" style="font-size: 0.9rem; font-weight: 600; margin-top: 6px;"></div>
+                <div id="qc-close-time" style="font-size: 0.65rem; color: #94a3b8; margin-top: 3px;"></div>
+                <div id="qc-afterhours" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(0,0,0,0.06); display: none;">
                     <div style="display: flex; align-items: baseline; gap: 8px;">
-                        <div id="qc-ext-price" style="font-size: 1.1rem; font-weight: 700;"></div>
-                        <div id="qc-ext-change" style="font-size: 0.85rem; font-weight: 600;"></div>
+                        <div id="qc-ext-price" style="font-size: 1.1rem; font-weight: 700; color: #0f172a;"></div>
+                        <div id="qc-ext-change" style="font-size: 0.8rem; font-weight: 600;"></div>
                     </div>
-                    <div id="qc-ext-time" style="font-size: 0.7rem; color: #6c757d; margin-top: 2px;"></div>
+                    <div id="qc-ext-time" style="font-size: 0.65rem; color: #94a3b8; margin-top: 2px;"></div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown("""
-            <div>
-                <div style="font-size: 0.75rem; color: #6c757d; margin-bottom: 2px;">Price</div>
-                <div style="font-size: 1.8rem; font-weight: 700; color: #212529;">N/A</div>
+            <div style="
+                background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9));
+                border: 1px solid rgba(0,0,0,0.06);
+                border-radius: 16px;
+                padding: 18px 22px;
+                box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            ">
+                <div style="font-size: 0.7rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;">Price</div>
+                <div style="font-size: 2rem; font-weight: 800; color: #0f172a; margin-top: 4px;">N/A</div>
             </div>
             """, unsafe_allow_html=True)
 
     with col3:
         if fair_value and upside_pct is not None:
-            upside_color = "green" if upside_pct >= 0 else "red"
+            upside_color = "#10b981" if upside_pct >= 0 else "#ef4444"
+            arrow = "&#9650;" if upside_pct >= 0 else "&#9660;"
             st.markdown(f"""
-            <div style="text-align: center; padding: 10px 0;">
-                <div style="font-size: 0.75rem; color: #6c757d; margin-bottom: 2px;">Fair Value (DCF)</div>
-                <div style="font-size: 1.3rem; font-weight: 700; color: #212529;">${fair_value:.2f}</div>
-                <div style="font-size: 0.85rem; color: {upside_color}; font-weight: 600;">
-                    {upside_pct:+.1f}% upside
+            <div style="
+                background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9));
+                border: 1px solid rgba(0,0,0,0.06);
+                border-radius: 16px;
+                padding: 18px 22px;
+                box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+                backdrop-filter: blur(8px);
+                text-align: center;
+            ">
+                <div style="font-size: 0.7rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">Fair Value (DCF)</div>
+                <div style="font-size: 1.8rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;">${fair_value:.2f}</div>
+                <div style="
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    margin-top: 8px;
+                    padding: 4px 12px;
+                    border-radius: 20px;
+                    background: {upside_color}15;
+                    font-size: 0.85rem;
+                    font-weight: 700;
+                    color: {upside_color};
+                ">
+                    <span>{arrow}</span>
+                    <span>{upside_pct:+.1f}% upside</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown("""
-            <div style="text-align: center; padding: 10px 0;">
-                <div style="font-size: 0.75rem; color: #6c757d;">Fair Value</div>
-                <div style="font-size: 1.3rem; font-weight: 700; color: #212529;">N/A</div>
+            <div style="
+                background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9));
+                border: 1px solid rgba(0,0,0,0.06);
+                border-radius: 16px;
+                padding: 18px 22px;
+                box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+                text-align: center;
+            ">
+                <div style="font-size: 0.7rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;">Fair Value</div>
+                <div style="font-size: 1.8rem; font-weight: 800; color: #0f172a; margin-top: 4px;">N/A</div>
             </div>
             """, unsafe_allow_html=True)
 
     with col4:
-        # Score badge — clickable, scrolls to score section
-        score_color = "#34a853" if score >= 70 else ("#fbbc04" if score >= 40 else "#ea4335")
-        score_label = "Excellent Score" if score >= 70 else ("Good Score" if score >= 40 else "Low Score")
+        # Score badge with SVG ring
+        score_color = "#10b981" if score >= 70 else ("#f59e0b" if score >= 40 else "#ef4444")
+        score_label = "Excellent" if score >= 70 else ("Good" if score >= 40 else "Low")
+        score_bg = "#ecfdf5" if score >= 70 else ("#fffbeb" if score >= 40 else "#fef2f2")
+        dash = score * 2.827
         st.markdown(f"""
-        <a href="#score-section" title="{score_label}" style="text-decoration: none;">
-        <div style="
+        <style>
+            @keyframes qc-score-fill {{ from {{ stroke-dasharray: 0 283; }} to {{ stroke-dasharray: {dash:.1f} 283; }} }}
+            .qc-score-ring {{ animation: qc-score-fill 1.2s ease-out forwards; }}
+            .qc-score-wrap:hover {{ transform: scale(1.05); }}
+        </style>
+        <a href="#score-section" title="{score_label} Score" style="text-decoration: none; display: block;">
+        <div class="qc-score-wrap" style="
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            width: clamp(70px, 15vw, 100px);
-            height: clamp(70px, 15vw, 100px);
-            border-radius: 50%;
-            background-color: {score_color};
-            color: white;
-            margin: 0 auto;
-            cursor: pointer;
-            transition: transform 0.2s;
+            gap: 8px;
+            transition: transform 0.25s ease;
         ">
-            <span style="font-size: clamp(1.5rem, 4vw, 2.2rem); font-weight: 700; line-height: 1;">{score}</span>
-            <span style="font-size: clamp(0.55rem, 1.5vw, 0.7rem); font-weight: 400;">score</span>
+            <div style="position: relative; width: 100px; height: 100px;">
+                <svg viewBox="0 0 100 100" style="transform: rotate(-90deg); width: 100%; height: 100%;">
+                    <circle cx="50" cy="50" r="45" fill="{score_bg}" stroke="rgba(0,0,0,0.06)" stroke-width="6"/>
+                    <circle class="qc-score-ring" cx="50" cy="50" r="45" fill="none" stroke="{score_color}" stroke-width="6" stroke-linecap="round" stroke-dasharray="0 283"/>
+                </svg>
+                <div style="
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    text-align: center;
+                ">
+                    <div style="font-size: 1.8rem; font-weight: 800; color: #0f172a; line-height: 1;">{score}</div>
+                    <div style="font-size: 0.6rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">score</div>
+                </div>
+            </div>
+            <div style="
+                font-size: 0.7rem;
+                font-weight: 600;
+                color: {score_color};
+                padding: 2px 10px;
+                border-radius: 12px;
+                background: {score_bg};
+            ">{score_label}</div>
         </div>
         </a>
         """, unsafe_allow_html=True)
