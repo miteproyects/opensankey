@@ -552,7 +552,7 @@ BALANCE_NODE_METRICS = {
     "ST Investments":     "Other Short Term Investments",
     "Receivables":        "Accounts Receivable",
     "Inventory":          "Inventory",
-    "PPE":                "Net PPE",
+    "PP&E":               "Net PPE",
     "Goodwill":           "Goodwill",
     "Intangibles":        "Other Intangible Assets",
     "Investments":        "Investments And Advances",
@@ -565,6 +565,7 @@ BALANCE_NODE_METRICS = {
     "Long-Term Debt":     "Long Term Debt",
     "Equity":             "Stockholders Equity",
     "Retained Earnings":  "Retained Earnings",
+    "Total Equity":       "Stockholders Equity",
 }
 
 
