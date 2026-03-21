@@ -232,18 +232,21 @@ section[data-testid="stSidebar"] {
 }
 .nav-expand-btn {
     display: none;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
+    position: fixed;
+    top: 0.375rem;
+    left: 0.375rem;
+    z-index: 1000000;
+    background: #f0f2f6;
+    border: 1px solid #d0d2d6;
     border-radius: 8px;
     padding: 6px 12px;
-    color: #ffffff;
+    color: #31333F;
     font-size: 1rem;
     cursor: pointer;
     transition: all 0.2s;
     line-height: 1;
-    margin-left: 8px;
 }
-.nav-expand-btn:hover { background: rgba(255,255,255,0.12); }
+.nav-expand-btn:hover { background: #d0d2d6; }
 .nav-links {
     display: flex;
     align-items: center;
@@ -1691,8 +1694,8 @@ st.markdown(f'''
     <div class="nav-right">
         <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
     </div>
-    <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
 </div>
+    <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
 ''', unsafe_allow_html=True)
 
 # Ã¢ÂÂÃ¢ÂÂ Sidebar expand click handler (must load with nav bar, not at page end) Ã¢ÂÂÃ¢ÂÂ
