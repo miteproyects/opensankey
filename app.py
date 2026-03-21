@@ -1932,24 +1932,37 @@ with st.sidebar:
 
             _cur_year = _dt.now().year
             if _compare_mode == "Annual":
-                _years = [str(y) for y in range(_cur_year, _cur_year - 11, -1)]
+                _all_years = [str(y) for y in range(_cur_year, _cur_year - 11, -1)]
+                # Period A: all years except the oldest (needs at least one prior year)
+                _years_a = _all_years[:-1]
                 st.session_state.sankey_period_a = st.selectbox(
-                    "Period A (show in Sankey)", _years, index=0, key="sk_pa"
+                    "Period A (show in Sankey)", _years_a, index=0, key="sk_pa"
                 )
+                # Period B: only years before Period A
+                _sel_a = int(st.session_state.sankey_period_a)
+                _years_b = [y for y in _all_years if int(y) < _sel_a]
+                _idx_b = 0  # default to the most recent valid option
                 st.session_state.sankey_period_b = st.selectbox(
-                    "Period B (compare to)", _years, index=1, key="sk_pb"
+                    "Period B (compare to)", _years_b, index=_idx_b, key="sk_pb"
                 )
                 st.session_state.sankey_compare_quarterly = False
             else:
-                _quarters = []
+                _all_quarters = []
                 for _y in range(_cur_year, _cur_year - 5, -1):
                     for _q in range(4, 0, -1):
-                        _quarters.append(f"Q{_q} {_y}")
+                        _all_quarters.append(f"Q{_q} {_y}")
+                # Period A: all quarters except the oldest
+                _quarters_a = _all_quarters[:-1]
                 st.session_state.sankey_period_a = st.selectbox(
-                    "Period A (show in Sankey)", _quarters, index=0, key="sk_qa"
+                    "Period A (show in Sankey)", _quarters_a, index=0, key="sk_qa"
                 )
+                # Period B: only quarters before Period A
+                _sel_qa = st.session_state.sankey_period_a
+                _qa_idx = _all_quarters.index(_sel_qa)
+                _quarters_b = _all_quarters[_qa_idx + 1:]
+                _idx_qb = 0  # default to the immediately prior quarter
                 st.session_state.sankey_period_b = st.selectbox(
-                    "Period B (compare to)", _quarters, index=4, key="sk_qb"
+                    "Period B (compare to)", _quarters_b, index=_idx_qb, key="sk_qb"
                 )
                 st.session_state.sankey_compare_quarterly = True
 
