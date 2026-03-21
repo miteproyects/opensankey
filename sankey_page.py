@@ -1591,7 +1591,7 @@ def _fetch_sankey_data(ticker: str, quarterly: bool = False):
         return pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
 
 
-def _build_income_sankey(income_df, info):
+def _build_income_sankey(income_df, info, compare_label="YoY"):
     """Build income statement Sankey with fixed positions and vivid nodes.
 
     Flow: Revenue -> COGS + Gross Profit -> Expenses + Operating Income
@@ -1614,6 +1614,24 @@ def _build_income_sankey(income_df, info):
     pretax_income = _safe(income_df, "Pretax Income") or _safe(income_df, "Income Before Tax")
     tax           = abs(_safe(income_df, "Tax Provision"))
     net_income    = _safe(income_df, "Net Income")
+
+    # --- Previous period values for % change labels ---
+    p_revenue       = _safe_prev(income_df, "Total Revenue")
+    p_cogs          = abs(_safe_prev(income_df, "Cost Of Revenue"))
+    p_gross_profit  = _safe_prev(income_df, "Gross Profit")
+    if p_gross_profit == 0 and p_revenue > 0 and p_cogs > 0:
+        p_gross_profit = p_revenue - p_cogs
+    p_rd_expense    = abs(_safe_prev(income_df, "Research And Development"))
+    p_sga_expense   = abs(_safe_prev(income_df, "Selling General And Administration"))
+    p_dep_amort     = abs(_safe_prev(income_df, "Reconciled Depreciation"))
+    if p_dep_amort == 0:
+        p_dep_amort = abs(_safe_prev(income_df, "Depreciation And Amortization"))
+    p_other_opex    = abs(_safe_prev(income_df, "Other Operating Expense"))
+    p_operating_inc = _safe_prev(income_df, "Operating Income")
+    p_interest_exp  = abs(_safe_prev(income_df, "Interest Expense"))
+    p_pretax_income = _safe_prev(income_df, "Pretax Income") or _safe_prev(income_df, "Income Before Tax")
+    p_tax           = abs(_safe_prev(income_df, "Tax Provision"))
+    p_net_income    = _safe_prev(income_df, "Net Income")
 
     if revenue == 0:
         return None
@@ -1737,49 +1755,54 @@ def _build_income_sankey(income_df, info):
     node_y = []
     imap = {}
 
-    def add(name, val, color_idx, x, y):
+    def add(name, val, color_idx, x, y, prev_val=None):
         y = round(max(0.01, min(0.99, y)), 4)
         imap[name] = len(nodes)
-        nodes.append(f"{name}  {_fmt(val)}")
+        pct = _yoy(val, prev_val)
+        if pct is not None:
+            arrow = "\u2191" if pct >= 0 else "\u2193"
+            nodes.append(f"{name}  {_fmt(val)}  {arrow} {pct:+.1f}% {compare_label}")
+        else:
+            nodes.append(f"{name}  {_fmt(val)}")
         node_colors.append(colors[color_idx])
         node_x.append(x)
         node_y.append(y)
 
-    add("Revenue", revenue, 0, X1, 0.45)
-    add("Cost of Revenue", cogs, 1, X2, 0.05)
-    add("Gross Profit", gross_profit, 2, X2, 0.58)
+    add("Revenue", revenue, 0, X1, 0.45, p_revenue)
+    add("Cost of Revenue", cogs, 1, X2, 0.05, p_cogs)
+    add("Gross Profit", gross_profit, 2, X2, 0.58, p_gross_profit)
 
     exp_y = 0.04
     exp_gap = 0.13
     n_exp = 0
     if rd_expense > 0:
-        add("R&D", rd_expense, 3, X3, exp_y + n_exp * exp_gap)
+        add("R&D", rd_expense, 3, X3, exp_y + n_exp * exp_gap, p_rd_expense)
         n_exp += 1
     if sga_expense > 0:
-        add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap)
+        add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap, p_sga_expense)
         n_exp += 1
     if dep_amort > 0:
-        add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap)
+        add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap, p_dep_amort)
         n_exp += 1
     if other_opex > 0:
-        add("Other OpEx", other_opex, 5, X3, exp_y + n_exp * exp_gap)
+        add("Other OpEx", other_opex, 5, X3, exp_y + n_exp * exp_gap, p_other_opex)
         n_exp += 1
 
     oi_y = max(exp_y + n_exp * exp_gap + 0.16, 0.60)
-    add("Operating Income", operating_inc, 6, X3, oi_y)
+    add("Operating Income", operating_inc, 6, X3, oi_y, p_operating_inc)
 
     if interest_exp > 0:
         inter_y = max(oi_y - 0.08, 0.50)
-        add("Interest Exp.", interest_exp, 7, X4, inter_y)
+        add("Interest Exp.", interest_exp, 7, X4, inter_y, p_interest_exp)
     pt_y = oi_y + 0.14
-    add("Pretax Income", pretax_income, 8, X4, pt_y)
+    add("Pretax Income", pretax_income, 8, X4, pt_y, p_pretax_income)
 
     tax_y = pt_y + 0.04
     net_y = pt_y + 0.14
     if tax > 0:
-        add("Income Tax", tax, 9, X5, min(tax_y, 0.88))
+        add("Income Tax", tax, 9, X5, min(tax_y, 0.88), p_tax)
         net_y = tax_y + 0.12
-    add("Net Income", net_income, 10, X5, min(net_y, 0.97))
+    add("Net Income", net_income, 10, X5, min(net_y, 0.97), p_net_income)
 
     srcs, tgts, vals, lcolors = [], [], [], []
 
@@ -1827,7 +1850,7 @@ def _build_income_sankey(income_df, info):
     return fig
 
 
-def _build_balance_sheet_sankey(balance_df, info):
+def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY"):
     """Build a balance sheet Sankey with fixed positions -- no node crossing.
 
     All flows are reconciled so that parent = sum of children at every level.
@@ -1852,6 +1875,31 @@ def _build_balance_sheet_sankey(balance_df, info):
     deferred_rev      = _safe(balance_df, "Current Deferred Revenue")
     equity            = _safe(balance_df, "Stockholders Equity") or _safe(balance_df, "Total Stockholders Equity")
     retained          = _safe(balance_df, "Retained Earnings")
+
+    # --- Previous period values for % change labels ---
+    _p = lambda key: _safe_prev(balance_df, key)
+    prev_map = {
+        "Total Assets": _p("Total Assets"),
+        "Current Assets": _p("Current Assets"),
+        "Non-Current Assets": _p("Total Non Current Assets"),
+        "Cash": _p("Cash And Cash Equivalents"),
+        "ST Investments": _p("Other Short Term Investments"),
+        "Receivables": _p("Accounts Receivable") or _p("Receivables"),
+        "Inventory": _p("Inventory"),
+        "PPE": _p("Net PPE") or _p("Property Plant Equipment"),
+        "Goodwill": _p("Goodwill"),
+        "Intangibles": _p("Intangible Assets") or _p("Other Intangible Assets"),
+        "LT Investments": _p("Investments And Advances") or _p("Long Term Equity Investment"),
+        "Total Liabilities": _p("Total Liabilities Net Minority Interest") or _p("Total Liab"),
+        "Current Liab.": _p("Current Liabilities"),
+        "Non-Current Liab.": _p("Total Non Current Liabilities Net Minority Interest"),
+        "Accounts Payable": _p("Accounts Payable") or _p("Payables"),
+        "Short-Term Debt": _p("Current Debt") or _p("Short Long Term Debt"),
+        "Long-Term Debt": _p("Long Term Debt"),
+        "Deferred Rev.": _p("Current Deferred Revenue"),
+        "Equity": _p("Stockholders Equity") or _p("Total Stockholders Equity"),
+        "Retained Earnings": _p("Retained Earnings"),
+    }
 
     if total_assets == 0:
         return None
@@ -1901,7 +1949,13 @@ def _build_balance_sheet_sankey(balance_df, info):
         y = round(max(0.01, min(0.99, y)), 4)
         x = round(max(0.01, min(0.99, x)), 4)
         imap[name] = len(nodes)
-        nodes.append(f"{name}  {_fmt(val)}")
+        pv = prev_map.get(name, 0)
+        pct = _yoy(val, pv)
+        if pct is not None:
+            arrow = "\u2191" if pct >= 0 else "\u2193"
+            nodes.append(f"{name}  {_fmt(val)}  {arrow} {pct:+.1f}% {compare_label}")
+        else:
+            nodes.append(f"{name}  {_fmt(val)}")
         node_colors_list.append(color)
         node_x.append(x)
         node_y.append(y)
@@ -2437,7 +2491,7 @@ def render_sankey_page():
 
         st.divider()
 
-        fig = _build_income_sankey(income_df, info)
+        fig = _build_income_sankey(income_df, info, _compare_label)
         if fig:
 
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
@@ -2490,7 +2544,7 @@ def render_sankey_page():
 
         st.divider()
 
-        fig = _build_balance_sheet_sankey(balance_df, info)
+        fig = _build_balance_sheet_sankey(balance_df, info, _compare_label)
         if fig:
 
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
