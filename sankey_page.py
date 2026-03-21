@@ -1766,7 +1766,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             clr = "#16a34a" if pct >= 0 else "#dc2626"
             bg = "rgba(22,163,74,0.13)" if pct >= 0 else "rgba(220,38,38,0.13)"
             if not same_period:
-                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg))
+                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg, lw=len(f"{name}  {_fmt(val)}")))
         node_colors.append(colors[color_idx])
         node_x.append(x)
         node_y.append(y)
@@ -1848,12 +1848,14 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
     ))
     for p in node_pcts:
+        _lw = p.get("lw", 15) * 7.2 + 18
         fig.add_annotation(
             x=p["x"], y=1 - p["y"], xref="paper", yref="paper",
             text=p["text"], showarrow=False,
             font=dict(size=10, color=p["clr"], family="Inter, sans-serif"),
-            bgcolor=p["bg"], borderpad=3, bordercolor=p["clr"],
-            borderwidth=0.5, xanchor="right" if p["x"] > 0.85 else "left", yanchor="top", yshift=-8,
+            bgcolor=p["bg"], borderpad=5, bordercolor=p["bg"],
+            borderwidth=0, xanchor="left", yanchor="middle",
+            xshift=_lw, yshift=0,
         )
     fig.update_layout(height=900, margin=dict(l=10, r=10, t=10, b=20),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -1981,7 +1983,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             clr = "#16a34a" if pct >= 0 else "#dc2626"
             bg = "rgba(22,163,74,0.13)" if pct >= 0 else "rgba(220,38,38,0.13)"
             if not same_period:
-                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg))
+                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg, lw=len(f"{name}  {_fmt(val)}")))
         node_colors_list.append(color)
         node_x.append(x)
         node_y.append(y)
@@ -2129,12 +2131,14 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
     ))
     for p in node_pcts:
+        _lw = p.get("lw", 15) * 7.2 + 18
         fig.add_annotation(
             x=p["x"], y=1 - p["y"], xref="paper", yref="paper",
             text=p["text"], showarrow=False,
             font=dict(size=10, color=p["clr"], family="Inter, sans-serif"),
-            bgcolor=p["bg"], borderpad=3, bordercolor=p["clr"],
-            borderwidth=0.5, xanchor="right" if p["x"] > 0.85 else "left", yanchor="top", yshift=-8,
+            bgcolor=p["bg"], borderpad=5, bordercolor=p["bg"],
+            borderwidth=0, xanchor="left", yanchor="middle",
+            xshift=_lw, yshift=0,
         )
     fig.update_layout(height=900, margin=dict(l=10, r=10, t=10, b=20),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
