@@ -320,58 +320,6 @@ section[data-testid="stSidebar"] {
 }
 .nav-right .nav-signin:hover { background: #2563eb !important; box-shadow: 0 2px 8px rgba(59,130,246,0.4) !important; transform: translateY(-1px); }
 
-/* ---- Metric cards ---- */
-.sidebar-metrics {
-    background: linear-gradient(135deg, #1a1f2e, #0f1219);
-    border: 1px solid rgba(59,130,246,0.2);
-    border-radius: 10px;
-    padding: 10px 12px;
-    margin: 6px 0;
-}
-.sidebar-metrics .price-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding-bottom: 7px;
-    margin-bottom: 7px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-}
-.sidebar-metrics .price-label {
-    color: rgba(255,255,255,0.5);
-    font-size: 0.6rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-.sidebar-metrics .price-value {
-    color: #fff;
-    font-size: 1.15rem;
-    font-weight: 700;
-}
-.sidebar-metrics .metrics-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-}
-.sidebar-metrics .mini-metric {
-    text-align: center;
-    padding: 2px 0;
-}
-.sidebar-metrics .mini-metric:not(:last-child) {
-    border-right: 1px solid rgba(255,255,255,0.08);
-}
-.sidebar-metrics .mini-label {
-    color: rgba(255,255,255,0.4);
-    font-size: 0.55rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-bottom: 1px;
-}
-.sidebar-metrics .mini-value {
-    color: rgba(255,255,255,0.9);
-    font-size: 0.8rem;
-    font-weight: 600;
-}
 .more-info-link {
     color: var(--accent);
     font-size: 0.8rem;
@@ -1888,34 +1836,6 @@ with st.sidebar:
 
     st.markdown(f'<div style="display:flex;align-items:center;gap:10px;"><img src="{logo_src}" style="width:32px;height:32px;border-radius:4px;object-fit:contain;background:#fff;" onerror="this.style.display=\'none\'" alt="{ticker} logo"/><span style="font-size:1.4rem;font-weight:600;">{company_name}</span></div>', unsafe_allow_html=True)
 
-    # ---- Key metrics row ----
-    stock_price = info.get("current_price")
-    mcap = info.get("market_cap_fmt", "N/A")
-    pe = info.get("pe_ratio")
-    peg = info.get("peg_ratio")
-
-    st.markdown(f"""
-    <div class="sidebar-metrics">
-        <div class="price-row">
-            <span class="price-label">Stock Price</span>
-            <span class="price-value">{f'${stock_price:.2f}' if stock_price else 'N/A'}</span>
-        </div>
-        <div class="metrics-grid">
-            <div class="mini-metric">
-                <div class="mini-label">MCap</div>
-                <div class="mini-value">{mcap}</div>
-            </div>
-            <div class="mini-metric">
-                <div class="mini-label">P/E</div>
-                <div class="mini-value">{f'{pe:.2f}' if pe else 'N/A'}</div>
-            </div>
-            <div class="mini-metric">
-                <div class="mini-label">PEG</div>
-                <div class="mini-value">{f'{peg:.2f}' if peg else 'N/A'}</div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
     st.markdown("----")
 
