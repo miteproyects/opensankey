@@ -1921,8 +1921,9 @@ def _build_balance_sheet_sankey(balance_df, info):
     eq_items = []
     if equity > 0:
         if retained and retained > 0:
-            eq_items.append(("Retained Earnings", retained, C["retained"]))
-            other_eq = max(0, equity - retained)
+            re_show = min(retained, equity)
+            eq_items.append(("Retained Earnings", re_show, C["retained"]))
+            other_eq = max(0, equity - re_show)
             if other_eq > 0: eq_items.append(("Other Equity", other_eq, C["other"]))
         else:
             eq_items.append(("Total Equity", equity, C["equity"]))
