@@ -2066,11 +2066,11 @@ def render_sankey_page():
         .sankey-header {
             background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
             border-radius: 12px;
-            padding: 24px 28px 20px;
+            padding: 24px 28px;
             margin-bottom: 20px;
             border: 1px solid rgba(255,255,255,0.06);
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: space-between;
         }
         .sankey-header-left {
@@ -2323,7 +2323,7 @@ def render_sankey_page():
         st.markdown(f"""
         <div class="sankey-header">
             <div class="sankey-header-left">
-                <div class="sankey-title"><img src="https://financialmodelingprep.com/image-stock/{ticker.upper()}.png" class="sankey-company-logo" onerror="this.style.display='none'"> {company_name} Ã¢ÂÂ Sankey Diagram</div>
+                <div class="sankey-title"><img src="https://financialmodelingprep.com/image-stock/{ticker.upper()}.png" class="sankey-company-logo" onerror="this.style.display='none'"> {company_name} &mdash; Sankey Diagram</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
