@@ -1731,8 +1731,6 @@ st.markdown(f'''
         <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="/?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
     </div>
     <div class="nav-right">
-        <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'pricing' else ''}">Pricing</a>
-        <a href="/?page=login&ticker={ticker}" target="_self" class="nav-signin">Sign In</a>
     </div>
     <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
 </div>
@@ -1840,6 +1838,22 @@ with st.sidebar:
         transform: translateY(0px) !important;
     }
     </style>""", unsafe_allow_html=True)
+
+    # ── Pricing & Sign In row at the top of the sidebar ──
+    st.markdown(f"""
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin:-10px 0 12px 0; padding:0 2px;">
+        <a href="/?page=pricing&ticker={ticker}" target="_self"
+           style="color:#93c5fd; font-size:0.82rem; font-weight:600; text-decoration:none; letter-spacing:0.03em;">
+            Pricing
+        </a>
+        <a href="/?page=login&ticker={ticker}" target="_self"
+           style="background:#3b82f6; color:#fff; font-size:0.78rem; font-weight:600;
+                  padding:6px 18px; border-radius:8px; text-decoration:none; text-align:center;
+                  transition:background 0.2s;">
+            Sign In
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
 
     with st.form("ticker_form", clear_on_submit=False, border=False):
         new_ticker = st.text_input(
