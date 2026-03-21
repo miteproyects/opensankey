@@ -1802,7 +1802,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     with st.form("ticker_form", clear_on_submit=False, border=False):
-        col_input, col_btn = st.columns([2, 1], vertical_alignment="bottom")
+        col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
         with col_input:
             new_ticker = st.text_input(
                 "Ticker",
