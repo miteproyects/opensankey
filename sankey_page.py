@@ -2070,7 +2070,7 @@ def render_sankey_page():
             margin-bottom: 20px;
             border: 1px solid rgba(255,255,255,0.06);
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: space-between;
         }
         .sankey-header-left {
@@ -2084,6 +2084,7 @@ def render_sankey_page():
             letter-spacing: -0.02em;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 10px;
         }
         .sankey-compare-pill {
