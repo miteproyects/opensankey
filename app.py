@@ -1811,6 +1811,7 @@ with st.sidebar:
     with st.form("ticker_form", clear_on_submit=False, border=False):
         col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
         with col_input:
+            st.markdown("<style>.stTextInput label { white-space: nowrap !important; }</style>", unsafe_allow_html=True)
             new_ticker = st.text_input(
                 "Type a Ticker to Explore Data:",
                 value=st.session_state.ticker,
