@@ -2328,7 +2328,7 @@ def render_sankey_page():
     view_label = "Income Statement" if sankey_view == "income" else "Balance Sheet"
 
     # ââ Header row: title (HTML) + PDF download button (st.download_button) ââ
-    hdr_col, pdf_col = st.columns([0.87, 0.13])
+    hdr_col, pdf_col = st.columns([0.87, 0.13], vertical_alignment="center")
 
     with hdr_col:
         st.markdown(f"""
