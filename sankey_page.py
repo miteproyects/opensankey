@@ -2308,11 +2308,16 @@ def render_sankey_page():
     _pa = st.session_state.get("sankey_period_a", None)
     _pb = st.session_state.get("sankey_period_b", None)
     _sq2 = st.session_state.get("sankey_compare_quarterly", False)
+    _same_period = False
     if _pa and _pb and _pa != _pb:
         income_df = _reorder_df_for_comparison(income_df, _pa, _pb, _sq2)
         balance_df = _reorder_df_for_comparison(balance_df, _pa, _pb, _sq2)
         _compare_label = f"vs {_pb}"
         _compare_note = f"Comparing {_pa} vs {_pb}"
+    elif _pa and _pb and _pa == _pb:
+        _compare_label = f"vs {_pb}"
+        _compare_note = f"Comparing {_pa} vs {_pb}"
+        _same_period = True
     else:
         _compare_label = "YoY"
         _compare_note = None
@@ -2411,6 +2416,11 @@ def render_sankey_page():
         gp_prev      = _safe_prev(income_df, "Gross Profit")
         oi_prev      = _safe_prev(income_df, "Operating Income")
         ni_prev      = _safe_prev(income_df, "Net Income")
+        if _same_period:
+            rev_prev = revenue
+            gp_prev = gross_profit
+            oi_prev = op_income
+            ni_prev = net_income
         # Compute derived Gross Profit when XBRL tag is missing
         if gross_profit == 0 and revenue > 0 and cogs_kpi > 0:
             gross_profit = revenue - cogs_kpi
@@ -2466,6 +2476,11 @@ def render_sankey_page():
         tl_prev      = _safe_prev(balance_df, "Total Liabilities Net Minority Interest") or _safe_prev(balance_df, "Total Liab")
         eq_prev      = _safe_prev(balance_df, "Stockholders Equity") or _safe_prev(balance_df, "Total Stockholders Equity")
         cash_prev    = _safe_prev(balance_df, "Cash And Cash Equivalents")
+        if _same_period:
+            ta_prev = total_assets
+            tl_prev = total_liab
+            eq_prev = equity_val
+            cash_prev = cash_val
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Total Assets", _fmt(total_assets), _yoy_delta(total_assets, ta_prev, _compare_label))
