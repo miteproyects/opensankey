@@ -223,7 +223,7 @@ def render_profile_page(ticker: str) -> None:
         [data-testid="stHorizontalBlock"]:has([class*="st-key-period_"]) [data-testid="stColumn"] { flex: 0 0 30% !important; }
     }
     </style>""", unsafe_allow_html=True)
-    st.markdown('<div style="margin-top:11px"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-top:-9px"></div>', unsafe_allow_html=True)
 
     # Fetch all data in PARALLEL (EDGAR for financials, YF for market data)
     with ThreadPoolExecutor(max_workers=10) as pool:
