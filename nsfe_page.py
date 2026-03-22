@@ -1,9 +1,11 @@
 """
 NSFE – Manager Control Center (password-protected).
-Main menu with: Dashboard, Security, Settings
+Main menu with: Dashboard, Security, Settings, AI Assistant
 """
 
 import streamlit as st
+import os
+import json
 from datetime import datetime
 
 # ── Config ──────────────────────────────────────────────────────────────
@@ -588,12 +590,10 @@ def _render_dashboard():
         cls = "impl-done" if done else "impl-pending"
         items_html += f'<div class="impl-item"><span>{icon}</span><span class="{cls}">{i}. {text}</span></div>\n'
 
-    st.markdown(f"""
-    <div class="impl-order">
-        <h3>📋 Implementation Order</h3>
-        {items_html}
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="impl-order"><h3>📋 Implementation Order</h3>{items_html}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _render_security():
@@ -770,6 +770,145 @@ def _render_settings():
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# AI ASSISTANT TAB
+# ═══════════════════════════════════════════════════════════════════════
+
+_CHAT_SYSTEM_PROMPT = """You are the QuarterCharts AI Assistant — a helpful expert embedded in the NSFE Manager Control Center.
+
+You help the platform manager with:
+- Platform architecture questions (Streamlit, Railway, PostgreSQL, Firebase)
+- Security & compliance guidance (ISO 27001, SOC 2)
+- Implementation strategy for remaining steps
+- Code snippets and debugging for QuarterCharts
+- SRI (Ecuador tax) invoice processing questions
+- B2B SaaS pricing and go-to-market strategy
+
+Keep answers concise and actionable. Use code blocks when showing code.
+You are part of QuarterCharts — a financial visualization platform targeting $50K/year B2B SaaS.
+Tech stack: Streamlit + Plotly + Railway + PostgreSQL + Firebase Auth.
+"""
+
+
+def _render_chat():
+    """AI Assistant chat interface powered by Claude API."""
+
+    st.markdown("""
+    <div class="nsfe-header">
+        <h1>🤖 AI Command Center</h1>
+        <p>Claude-powered assistant &nbsp;·&nbsp; Ask anything about QuarterCharts</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── API Key check ──
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        st.warning("➠️ **Anthropic API key not configured.**")
+        st.markdown("""
+        <div class="step-card">
+            <h4 style="color:#F1F5F9;margin:0 0 12px;">Setup Instructions</h4>
+            <div style="color:#94A3B8;font-size:0.9rem;line-height:1.7;">
+                1. Go to <strong>console.anthropic.com</strong> → API Keys<br>
+                2. Create a new key<br>
+                3. In Railway dashboard → Variables, add:<br>
+                <code style="background:#1E293B;padding:4px 8px;border-radius:4px;color:#10B981;">ANTHROPIC_API_KEY=sk-ant-...</code><br>
+                4. Redeploy — the chat will activate automatically
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("---")
+        st.markdown("#### 💬 Preview Mode (no API key)")
+        st.info("You can still use this interface to draft messages. They will be processed once the API key is set.")
+
+    # ── Chat history in session state ──
+    if "nsfe_chat_history" not in st.session_state:
+        st.session_state.nsfe_chat_history = []
+
+    # ── Display conversation ──
+    for msg in st.session_state.nsfe_chat_history:
+        with st.chat_message(msg["role"], avatar="🧑‍💼" if msg["role"] == "user" else "🤖"):
+            st.markdown(msg["content"])
+
+    # ── Chat input ──
+    user_input = st.chat_input("Ask the AI assistant anything about QuarterCharts...")
+
+    if user_input:
+        # Add user message
+        st.session_state.nsfe_chat_history.append({"role": "user", "content": user_input})
+        with st.chat_message("user", avatar="🧑‍💼"):
+            st.markdown(user_input)
+
+        # Generate response
+        with st.chat_message("assistant", avatar="🤖"):
+            if api_key:
+                try:
+                    import anthropic
+                    client = anthropic.Anthropic(api_key=api_key)
+
+                    messages = [
+                        {"role": m["role"], "content": m["content"]}
+                        for m in st.session_state.nsfe_chat_history
+                    ]
+
+                    with st.spinner("Thinking..."):
+                        response = client.messages.create(
+                            model="claude-sonnet-4-20250514",
+                            max_tokens=2048,
+                            system=_CHAT_SYSTEM_PROMPT,
+                            messages=messages,
+                        )
+
+                    assistant_msg = response.content[0].text
+                    st.markdown(assistant_msg)
+                    st.session_state.nsfe_chat_history.append(
+                        {"role": "assistant", "content": assistant_msg}
+                    )
+
+                except ImportError:
+                    err = "❌ `anthropic` package not installed. Add `anthropic` to requirements.txt and redeploy."
+                    st.error(err)
+                    st.session_state.nsfe_chat_history.append({"role": "assistant", "content": err})
+
+                except Exception as e:
+                    err = f"❌ API Error: {str(e)}"
+                    st.error(err)
+                    st.session_state.nsfe_chat_history.append({"role": "assistant", "content": err})
+            else:
+                placeholder_msg = ("💡 **API key not configured yet.** Your message has been saved. "
+                                   "Once you add `ANTHROPIC_API_KEY` to Railway environment variables, "
+                                   "the AI assistant will respond in real-time.\n\n"
+                                   f"**Your message:** {user_input}")
+                st.markdown(placeholder_msg)
+                st.session_state.nsfe_chat_history.append(
+                    {"role": "assistant", "content": placeholder_msg}
+                )
+
+    # ── Sidebar: Quick prompts ──
+    st.markdown("---")
+    st.markdown("#### ⚡ Quick Prompts")
+    quick_prompts = [
+        "What's the next priority step to implement?",
+        "Generate the code for Step 5A (wire auth into app.py)",
+        "What security issues should I fix first?",
+        "Help me set up Firebase project for QuarterCharts",
+        "Draft the SRI invoice XML parser",
+        "What do I need for ISO 27001 certification?",
+    ]
+    cols = st.columns(2)
+    for i, prompt in enumerate(quick_prompts):
+        with cols[i % 2]:
+            if st.button(prompt, key=f"qp_{i}", use_container_width=True):
+                st.session_state.nsfe_chat_history.append({"role": "user", "content": prompt})
+                st.rerun()
+
+    # ── Clear chat ──
+    st.markdown("---")
+    if st.button("🗑️ Clear Chat History", type="secondary"):
+        st.session_state.nsfe_chat_history = []
+        st.rerun()
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # MAIN ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════════
 def render_nsfe_page():
@@ -800,10 +939,11 @@ def render_nsfe_page():
         return
 
     # ── Main Menu (Streamlit tabs) ──
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "📋 Dashboard",
         "🛡️ Security",
         "⚙️ Settings",
+        "🤖 AI Assistant",
     ])
 
     with tab1:
@@ -814,6 +954,9 @@ def render_nsfe_page():
 
     with tab3:
         _render_settings()
+
+    with tab4:
+        _render_chat()
 
     # Footer
     st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
