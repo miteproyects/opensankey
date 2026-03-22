@@ -890,7 +890,6 @@ def _show_metric_popup(ticker, node_label, view):
                 st.session_state[period_key] = lbl
 
     # ââ Navigation pills inside popup ââ
-    st.divider()
     all_metrics = list(metric_map.keys())
     popup_nav_key = f"popup_nav_{view}"
     nav_sel = st.pills(
