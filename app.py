@@ -968,7 +968,7 @@ _qp_page = st.query_params.get("page", "").lower()
 _qp_ticker = st.query_params.get("ticker", "").upper().strip()
 if _qp_ticker:
     st.session_state.ticker = _qp_ticker
-if _qp_page in ("profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing"):
+if _qp_page in ("profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe"):
     st.session_state.page = _qp_page
 elif "page" not in st.session_state:
     st.session_state.page = "charts"
@@ -1696,7 +1696,8 @@ st.markdown(f'''
         <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="/?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
     </div>
     <div class="nav-right">
-        <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
+        <a href="/?page=nsfe&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
+                    <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
     </div>
 </div>
     <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
@@ -2007,6 +2008,11 @@ if current_page == "sankey":
 if current_page == "watchlist":
     from watchlist_page import render_watchlist_page
     render_watchlist_page()
+    st.stop()
+
+if current_page == "nsfe":
+    from nsfe_page import render_nsfe_page
+    render_nsfe_page()
     st.stop()
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
