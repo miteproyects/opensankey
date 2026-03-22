@@ -198,7 +198,7 @@ section[data-testid="stSidebar"] {
 /* Ã¢ÂÂÃ¢ÂÂ CSS-driven expand-button visibility (no JS needed) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 /* When sidebar is collapsed, show the nav-bar expand button via :has() */
 :has([data-testid="stSidebar"][aria-expanded="false"]) .nav-expand-btn {
-    display: block !important;
+    display: inline-flex !important;
 }
 /* When sidebar is expanded, ensure the expand button hides */
 :has([data-testid="stSidebar"][aria-expanded="true"]) .nav-expand-btn {
@@ -233,20 +233,24 @@ section[data-testid="stSidebar"] {
 .nav-expand-btn {
     display: none;
     position: fixed;
-    top: 0.375rem;
-    right: 0.375rem;
+    top: 1rem;
+    right: calc(0.375rem + 1px);
     z-index: 1000000;
-    background: #f0f2f6;
-    border: 1px solid #d0d2d6;
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
     border-radius: 8px;
-    padding: 6px 12px;
-    color: #31333F;
-    font-size: 1rem;
+    padding: 0;
+    color: rgba(33, 37, 41, 0.6);
+    font-size: 24px;
     cursor: pointer;
     transition: all 0.2s;
-    line-height: 1;
+    line-height: 24px;
+    align-items: center;
+    justify-content: center;
 }
-.nav-expand-btn:hover { background: #d0d2d6; }
+.nav-expand-btn:hover { background: rgba(33, 37, 41, 0.1); }
 .nav-links {
     display: flex;
     align-items: center;
@@ -1695,7 +1699,7 @@ st.markdown(f'''
         <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
     </div>
 </div>
-    <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#187;</button>
+    <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
 ''', unsafe_allow_html=True)
 
 # Ã¢ÂÂÃ¢ÂÂ Sidebar expand click handler (must load with nav bar, not at page end) Ã¢ÂÂÃ¢ÂÂ
