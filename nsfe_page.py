@@ -411,13 +411,14 @@ def _progress_bar(pct: int, color: str, tip: str = "") -> str:
     )
 
 
-def _metric_card(value, label, color="#F8FAFC"):
+def _metric_card(value, label, color="#F8FAFC", tip=""):
+    tip_html = _info_tip(tip) if tip else ""
     return (
         f'<div style="text-align:center;padding:16px 12px;background:#0F172A;'
         f'border:1px solid #1E293B;border-radius:12px;min-width:100px;">'
         f'<div style="font-size:2rem;font-weight:700;color:{color};">{value}</div>'
-        f'<div style="font-size:0.75rem;color:#64748B;text-transform:uppercase;'
-        f'letter-spacing:1px;margin-top:4px;">{label}{tip_html}</div></div>'
+        f'<div style="font-size:0.85rem;color:#94A3B8;margin-top:4px;">{label}{tip_html}</div>'
+        f'</div>'
     )
 
 
