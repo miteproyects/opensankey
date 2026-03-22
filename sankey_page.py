@@ -1,4 +1,4 @@
-"""
+""" 
 Sankey diagram page â Income Statement & Balance Sheet visualizations.
 Fixed-position nodes with vivid 11-color palette, KPI metric cards,
 and Pretax Income waterfall matching QuarterCharts deployed style.
