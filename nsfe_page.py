@@ -59,34 +59,413 @@ STEPS = [
              "details": "ABAC · Custom roles · Temporary access · Permission delegation · IP restrictions"},
         ],
     },
-��[H����]H���[��\�ۛY[�	�\�[Y[����X�ۈ���'������܈���эNQL�����]\Ȏ��\�X[�����ܙ\�Ȏ�����X��\Ȏ�ȚY���H���[YH���[��\�ۛY[��\�XX�\ȋ��]\Ȏ��[�[�ȋ��]Z[Ȏ���T�P�T�W�ԑQS�PS��T�P�T�W��ӑ�Q�UP�T�W�T�ۈ�Z[�^H�K�ȚY�������[YH����Z[�^H\�[Y[����]\Ȏ��ۙH���]Z[Ȏ��]]�Y]X��\]Z\�[Y[�˝��ܙT�S[��[YH�ڙX�UP�T�W�T�]]�[[��Y�K�ȚY���ȋ��[YH����]\�H�[ۜȋ��]\Ȏ���]\�H���]Z[Ȏ�����\�0���\��[ћK�[�ԙ[�\�0���]X�X�[ۜ��K��0���Y�[��[��0���Xܙ]�X[�Y�\�0���\��H�XZ[����K�K�K���[H��K��]H���\[�Yܘ][ۈ
-\�JH���X�ۈ���'�%ȋ����܈����P�NH����]\Ȏ��[�[�ȋ����ܙ\�Ȏ����X��\Ȏ�ȚY���PH���[YH����\�H]][��XZ[�\���]\Ȏ��[�[�ȋ��]Z[Ȏ��[\ܝ]]��[�[\�[�]�\��[ۈ�]K\]H�]��\���]H���[���X�Y�\��]�\]Z\�W�]]
+    {
+        "num": 4,
+        "title": "Environment & Deployment",
+        "icon": "🚀",
+        "color": "#F59E0B",
+        "status": "partial",
+        "progress": 60,
+        "substeps": [
+            {"id": "4A", "name": "Environment Variables", "status": "pending",
+             "details": "FIREBASE_CREDENTIALS, FIREBASE_CONFIG, DATABASE_URL on Railway"},
+            {"id": "4B", "name": "Railway Deployment", "status": "done",
+             "details": "Auto-detect requirements.txt, PostgreSQL in same project, DATABASE_URL auto-linked"},
+            {"id": "4C", "name": "Future Options", "status": "future",
+             "details": "Docker · Vercel/Fly.io/Render · GitHub Actions CI/CD · Staging env · Secrets Manager · Custom domain SSL"},
+        ],
+    },
+    {
+        "num": 5,
+        "title": "App Integration (app.py)",
+        "icon": "🔗",
+        "color": "#EC4899",
+        "status": "pending",
+        "progress": 0,
+        "substeps": [
+            {"id": "5A", "name": "Wire Auth into Main App", "status": "pending",
+             "details": "Import auth/db modules, init session state, update nav bar, route /login, protect pages with require_auth()"},
+            {"id": "5B", "name": "Future Options", "status": "future",
+             "details": "Middleware decorator · FastAPI backend · WebSocket session sync"},
+        ],
+    },
+    {
+        "num": 6,
+        "title": "Payment & Billing (Stripe)",
+        "icon": "💳",
+        "color": "#6366F1",
+        "status": "deferred",
+        "progress": 0,
+        "substeps": [
+            {"id": "6A", "name": "Stripe Integration", "status": "deferred",
+             "details": "Stripe Checkout, Customer Portal, webhooks, link to company record, plan enforcement"},
+            {"id": "6B", "name": "Pricing Tiers", "status": "deferred",
+             "details": "Free (1 user) · Basic ($X/mo, 5 users) · Pro ($X/mo, 25 users) · Enterprise (unlimited)"},
+            {"id": "6C", "name": "Implementation Files", "status": "deferred",
+             "details": "billing.py · billing_page.py · webhooks.py · DB updates · RBAC plan gating"},
+            {"id": "6D", "name": "Future Options", "status": "future",
+             "details": "Stripe Elements · Metered billing · Annual discount · LATAM payments (Kushki) · Invoice billing · Free trial"},
+        ],
+    },
+    {
+        "num": 7,
+        "title": "Data Upload & Processing",
+        "icon": "📤",
+        "color": "#14B8A6",
+        "status": "pending",
+        "progress": 0,
+        "substeps": [
+            {"id": "7A", "name": "SRI Invoice Upload", "status": "pending",
+             "details": "XML/CSV upload UI, SRI electronic invoice parser, RUC validation, store with company_id, audit log"},
+            {"id": "7B", "name": "Financial Data Processing", "status": "pending",
+             "details": "Transaction categorization, tax summaries (IVA/retenciones/ICE), aggregation, multi-format support"},
+            {"id": "7C", "name": "Future Options", "status": "future",
+             "details": "Direct SRI API · OCR for scanned invoices · Bank statement import · ML auto-categorization · Real-time sync · Rules engine"},
+        ],
+    },
+    {
+        "num": 8,
+        "title": "Dashboard & Visualization",
+        "icon": "📊",
+        "color": "#F97316",
+        "status": "partial",
+        "progress": 40,
+        "substeps": [
+            {"id": "8A", "name": "Enhanced Charts", "status": "partial",
+             "details": "Sankey diagrams ✓ · Stock charts ✓ · Invoice volume (TODO) · Tax dashboard (TODO) · Supplier breakdown (TODO)"},
+            {"id": "8B", "name": "Future Options", "status": "future",
+             "details": "Embeddable dashboards · Scheduled email reports · Custom dashboard builder · AI insights (Claude API) · Export · Comparison mode"},
+        ],
+    },
+    {
+        "num": 9,
+        "title": "Security & Compliance",
+        "icon": "🛡️",
+        "color": "#EF4444",
+        "status": "partial",
+        "progress": 50,
+        "substeps": [
+            {"id": "9A", "name": "Implemented Measures", "status": "done",
+             "details": "Firebase password storage, JWT verification, parameterized SQL, session timeout, password strength, audit log, RBAC, multi-tenant"},
+            {"id": "9B", "name": "ISO 27001 / SOC 2 Roadmap", "status": "pending",
+             "details": "Security policy · Risk assessment · Access control docs · Incident response · BCP · Vendor assessment · Pen testing · Training"},
+            {"id": "9C", "name": "Future Options", "status": "future",
+             "details": "WAF · Rate limiting · CAPTCHA · Security headers · Vulnerability scanning · Data residency · Backup testing"},
+        ],
+    },
+    {
+        "num": 10,
+        "title": "Team & Admin Features",
+        "icon": "⚙️",
+        "color": "#78716C",
+        "status": "pending",
+        "progress": 0,
+        "substeps": [
+            {"id": "10A", "name": "Team Management UI", "status": "pending",
+             "details": "Invite by email, role assignment dropdown, member list with badges, remove/deactivate, ownership transfer"},
+            {"id": "10B", "name": "Admin Dashboard", "status": "pending",
+             "details": "Activity overview, audit log viewer, company settings, usage statistics"},
+            {"id": "10C", "name": "Future Options", "status": "future",
+             "details": "SSO/SAML enterprise · API keys · White-label branding · Multi-language (ES/EN) · Notification system"},
+        ],
+    },
+]
 
-H�K�ȚY���P����[YH����]\�H�[ۜȋ��]\Ȏ���]\�H���]Z[Ȏ��ZY]�\�HX�ܘ]܈0���\�TH�X��[�0���X�����]�\��[ۈ�[�ȟK�K�K���[H�����]H���^[Y[�	��[[��
-��\JH���X�ۈ���'�ȋ����܈���͍͌��H����]\Ȏ��Y�\��Y�����ܙ\�Ȏ����X��\Ȏ�ȚY����H���[YH�����\H[�Yܘ][ۈ���]\Ȏ��Y�\��Y���]Z[Ȏ����\H�X���]�\��Y\�ܝ[�X�����[�����\[�H�X�ܙ[�[��ܘ�[Y[��K�ȚY��������[YH����X�[��Y\�ȋ��]\Ȏ��Y�\��Y���]Z[Ȏ����YH
-H\�\�H0���\�X�
-	�[�H\�\��H0����
-	�[��H\�\��H0��[�\��\�H
-[�[Z]Y
-H�K�ȚY����ȋ��[YH���[\[Y[�][ۈ�[\ȋ��]\Ȏ��Y�\��Y���]Z[Ȏ���[[�˜H0���[[���Y�K�H0���X����˜H0���\]\�0����P�[��][�ȟK�ȚY�������[YH����]\�H�[ۜȋ��]\Ȏ���]\�H���]Z[Ȏ����\H[[Y[��0��Y]\�Y�[[��0��[��X[\���[�0��USH^[Y[��
-�\��JH0��[���X�H�[[��0����YH�X[�K�K�K���[H�����]H���]H\�Y	����\��[�ȋ��X�ۈ���'�������܈����M�M�����]\Ȏ��[�[�ȋ����ܙ\�Ȏ����X��\Ȏ�ȚY����H���[YH���ԒH[���X�H\�Y���]\Ȏ��[�[�ȋ��]Z[Ȏ��S��Ո\�YRKԒH[X��ۚX�[���X�H\��\��P��[Y][ۋ�ܙH�]��\[�W�Y]Y]�ȟK�ȚY���Ј���[YH����[�[��X[]H���\��[�ȋ��]\Ȏ��[�[�ȋ��]Z[Ȏ���[��X�[ۈ�]Y�ܚ^�][ۋ^�[[X\�Y\�
-U�Kܙ][��[ۙ\��P�JKY�ܙY�][ۋ][KY�ܛX]�\ܝ�K�ȚY����ȋ��[YH����]\�H�[ۜȋ��]\Ȏ���]\�H���]Z[Ȏ��\�X�ԒHTH0���Ԉ�܈��[��Y[���X�\�0���[���][Y[�[\ܝ0��S]]�X�]Y�ܚ^�][ۈ0���X[][YH�[��0���[\�[��[�H�K�K�K���&�V�#����'F�F�R#�$F6�&�&Bbf�7VƗ�F���"��&�6��#�/	�8�"��&6���"#�"4c�s3b"��'7FGW2#�''F��"��'&�w&W72#�C��'7V'7FW2#����&�B#�#�"�&��R#�$V��6VB6�'G2"�'7FGW2#�''F��"��&FWF��2#�%6�W�F�w&�2)�2+r7F�6�6�'G2)�2+r��f��6Rf��V�R�D�D�+rF�F6�&�&B�D�D�+r7WƖW"'&V�F�v��D�D�'����&�B#�#�""�&��R#�$gWGW&R�F���2"�'7FGW2#�&gWGW&R"��&FWF��2#�$V�&VFF&�RF6�&�&G2+r66�VGV�VBV���&W�'G2+r7W7F��F6�&�&B'V��FW"+r���6�v�G2�6�VFR��+rW��'B+r6��&�6����FR'�����������&�V�#����'F�F�R#�%6V7W&�G�b6��Ɩ�6R"��&�6��#�/	�����"��&6���"#�"4TcCCCB"��'7FGW2#�''F��"��'&�w&W72#�S��'7V'7FW2#����&�B#�#�"�&��R#�$���V�V�FVB�V7W&W2"�'7FGW2#�&F��R"��&FWF��2#�$f�&V&6R77v�&B7F�&vR��uBfW&�f�6F����&�WFW&��VB5��6W76���F��V�WB�77v�&B7G&V�wF��VF�B��r�$$2��V�F��FV��B'����&�B#�#�""�&��R#�$�4�#s�4�2"&�F�"�'7FGW2#�'V�F��r"��&FWF��2#�%6V7W&�G��Ɩ7�+r&�6�76W76�V�B+r66W726��G&��F�72+r��6�FV�B&W7��6R+r$5+rfV�F�"76W76�V�B+rV�FW7F��r+rG&���r'����&�B#�#�2"�&��R#�$gWGW&R�F���2"�'7FGW2#�&gWGW&R"��&FWF��2#�%tb+r&FRƖ֗F��r+r4D4�+r6V7W&�G��VFW'2+rgV��W&&�ƗG�66���r+rFF&W6�FV�7�+r&6�WFW7F��r'�����������&�V�#���'F�F�R#�%FV�bF֖�fVGW&W2"��&�6��#�.)�����"��&6���"#�"3s�sd2"��'7FGW2#�'V�F��r"��'&�w&W72#���'7V'7FW2#����&�B#�#"�&��R#�%FV���vV�V�BT�"�'7FGW2#�'V�F��r"��&FWF��2#�$��f�FR'�V����&��R76�v��V�BG&�F�v���V�&W"Ɨ7Bv�F�&FvW2�&V��fR�FV7F�fFR��v�W'6��G&�6fW"'����&�B#�#""�&��R#�$F֖�F6�&�&B"�'7FGW2#�'V�F��r"��&FWF��2#�$7F�f�G��fW'f�Wr�VF�B��rf�WvW"�6���6WGF��w2�W6vR7FF�7F�72'����&�B#�#2"�&��R#�$gWGW&R�F���2"�'7FGW2#�&gWGW&R"��&FWF��2#�%54��4��V�FW'&�6R+r��W�2+rv��FR��&V�'&�F��r+r�V�F����wVvR�U2�T�+r��F�f�6F���7�7FV�'���������Р��FVb�7FGW5�&FvR�7FGW3�7G"���7G#��""%&WGW&���D��&FvRf�"F6�7FGW2�"" �����&F��R#��.)�RF��R"�"3#��"�"4T4dDcR"���''F��#��/	�Jr��&�w&W72"�"4cS�S""�"4ddd$T""���'V�F��r#��.(�2V�F��r"�"3d#s#�"�"4c4cDcb"���&FVfW'&VB#��.(�N���FVfW'&VB"�"3c3cdc"�"4TTc$db"���&gWGW&R#��/	�J�gWGW&R"�"4�STcr"�"4dcTdb"���Т�&V��fr�&r���vWB�7FGW2��#�"�"3ccb"�"4TTR"���&WGW&���bs�7�7G��S�&F�7�����Ɩ�R�&��6��FF��s�'���&�&FW"�&F�W3�'��p�bvf��B�6��S��s�&VӶf��B�vV�v�C�c�6���#��fwӶ&6�w&�V�C��&wӲp�bv&�&FW#��6�ƖB�fw�##�#��&V����7��p�����FVb�&�w&W75�&"�7C���B�6���#�7G"���7G#��""%&WGW&�6���&�w&W72&"�D��7G&��r�"" �&WGW&���bs�F�b7G��S�&&6�w&�V�C�3S#�4#�&�&FW"�&F�W3�g���V�v�C����v�GF��S��&v��g��#�p�bs�F�b7G��S�&&6�w&�V�C��6���'ӷv�GF���7G�S��V�v�C�S�&�&FW"�&F�W3�g��p�bwAɅ�ͥѥ���ݥ�Ѡ���́��͔��𽑥��𽑥���(�����(()����ɕ����}�͙�}�������(�������I����ȁѡ������ݽɐ��ɽѕ�ѕ��9M��ɽ���Ё��͡���ɐ����((�������R�R �%����Ё�������展̃�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R (�����й��ɭ��ݸ����(�������屔�(������������M�ɕ����Ё��ɽ�����ȁ������ȁ�������(����m��ф�ѕ�ѥ����M�����ȉt�쁑������聹����������х����(����͕�ѥ��m��ф�ѕ�ѥ����5����t�����؁���������ѽ����������х����((������͙�������ȁ�(�������������ɽչ�聱����ȵ�Ʌ����Р��Ց�������������������������������������(����������ɑ�������ͽ������������(����������ɑ�ȵɅ����������(��������������������������(����������ɝ������ѽ�������(��������ѕ�е�����聍��ѕ��(�����(������͙�������ȁ�ā�(�������������耍��(�����������еͥ���ɕ��(����������ɝ�������������(�����������ѕȵ�������耴������(�����(������͙�������ȁ���(�������������而�����(�����������еͥ���ɕ��(����������ɝ�����(�����(������͙���х�́�(���������������聙����(�����������ѥ�䵍��ѕ��聍��ѕ��(�����������������(����������ɝ���ѽ�������(�������������Ʌ���Ʌ��(�����(������͙���хЁ�(��������ѕ�е�����聍��ѕ��(�����(������͙���хЀ��մ��(�����������еͥ��ĸ�ɕ��(�����������еݕ���������(�������������耍��(�����(������͙���хЀ������(�����������еͥ�����ɕ��(�������������而������(��������ѕ�е�Ʌ�͙�ɴ�����ɍ�͔�(�����������ѕȵ������������(�����(������ѕ����ɐ��(�������������ɽչ�而�����(����������ɑ�������ͽ����������(����������ɑ�ȵɅ����������(��������������������������(����������ɝ������ѽ�������(���������Ʌ�ͥѥ��聉�ɑ�ȵ����Ȁ�����(�����(������ѕ����ɐ顽ٕȁ�(����������ɑ�ȵ�����而�������(�����(������ѕ�������ȁ�(���������������聙����(���������������ѕ��聍��ѕ��(�����������������(����������ɝ������ѽ������(�����(������ѕ��������(�����������еͥ��ĸ�ɕ��(��������ݥ�Ѡ������(��������������������(���������������聙����(���������������ѕ��聍��ѕ��(�����������ѥ�䵍��ѕ��聍��ѕ��(����������ɑ�ȵɅ����������(������������͡ɥ�����(�����(������ѕ��ѥѱ���(�����������еͥ��ĸ��ɕ��(�����������еݕ���������(�������������耍����(����������ɝ�����(�����(������ѕ���մ��(�����������еͥ������ɕ��(�������������而������(�����������еݕ���������(�����(������Չ�ѕ���(�������������ɽչ�而�����(����������ɑ�ȵɅ����������(��������������������������(����������ɝ���������(�����(������Չ�ѕ��������(�����������еͥ������ɕ��(�����������еݕ���������(�������������耍	���(����������ɝ������ѽ������(�����(������Չ�ѕ����х����(�����������еͥ������ɕ��(�������������而������(��������������������ĸ��(�����(�����������ɑ�ȁ�(�������������ɽչ�而�����(����������ɑ�������ͽ����������(����������ɑ�ȵɅ����������(���������������������(����������ɝ���ѽ�������(�����(�����������ɑ�ȁ�́�(�������������耍����(����������ɝ��������������(�����������еͥ��ĸ�ɕ��(�����(�����������ѕ���(���������������聙����(���������������ѕ��聍��ѕ��(�����������������(��������������������������(����������ɑ�ȵɅ���������(����������ɝ���������(�����������еͥ�����ɕ��(�������������耍	���(�����(�����������ѕ��Ѡ��������ٕ����(�������������ɽչ�而�������(�����(���������������쁍����而�������(������������������쁍����而�������(�������������х���ȁ�(���������������聙����(�����������൑�ɕ�ѥ��聍��յ��(���������������ѕ��聍��ѕ��(�����������ѥ�䵍��ѕ��聍��ѕ��(���������������������٠�(�����(����������������(�����������еͥ���ɕ��(����������ɝ������ѽ�������(�����(����������ѥѱ���(�����������еͥ��ĸ�ɕ��(�����������еݕ���������(�������������耍����(����������ɝ������ѽ������(�����(�����������Ո��(�����������еͥ�����ɕ��(�������������而������(����������ɝ������ѽ�������(�����(�������屔�(���������չͅ��}�����}�ѵ��Q�Ք�((�������R�R �A���ݽɐ��є��R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R (���������Ё�й͕�ͥ��}�хє���Р��͙�}��Ѡ�����͔��(���������й��ɭ��ݸ����(���������؁�����􉱽������х���Ȉ�(�������������؁�����􉱽����������~RH𽑥��(�������������؁�����􉱽���ѥѱ���9M��P�I���ɥ�ѕ��ɕ�𽑥��(�������������؁�����􉱽����Ո���ѕȁѡ���ɽ���Ё����ݽɐ�Ѽ����ѥ�Ք𽑥��(��������𽑥��(�������������չͅ��}�����}�ѵ��Q�Ք�((�����������İ����Ȱ����̀��й���յ�̡lİ�İ��t�(��������ݥѠ������(�������������ݐ���йѕ��}����Р�A���ݽɐ������������ݽɐ�������͙�}�ݐ��(���������������������������������������������ѕȁ����ݽɓ����(�������������������������������������}٥ͥ������􉍽����͕���(����������������й���ѽ���U�������͡���ɐ����͕}���х����}ݥ�Ѡ�Q�Ք��������ɥ���䈤�(��������������������ݐ���}AMM]=I�(���������������������й͕�ͥ��}�хє��͙�}��Ѡ��Q�Ք(���������������������йɕ�ո��(������������������͔�(���������������������й��ɽȠ�%����ɕ�Ё����ݽɐ��Q�䁅�������(��������ɕ��ɸ�����ѽ����ɔ�չѥ����ѡ��ѥ��ѕ�(�8� 8� \���\�XY\�8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� �ۙW���[�H�[JH�܈�[��T�Y��Ȝ�]\ȗHOH�ۙH�B�\�X[���[�H�[JH�܈�[��T�Y��Ȝ�]\ȗHOH�\�X[�B�[�[�����[�H�[JH�܈�[��T�Y��Ȝ�]\ȗHOH�[�[�ȊB�Y�\��Y���[�H�[JH�܈�[��T�Y��Ȝ�]\ȗHOH�Y�\��Y�B�ݙ\�[��H�[J�Ȝ��ܙ\�ȗH�܈�[��T�H��[��T�B����X\���ۊ�����]��\��H��ٙKZXY\����O�]X\�\��\��8�%\�H�\���\��O����[[\[Y[�][ۈ��YX\	�����ɛ����L�\�	�����ɛ�����ݙ\�[��IHݙ\�[��ܙ\�����]��[OH�X^]�Y��X\��[��M�]]�ȏ������ܙ\��ؘ\�ݙ\�[��	��Ў����_B��]���]��\��H��ٙK\�]ȏ��]��\��H��ٙK\�]��]��\��H��[H��[OH���܎��L�NNȏ��ۙW���[�O�]��]��\��H������\]Y�]���]���]��\��H��ٙK\�]��]��\��H��[H��[OH���܎�эNQL�ȏ��\�X[���[�O�]��]��\��H����[���ܙ\���]���]���]��\��H��ٙK\�]��]��\��H��[H��[OH���܎�͐�̎ȏ��[�[�����[�O�]��]��\��H����[�[���]���]���]��\��H��ٙK\�]��]��\��H��[H��[OH���܎�͍͌��Nȏ��Y�\��Y���[�O�]��]��\��H����Y�\��Y�]���]����]����]������[��Y�W�[���[U�YJB���8� 8� �\�\��8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� ��܈�\[��T΂��Y�HH��]\�ؘY�J�\Ȝ�]\ȗJB��\�H���ܙ\��ؘ\��\Ȝ��ܙ\�ȗK�\Ș��܈�JB����X\���ۊ�����]��\��H��\X�\����]��\��H��\ZXY\����]��\��H��\ZX�ۈ��[OH��X��ܛ�[����\����܉�_L��ȏ���\��X�ۉ�_O�]���]����[��\��H��\[�[H���T�\�۝[I�O��[���]��\��H��\]]H����\��]I�_O�]����]���]��[OH�X\��[�[Y��]]�ȏ�ؘY�_O�]����]���ؘ\�B��]������[��Y�W�[���[U�YJB���^[�X�H�X��\�]��^[�\����Y]��X�\����܈�\��\�۝[I�_H�^[�YQ�[�JN���܈�X�[��\Ȝ�X��\ȗN���X�ؘY�HH��]\�ؘY�J�X�Ȝ�]\ȗJB���X\���ۊ�����]��\��H��X��\���]��[OH�\�^N��^�[YۋZ][\Θ�[�\�ڝ\�Y�KX�۝[���X�KX�]�Y[�ȏ���[��\��H��X��\[�[YH����X���Y	�_K���X��ۘ[YI�_O��[�����X�ؘY�_B��]���]��\��H��X��\Y]Z[����X���]Z[��_O�]����]������[��Y�W�[���[U�YJB���8� 8� [\[Y[�][ۈܙ\�8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� �[\H
-�YK�]]�H8�%�\�X�\�H]]�X��[��K�
-�YK�]X�\�K�H8�%��ܙT�S]X�\�H^Y\��K�
-�YK���X˜H8�%��KX�\�YX��\���۝���K�
-�YK���[��Y�K�H8�%]]RH�K�
-�YK��\]Z\�[Y[�˝8�%\]Y\[�[��Y\ȊK�
-�YK��UT�UU�Y8�%�]\��[Y[�][ۈ�K�
-�[�K�[�Yܘ]H]][��\�H8�%�\�H]�\�][����]\��K�
-�[�K��\�X�\�H�ڙX�ܙX][ۈ8�%�]\X�X[�\�X�\�H�ڙX��K�
-�[�K��Z[�^H��ܙT�S8�%ܙX]H[��ۛ�X�]X�\�H�K�
-�[�K�\�[�]�Y[�]]���8�%��[��Y۝\����H����\��[ۈ[Y[�]�K�
-�[�K�]H\�Y\[[�H8�%ԒH[���X�H\��\�[��ܘY�H�K�
-�[�K�[�[��Y\���\��8�%�[�[��X[�\�X[^�][ۜ����H\�YY]H�K�
-�[�K�X[HX[�Y�[Y[�RH8�%[��]HY[X�\��\��Yۈ��\ȊK�
-�[�K���\H�[[��8�%^[Y[�[�Yܘ][ۈ�K�
-�[�K��X�\�]H\�[�[��8�%�]H[Z][���T�K�X�\�]HXY\�ȊK�
-�[�K�T����H�\\�][ۈ8�%��[Y[�][ۋ�X�Y\�]Y]�XY[�\�ȊK�B��][\��[H����܈K
-ۙK^
-H[�[�[Y\�]J[\JN��X�ۈH���H�Y�ۙH[�H��'����H�[\YۙH�Y�ۙH[�H�[\\[�[�Ȃ�][\��[
-�H��]��\��H�[\Z][H���[���X�۟O��[���[��\��H����H���_K��^O��[���]������X\���ۊ�����]��\��H�[\[ܙ\����ϼ'���[\[Y[�][ۈܙ\��ς��][\��[B��]������[��Y�W�[���[U�YJB���8� 8� ���\��X�\�8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� 8� ���X\���ۊ�]��[OI�ZY���Ϗ�]���[��Y�W�[���[U�YJB
+
+def _status_badge(status: str) -> str:
+    """Return an HTML badge for task status."""
+    m = {
+        "done":    ("✅ Done",     "#10B981", "#ECFDF5"),
+        "partial": ("🔧 In Progress", "#F59E0B", "#FFFBEB"),
+        "pending": ("⏳ Pending",  "#6B7280", "#F3F4F6"),
+        "deferred":("⏸️ Deferred", "#6366F1", "#EEF2FF"),
+        "future":  ("🔮 Future",   "#A855F7", "#FAF5FF"),
+    }
+    label, fg, bg = m.get(status, ("?", "#666", "#EEE"))
+    return (
+        f'<span style="display:inline-block;padding:2px 10px;border-radius:12px;'
+        f'font-size:0.78rem;font-weight:600;color:{fg};background:{bg};'
+        f'border:1px solid {fg}22;">{label}</span>'
+    )
+
+
+def _progress_bar(pct: int, color: str) -> str:
+    """Return a small progress bar HTML string."""
+    return (
+        f'<div style="background:#1E293B;border-radius:6px;height:8px;width:100%;margin:6px 0;">'
+        f'<div style="background:{color};width:{pct}%;height:100%;border-radius:6px;'
+        f'transition:width .4s ease;"></div></div>'
+    )
+
+
+def render_nsfe_page():
+    """Render the password-protected NSFE project dashboard."""
+
+    # ── Inject page styles ──────────────────────────────────────────────
+    st.markdown("""
+    <style>
+    /* hide Streamlit chrome for cleaner look */
+    [data-testid="stSidebar"] { display: none !important; }
+    section[data-testid="stMain"] > div { padding-top: 0 !important; }
+
+    .nsfe-header {
+        background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%);
+        border: 1px solid #334155;
+        border-radius: 16px;
+        padding: 32px 40px;
+        margin-bottom: 28px;
+        text-align: center;
+    }
+    .nsfe-header h1 {
+        color: #F8FAFC;
+        font-size: 2rem;
+        margin: 0 0 6px 0;
+        letter-spacing: -0.5px;
+    }
+    .nsfe-header p {
+        color: #94A3B8;
+        font-size: 1rem;
+        margin: 0;
+    }
+    .nsfe-stats {
+        display: flex;
+        justify-content: center;
+        gap: 32px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+    }
+    .nsfe-stat {
+        text-align: center;
+    }
+    .nsfe-stat .num {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #F8FAFC;
+    }
+    .nsfe-stat .lbl {
+        font-size: 0.8rem;
+        color: #64748B;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .step-card {
+        background: #0F172A;
+        border: 1px solid #1E293B;
+        border-radius: 14px;
+        padding: 24px 28px;
+        margin-bottom: 16px;
+        transition: border-color 0.2s;
+    }
+    .step-card:hover {
+        border-color: #334155;
+    }
+    .step-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 8px;
+    }
+    .step-icon {
+        font-size: 1.6rem;
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        flex-shrink: 0;
+    }
+    .step-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #F1F5F9;
+        margin: 0;
+    }
+    .step-num {
+        font-size: 0.75rem;
+        color: #64748B;
+        font-weight: 600;
+    }
+    .substep {
+        background: #1E293B;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin: 8px 0;
+    }
+    .substep-name {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #CBD5E1;
+        margin-bottom: 4px;
+    }
+    .substep-detail {
+        font-size: 0.82rem;
+        color: #64748B;
+        line-height: 1.5;
+    }
+    .impl-order {
+        background: #0F172A;
+        border: 1px solid #1E293B;
+        border-radius: 14px;
+        padding: 28px;
+        margin-top: 24px;
+    }
+    .impl-order h3 {
+        color: #F1F5F9;
+        margin: 0 0 18px 0;
+        font-size: 1.2rem;
+    }
+    .impl-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        border-radius: 8px;
+        margin: 4px 0;
+        font-size: 0.9rem;
+        color: #CBD5E1;
+    }
+    .impl-item:nth-child(even) {
+        background: #1E293B44;
+    }
+    .impl-done { color: #10B981; }
+    .impl-pending { color: #64748B; }
+    .lock-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 50vh;
+    }
+    .lock-icon {
+        font-size: 4rem;
+        margin-bottom: 16px;
+    }
+    .lock-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #F1F5F9;
+        margin-bottom: 8px;
+    }
+    .lock-sub {
+        font-size: 0.9rem;
+        color: #64748B;
+        margin-bottom: 24px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ── Password Gate ───────────────────────────────────────────────────
+    if not st.session_state.get("nsfe_auth", False):
+        st.markdown("""
+        <div class="lock-container">
+            <div class="lock-icon">🔒</div>
+            <div class="lock-title">NSFE — Restricted Area</div>
+            <div class="lock-sub">Enter the project password to continue</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col2:
+            pwd = st.text_input("Password", type="password", key="nsfe_pwd",
+                                placeholder="Enter password…",
+                                label_visibility="collapsed")
+            if st.button("Unlock Dashboard", use_container_width=True, type="primary"):
+                if pwd == _PASSWORD:
+                    st.session_state.nsfe_auth = True
+                    st.rerun()
+                else:
+                    st.error("Incorrect password. Try again.")
+        return  # stop here until authenticated
+
+    # ── Dashboard Header ────────────────────────────────────────────────
+    done_count   = sum(1 for s in STEPS if s["status"] == "done")
+    partial_count = sum(1 for s in STEPS if s["status"] == "partial")
+    pending_count = sum(1 for s in STEPS if s["status"] == "pending")
+    deferred_count = sum(1 for s in STEPS if s["status"] == "deferred")
+    overall_pct  = sum(s["progress"] for s in STEPS) // len(STEPS)
+
+    st.markdown(f"""
+    <div class="nsfe-header">
+        <h1>QuarterCharts — Phase 2 Dashboard</h1>
+        <p>Full implementation roadmap &nbsp;·&nbsp; 10 Steps &nbsp;·&nbsp; {overall_pct}% overall progress</p>
+        <div style="max-width:400px;margin:16px auto 0;">
+            {_progress_bar(overall_pct, '#3B82F6')}
+        </div>
+        <div class="nsfe-stats">
+            <div class="nsfe-stat"><div class="num" style="color:#10B981;">{done_count}</div><div class="lbl">Completed</div></div>
+            <div class="nsfe-stat"><div class="num" style="color:#F59E0B;">{partial_count}</div><div class="lbl">In Progress</div></div>
+            <div class="nsfe-stat"><div class="num" style="color:#6B7280;">{pending_count}</div><div class="lbl">Pending</div></div>
+            <div class="nsfe-stat"><div class="num" style="color:#6366F1;">{deferred_count}</div><div class="lbl">Deferred</div></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Step Cards ──────────────────────────────────────────────────────
+    for step in STEPS:
+        badge = _status_badge(step["status"])
+        bar   = _progress_bar(step["progress"], step["color"])
+
+        st.markdown(f"""
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-icon" style="background:{step['color']}22;">{step['icon']}</div>
+                <div>
+                    <span class="step-num">STEP {step['num']}</span>
+                    <div class="step-title">{step['title']}</div>
+                </div>
+                <div style="margin-left:auto;">{badge}</div>
+            </div>
+            {bar}
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Expandable substeps
+        with st.expander(f"View subtasks for Step {step['num']}", expanded=False):
+            for sub in step["substeps"]:
+                sub_badge = _status_badge(sub["status"])
+                st.markdown(f"""
+                <div class="substep">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <span class="substep-name">{sub['id']}. {sub['name']}</span>
+                        {sub_badge}
+                    </div>
+                    <div class="substep-detail">{sub['details']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # ── Implementation Order ────────────────────────────────────────────
+    impl = [
+        (True,  "auth.py — Firebase Auth backend"),
+        (True,  "database.py — PostgreSQL database layer"),
+        (True,  "rbac.py — Role-based access control"),
+        (True,  "login_page.py — Auth UI"),
+        (True,  "requirements.txt — Updated dependencies"),
+        (True,  "SETUP_AUTH.md — Setup documentation"),
+        (False, "Integrate auth into app.py — Wire everything together"),
+        (False, "Firebase project creation — Set up actual Firebase project"),
+        (False, "Railway PostgreSQL — Create and connect database"),
+        (False, "Test end-to-end auth flow — Login, signup, Google SSO, session timeout"),
+        (False, "Data upload pipeline — SRI invoice parser and storage"),
+        (False, "Enhanced dashboards — Financial visualizations from uploaded data"),
+        (False, "Team management UI — Invite members, assign roles"),
+        (False, "Stripe billing — Payment integration"),
+        (False, "Security hardening — Rate limiting, CAPTCHA, security headers"),
+        (False, "ISO 27001 preparation — Documentation, policies, audit readiness"),
+    ]
+
+    items_html = ""
+    for i, (done, text) in enumerate(impl, 1):
+        icon = "✅" if done else "⬜"
+        cls  = "impl-done" if done else "impl-pending"
+        items_html += f'<div class="impl-item"><span>{icon}</span><span class="{cls}">{i}. {text}</span></div>\n'
+
+    st.markdown(f"""
+    <div class="impl-order">
+        <h3>📋 Implementation Order</h3>
+        {items_html}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Footer spacer ───────────────────────────────────────────────────
+    st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
