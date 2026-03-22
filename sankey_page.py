@@ -1073,6 +1073,16 @@ def _inject_sankey_click_js(metric_map):
         const VALID = new Set([{labels_js}]);
         const parentDoc = window.parent.document;
 
+        function clickPill(label) {{
+            var btns = parentDoc.querySelectorAll('[role="radiogroup"] button');
+            for (var i = 0; i < btns.length; i++) {{
+                if (btns[i].textContent.trim() === label) {{
+                    btns[i].click();
+                    break;
+                }}
+            }}
+        }}
+
         function attach() {{
             // Find all Plotly charts in parent
             const plots = parentDoc.querySelectorAll('.js-plotly-plot');
@@ -1089,16 +1099,30 @@ def _inject_sankey_click_js(metric_map):
                     // Strip value after <br> or double-space
                     var label = raw.split(/<br>|  /)[0].replace(/\\n/g, '').trim();
                     if (!label || !VALID.has(label)) return;
-
-                    // Find pill buttons (Streamlit renders them in [role=radiogroup])
-                    var btns = parentDoc.querySelectorAll('[role="radiogroup"] button');
-                    for (var i = 0; i < btns.length; i++) {{
-                        if (btns[i].textContent.trim() === label) {{
-                            btns[i].click();
-                            break;
-                        }}
-                    }}
+                    clickPill(label);
                 }});
+
+                // Also attach click handlers to SVG text labels and node rects
+                var sankeyEl = plotDiv.querySelector('.sankey');
+                if (sankeyEl) {{
+                    var labels = sankeyEl.querySelectorAll('.node-label');
+                    var rects = sankeyEl.querySelectorAll('.node-rect');
+                    rects.forEach(function(r) {{ r.style.cursor = 'pointer'; }});
+                    labels.forEach(function(lbl) {{
+                        lbl.style.cursor = 'pointer';
+                        lbl.addEventListener('click', function(e) {{
+                            var raw = lbl.textContent || '';
+                            var name = raw.split(/\\n/)[0].trim();
+                            // Also try splitting on double-space for inline values
+                            name = name.split(/  /)[0].trim();
+                            if (name && VALID.has(name)) {{
+                                clickPill(name);
+                                e.stopPropagation();
+                            }}
+                        }});
+                    }});
+                }}
+
                 plotDiv._sankey_click_bound = true;
                 attached = true;
             }});
@@ -1110,12 +1134,13 @@ def _inject_sankey_click_js(metric_map):
             var obs = new MutationObserver(function() {{
                 if (attach()) obs.disconnect();
             }});
-            obs.observe(parentDoc.body, {{ childList: true, subtree: true }});
-            setTimeout(function() {{ obs.disconnect(); }}, 8000);
+            obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+            setTimeout(function() {{ attach(); obs.disconnect(); }}, 8000);
         }}
     }})();
     </script>
     """
+
     components.html(js, height=0)
 
 
