@@ -236,21 +236,21 @@ section[data-testid="stSidebar"] {
     top: 1rem;
     right: calc(0.375rem + 1px);
     z-index: 1000000;
-    width: 28px;
-    height: 28px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    padding: 0;
-    color: rgba(33, 37, 41, 0.6);
-    font-size: 24px;
+    width: 28px !important;
+    height: 28px !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 0 !important;
+    color: rgba(33, 37, 41, 0.6) !important;
+    font-size: 24px !important;
     cursor: pointer;
     transition: all 0.2s;
-    line-height: 24px;
+    line-height: 24px !important;
     align-items: center;
     justify-content: center;
 }
-.nav-expand-btn:hover { background: rgba(33, 37, 41, 0.1); }
+.nav-expand-btn:hover { background: rgba(33, 37, 41, 0.1) !important; }
 .nav-links {
     display: flex;
     align-items: center;
