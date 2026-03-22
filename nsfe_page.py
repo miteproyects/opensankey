@@ -752,7 +752,7 @@ def _render_settings():
     st.markdown("### 🔗 Quick Links" + _info_tip("Direct links to your key service dashboards."), unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown("""
+        st.markdown(f"""
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">🔥</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">Firebase Console{_info_tip("Manage authentication, database, and hosting.")}</div>
@@ -761,7 +761,7 @@ def _render_settings():
         """, unsafe_allow_html=True)
         st.link_button("Open Firebase", "https://console.firebase.google.com", use_container_width=True)
     with col2:
-        st.markdown("""
+        st.markdown(f"""
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">🚂</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">Railway Dashboard{_info_tip("Backend deployment, environment variables, and logs.")}</div>
@@ -770,7 +770,7 @@ def _render_settings():
         """, unsafe_allow_html=True)
         st.link_button("Open Railway", "https://railway.app/dashboard", use_container_width=True)
     with col3:
-        st.markdown("""
+        st.markdown(f"""
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">💳</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">Stripe Dashboard{_info_tip("Payment processing, subscriptions, and billing.")}</div>
@@ -783,7 +783,7 @@ def _render_settings():
     st.markdown("### 📦 Repository" + _info_tip("Source code and live deployment links."), unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("""
+        st.markdown(f"""
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">🐙</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">GitHub Repository{_info_tip("Source code, issues, and version control.")}</div>
@@ -842,7 +842,7 @@ Tech stack: Streamlit + Plotly + Railway + PostgreSQL + Firebase Auth.
 def _render_chat():
     """AI Assistant chat interface powered by Claude API."""
 
-    st.markdown("""
+    st.markdown(f"""
     <div class="nsfe-header">
         <h1>🤖 AI Command Center</h1>
         <p style="color:#94A3B8;font-size:0.9rem;">Claude-powered assistant{_info_tip("AI chat interface for QuarterCharts management. Requires an Anthropic API key.")}</p>
@@ -854,7 +854,7 @@ def _render_chat():
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         st.warning("➠️ **Anthropic API key not configured.**")
-        st.markdown("""
+        st.markdown(f"""
         <div class="step-card">
             <h4 style="color:#F1F5F9;margin:0 0 12px;">Setup Instructions{_info_tip("Follow these steps to enable the AI assistant.")}</h4>
             <div style="color:#94A3B8;font-size:0.9rem;line-height:1.7;">
