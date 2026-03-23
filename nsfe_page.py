@@ -1137,50 +1137,38 @@ def _sync_steps():
 
 
 def _render_update():
-    """Update tab: edit substep statuses and auto-recompute step progress."""
+    """Update tab: auto-recompute step statuses and progress from substeps."""
+    _sync_steps()
+
     st.markdown("""
     <div class="nsfe-header">
-        <h1>🔄 Update Statuses</h1>
-        <p>Change substep statuses below. Step-level status and progress auto-compute across all tabs.</p>
+        <h1>🔄 Status Update</h1>
+        <p>Step-level statuses and progress are auto-computed from substep data.</p>
     </div>
     """, unsafe_allow_html=True)
 
-    status_options = ["done", "partial", "pending", "deferred", "future"]
-    status_labels = {
-        "done": "✅ Done", "partial": "🟡 Partial",
-        "pending": "⏳ Pending", "deferred": "⏸️ Deferred", "future": "🔮 Future"
+    status_icons = {
+        "done": "✅", "partial": "🟡",
+        "pending": "⏳", "deferred": "⏸️", "future": "🔮"
     }
 
-    if "nsfe_step_overrides" not in st.session_state:
-        st.session_state.nsfe_step_overrides = {}
-
-    changes_made = False
     for step in STEPS:
-        with st.expander(f"{step['icon']} Step {step['num']}: {step['title']}", expanded=False):
-            for sub in step["substeps"]:
-                current = st.session_state.nsfe_step_overrides.get(sub["id"], sub["status"])
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.markdown(f"**{sub['id']}** — {sub['name']}")
-                with col2:
-                    new_status = st.selectbox(
-                        f"Status for {sub['id']}",
-                        options=status_options,
-                        index=status_options.index(current),
-                        format_func=lambda x: status_labels.get(x, x),
-                        key=f"update_{sub['id']}",
-                        label_visibility="collapsed",
-                    )
-                    if new_status != sub["status"]:
-                        st.session_state.nsfe_step_overrides[sub["id"]] = new_status
-                        changes_made = True
+        subs = step["substeps"]
+        total = len(subs)
+        done = len([s for s in subs if s["status"] == "done"])
+        icon = status_icons.get(step["status"], "❓")
 
-    if st.button("🔄 Apply & Refresh All Tabs", type="primary", use_container_width=True):
-        _sync_steps()
-        st.rerun()
+        with st.expander(
+            f"{step['icon']} Step {step['num']}: {step['title']}  —  "
+            f"{icon} {step['status'].title()}  |  {step['progress']}%  "
+            f"({done}/{total} substeps done)",
+            expanded=False,
+        ):
+            for sub in subs:
+                si = status_icons.get(sub["status"], "❓")
+                st.markdown(f"{si} **{sub['id']}** — {sub['name']}  ·  *{sub['status']}*")
 
-    if changes_made:
-        st.info("Changes detected. Click **Apply & Refresh All Tabs** to update Dashboard, Security, Settings, and all other tabs.")
+    st.success("✅ All step statuses and progress bars are up to date.")
 
 
 def render_nsfe_page():
