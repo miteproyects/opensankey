@@ -61,7 +61,7 @@ STEPS = [
         "icon": "\U0001f680",
         "color": "#F59E0B",
         "substeps": [
-            {"id": "4A", "name": "Environment Variables",     "status": "pending",
+            {"id": "4A", "name": "Environment Variables",     "status": "done",
              "details": "FIREBASE_CREDENTIALS, FIREBASE_CONFIG, DATABASE_URL on Railway"},
             {"id": "4B", "name": "Railway Deployment",        "status": "done",
              "details": "Auto-detect requirements.txt, PostgreSQL in same project, DATABASE_URL auto-linked"},
