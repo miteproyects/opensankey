@@ -8,10 +8,10 @@ import os
 import json
 from datetime import datetime
 
-# ──Contfig ──────────────────────────────────────────────────────────────
+# ── Config ──────────────────────────────────────────────────────────────
 _PASSWORD = "nppQC091011"
 
-# ──CPhase 2 Task Data ───────────────────────────────────────────────────
+# ── Phase 2 Task Data ───────────────────────────────────────────────────
 STEPS = [
     {
         "num": 1,
@@ -26,7 +26,7 @@ STEPS = [
             {"id": "1C", "name": "Auth UI (login_page.py)",   "status": "done",
              "details": "Email/password login, Google SSO button, signup toggle, validation, Firebase REST API, error mapping"},
             {"id": "1D", "name": "Future Options",            "status": "future",
-             "details": "Magic link login \u00b7CPhone SMS OTP \u00b7CMicrosoft/Apple/GitHub SSO \u00b7CMFA (TOTP) \u00b7CCustom JWT claims \u00b7CSession cookies"},
+             "details": "Magic link login \u00b7 Phone SMS OTP \u00b7 Microsoft/Apple/GitHub SSO \u00b7 MFA (TOTP) \u00b7 Custom JWT claims \u00b7 Session cookies"},
         ],
     },
     {
@@ -38,21 +38,21 @@ STEPS = [
             {"id": "2A", "name": "Railway PostgreSQL Setup",  "status": "pending",
              "details": "Create PostgreSQL database in Railway, copy DATABASE_URL, schema auto-creates on startup"},
             {"id": "2B", "name": "Database Module (database.py)", "status": "done",
-             "details": "ontnection pooling, users/companies/audit_log schema, CRUD operations, parameterized queries, multi-tenant isolation"},
+             "details": "Connection pooling, users/companies/audit_log schema, CRUD operations, parameterized queries, multi-tenant isolation"},
             {"id": "2C", "name": "Future Options",            "status": "future",
-             "details": "Supabase \u00b7CSQLAlchemy ORM \u00b7CRow-Level Security \u00b7CRead replicas \u00b7CAlembic migrations \u00b7CRedis cache \u00b7CEncrypted columns"},
+             "details": "Supabase \u00b7 SQLAlchemy ORM \u00b7 Row-Level Security \u00b7 Read replicas \u00b7 Alembic migrations \u00b7 Redis cache \u00b7 Encrypted columns"},
         ],
     },
     {
         "num": 3,
-        "title": "Role-Based Acc    Control",
+        "title": "Role-Based Access Control",
         "icon": "\U0001f465",
         "color": "#8B5CF6",
         "substeps": [
             {"id": "3A", "name": "RBAC Module (rbac.py)",     "status": "done",
              "details": "5 roles (owner\u2192viewer), granular permissions, guard functions, role hierarchy, display helpers"},
             {"id": "3B", "name": "Future Options",            "status": "future",
-             "details": "ABAC \u00b7CCustom roles \u00b7CTemporary acc    \u00b7CPermission delegation \u00b7CIP restrictions"},
+             "details": "ABAC \u00b7 Custom roles \u00b7 Temporary access \u00b7 Permission delegation \u00b7 IP restrictions"},
         ],
     },
     {
@@ -66,7 +66,7 @@ STEPS = [
             {"id": "4B", "name": "Railway Deployment",        "status": "done",
              "details": "Auto-detect requirements.txt, PostgreSQL in same project, DATABASE_URL auto-linked"},
             {"id": "4C", "name": "Future Options",            "status": "future",
-             "details": "Docker \u00b7CVercel/Fly.io/Render \u00b7CGitHub Actions CI/CD \u00b7CStaging env \u00b7CSecrets Manager \u00b7CCustom domain SSL"},
+             "details": "Docker \u00b7 Vercel/Fly.io/Render \u00b7 GitHub Actions CI/CD \u00b7 Staging env \u00b7 Secrets Manager \u00b7 Custom domain SSL"},
         ],
     },
     {
@@ -78,7 +78,7 @@ STEPS = [
             {"id": "5A", "name": "Wire Auth into Main App",   "status": "pending",
              "details": "Import auth/db modules, init session state, update nav bar, route /login, protect pages with require_auth()"},
             {"id": "5B", "name": "Future Options",            "status": "future",
-             "details": "Middleware decorator \u00b7CFastAPI backend \u00b7CWebSocket session sync"},
+             "details": "Middleware decorator \u00b7 FastAPI backend \u00b7 WebSocket session sync"},
         ],
     },
     {
@@ -88,58 +88,58 @@ STEPS = [
         "color": "#6366F1",
         "substeps": [
             {"id": "6A", "name": "Stripe Integration",       "status": "deferred",
-             "details": "Stripe Checkout,CCustomer Portal, webhooks, link to company record, plan enforcement"},
+             "details": "Stripe Checkout, Customer Portal, webhooks, link to company record, plan enforcement"},
             {"id": "6B", "name": "Pricing Tiers",            "status": "deferred",
-             "details": "Free (1 user) \u00b7CBasic ($X/mo, 5 users) \u00b7CPro ($X/mo, 25 users) \u00b7CEnterprise (unlimited)"},
+             "details": "Free (1 user) \u00b7 Basic ($X/mo, 5 users) \u00b7 Pro ($X/mo, 25 users) \u00b7 Enterprise (unlimited)"},
             {"id": "6C", "name": "Implementation Files",     "status": "deferred",
-             "details": "billing.py \u00b7Cbilling_page.py \u00b7Cwebhooks.py \u00b7CDB updates \u00b7CRBAC plan gating"},
+             "details": "billing.py \u00b7 billing_page.py \u00b7 webhooks.py \u00b7 DB updates \u00b7 RBAC plan gating"},
             {"id": "6D", "name": "Future Options",            "status": "future",
-             "details": "Stripe Elements \u00b7CMetered billing \u00b7CAnnual discount \u00b7CLATAM payments (Kushki) \u00b7CInvoice billing \u00b7CFree trial"},
+             "details": "Stripe Elements \u00b7 Metered billing \u00b7 Annual discount \u00b7 LATAM payments (Kushki) \u00b7 Invoice billing \u00b7 Free trial"},
         ],
     },
     {
         "num": 7,
-        "title": "Data Upload &CProc   ing",
+        "title": "Data Upload & Processing",
         "icon": "\U0001f4e4",
         "color": "#14B8A6",
         "substeps": [
-            {"id": "7A", "name": "SRICInvoice Upload",       "status": "pending",
-             "details": "XML/CSV upload UI, SRICelectronic invoice parser, RUC validation, store with company_id, audit log"},
-            {"id": "7B", "name": "Financial Data Proc   ing", "status": "pending",
+            {"id": "7A", "name": "SRI Invoice Upload",       "status": "pending",
+             "details": "XML/CSV upload UI, SRI electronic invoice parser, RUC validation, store with company_id, audit log"},
+            {"id": "7B", "name": "Financial Data Processing", "status": "pending",
              "details": "Transaction categorization, tax summaries (IVA/retenciones/ICE), aggregation, multi-format support"},
             {"id": "7C", "name": "Future Options",            "status": "future",
-             "details": "Direct SRICAPI \u00b7COCR for scatned invoices \u00b7CBank statement import \u00b7CML auto-categorization \u00b7CReal-time sync \u00b7CRules engine"},
+             "details": "Direct SRI API \u00b7 OCR for scanned invoices \u00b7 Bank statement import \u00b7 ML auto-categorization \u00b7 Real-time sync \u00b7 Rules engine"},
         ],
     },
     {
         "num": 8,
-        "title": "Dashboard &CVisualization",
+        "title": "Dashboard & Visualization",
         "icon": "\U0001f4ca",
         "color": "#F97316",
         "substeps": [
             {"id": "8A", "name": "Enhanced Charts",           "status": "partial",
-             "details": "Sankey diagrams \u2713 \u00b7CStock charts \u2713 \u00b7CInvoice volume (TODO) \u00b7CTax dashboard (TODO) \u00b7CSupplier breakdown (TODO)"},
+             "details": "Sankey diagrams \u2713 \u00b7 Stock charts \u2713 \u00b7 Invoice volume (TODO) \u00b7 Tax dashboard (TODO) \u00b7 Supplier breakdown (TODO)"},
             {"id": "8B", "name": "Future Options",            "status": "future",
-             "details": "Embeddable dashboards \u00b7CScheduled email reports \u00b7CCustom dashboard builder \u00b7CAI insights (ClaudeCAPI) \u00b7CExport \u00b7CComparison mode"},
+             "details": "Embeddable dashboards \u00b7 Scheduled email reports \u00b7 Custom dashboard builder \u00b7 AI insights (Claude API) \u00b7 Export \u00b7 Comparison mode"},
         ],
     },
     {
         "num": 9,
-        "title": "Security &CCompliance",
+        "title": "Security & Compliance",
         "icon": "\U0001f6e1\ufe0f",
         "color": "#EF4444",
         "substeps": [
             {"id": "9A", "name": "Implemented Measures",      "status": "done",
-             "details": "Firebase password storage, JWT verification, parameterized SQL, session timeout,Cpassword strength, audit log,CRBAC, multi-tenant"},
+             "details": "Firebase password storage, JWT verification, parameterized SQL, session timeout, password strength, audit log, RBAC, multi-tenant"},
             {"id": "9B", "name": "ISO 27001 / SOC 2 Roadmap", "status": "pending",
-             "details": "Security policy \u00b7CRisk assessment \u00b7CAcc    control docs \u00b7CIncident response \u00b7CBCP \u00b7CVendor assessment \u00b7CPen testing \u00b7CTraining"},
+             "details": "Security policy \u00b7 Risk assessment \u00b7 Access control docs \u00b7 Incident response \u00b7 BCP \u00b7 Vendor assessment \u00b7 Pen testing \u00b7 Training"},
             {"id": "9C", "name": "Future Options",            "status": "future",
-             "details": "WAF \u00b7CRate limiting \u00b7CCAPTCHA \u00b7CSecurity headers \u00b7CVulnerability scatning \u00b7CData residency \u00b7CBackup testing"},
+             "details": "WAF \u00b7 Rate limiting \u00b7 CAPTCHA \u00b7 Security headers \u00b7 Vulnerability scanning \u00b7 Data residency \u00b7 Backup testing"},
         ],
     },
     {
         "num": 10,
-        "title": "Team &CAdmin Features",
+        "title": "Team & Admin Features",
         "icon": "\u2699\ufe0f",
         "color": "#78716C",
         "substeps": [
@@ -148,14 +148,14 @@ STEPS = [
             {"id": "10B", "name": "Admin Dashboard",          "status": "pending",
              "details": "Activity overview, audit log viewer, company settings, usage statistics"},
             {"id": "10C", "name": "Future Options",           "status": "future",
-             "details": "SSO/SAML enterprise \u00b7CAPI keys \u00b7CWhite-label branding \u00b7CMulti-language (ES/EN) \u00b7CNotification system"},
+             "details": "SSO/SAML enterprise \u00b7 API keys \u00b7 White-label branding \u00b7 Multi-language (ES/EN) \u00b7 Notification system"},
         ],
     },
 ]
 
 
 def _compute_step_status(step):
-    """Derive step status and progre   from substep statuses.
+    """Derive step status and progress from substep statuses.
 
     Rules:
       - ALL substeps done               -> done / 100%
@@ -186,7 +186,7 @@ def _compute_step_status(step):
     if pending_c + future_c == total:
         return "pending", 0
 
-    # Weighted progre  : done=100, partial=50, pending/deferred/future=0
+    # Weighted progress: done=100, partial=50, pending/deferred/future=0
     weight = {"done": 100, "partial": 50, "pending": 0, "deferred": 0, "future": 0}
     pct = sum(weight.get(s["status"], 0) for s in subs) // total
     return "partial", pct
@@ -194,22 +194,22 @@ def _compute_step_status(step):
 
 # Apply computed statuses on import
 for _step in STEPS:
-    _step["status"], _step["progre  "] = _compute_step_status(_step)
+    _step["status"], _step["progress"] = _compute_step_status(_step)
 
 
-# ──CSecurity Issues Data ──────────────────────────────────────────────
+# ── Security Issues Data ──────────────────────────────────────────────
 SECURITY_ISSUES = [
     {
         "id": "SEC-001", "severity": "critical",
         "title": "No HTTPS enforcement on API endpoints",
         "category": "Transport Security", "status": "open",
         "description": "All API endpoints should enforce HTTPS. HTTP requests must be redirected or blocked.",
-        "recommendation": "ontfigure Railway to force HTTPS redirects.CAdd HSTS header with min 1 year max-age.",
+        "recommendation": "Configure Railway to force HTTPS redirects. Add HSTS header with min 1 year max-age.",
         "affected": "All endpoints", "date_found": "2026-03-15",
     },
     {
         "id": "SEC-002", "severity": "critical",
-        "title": "Mi  ing Content Security Policy (CSP) header",
+        "title": "Missing Content Security Policy (CSP) header",
         "category": "HTTP Headers", "status": "open",
         "description": "No CSP header is set, leaving the application vulnerable to XSS and data injection attacks.",
         "recommendation": "Add strict CSP: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.plot.ly; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;",
@@ -228,7 +228,7 @@ SECURITY_ISSUES = [
         "title": "Session tokens not rotated after privilege change",
         "category": "Session Management", "status": "open",
         "description": "When a user's role changes (e.g., viewer \u2192 admin), the session token is not regenerated, creating a session fixation risk.",
-        "recommendation": "Regenerate session token after any role change,Cpassword change,Cor privilege escalation.",
+        "recommendation": "Regenerate session token after any role change, password change, or privilege escalation.",
         "affected": "RBAC system, session management", "date_found": "2026-03-16",
     },
     {
@@ -241,26 +241,26 @@ SECURITY_ISSUES = [
     },
     {
         "id": "SEC-006", "severity": "medium",
-        "title": "Database cntnection string in environment variable",
+        "title": "Database connection string in environment variable",
         "category": "Secrets Management", "status": "mitigated",
         "description": "DATABASE_URL is stored as plain text environment variable in Railway.",
-        "recommendation": "This is standard for Railway. Ensure Railway dashboard acc    is protected with 2FA. Consider using Railway's reference variables (${{Postgres.DATABASE_URL}}) for auto-rotation.",
+        "recommendation": "This is standard for Railway. Ensure Railway dashboard access is protected with 2FA. Consider using Railway's reference variables (${{Postgres.DATABASE_URL}}) for auto-rotation.",
         "affected": "Railway deployment", "date_found": "2026-03-10",
     },
     {
         "id": "SEC-007", "severity": "medium",
-        "title": "No automated vulnerability scatning",
+        "title": "No automated vulnerability scanning",
         "category": "CI/CD Security", "status": "open",
-        "description": "No dependency scatning (Dependabot/Snyk) or SAST tools are cntfigured in the GitHub repository.",
-        "recommendation": "Enable GitHub Dependabot alerts.CAdd safety or pip-audit to CI pipeline. Consider Snyk for deeper analysis.",
+        "description": "No dependency scanning (Dependabot/Snyk) or SAST tools are configured in the GitHub repository.",
+        "recommendation": "Enable GitHub Dependabot alerts. Add safety or pip-audit to CI pipeline. Consider Snyk for deeper analysis.",
         "affected": "GitHub repository, dependencies", "date_found": "2026-03-16",
     },
     {
         "id": "SEC-008", "severity": "medium",
-        "title": "Mi  ing audit log for data exports",
+        "title": "Missing audit log for data exports",
         "category": "Data Protection", "status": "open",
         "description": "When users export or download financial data (CSVs, charts), no audit trail is created.",
-        "recommendation": "Log all data export events with user_id, company_id, data_type,Ctimestamp, and IP addre  .",
+        "recommendation": "Log all data export events with user_id, company_id, data_type, timestamp, and IP address.",
         "affected": "Charts, Sankey exports, data downloads", "date_found": "2026-03-17",
     },
     {
@@ -268,7 +268,7 @@ SECURITY_ISSUES = [
         "title": "No CAPTCHA on signup form",
         "category": "Bot Protection", "status": "open",
         "description": "Signup form has no bot protection, enabling automated account creation.",
-        "recommendation": "Add reCAPTCHA v3 or hCaptcha to signup and password reset form .",
+        "recommendation": "Add reCAPTCHA v3 or hCaptcha to signup and password reset forms.",
         "affected": "Signup page, password reset", "date_found": "2026-03-17",
     },
     {
@@ -276,52 +276,52 @@ SECURITY_ISSUES = [
         "title": "Server version exposed in response headers",
         "category": "Information Disclosure", "status": "open",
         "description": "Response headers reveal Streamlit and Python version info, aiding attackers in fingerprinting.",
-        "recommendation": "ontfigure response headers to remove Server, X-Powered-By.CAdd custom middleware to strip version info.",
+        "recommendation": "Configure response headers to remove Server, X-Powered-By. Add custom middleware to strip version info.",
         "affected": "All HTTP responses", "date_found": "2026-03-18",
     },
     {
         "id": "SEC-011", "severity": "low",
-        "title": "No backup verification proc   ",
-        "category": "Busin    Continuity", "status": "open",
+        "title": "No backup verification process",
+        "category": "Business Continuity", "status": "open",
         "description": "Database backups exist (Railway auto-backup) but there is no scheduled restore test.",
         "recommendation": "Schedule monthly backup restore test. Document RTO (Recovery Time Objective) and RPO (Recovery Point Objective).",
         "affected": "PostgreSQL database", "date_found": "2026-03-18",
     },
     {
         "id": "SEC-012", "severity": "info",
-        "title": "2FA not enforced for admin account ",
+        "title": "2FA not enforced for admin accounts",
         "category": "Account Security", "status": "open",
-        "description": "Platform admin account  (Firebase, Railway, Stripe, GitHub) do not require 2FA.",
-        "recommendation": "Enable 2FA on all admin account : Firebase Console, Railway, Stripe Dashboard, GitHub (enforce via org settings).",
-        "affected": "Admin account  on all platforms", "date_found": "2026-03-18",
+        "description": "Platform admin accounts (Firebase, Railway, Stripe, GitHub) do not require 2FA.",
+        "recommendation": "Enable 2FA on all admin accounts: Firebase Console, Railway, Stripe Dashboard, GitHub (enforce via org settings).",
+        "affected": "Admin accounts on all platforms", "date_found": "2026-03-18",
     },
 ]
 
-# ──Conmpliance Data ───────────────────────────────────────────────────
+# ── Compliance Data ───────────────────────────────────────────────────
 ISO_CONTROLS = [
-    {"id": "A.5",  "name": "Information Security Policies",       "status": "pending", "progre  ": 0,
+    {"id": "A.5",  "name": "Information Security Policies",       "status": "pending", "progress": 0,
      "details": "Policies for information security, management direction"},
-    {"id": "A.6",  "name": "Organization of Information Security", "status": "pending", "progre  ": 0,
+    {"id": "A.6",  "name": "Organization of Information Security", "status": "pending", "progress": 0,
      "details": "Internal organization, mobile devices, teleworking"},
-    {"id": "A.7",  "name": "Human Resource Security",             "status": "pending", "progre  ": 0,
+    {"id": "A.7",  "name": "Human Resource Security",             "status": "pending", "progress": 0,
      "details": "Prior to employment, during employment, termination"},
-    {"id": "A.8",  "name": "Asset Management",                    "status": "partial", "progre  ": 30,
+    {"id": "A.8",  "name": "Asset Management",                    "status": "partial", "progress": 30,
      "details": "Responsibility for assets, information classification, media handling"},
-    {"id": "A.9",  "name": "Acc    Control",                      "status": "partial", "progre  ": 70,
-     "details": "Busin    requirements, user acc    management, system acc    control"},
-    {"id": "A.10", "name": "Cryptography",                        "status": "partial", "progre  ": 50,
+    {"id": "A.9",  "name": "Access Control",                      "status": "partial", "progress": 70,
+     "details": "Business requirements, user access management, system access control"},
+    {"id": "A.10", "name": "Cryptography",                        "status": "partial", "progress": 50,
      "details": "Cryptographic controls, key management"},
-    {"id": "A.12", "name": "Operations Security",                 "status": "partial", "progre  ": 40,
-     "details": "Operational proc dures, malware protection, backup, logging"},
-    {"id": "A.13", "name": "Communications Security",             "status": "pending", "progre  ": 10,
+    {"id": "A.12", "name": "Operations Security",                 "status": "partial", "progress": 40,
+     "details": "Operational procedures, malware protection, backup, logging"},
+    {"id": "A.13", "name": "Communications Security",             "status": "pending", "progress": 10,
      "details": "Network security management, information transfer"},
-    {"id": "A.14", "name": "System Acquisition & Development",    "status": "partial", "progre  ": 45,
+    {"id": "A.14", "name": "System Acquisition & Development",    "status": "partial", "progress": 45,
      "details": "Security requirements, development security, test data"},
-    {"id": "A.16", "name": "Incident Management",                 "status": "pending", "progre  ": 0,
+    {"id": "A.16", "name": "Incident Management",                 "status": "pending", "progress": 0,
      "details": "Management of incidents, improvements"},
-    {"id": "A.17", "name": "Busin    Continuity",                 "status": "pending", "progre  ": 10,
+    {"id": "A.17", "name": "Business Continuity",                 "status": "pending", "progress": 10,
      "details": "Information security continuity, redundancies"},
-    {"id": "A.18", "name": "Compliance",                          "status": "pending", "progre  ": 5,
+    {"id": "A.18", "name": "Compliance",                          "status": "pending", "progress": 5,
      "details": "Legal & contractual requirements, information security reviews"},
 ]
 
@@ -342,21 +342,21 @@ def _info_tip(text: str) -> str:
 
 def _status_badge(status: str) -> str:
     _tips = {
-        "done":     "DONE: This task is fully completed, tested, and verified. The cnde is live on the website and working in production.",
+        "done":     "DONE: This task is fully completed, tested, and verified. The code is live on the website and working in production.",
         "partial":  "IN PROGRESS: Active development is underway. Some subtasks are finished but others still need work. Check subtasks for details.",
         "pending":  "PENDING: This task has not been started yet. It is planned and waiting for prerequisite steps to be completed first.",
-        "deferred": "DEFERRED: Postponed to a future phase.CNot needed for MVP launch but planned for later development.",
+        "deferred": "DEFERRED: Postponed to a future phase. Not needed for MVP launch but planned for later development.",
         "future":   "FUTURE: Optional enhancement planned for a later milestone. These are nice-to-have features, not required for launch.",
     }
     m = {
         "done":     ("\u2705 Done",        "#10B981", "#ECFDF5"),
-        "partial":  ("\U0001f527CIn Progre  ", "#F59E0B", "#FFFBEB"),
-        "pending":  ("\u23f3CPending",     "#6B7280", "#F3F4F6"),
+        "partial":  ("\U0001f527 In Progress", "#F59E0B", "#FFFBEB"),
+        "pending":  ("\u23f3 Pending",     "#6B7280", "#F3F4F6"),
         "deferred": ("\u23f8\ufe0f Deferred",  "#6366F1", "#EEF2FF"),
         "future":   ("\U0001f52e Future",      "#A855F7", "#FAF5FF"),
         "open":     ("\U0001f534 Open",        "#EF4444", "#FEF2F2"),
         "mitigated":("\U0001f7e1 Mitigated",   "#F59E0B", "#FFFBEB"),
-        "re olved": ("\U0001f7e2 Resolved",    "#10B981", "#ECFDF5"),
+        "resolved": ("\U0001f7e2 Resolved",    "#10B981", "#ECFDF5"),
     }
     label, fg, bg = m.get(status, ("?", "#666", "#EEE"))
     return (
@@ -370,10 +370,10 @@ def _status_badge(status: str) -> str:
 def _severity_badge(severity: str) -> str:
     _tips = {
         "critical": "CRITICAL: Requires immediate action. The system is at serious risk of exploitation. Fix before any new feature work.",
-        "high":     "HIGH: Should be addre  ed urgently within the current sprint. Significant security impact if exploited.",
-        "medium":   "MEDIUM: Plan remediation for the next sprint. Mnderate risk that should be tracked and scheduled.",
+        "high":     "HIGH: Should be addressed urgently within the current sprint. Significant security impact if exploited.",
+        "medium":   "MEDIUM: Plan remediation for the next sprint. Moderate risk that should be tracked and scheduled.",
         "low":      "LOW: Minor issue with limited impact. Fix when convenient or during regular maintenance cycles.",
-        "info":     "INFO: Informational finding for awaren   .CNo immediate action needed but good to track for future reference.",
+        "info":     "INFO: Informational finding for awareness. No immediate action needed but good to track for future reference.",
     }
     m = {
         "critical": ("CRITICAL", "#DC2626", "#FEE2E2"),
@@ -391,7 +391,7 @@ def _severity_badge(severity: str) -> str:
     )
 
 
-def _progre  _bar(pct: int, color: str,Ctip: str = "") -> str:
+def _progress_bar(pct: int, color: str, tip: str = "") -> str:
     return (
         f'<div style="background:#1E293B;border-radius:6px;height:8px;width:100%;margin:6px 0;">'
         f'<div style="background:{color};width:{pct}%;height:100%;border-radius:6px;'
@@ -517,32 +517,32 @@ def _render_dashboard():
     partial_count  = sum(1 for s in STEPS if s["status"] == "partial")
     pending_count  = sum(1 for s in STEPS if s["status"] == "pending")
     deferred_count = sum(1 for s in STEPS if s["status"] == "deferred")
-    overall_pct    = sum(s["progre  "] for s in STEPS) // len(STEPS)
+    overall_pct    = sum(s["progress"] for s in STEPS) // len(STEPS)
 
     st.markdown(f"""
     <div class="nsfe-header">
-        <h1>QuarterCharts \u2014CPhase 2 Dashboard</h1>
-        <p>Full implementation roadmap &nbsp;\u00b7&nbsp; 10 Steps &nbsp;\u00b7&nbsp; {overall_pct}% overall progre  </p>
+        <h1>QuarterCharts \u2014 Phase 2 Dashboard</h1>
+        <p>Full implementation roadmap &nbsp;\u00b7&nbsp; 10 Steps &nbsp;\u00b7&nbsp; {overall_pct}% overall progress</p>
         <div style="max-width:400px;margin:16px auto 0;">
-            {_progre  _bar(overall_pct, '#3B82F6', 'Overall completion percentage across all 10 implementation steps.Conmputed automatically from substep statuses.')}
+            {_progress_bar(overall_pct, '#3B82F6', 'Overall completion percentage across all 10 implementation steps. Computed automatically from substep statuses.')}
         </div>
         <div class="metrics-row">
             {_metric_card(done_count, "Completed", "#10B981",
-                "Steps fully finished: all subtasks are done, cnde is deployed and working on quartercharts.com.")}
-            {_metric_card(partial_count, "In Progre  ", "#F59E0B",
+                "Steps fully finished: all subtasks are done, code is deployed and working on quartercharts.com.")}
+            {_metric_card(partial_count, "In Progress", "#F59E0B",
                 "Steps with some subtasks done but others still pending. Active development is underway.")}
             {_metric_card(pending_count, "Pending", "#6B7280",
                 "Steps not started yet. Waiting for prerequisite steps to be completed first.")}
             {_metric_card(deferred_count, "Deferred", "#6366F1",
-                "Steps postponed to a future development phase.CNot needed for MVP launch.")}
+                "Steps postponed to a future development phase. Not needed for MVP launch.")}
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     for step in STEPS:
         badge = _status_badge(step["status"])
-        bar   = _progre  _bar(step["progre  "], step["color"],
-            f'Step {step["num"]} progre  : {step["progre  "]}% complete. This is auto-calculated from the status of each subtask below.')
+        bar   = _progress_bar(step["progress"], step["color"],
+            f'Step {step["num"]} progress: {step["progress"]}% complete. This is auto-calculated from the status of each subtask below.')
         st.markdown(f"""
         <div class="step-card">
             <div class="step-header">
@@ -550,7 +550,7 @@ def _render_dashboard():
                 <div>
                     <span class="step-num">STEP {step['num']}{_info_tip(
                         f'Step {step["num"]} of 10 in the Phase 2 roadmap. '
-                        f'Status is auto-cnmputed: a step shows Done only when ALL its subtasks are done.'
+                        f'Status is auto-computed: a step shows Done only when ALL its subtasks are done.'
                     )}</span>
                     <div class="step-title">{step['title']}</div>
                 </div>
@@ -580,22 +580,22 @@ def _render_dashboard():
 
     # Implementation Order
     impl = [
-        (True,  "auth.py \u2014CFirebase Auth backend"),
-        (True,  "database.py \u2014CPostgreSQL database layer"),
-        (True,  "rbac.py \u2014CRole-based acc    control"),
-        (True,  "login_page.py \u2014CAuth UI"),
-        (True,  "requirements.txt \u2014CUpdated dependencies"),
-        (True,  "SETUP_AUTH.md \u2014CSetup documentation"),
-        (False, "Integrate auth into app.py \u2014CWire everything together"),
-        (False, "Firebase project creation \u2014CSet up actual Firebase project"),
-        (False, "Railway PostgreSQL \u2014CCreate and cntnect database"),
-        (False, "Test end-to-end auth flow \u2014CLogin, signup, Google SSO, session timeout"),
-        (False, "Data upload pipeline \u2014CSRI invoice parser and storage"),
-        (False, "Enhanced dashboards \u2014CFinancial visualization  from uploaded data"),
-        (False, "Team management UI \u2014CInvite members, assign roles"),
-        (False, "Stripe billing \u2014CPayment integration"),
-        (False, "Security hardening \u2014CRate limiting, CAPTCHA, security headers"),
-        (False, "ISO 27001 preparation \u2014CDocumentation, policies, audit readin   "),
+        (True,  "auth.py \u2014 Firebase Auth backend"),
+        (True,  "database.py \u2014 PostgreSQL database layer"),
+        (True,  "rbac.py \u2014 Role-based access control"),
+        (True,  "login_page.py \u2014 Auth UI"),
+        (True,  "requirements.txt \u2014 Updated dependencies"),
+        (True,  "SETUP_AUTH.md \u2014 Setup documentation"),
+        (False, "Integrate auth into app.py \u2014 Wire everything together"),
+        (False, "Firebase project creation \u2014 Set up actual Firebase project"),
+        (False, "Railway PostgreSQL \u2014 Create and connect database"),
+        (False, "Test end-to-end auth flow \u2014 Login, signup, Google SSO, session timeout"),
+        (False, "Data upload pipeline \u2014 SRI invoice parser and storage"),
+        (False, "Enhanced dashboards \u2014 Financial visualizations from uploaded data"),
+        (False, "Team management UI \u2014 Invite members, assign roles"),
+        (False, "Stripe billing \u2014 Payment integration"),
+        (False, "Security hardening \u2014 Rate limiting, CAPTCHA, security headers"),
+        (False, "ISO 27001 preparation \u2014 Documentation, policies, audit readiness"),
     ]
     items_html = ""
     for i, (done, text) in enumerate(impl, 1):
@@ -604,14 +604,14 @@ def _render_dashboard():
         items_html += f'<div class="impl-item"><span>{icon}</span><span class="{cls}">{i}. {text}</span></div>\n'
 
     st.markdown(
-        f'<div class="impl-order"><h3>\U0001f4cb Implementation Order{_info_tip("Recommended sequence for building the platform. Checked items are already cnded and in the repo. Unchecked items are next priorities.")}</h3>{items_html}</div>',
+        f'<div class="impl-order"><h3>\U0001f4cb Implementation Order{_info_tip("Recommended sequence for building the platform. Checked items are already coded and in the repo. Unchecked items are next priorities.")}</h3>{items_html}</div>',
         unsafe_allow_html=True,
     )
 
 
 def _render_security():
-    """Security issues tracker and cnmpliance dashboard."""
-    # ──CSummary metrics ──
+    """Security issues tracker and compliance dashboard."""
+    # ── Summary metrics ──
     total     = len(SECURITY_ISSUES)
     critical  = sum(1 for i in SECURITY_ISSUES if i["severity"] == "critical")
     high      = sum(1 for i in SECURITY_ISSUES if i["severity"] == "high")
@@ -619,12 +619,12 @@ def _render_security():
     low_info  = sum(1 for i in SECURITY_ISSUES if i["severity"] in ("low", "info"))
     open_count = sum(1 for i in SECURITY_ISSUES if i["status"] == "open")
     mitigated  = sum(1 for i in SECURITY_ISSUES if i["status"] == "mitigated")
-    resolved   = sum(1 for i in SECURITY_ISSUES if i["status"] == "re olved")
+    resolved   = sum(1 for i in SECURITY_ISSUES if i["status"] == "resolved")
 
     st.markdown(f"""
     <div class="nsfe-header">
-        <h1>Security &CCompliance Center</h1>
-        <p>Vulnerability tracking &nbsp;\u00b7&nbsp; ISO 27001 readin    &nbsp;\u00b7&nbsp; {total} issues tracked</p>
+        <h1>Security & Compliance Center</h1>
+        <p>Vulnerability tracking &nbsp;\u00b7&nbsp; ISO 27001 readiness &nbsp;\u00b7&nbsp; {total} issues tracked</p>
         <div class="metrics-row">
             {_metric_card(critical, "Critical", "#DC2626",
                 "Count of CRITICAL severity issues. These need immediate action before any new feature development.")}
@@ -633,19 +633,19 @@ def _render_security():
             {_metric_card(medium, "Medium", "#D97706",
                 "Count of MEDIUM severity issues. Schedule remediation in the next sprint.")}
             {_metric_card(low_info, "Low / Info", "#2563EB",
-                "Count of LOW and INFO findings. Minor issues or informational notes for awaren   .")}
+                "Count of LOW and INFO findings. Minor issues or informational notes for awareness.")}
             {_metric_card(open_count, "Open", "#EF4444",
                 "Total unresolved issues still needing action. Goal: bring this to zero.")}
             {_metric_card(mitigated, "Mitigated", "#F59E0B",
-                "Issues with temporary workarounds in place. Still need permanent fixe .")}
+                "Issues with temporary workarounds in place. Still need permanent fixes.")}
             {_metric_card(resolved, "Resolved", "#10B981",
                 "Issues fully fixed, tested, and verified in production.")}
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # ──CFilter ──
-    st.markdown("####CFilter Issues")
+    # ── Filter ──
+    st.markdown("#### Filter Issues")
     col1, col2 = st.columns(2)
     with col1:
         sev_filter = st.selectbox("Severity", ["All", "Critical", "High", "Medium", "Low", "Info"], key="sec_sev")
@@ -657,8 +657,8 @@ def _render_security():
     if status_filter != "All":
         filtered = [i for i in filtered if i["status"] == status_filter.lower()]
 
-    # ──CIssue Cards ──
-    st.markdown(f"####CShowing {len(filtered)} of {total} issues")
+    # ── Issue Cards ──
+    st.markdown(f"#### Showing {len(filtered)} of {total} issues")
     for issue in filtered:
         sev  = _severity_badge(issue["severity"])
         stat = _status_badge(issue["status"])
@@ -688,23 +688,23 @@ def _render_security():
         </div>
         """, unsafe_allow_html=True)
 
-    # ──CISO 27001 Compliance ──
+    # ── ISO 27001 Compliance ──
     st.markdown("---")
     st.markdown("### \U0001f3db\ufe0f ISO 27001 Control Status")
-    overall_iso = sum(c["progre  "] for c in ISO_CONTROLS) // len(ISO_CONTROLS)
+    overall_iso = sum(c["progress"] for c in ISO_CONTROLS) // len(ISO_CONTROLS)
     st.markdown(f"""
     <div style="max-width:500px;margin:0 auto 24px;">
         <div style="text-align:center;font-size:0.85rem;color:#94A3B8;margin-bottom:4px;">
-            Overall ISO 27001 Readin   : <strong style="color:#F8FAFC;">{overall_iso}%</strong>
-            {_info_tip("ISO 27001 readin    score. Measures how many of the required security controls have been implemented. Target: 100% for certification.")}
+            Overall ISO 27001 Readiness: <strong style="color:#F8FAFC;">{overall_iso}%</strong>
+            {_info_tip("ISO 27001 readiness score. Measures how many of the required security controls have been implemented. Target: 100% for certification.")}
         </div>
-        {_progre  _bar(overall_iso, '#3B82F6')}
+        {_progress_bar(overall_iso, '#3B82F6')}
     </div>
     """, unsafe_allow_html=True)
 
     for ctrl in ISO_CONTROLS:
         badge = _status_badge(ctrl["status"])
-        bar   = _progre  _bar(ctrl["progre  "], "#3B82F6")
+        bar   = _progress_bar(ctrl["progress"], "#3B82F6")
         st.markdown(f"""
         <div class="compliance-card">
             <div class="compliance-header">
@@ -712,9 +712,9 @@ def _render_security():
                     f'ISO 27001 Annex A control {ctrl["id"]}. This is an international standard requirement for information security management.'
                 )}</span>
                 <span class="compliance-name">{ctrl['name']}{_info_tip(
-                    f'Control area: {ctrl["name"]}. Covers: {ctrl["details"]}. Progre  : {ctrl["progre  "]}%.'
+                    f'Control area: {ctrl["name"]}. Covers: {ctrl["details"]}. Progress: {ctrl["progress"]}%.'
                 )}</span>
-                <span style="font-size:0.82rem;color:#94A3B8;min-width:40px;text-align:right;">{ctrl['progre  ']}%</span>
+                <span style="font-size:0.82rem;color:#94A3B8;min-width:40px;text-align:right;">{ctrl['progress']}%</span>
                 {badge}
             </div>
             {bar}
@@ -728,8 +728,8 @@ def _render_settings():
     st.markdown(f"""
     <div class="nsfe-header">
         <h1>Manager Settings</h1>
-        <p>System cntfiguration &nbsp;\u00b7&nbsp; Quick action {_info_tip(
-            "Settings page: quick links to service dashboards, repository info, and system cntfiguration. Use these to manage your platform services."
+        <p>System configuration &nbsp;\u00b7&nbsp; Quick actions{_info_tip(
+            "Settings page: quick links to service dashboards, repository info, and system configuration. Use these to manage your platform services."
         )}</p>
     </div>
     """, unsafe_allow_html=True)
@@ -741,9 +741,9 @@ def _render_settings():
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">\U0001f525</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">Firebase Console{_info_tip(
-                "Firebase: handles user authentication (login, signup, password reset). Manages Email/Password and Google SSO sign-in methods. Go here to manage users, view auth logs, and cntfigure sign-in providers."
+                "Firebase: handles user authentication (login, signup, password reset). Manages Email/Password and Google SSO sign-in methods. Go here to manage users, view auth logs, and configure sign-in providers."
             )}</div>
-            <div style="font-size:0.8rem;color:#64748B;">Auth, users, cntfig</div>
+            <div style="font-size:0.8rem;color:#64748B;">Auth, users, config</div>
         </div>
         """, unsafe_allow_html=True)
         st.link_button("Open Firebase", "https://console.firebase.google.com", use_container_width=True)
@@ -763,7 +763,7 @@ def _render_settings():
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">\U0001f4b3</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">Stripe Dashboard{_info_tip(
-                "Stripe: payment proc   ing for subscriptions and billing (Step 6 - currently deferred). Will handle checkout, customer portal, webhooks, and plan enforcement once implemented."
+                "Stripe: payment processing for subscriptions and billing (Step 6 - currently deferred). Will handle checkout, customer portal, webhooks, and plan enforcement once implemented."
             )}</div>
             <div style="font-size:0.8rem;color:#64748B;">Billing, subscriptions</div>
         </div>
@@ -771,16 +771,16 @@ def _render_settings():
         st.link_button("Open Stripe", "https://dashboard.stripe.com", use_container_width=True)
 
     st.markdown("---")
-    st.markdown("### \U0001f4e6 Repository" + _info_tip("Source cnde repository and live deployment. The app auto-deploys from the GitHub main branch to Railway."), unsafe_allow_html=True)
+    st.markdown("### \U0001f4e6 Repository" + _info_tip("Source code repository and live deployment. The app auto-deploys from the GitHub main branch to Railway."), unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(f"""
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">\U0001f419</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">GitHub Repository{_info_tip(
-                "GitHub repo: miteproyects/opensankey. Contains all source cnde, issues, and pull requests.CPushing to main branch triggers auto-deploy to Railway."
+                "GitHub repo: miteproyects/opensankey. Contains all source code, issues, and pull requests. Pushing to main branch triggers auto-deploy to Railway."
             )}</div>
-            <div style="font-size:0.8rem;color:#64748B;">Cnde, issues, PRs</div>
+            <div style="font-size:0.8rem;color:#64748B;">Code, issues, PRs</div>
         </div>
         """, unsafe_allow_html=True)
         st.link_button("Open GitHub", "https://github.com/miteproyects/opensankey", use_container_width=True)
@@ -797,7 +797,7 @@ def _render_settings():
         st.link_button("Open Live Site", "https://quartercharts.com", use_container_width=True)
 
     st.markdown("---")
-    st.markdown("### \u26a1 System Info" + _info_tip("Current platform cntfiguration and tech stack. Shows the services and tools powering QuarterCharts."), unsafe_allow_html=True)
+    st.markdown("### \u26a1 System Info" + _info_tip("Current platform configuration and tech stack. Shows the services and tools powering QuarterCharts."), unsafe_allow_html=True)
     st.markdown(f"""
     <div class="step-card">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -805,10 +805,10 @@ def _render_settings():
             <div><span style="color:#64748B;font-size:0.85rem;">Database:{_info_tip("PostgreSQL hosted on Railway. Stores users, companies, audit logs. Connection via DATABASE_URL env var.")}</span> <span style="color:#F1F5F9;">PostgreSQL (Railway)</span></div>
             <div><span style="color:#64748B;font-size:0.85rem;">Auth:{_info_tip("Firebase Authentication handles user login, signup, and session management. Supports Email/Password and Google SSO.")}</span> <span style="color:#F1F5F9;">Firebase Auth</span></div>
             <div><span style="color:#64748B;font-size:0.85rem;">Payments:{_info_tip("Stripe integration is planned for Step 6. Will handle subscription billing, checkout, and customer portal.")}</span> <span style="color:#F1F5F9;">Stripe (planned)</span></div>
-            <div><span style="color:#64748B;font-size:0.85rem;">Domain:{_info_tip("The public-facing domain. Users acc    the platform at this URL.")}</span> <span style="color:#F1F5F9;">quartercharts.com</span></div>
+            <div><span style="color:#64748B;font-size:0.85rem;">Domain:{_info_tip("The public-facing domain. Users access the platform at this URL.")}</span> <span style="color:#F1F5F9;">quartercharts.com</span></div>
             <div><span style="color:#64748B;font-size:0.85rem;">Auto-deploy:{_info_tip("Every push to the main branch on GitHub automatically triggers a redeployment on Railway. No manual deploy needed.")}</span> <span style="color:#10B981;">GitHub main \u2192 Railway</span></div>
-            <div><span style="color:#64748B;font-size:0.85rem;">Target:{_info_tip("Busin    goal: reach $50K annual recurring revenue from B2B SaaS subscriptions for financial visualization tools.")}</span> <span style="color:#F1F5F9;">$50K/year B2B SaaS</span></div>
-            <div><span style="color:#64748B;font-size:0.85rem;">NSFE Password:{_info_tip("This admin dashboard is protected by a password gate. Only authorized managers can acc    it.")}</span> <span style="color:#F59E0B;">Active</span></div>
+            <div><span style="color:#64748B;font-size:0.85rem;">Target:{_info_tip("Business goal: reach $50K annual recurring revenue from B2B SaaS subscriptions for financial visualization tools.")}</span> <span style="color:#F1F5F9;">$50K/year B2B SaaS</span></div>
+            <div><span style="color:#64748B;font-size:0.85rem;">NSFE Password:{_info_tip("This admin dashboard is protected by a password gate. Only authorized managers can access it.")}</span> <span style="color:#F59E0B;">Active</span></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -818,19 +818,19 @@ def _render_settings():
 # AI ASSISTANT TAB
 # ═══════════════════════════════════════════════════════════════════════
 
-_CHAT_SYSTEM_PROMPT = """You are the QuarterCharts AI Assistant \u2014Ca helpful expert embedded in the NSFE Manager Control Center.
+_CHAT_SYSTEM_PROMPT = """You are the QuarterCharts AI Assistant \u2014 a helpful expert embedded in the NSFE Manager Control Center.
 
 You help the platform manager with:
 - Platform architecture questions (Streamlit, Railway, PostgreSQL, Firebase)
-- Security &Ccnmpliance guidance (ISO 27001, SOC 2)
+- Security & compliance guidance (ISO 27001, SOC 2)
 - Implementation strategy for remaining steps
-- Cnde snippets and debugging for QuarterCharts
-- SRI (Ecuador tax) invoice proc   ing questions
+- Code snippets and debugging for QuarterCharts
+- SRI (Ecuador tax) invoice processing questions
 - B2B SaaS pricing and go-to-market strategy
 
-Keep answers concise and actionable. Use cnde blocks when showing cnde.
-You are part of QuarterCharts \u2014Ca financial visualization platform targeting $50K/year B2B SaaS.
-Tech stack: Streamlit + Plotly + Railway + PostgreSQL +CFirebase Auth.
+Keep answers concise and actionable. Use code blocks when showing code.
+You are part of QuarterCharts \u2014 a financial visualization platform targeting $50K/year B2B SaaS.
+Tech stack: Streamlit + Plotly + Railway + PostgreSQL + Firebase Auth.
 """
 
 
@@ -846,63 +846,63 @@ def _render_chat():
     </div>
     """, unsafe_allow_html=True)
 
-    # ──CAPI Key check ──
+    # ── API Key check ──
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
-        st.warning("\u27a1\ufe0f **Anthropic API key not cntfigured.**")
+        st.warning("\u27a1\ufe0f **Anthropic API key not configured.**")
         st.markdown(f"""
         <div class="step-card">
-            <h4 style="color:#F1F5F9;margin:0 0 12px;">Setup Instruction {_info_tip(
-                "To enable AI chat, you need an Anthropic API key.CCreate one at cntsole.anthropic.com, then add it as an environment variable in your Railway deployment settings."
+            <h4 style="color:#F1F5F9;margin:0 0 12px;">Setup Instructions{_info_tip(
+                "To enable AI chat, you need an Anthropic API key. Create one at console.anthropic.com, then add it as an environment variable in your Railway deployment settings."
             )}</h4>
             <div style="color:#94A3B8;font-size:0.9rem;line-height:1.7;">
-                1. Go to <strong>cntsole.anthropic.com</strong> \u2192 API Keys<br>
-                2.CCreate a new key<br>
-                3.CIn Railway dashboard \u2192 Variables, add:<br>
-                <cnde style="background:#1E293B;padding:4px 8px;border-radius:4px;color:#10B981;">ANTHROPIC_API_KEY=sk-ant-...</cnde><br>
-                4. Redeploy \u2014Cthe chat will activate automatically
+                1. Go to <strong>console.anthropic.com</strong> \u2192 API Keys<br>
+                2. Create a new key<br>
+                3. In Railway dashboard \u2192 Variables, add:<br>
+                <code style="background:#1E293B;padding:4px 8px;border-radius:4px;color:#10B981;">ANTHROPIC_API_KEY=sk-ant-...</code><br>
+                4. Redeploy \u2014 the chat will activate automatically
             </div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("---")
-        st.markdown("####C\U0001f4ac Preview Mnde (no API key)" + _info_tip(
-            "Preview mnde: m   ages are saved locally but not sent to Claude. Once you add the API key and redeploy, the AI will respond in real-time."
+        st.markdown("#### \U0001f4ac Preview Mode (no API key)" + _info_tip(
+            "Preview mode: messages are saved locally but not sent to Claude. Once you add the API key and redeploy, the AI will respond in real-time."
         ), unsafe_allow_html=True)
-        st.info("You can still use this interface to draft m   ages. They will be proc   ed once the API key is set.")
+        st.info("You can still use this interface to draft messages. They will be processed once the API key is set.")
 
-    # ──CChat history in session state ──
+    # ── Chat history in session state ──
     if "nsfe_chat_history" not in st.session_state:
         st.session_state.nsfe_chat_history = []
 
-    # ──CDisplay conversation ──
+    # ── Display conversation ──
     for msg in st.session_state.nsfe_chat_history:
-        with st.chat_m   age(msg["role"], avatar="\U0001f9d1\u200d\U0001f4bc" if msg["role"] == "user" else "\U0001f916"):
+        with st.chat_message(msg["role"], avatar="\U0001f9d1\u200d\U0001f4bc" if msg["role"] == "user" else "\U0001f916"):
             st.markdown(msg["content"])
 
-    # ──CChat input ──
+    # ── Chat input ──
     user_input = st.chat_input("Ask the AI assistant anything about QuarterCharts...")
     if user_input:
-        # Add user m   age
+        # Add user message
         st.session_state.nsfe_chat_history.append({"role": "user", "content": user_input})
-        with st.chat_m   age("user", avatar="\U0001f9d1\u200d\U0001f4bc"):
+        with st.chat_message("user", avatar="\U0001f9d1\u200d\U0001f4bc"):
             st.markdown(user_input)
 
         # Generate response
-        with st.chat_m   age("assistant", avatar="\U0001f916"):
+        with st.chat_message("assistant", avatar="\U0001f916"):
             if api_key:
                 try:
                     import anthropic
                     client = anthropic.Anthropic(api_key=api_key)
-                    m   ages = [
+                    messages = [
                         {"role": m["role"], "content": m["content"]}
                         for m in st.session_state.nsfe_chat_history
                     ]
                     with st.spinner("Thinking..."):
-                        response = client.m   ages.create(
-                            mndel="claude-sonnet-4-20250514",
+                        response = client.messages.create(
+                            model="claude-sonnet-4-20250514",
                             max_tokens=2048,
                             system=_CHAT_SYSTEM_PROMPT,
-                            m   ages=m   ages,
+                            messages=messages,
                         )
                     assistant_msg = response.content[0].text
                     st.markdown(assistant_msg)
@@ -919,24 +919,24 @@ def _render_chat():
                     st.session_state.nsfe_chat_history.append({"role": "assistant", "content": err})
             else:
                 placeholder_msg = (
-                    "\U0001f4a1 **API key not cntfigured yet.** Your m   age has been saved. "
+                    "\U0001f4a1 **API key not configured yet.** Your message has been saved. "
                     "Once you add `ANTHROPIC_API_KEY` to Railway environment variables, "
                     "the AI assistant will respond in real-time.\n\n"
-                    f"**Your m   age:** {user_input}"
+                    f"**Your message:** {user_input}"
                 )
                 st.markdown(placeholder_msg)
                 st.session_state.nsfe_chat_history.append(
                     {"role": "assistant", "content": placeholder_msg}
                 )
 
-    # ──CSidebar: Quick prompts ──
+    # ── Sidebar: Quick prompts ──
     st.markdown("---")
     st.markdown("#### \u26a1 Quick Prompts" + _info_tip(
         "Pre-written questions to quickly start a conversation with the AI assistant. Click any prompt to send it."
     ), unsafe_allow_html=True)
     quick_prompts = [
         "What's the next priority step to implement?",
-        "Generate the cnde for Step 5A (wire auth into app.py)",
+        "Generate the code for Step 5A (wire auth into app.py)",
         "What security issues should I fix first?",
         "Help me set up Firebase project for QuarterCharts",
         "Draft the SRI invoice XML parser",
@@ -949,7 +949,7 @@ def _render_chat():
                 st.session_state.nsfe_chat_history.append({"role": "user", "content": prompt})
                 st.rerun()
 
-    # ──CClear chat ──
+    # ── Clear chat ──
     st.markdown("---")
     if st.button("\U0001f5d1\ufe0f Clear Chat History", type="secondary"):
         st.session_state.nsfe_chat_history = []
@@ -964,12 +964,12 @@ def render_nsfe_page():
     """Render the password-protected NSFE manager control center."""
     st.markdown(_STYLES, unsafe_allow_html=True)
 
-    # ──CPassword Gate ──
+    # ── Password Gate ──
     if not st.session_state.get("nsfe_auth", False):
         st.markdown("""
         <div class="lock-container">
             <div class="lock-icon">\U0001f512</div>
-            <div class="lock-title">NSFE \u2014CRestricted Area</div>
+            <div class="lock-title">NSFE \u2014 Restricted Area</div>
             <div class="lock-sub">Enter the project password to continue</div>
         </div>
         """, unsafe_allow_html=True)
@@ -986,7 +986,7 @@ def render_nsfe_page():
                     st.error("Incorrect password. Try again.")
         return
 
-    # ──CMain Menu (Streamlit tabs) ──
+    # ── Main Menu (Streamlit tabs) ──
     tab1, tab2, tab3, tab4 = st.tabs([
         "\U0001f4cb Dashboard",
         "\U0001f6e1\ufe0f Security",
