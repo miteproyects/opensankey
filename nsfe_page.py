@@ -19,7 +19,7 @@ STEPS = [
         "icon": "\U0001f510",
         "color": "#10B981",
         "substeps": [
-            {"id": "1A", "name": "Firebase Project Setup",   "status": "pending",
+            {"id": "1A", "name": "Firebase Project Setup",   "status": "done",
              "details": "Create Firebase project, enable Email/Password + Google SSO, add authorized domain, generate service account key"},
             {"id": "1B", "name": "Auth Backend (auth.py)",    "status": "done",
              "details": "Firebase Admin SDK init, JWT verification, user creation, password reset, session management, demo mode fallback"},
