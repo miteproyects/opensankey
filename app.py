@@ -37,6 +37,10 @@ from data_fetcher import (
 )
 from info_data import get_company_icon
 
+# ─── Auth & Database modules ────────────────────────────────────────────────
+from auth import init_session_state, require_auth, is_session_valid, clear_session
+from database import initialize_schema, is_db_ready
+
 # Lazy-load page modules: only import when their page is active (saves ~2s)
 # from profile_page import render_profile_page   Ã¢ÂÂ imported in page routing
 # from earnings_page import render_earnings_page  Ã¢ÂÂ imported in page routing
@@ -963,6 +967,13 @@ for _sk, _ck in [("show_income", "cb_income"), ("show_cashflow", "cb_cf"),
 
 if "ticker" not in st.session_state:
     st.session_state.ticker = "NVDA"
+# ─── Auth session & DB schema init ──────────────────────────────────────────
+init_session_state()
+try:
+    initialize_schema()
+except Exception:
+    pass  # DB may not be available in dev mode
+
 # Always sync page from query params (navbar uses URL navigation)
 _qp_page = st.query_params.get("page", "").lower()
 _qp_ticker = st.query_params.get("ticker", "").upper().strip()
@@ -1698,6 +1709,7 @@ st.markdown(f'''
     <div class="nav-right">
         <a href="/?page=nsfe&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
                     <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
+                    {"" if st.session_state.get("logged_in") else '<a href="/?page=login&ticker=' + ticker + '" target="_self" class="nav-link" style="color:#3b82f6;font-weight:600;">Sign&nbsp;In</a>'}
     </div>
 </div>
     <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
@@ -1807,8 +1819,15 @@ with st.sidebar:
     }
     </style>""", unsafe_allow_html=True)
 
-    # Sign In button at the top of the sidebar
-    st.markdown(f"""
+    # Sign In / Sign Out button at the top of the sidebar
+    if st.session_state.get("logged_in"):
+        _user_email = st.session_state.get("user_email", "User")
+        if st.button(f"Sign Out ({_user_email})", key="sidebar_signout"):
+            clear_session()
+            st.rerun()
+    else:
+        # Sign In button at the top of the sidebar
+        st.markdown(f"""
     <div style="display:flex; justify-content:flex-end; margin:-8px 0 14px 0;">
         <a href="/?page=login&ticker={ticker}" target="_self"
            style="display:inline-flex; align-items:center; gap:5px; background:#3b82f6; color:#fff;
@@ -1818,7 +1837,7 @@ with st.sidebar:
             Sign In
         </a>
     </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     with st.form("ticker_form", clear_on_submit=False, border=False):
         col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
@@ -1980,6 +1999,8 @@ with st.sidebar:
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 if current_page == "profile":
+    if not require_auth():
+        st.stop()
     from profile_page import render_profile_page
     render_profile_page(ticker)
     st.stop()
