@@ -35,7 +35,7 @@ STEPS = [
         "icon": "\U0001f5c4\ufe0f",
         "color": "#3B82F6",
         "substeps": [
-            {"id": "2A", "name": "Railway PostgreSQL Setup",  "status": "pending",
+            {"id": "2A", "name": "Railway PostgreSQL Setup",  "status": "done",
              "details": "Create PostgreSQL database in Railway, copy DATABASE_URL, schema auto-creates on startup"},
             {"id": "2B", "name": "Database Module (database.py)", "status": "done",
              "details": "Connection pooling, users/companies/audit_log schema, CRUD operations, parameterized queries, multi-tenant isolation"},
