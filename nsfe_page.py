@@ -342,11 +342,11 @@ def _info_tip(text: str) -> str:
 
 def _status_badge(status: str) -> str:
     _tips = {
-        "done":     "DONE: This task is fully completed, tested, and verified. The code is live on the website and working in production.",
-        "partial":  "IN PROGRESS: Active development is underway. Some subtasks are finished but others still need work. Check subtasks for details.",
-        "pending":  "PENDING: This task has not been started yet. It is planned and waiting for prerequisite steps to be completed first.",
-        "deferred": "DEFERRED: Postponed to a future phase. Not needed for MVP launch but planned for later development.",
-        "future":   "FUTURE: Optional enhancement planned for a later milestone. These are nice-to-have features, not required for launch.",
+        "done":     "DONE: Fully built, tested, and running live on quartercharts.com. The code is merged to the GitHub main branch and auto-deployed via Railway. No further action needed unless bugs are reported.",
+        "partial":  "IN PROGRESS: Some subtasks are shipped but others remain. Expand the step card to see exactly which pieces are done and which still need coding. This is where active development effort should go.",
+        "pending":  "PENDING: Not started yet. Blocked by earlier steps that need to finish first. Check the Implementation Order section to see where this sits in the build sequence.",
+        "deferred": "DEFERRED: Intentionally postponed past MVP launch. These features (like Stripe billing or enterprise SSO) will be built once the core platform has paying users and validated demand.",
+        "future":   "FUTURE: Nice-to-have enhancement on the long-term roadmap. Not required for launch or early revenue. Examples include AI auto-categorization, white-label branding, and advanced analytics.",
     }
     m = {
         "done":     ("\u2705 Done",        "#10B981", "#ECFDF5"),
@@ -369,11 +369,11 @@ def _status_badge(status: str) -> str:
 
 def _severity_badge(severity: str) -> str:
     _tips = {
-        "critical": "CRITICAL: Requires immediate action. The system is at serious risk of exploitation. Fix before any new feature work.",
-        "high":     "HIGH: Should be addressed urgently within the current sprint. Significant security impact if exploited.",
-        "medium":   "MEDIUM: Plan remediation for the next sprint. Moderate risk that should be tracked and scheduled.",
-        "low":      "LOW: Minor issue with limited impact. Fix when convenient or during regular maintenance cycles.",
-        "info":     "INFO: Informational finding for awareness. No immediate action needed but good to track for future reference.",
+        "critical": "CRITICAL: Drop everything and fix this now. The system is actively vulnerable to attack or data breach. No new features until this is resolved. Typical examples: no authentication, exposed API keys, SQL injection.",
+        "high":     "HIGH: Fix within the current development sprint. A skilled attacker could exploit this to access user data or escalate privileges. Examples: missing rate limiting, weak session management, insecure password storage.",
+        "medium":   "MEDIUM: Schedule a fix in the next sprint. Exploitable under specific conditions but not an immediate emergency. Examples: missing security headers, verbose error messages leaking stack traces, no CAPTCHA on forms.",
+        "low":      "LOW: Fix during routine maintenance. Minimal risk on its own but good practice to address. Examples: missing Content-Security-Policy header, cookie without Secure flag, dependency with known low-severity CVE.",
+        "info":     "INFO: No action needed right now. Noted for awareness and future hardening. Examples: security documentation gaps, recommended but optional configurations, defense-in-depth suggestions.",
     }
     m = {
         "critical": ("CRITICAL", "#DC2626", "#FEE2E2"),
@@ -524,17 +524,17 @@ def _render_dashboard():
         <h1>QuarterCharts \u2014 Phase 2 Dashboard</h1>
         <p>Full implementation roadmap &nbsp;\u00b7&nbsp; 10 Steps &nbsp;\u00b7&nbsp; {overall_pct}% overall progress</p>
         <div style="max-width:400px;margin:16px auto 0;">
-            {_progress_bar(overall_pct, '#3B82F6', 'Overall completion percentage across all 10 implementation steps. Computed automatically from substep statuses.')}
+            {_progress_bar(overall_pct, '#3B82F6', 'Overall Phase 2 completion. This percentage is the average progress of all 10 steps, auto-computed from substep statuses. Each done substask counts as 100%, partial as 50%, and pending/deferred/future as 0%.')}
         </div>
         <div class="metrics-row">
             {_metric_card(done_count, "Completed", "#10B981",
-                "Steps fully finished: all subtasks are done, code is deployed and working on quartercharts.com.")}
+                "Steps where every subtask is coded, tested, and deployed to quartercharts.com via Railway. These are production-ready and need no further work unless bugs surface.")}
             {_metric_card(partial_count, "In Progress", "#F59E0B",
-                "Steps with some subtasks done but others still pending. Active development is underway.")}
+                "Steps with a mix of finished and unfinished subtasks. Click into each step card below to see the exact breakdown. These are your active workstreams.")}
             {_metric_card(pending_count, "Pending", "#6B7280",
-                "Steps not started yet. Waiting for prerequisite steps to be completed first.")}
+                "Steps that cannot begin until earlier dependencies are done. For example, App Integration (Step 5) needs Auth (Step 1) and Database (Step 2) wired up first.")}
             {_metric_card(deferred_count, "Deferred", "#6366F1",
-                "Steps postponed to a future development phase. Not needed for MVP launch.")}
+                "Steps like Stripe Billing (Step 6) and Team Admin (Step 10) that are postponed until the platform has early users and validated revenue. Not blockers for launch.")}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -542,15 +542,15 @@ def _render_dashboard():
     for step in STEPS:
         badge = _status_badge(step["status"])
         bar   = _progress_bar(step["progress"], step["color"],
-            f'Step {step["num"]} progress: {step["progress"]}% complete. This is auto-calculated from the status of each subtask below.')
+            f'Step {step["num"]} progress: {step["progress"]}% complete. Calculated from subtasks: done=100%, partial=50%, pending/deferred/future=0%. Expand the step to see individual substask statuses.')
         st.markdown(f"""
         <div class="step-card">
             <div class="step-header">
                 <div class="step-icon" style="background:{step['color']}22;">{step['icon']}</div>
                 <div>
                     <span class="step-num">STEP {step['num']}{_info_tip(
-                        f'Step {step["num"]} of 10 in the Phase 2 roadmap. '
-                        f'Status is auto-computed: a step shows Done only when ALL its subtasks are done.'
+                        f'Step {step["num"]} of 10 in the QuarterCharts Phase 2 build plan. '
+                        f'Status auto-computes from subtasks: Done = all subtasks shipped, Partial = some done, Pending = none started. Expand to see each subtask.'
                     )}</span>
                     <div class="step-title">{step['title']}</div>
                 </div>
@@ -573,7 +573,7 @@ def _render_dashboard():
                         {sub_badge}
                     </div>
                     <div class="substep-detail">{sub['details']}{_info_tip(
-                        "Implementation details: describes the specific work items, technologies, and deliverables for this subtask."
+                        "Implementation details: the specific files to create or edit, third-party services to configure, and acceptance criteria for marking this subtask as done."
                     )}</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -604,7 +604,7 @@ def _render_dashboard():
         items_html += f'<div class="impl-item"><span>{icon}</span><span class="{cls}">{i}. {text}</span></div>\n'
 
     st.markdown(
-        f'<div class="impl-order"><h3>\U0001f4cb Implementation Order{_info_tip("Recommended sequence for building the platform. Checked items are already coded and in the repo. Unchecked items are next priorities.")}</h3>{items_html}</div>',
+        f'<div class="impl-order"><h3>\U0001f4cb Implementation Order{_info_tip("Build sequence for QuarterCharts Phase 2. Checked items are coded and merged to the GitHub repo. Unchecked items are next in the queue. Work top-to-bottom to avoid dependency issues.")}</h3>{items_html}</div>',
         unsafe_allow_html=True,
     )
 
@@ -627,19 +627,19 @@ def _render_security():
         <p>Vulnerability tracking &nbsp;\u00b7&nbsp; ISO 27001 readiness &nbsp;\u00b7&nbsp; {total} issues tracked</p>
         <div class="metrics-row">
             {_metric_card(critical, "Critical", "#DC2626",
-                "Count of CRITICAL severity issues. These need immediate action before any new feature development.")}
+                "CRITICAL issues that must be fixed before any new feature work. These represent active vulnerabilities where an attacker could breach the system, steal data, or take control. Zero tolerance target.")}
             {_metric_card(high, "High", "#EA580C",
-                "Count of HIGH severity issues. Should be resolved within the current development sprint.")}
+                "HIGH severity findings to fix this sprint. An attacker with moderate skill could exploit these to access user data, bypass authentication, or escalate privileges. Aim to resolve within 1-2 weeks.")}
             {_metric_card(medium, "Medium", "#D97706",
-                "Count of MEDIUM severity issues. Schedule remediation in the next sprint.")}
+                "MEDIUM severity items to schedule in the next sprint. Exploitable under specific conditions. Includes things like missing security headers, verbose error pages, or weak input validation on non-critical forms.")}
             {_metric_card(low_info, "Low / Info", "#2563EB",
-                "Count of LOW and INFO findings. Minor issues or informational notes for awareness.")}
+                "LOW-risk and informational findings. Minimal direct impact but worth tracking. Includes best-practice recommendations, optional hardening measures, and documentation gaps for ISO 27001 readiness.")}
             {_metric_card(open_count, "Open", "#EF4444",
-                "Total unresolved issues still needing action. Goal: bring this to zero.")}
+                "Total unresolved vulnerabilities across all severity levels. This is the primary metric to drive toward zero. Each open issue represents a gap in the security posture. Prioritize by severity.")}
             {_metric_card(mitigated, "Mitigated", "#F59E0B",
-                "Issues with temporary workarounds in place. Still need permanent fixes.")}
+                "Issues with temporary workarounds deployed (e.g., WAF rules, IP restrictions) but no permanent code fix yet. These reduce immediate risk but add technical debt. Plan permanent remediation.")}
             {_metric_card(resolved, "Resolved", "#10B981",
-                "Issues fully fixed, tested, and verified in production.")}
+                "Issues permanently fixed in code, merged to main, deployed to Railway, and verified working on the live site. These should be re-tested periodically and during pen testing.")}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -666,24 +666,24 @@ def _render_security():
         <div class="sec-card">
             <div class="sec-card-header">
                 <span class="sec-card-id">{issue['id']}{_info_tip(
-                    f'Security issue {issue["id"]}. Unique identifier for tracking. Found on {issue["date_found"]}.'
+                    f'Issue {issue["id"]}. Logged on {issue["date_found"]}. Use this ID to reference this finding in commits, PRs, and audit documentation. Format: SEC-XXX for systematic tracking.'
                 )}</span>
                 {sev}
                 <span class="sec-card-title">{issue['title']}{_info_tip(
-                    f'What: {issue["description"]} How to fix: {issue["recommendation"]}'
+                    f'Finding: {issue["description"]} Remediation: {issue["recommendation"]}'
                 )}</span>
                 {stat}
             </div>
             <span class="sec-card-cat">{issue['category']}{_info_tip(
-                f'Security category: {issue["category"]}. Used for grouping related issues and mapping to ISO 27001 controls.'
+                f'Category: {issue["category"]}. Groups related security findings together and maps to specific ISO 27001 Annex A controls for compliance tracking and audit evidence.'
             )}</span>
             <span style="font-size:0.75rem;color:#475569;margin-left:12px;">Found: {issue['date_found']}</span>
             <span style="font-size:0.75rem;color:#475569;margin-left:12px;">Affected: {issue['affected']}{_info_tip(
-                f'Components impacted: {issue["affected"]}. These areas need attention when implementing the fix.'
+                f'Affected components: {issue["affected"]}. These files, services, or infrastructure pieces need changes to fully resolve this issue. Review each before marking as resolved.'
             )}</span>
             <div class="sec-card-body">{issue['description']}</div>
             <div class="sec-card-rec">\U0001f4a1 <strong>Recommendation:</strong>{_info_tip(
-                "Actionable recommendation from the security audit. Follow these steps to resolve or mitigate the issue."
+                "Step-by-step remediation guidance. Follow these instructions to permanently fix this vulnerability. After implementing, verify the fix and update the issue status to Resolved."
             )} {issue['recommendation']}</div>
         </div>
         """, unsafe_allow_html=True)
@@ -696,7 +696,7 @@ def _render_security():
     <div style="max-width:500px;margin:0 auto 24px;">
         <div style="text-align:center;font-size:0.85rem;color:#94A3B8;margin-bottom:4px;">
             Overall ISO 27001 Readiness: <strong style="color:#F8FAFC;">{overall_iso}%</strong>
-            {_info_tip("ISO 27001 readiness score. Measures how many of the required security controls have been implemented. Target: 100% for certification.")}
+            {_info_tip("ISO 27001 readiness score across all Annex A control domains. Measures implementation of the international standard for information security management. Target 100% before engaging a certification auditor. Each control area below maps to a specific Annex A clause.")}
         </div>
         {_progress_bar(overall_iso, '#3B82F6')}
     </div>
@@ -709,10 +709,10 @@ def _render_security():
         <div class="compliance-card">
             <div class="compliance-header">
                 <span class="compliance-id">{ctrl['id']}{_info_tip(
-                    f'ISO 27001 Annex A control {ctrl["id"]}. This is an international standard requirement for information security management.'
+                    f'ISO 27001 Annex A control {ctrl["id"]}. Each Annex A clause defines specific security requirements that must be implemented and documented to achieve certification. Auditors verify these controls during assessment.'
                 )}</span>
                 <span class="compliance-name">{ctrl['name']}{_info_tip(
-                    f'Control area: {ctrl["name"]}. Covers: {ctrl["details"]}. Progress: {ctrl["progress"]}%.'
+                    f'Control area: {ctrl["name"]}. Scope: {ctrl["details"]}. Current implementation: {ctrl["progress"]}%. Each control requires documented policies, implemented technical measures, and evidence of ongoing operation.'
                 )}</span>
                 <span style="font-size:0.82rem;color:#94A3B8;min-width:40px;text-align:right;">{ctrl['progress']}%</span>
                 {badge}
@@ -729,19 +729,19 @@ def _render_settings():
     <div class="nsfe-header">
         <h1>Manager Settings</h1>
         <p>System configuration &nbsp;\u00b7&nbsp; Quick actions{_info_tip(
-            "Settings page: quick links to service dashboards, repository info, and system configuration. Use these to manage your platform services."
+            "Settings &amp; Configuration — Central hub for managing all QuarterCharts platform services. Access dashboards for Firebase (auth), Railway (hosting &amp; DB), and Stripe (payments). View repository links, check the live site, and review current system configuration at a glance."
         )}</p>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("### \U0001f517 Quick Links" + _info_tip("Direct links to your key service dashboards. Click the buttons below to open each service in a new tab."), unsafe_allow_html=True)
+    st.markdown("### \U0001f517 Quick Links" + _info_tip("Quick Links — One-click access to external service dashboards. Each button opens the corresponding admin panel in a new browser tab so you can manage authentication, deployments, and payments without leaving this page."), unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown(f"""
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">\U0001f525</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">Firebase Console{_info_tip(
-                "Firebase: handles user authentication (login, signup, password reset). Manages Email/Password and Google SSO sign-in methods. Go here to manage users, view auth logs, and configure sign-in providers."
+                "Firebase Console — Manages all user authentication for QuarterCharts. Handles sign-up, login, password reset, and session tokens. Supports Email/Password and Google SSO sign-in methods. Use the Firebase console to add or remove users, review authentication logs, configure sign-in providers, and set security rules for Firestore if applicable."
             )}</div>
             <div style="font-size:0.8rem;color:#64748B;">Auth, users, config</div>
         </div>
@@ -752,7 +752,7 @@ def _render_settings():
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">\U0001f682</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">Railway Dashboard{_info_tip(
-                "Railway: hosts the backend (Streamlit app) and PostgreSQL database. Go here to view deploy logs, set environment variables (API keys, DB URL), monitor resource usage, and trigger redeployments."
+                "Railway Dashboard — Hosts the QuarterCharts Streamlit application and PostgreSQL database in production. Use the Railway dashboard to view real-time deploy logs, configure environment variables (API keys, DATABASE_URL, secrets), monitor CPU/memory/network usage, scale resources, and manually trigger redeployments. Auto-deploy is connected to the GitHub main branch."
             )}</div>
             <div style="font-size:0.8rem;color:#64748B;">Deploys, DB, logs</div>
         </div>
@@ -763,7 +763,7 @@ def _render_settings():
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">\U0001f4b3</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">Stripe Dashboard{_info_tip(
-                "Stripe: payment processing for subscriptions and billing (Step 6 - currently deferred). Will handle checkout, customer portal, webhooks, and plan enforcement once implemented."
+                "Stripe Dashboard — Payment processing platform for QuarterCharts subscriptions and billing (Step 6 — currently deferred). Once implemented, Stripe will handle checkout sessions, recurring subscription management, customer self-service portal, webhook events for payment confirmations, and plan-based access enforcement. Use the Stripe dashboard to configure products, pricing tiers, and test payments."
             )}</div>
             <div style="font-size:0.8rem;color:#64748B;">Billing, subscriptions</div>
         </div>
@@ -771,14 +771,14 @@ def _render_settings():
         st.link_button("Open Stripe", "https://dashboard.stripe.com", use_container_width=True)
 
     st.markdown("---")
-    st.markdown("### \U0001f4e6 Repository" + _info_tip("Source code repository and live deployment. The app auto-deploys from the GitHub main branch to Railway."), unsafe_allow_html=True)
+    st.markdown("### \U0001f4e6 Repository" + _info_tip("Repository &amp; Deployment — Links to the source code repository and the live production site. The QuarterCharts app auto-deploys from the GitHub main branch to Railway whenever new commits are pushed, ensuring the live site always reflects the latest code."), unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(f"""
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">\U0001f419</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">GitHub Repository{_info_tip(
-                "GitHub repo: miteproyects/opensankey. Contains all source code, issues, and pull requests. Pushing to main branch triggers auto-deploy to Railway."
+                "GitHub Repository (miteproyects/opensankey) — The full source code for QuarterCharts. Contains all Python pages, configuration files, issue tracking, and pull requests. Pushing commits to the main branch automatically triggers a new deployment on Railway. Use GitHub for version control, code reviews, and issue management."
             )}</div>
             <div style="font-size:0.8rem;color:#64748B;">Code, issues, PRs</div>
         </div>
@@ -789,7 +789,7 @@ def _render_settings():
         <div class="step-card" style="text-align:center;padding:20px;">
             <div style="font-size:2rem;margin-bottom:8px;">\U0001f310</div>
             <div style="font-weight:700;color:#F1F5F9;margin-bottom:4px;">Live Site{_info_tip(
-                "The live production website at quartercharts.com. Hosted on Streamlit Cloud, auto-deploys from GitHub main branch. This is what end users see."
+                "Live Site (quartercharts.com) — The production website that end users visit. Hosted via Railway (Streamlit app), it auto-deploys from the GitHub main branch. Click to open the public-facing site and verify that recent changes are live and rendering correctly."
             )}</div>
             <div style="font-size:0.8rem;color:#64748B;">quartercharts.com</div>
         </div>
@@ -797,18 +797,18 @@ def _render_settings():
         st.link_button("Open Live Site", "https://quartercharts.com", use_container_width=True)
 
     st.markdown("---")
-    st.markdown("### \u26a1 System Info" + _info_tip("Current platform configuration and tech stack. Shows the services and tools powering QuarterCharts."), unsafe_allow_html=True)
+    st.markdown("### \u26a1 System Info" + _info_tip("System Information — Overview of the current tech stack and platform configuration powering QuarterCharts. Displays the hosting platform, database, authentication provider, payment processor, domain, deployment pipeline, and security settings at a glance."), unsafe_allow_html=True)
     st.markdown(f"""
     <div class="step-card">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div><span style="color:#64748B;font-size:0.85rem;">Platform:{_info_tip("Streamlit serves the frontend UI, Railway hosts the backend and database.")}</span> <span style="color:#F1F5F9;">Streamlit + Railway</span></div>
-            <div><span style="color:#64748B;font-size:0.85rem;">Database:{_info_tip("PostgreSQL hosted on Railway. Stores users, companies, audit logs. Connection via DATABASE_URL env var.")}</span> <span style="color:#F1F5F9;">PostgreSQL (Railway)</span></div>
-            <div><span style="color:#64748B;font-size:0.85rem;">Auth:{_info_tip("Firebase Authentication handles user login, signup, and session management. Supports Email/Password and Google SSO.")}</span> <span style="color:#F1F5F9;">Firebase Auth</span></div>
-            <div><span style="color:#64748B;font-size:0.85rem;">Payments:{_info_tip("Stripe integration is planned for Step 6. Will handle subscription billing, checkout, and customer portal.")}</span> <span style="color:#F1F5F9;">Stripe (planned)</span></div>
-            <div><span style="color:#64748B;font-size:0.85rem;">Domain:{_info_tip("The public-facing domain. Users access the platform at this URL.")}</span> <span style="color:#F1F5F9;">quartercharts.com</span></div>
-            <div><span style="color:#64748B;font-size:0.85rem;">Auto-deploy:{_info_tip("Every push to the main branch on GitHub automatically triggers a redeployment on Railway. No manual deploy needed.")}</span> <span style="color:#10B981;">GitHub main \u2192 Railway</span></div>
-            <div><span style="color:#64748B;font-size:0.85rem;">Target:{_info_tip("Business goal: reach $50K annual recurring revenue from B2B SaaS subscriptions for financial visualization tools.")}</span> <span style="color:#F1F5F9;">$50K/year B2B SaaS</span></div>
-            <div><span style="color:#64748B;font-size:0.85rem;">NSFE Password:{_info_tip("This admin dashboard is protected by a password gate. Only authorized managers can access it.")}</span> <span style="color:#F59E0B;">Active</span></div>
+            <div><span style="color:#64748B;font-size:0.85rem;">Platform:{_info_tip("Platform: Streamlit (Python framework) renders the frontend UI with interactive widgets and charts. Railway provides cloud hosting for both the Streamlit app server and the PostgreSQL database, handling HTTP routing, SSL, and resource scaling.")}</span> <span style="color:#F1F5F9;">Streamlit + Railway</span></div>
+            <div><span style="color:#64748B;font-size:0.85rem;">Database:{_info_tip("Database: PostgreSQL hosted on Railway. Stores all persistent data including user profiles, company records, financial metrics, audit logs, and session data. Connected via DATABASE_URL environment variable with SSL-encrypted connections.")}</span> <span style="color:#F1F5F9;">PostgreSQL (Railway)</span></div>
+            <div><span style="color:#64748B;font-size:0.85rem;">Auth:{_info_tip("Auth: Firebase Authentication manages all user identity operations — sign-up, login, password reset, and session tokens. Supports Email/Password and Google SSO providers. User records sync with the PostgreSQL database for role-based access control.")}</span> <span style="color:#F1F5F9;">Firebase Auth</span></div>
+            <div><span style="color:#64748B;font-size:0.85rem;">Payments:{_info_tip("Payments: Stripe integration (Step 6 — deferred). Once live, Stripe will process subscription billing, checkout sessions, customer portal access, webhook-driven payment events, and plan-based feature gating for B2B SaaS tiers.")}</span> <span style="color:#F1F5F9;">Stripe (planned)</span></div>
+            <div><span style="color:#64748B;font-size:0.85rem;">Domain:{_info_tip("Domain: quartercharts.com — the public-facing URL where end users access the platform. DNS points to the Railway-hosted Streamlit app. All traffic is served over HTTPS with automatic SSL certificates.")}</span> <span style="color:#F1F5F9;">quartercharts.com</span></div>
+            <div><span style="color:#64748B;font-size:0.85rem;">Auto-deploy:{_info_tip("Auto-deploy: Every push to the GitHub main branch automatically triggers a new build and deployment on Railway. No manual intervention needed — commit, push, and the live site updates within minutes. Monitor deploy status in the Railway dashboard.")}</span> <span style="color:#10B981;">GitHub main \u2192 Railway</span></div>
+            <div><span style="color:#64748B;font-size:0.85rem;">Target:{_info_tip("Target: Business goal of reaching $50K annual recurring revenue (ARR) from B2B SaaS subscriptions. This metric drives product roadmap priorities, pricing strategy, and feature development across all implementation steps.")}</span> <span style="color:#F1F5F9;">$50K/year B2B SaaS</span></div>
+            <div><span style="color:#64748B;font-size:0.85rem;">NSFE Password:{_info_tip("NSFE Password: This admin dashboard is protected by a password gate to restrict access to authorized managers only. The password is stored in the app source code and should be changed periodically. Share it only with team members who need access to project management data.")}</span> <span style="color:#F59E0B;">Active</span></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -840,7 +840,7 @@ def _render_chat():
     <div class="nsfe-header">
         <h1>\U0001f916 AI Command Center</h1>
         <p style="color:#94A3B8;font-size:0.9rem;">Claude-powered assistant{_info_tip(
-            "AI chat assistant powered by the Claude API (Anthropic). Ask questions about QuarterCharts architecture, implementation, security, or strategy. Requires an ANTHROPIC_API_KEY env var set in Railway."
+            "AI Assistant — A built-in chat interface powered by the Claude API (Anthropic). Ask questions about QuarterCharts architecture, implementation progress, security posture, deployment pipeline, or business strategy. Responses are context-aware and tailored to the NSFE project. Requires an ANTHROPIC_API_KEY environment variable configured in your Railway deployment settings."
         )}</p>
         <p>Claude-powered assistant &nbsp;\u00b7&nbsp; Ask anything about QuarterCharts</p>
     </div>
@@ -853,7 +853,7 @@ def _render_chat():
         st.markdown(f"""
         <div class="step-card">
             <h4 style="color:#F1F5F9;margin:0 0 12px;">Setup Instructions{_info_tip(
-                "To enable AI chat, you need an Anthropic API key. Create one at console.anthropic.com, then add it as an environment variable in your Railway deployment settings."
+                "Setup Instructions — To activate the AI assistant: 1) Create an API key at console.anthropic.com under your Anthropic account. 2) Go to your Railway project settings. 3) Add a new environment variable named ANTHROPIC_API_KEY with your key as the value. 4) Redeploy the app. The assistant will then respond to messages in real-time."
             )}</h4>
             <div style="color:#94A3B8;font-size:0.9rem;line-height:1.7;">
                 1. Go to <strong>console.anthropic.com</strong> \u2192 API Keys<br>
@@ -866,7 +866,7 @@ def _render_chat():
         """, unsafe_allow_html=True)
         st.markdown("---")
         st.markdown("#### \U0001f4ac Preview Mode (no API key)" + _info_tip(
-            "Preview mode: messages are saved locally but not sent to Claude. Once you add the API key and redeploy, the AI will respond in real-time."
+            "Preview Mode — The AI assistant is running without an API key. You can type messages and they will be saved in your session, but no responses will be generated. Once you configure the ANTHROPIC_API_KEY in Railway and redeploy, the assistant will switch to live mode and respond to every message in real-time using Claude."
         ), unsafe_allow_html=True)
         st.info("You can still use this interface to draft messages. They will be processed once the API key is set.")
 
@@ -932,7 +932,7 @@ def _render_chat():
     # ── Sidebar: Quick prompts ──
     st.markdown("---")
     st.markdown("#### \u26a1 Quick Prompts" + _info_tip(
-        "Pre-written questions to quickly start a conversation with the AI assistant. Click any prompt to send it."
+        "Quick Prompts — Pre-written starter questions to help you explore common topics instantly. Click any prompt to auto-send it to the AI assistant. Covers architecture overviews, security recommendations, next implementation steps, and deployment guidance for QuarterCharts."
     ), unsafe_allow_html=True)
     quick_prompts = [
         "What's the next priority step to implement?",
