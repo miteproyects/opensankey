@@ -75,7 +75,7 @@ STEPS = [
         "icon": "\U0001f517",
         "color": "#EC4899",
         "substeps": [
-            {"id": "5A", "name": "Wire Auth into Main App",   "status": "pending",
+            {"id": "5A", "name": "Wire Auth into Main App",   "status": "done",
              "details": "Import auth/db modules, init session state, update nav bar, route /login, protect pages with require_auth()"},
             {"id": "5B", "name": "Future Options",            "status": "future",
              "details": "Middleware decorator \u00b7 FastAPI backend \u00b7 WebSocket session sync"},
