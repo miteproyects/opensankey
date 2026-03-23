@@ -991,6 +991,221 @@ def _sync_steps():
             step["status"] = "pending"
             step["progress"] = 0
 
+def _render_infrastructure():
+    """Infrastructure overview â auto-updated technical stack reference."""
+    import os, json, datetime
+
+    st.markdown("## ðï¸ Infrastructure Overview")
+    st.caption("Auto-updated reference for the QuarterCharts technical stack. "
+               "Useful for customer meetings, onboarding, and troubleshooting.")
+
+    # ââ 1. Hosting & Deployment âââââââââââââââââââââââââââââââââââââââââââââ
+    st.markdown("### âï¸ Hosting & Deployment")
+    _hosting_data = {
+        "Platform": "Railway (railway.com)",
+        "Project": "daring-growth",
+        "Service": "quarterchart-clone",
+        "Region": "us-west2 (Oregon)",
+        "Replicas": "1",
+        "Auto-deploy": "Yes â every push to `main` triggers deploy",
+        "Default URL": "quarterchart-clone-production.up.railway.app",
+        "Private Network": "quarterchart-clone.railway.internal",
+    }
+    for k, v in _hosting_data.items():
+        st.markdown(f"**{k}:** {v}")
+
+    # ââ 2. Domains & DNS ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    st.markdown("---")
+    st.markdown("### ð Domains & DNS")
+
+    _domains = [
+        {"Domain": "quartercharts.com", "Type": "Primary", "DNS Provider": "Cloudflare",
+         "Registrar": "GoDaddy", "Status": "â Active", "Port": "8501"},
+        {"Domain": "www.quartercharts.com", "Type": "WWW redirect", "DNS Provider": "Cloudflare",
+         "Registrar": "GoDaddy", "Status": "â ï¸ Needs DNS records", "Port": "8501"},
+    ]
+    st.table(_domains)
+
+    with st.expander("ð§ WWW DNS Fix â Required Records"):
+        st.markdown("""
+**To fix `www.quartercharts.com`, add these records in Cloudflare:**
+
+| Type | Name | Value |
+|------|------|-------|
+| CNAME | `www` | `jakb2zcn.up.railway.app` |
+| TXT | `_railway-verify.www` | `railway-verify=bbe77a3e1c1d4ef0a456ce29dbf8b55e9830395fac2c21dba832fb11b1a68711` |
+
+**Steps:** Cloudflare Dashboard â DNS â Add Record â enter above values â Save
+        """)
+
+    # ââ 3. Source Code ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    st.markdown("---")
+    st.markdown("### ð¦ Source Code")
+    _repo_data = {
+        "Repository": "github.com/miteproyects/opensankey",
+        "Visibility": "Public",
+        "Language": "Python 100%",
+        "Python Version": "3.12.9",
+        "Contributors": "2 (miteproyects + claude)",
+    }
+    for k, v in _repo_data.items():
+        st.markdown(f"**{k}:** {v}")
+
+    with st.expander("ð File Structure"):
+        st.code("""
+opensankey/
+âââ app.py              # Main Streamlit app (~127K) - routing, nav, pages
+âââ auth.py             # Firebase authentication (15 functions)
+âââ database.py         # PostgreSQL database layer (13 functions)
+âââ login_page.py       # Login/signup UI
+âââ profile_page.py     # User profile page
+âââ nsfe_page.py        # NSFE admin dashboard (this page)
+âââ charts.py           # Financial chart components
+âââ earnings_page.py    # Earnings analysis page
+âââ info_charts.py      # Company info visualizations
+âââ info_data.py        # Company data & icons
+âââ price_api.py        # Stock price API integration
+âââ pricing_page.py     # Subscription pricing page
+âââ sankey_page.py      # Sankey diagram page
+âââ watchlist_page.py   # Watchlist management
+âââ watchlist_data.json # Default watchlist data
+âââ rbac.py             # Role-based access control
+âââ requirements.txt    # Python dependencies
+âââ .python-version     # Python 3.12.9
+        """, language="text")
+
+    # ââ 4. Framework & Stack ââââââââââââââââââââââââââââââââââââââââââââââââ
+    st.markdown("---")
+    st.markdown("### ð ï¸ Tech Stack")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Frontend & Framework**")
+        st.markdown("- Streamlit (Python web framework)")
+        st.markdown("- Custom HTML/CSS components")
+        st.markdown("- Plotly for charts")
+        st.markdown("- Responsive design")
+
+    with col2:
+        st.markdown("**Backend & Data**")
+        st.markdown("- Python 3.12.9")
+        st.markdown("- PostgreSQL (Railway)")
+        st.markdown("- Firebase Authentication")
+        st.markdown("- Financial data APIs")
+
+    # ââ 5. Database âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    st.markdown("---")
+    st.markdown("### ðï¸ Database")
+    _db_info = {
+        "Engine": "PostgreSQL (Railway managed)",
+        "Connection": "DATABASE_URL environment variable",
+        "Pooling": "Connection pool via _get_pool() singleton",
+    }
+    for k, v in _db_info.items():
+        st.markdown(f"**{k}:** {v}")
+
+    with st.expander("ð Database Tables"):
+        st.markdown("""
+| Table | Purpose |
+|-------|---------|
+| `users` | User accounts (Firebase UID, email, role, timestamps) |
+| `companies` | Registered companies |
+| `company_members` | Company â user associations |
+| `audit_log` | Action logging for security & compliance |
+        """)
+
+    # ââ 6. Authentication âââââââââââââââââââââââââââââââââââââââââââââââââââ
+    st.markdown("---")
+    st.markdown("### ð Authentication & Security")
+    _auth_info = {
+        "Provider": "Firebase Authentication",
+        "Session Management": "Streamlit session_state with timeout",
+        "Password Hashing": "Firebase managed (bcrypt)",
+        "RBAC": "Role-based access control (rbac.py)",
+        "Demo Mode": "Available when Firebase is not configured",
+    }
+    for k, v in _auth_info.items():
+        st.markdown(f"**{k}:** {v}")
+
+    # ââ 7. Environment Variables ââââââââââââââââââââââââââââââââââââââââââââ
+    st.markdown("---")
+    st.markdown("### ð Environment Variables")
+    st.caption("Sensitive values are masked. Configured in Railway service settings.")
+
+    _env_vars = [
+        ("DATABASE_URL", "PostgreSQL connection string", "Railway"),
+        ("SECRET_KEY", "App secret for sessions", "Railway"),
+        ("APP_URL", "Public app URL", "Railway"),
+        ("GMAIL_ADDRESS", "Notification email sender", "Railway"),
+        ("GMAIL_APP_PASSWORD", "Gmail app password", "Railway"),
+        ("FIREBASE_CONFIG", "Firebase client config (JSON)", "Railway"),
+        ("FIREBASE_CREDENTIALS", "Firebase admin credentials (JSON)", "Railway"),
+    ]
+
+    _env_status = []
+    for name, desc, source in _env_vars:
+        val = os.environ.get(name)
+        status = "â Set" if val else "â Missing"
+        _env_status.append({"Variable": name, "Description": desc, "Source": source, "Status": status})
+    st.table(_env_status)
+
+    # ââ 8. Deployment Pipeline ââââââââââââââââââââââââââââââââââââââââââââââ
+    st.markdown("---")
+    st.markdown("### ð Deployment Pipeline")
+    st.markdown("""
+```
+Developer pushes code to GitHub (main branch)
+        â
+        â¼
+Railway detects push (webhook)
+        â
+        â¼
+Railway builds Python environment
+  â¢ Installs requirements.txt
+  â¢ Sets environment variables
+        â
+        â¼
+Railway starts Streamlit server (port 8501)
+        â
+        â¼
+Site live at quartercharts.com
+```
+    """)
+
+    # ââ 9. Known Issues & Status ââââââââââââââââââââââââââââââââââââââââââââ
+    st.markdown("---")
+    st.markdown("### â ï¸ Known Issues")
+
+    _issues = [
+        {"Issue": "www.quartercharts.com not resolving",
+         "Status": "ð¡ Pending DNS",
+         "Fix": "Add CNAME + TXT records in Cloudflare (see Domains section)",
+         "Priority": "High"},
+        {"Issue": "Railway custom domain limit reached",
+         "Status": "ð¡ Plan limit",
+         "Fix": "Upgrade Railway plan or remove unused domains",
+         "Priority": "Medium"},
+    ]
+    st.table(_issues)
+
+    # ââ 10. Quick Links âââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    st.markdown("---")
+    st.markdown("### ð Quick Links")
+    _links = {
+        "Live Site": "https://quartercharts.com",
+        "GitHub Repo": "https://github.com/miteproyects/opensankey",
+        "Railway Dashboard": "https://railway.com/project/faabbc44-cdd8-467d-8a89-88d897d37051",
+        "Cloudflare DNS": "https://dash.cloudflare.com (manage DNS records)",
+        "GoDaddy": "https://godaddy.com (domain registrar)",
+        "Firebase Console": "https://console.firebase.google.com",
+    }
+    for label, url in _links.items():
+        st.markdown(f"- **{label}:** {url}")
+
+    st.markdown("---")
+    st.caption(f"Last rendered: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+
+
 def _render_update():
     """Update tab: auto-recompute step statuses and progress from substeps."""
     _sync_steps()
@@ -1054,9 +1269,9 @@ def render_nsfe_page():
     # ── Main Menu (Streamlit tabs) ──
     _sync_steps()
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📋 Dashboard", "🛡️ Security", "⚙️ Settings",
-        "🤖 AI Assistant", "🔄 Update",
+        "🤖 AI Assistant", "🔄 Update", "🏗️ Infrastructure",
     ])
 
     with tab1:
@@ -1070,6 +1285,9 @@ def render_nsfe_page():
 
     with tab5:
         _render_update()
+
+    with tab6:
+        _render_infrastructure()
 
     # Footer
     st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
