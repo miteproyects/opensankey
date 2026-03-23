@@ -1391,7 +1391,7 @@ def render_nsfe_page():
         _render_chat()
 
     with tab5:
-        _render_update()
+        _render_certifications()
 
     with tab6:
         _render_infrastructure()
