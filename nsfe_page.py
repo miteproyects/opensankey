@@ -2,7 +2,7 @@
 NSFE – Manager Control Center (password-protected).
 Main menu with: Dashboard, Security, Settings, AI Assistant
 """
-
+ 
 import streamlit as st
 import os
 import json
