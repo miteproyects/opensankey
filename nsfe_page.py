@@ -960,6 +960,71 @@ def _render_chat():
 # MAIN ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════════
 
+def _sync_steps():
+    """Recompute step-level status & progress from substep statuses."""
+    if "nsfe_step_overrides" not in st.session_state:
+        st.session_state.nsfe_step_overrides = {}
+    overrides = st.session_state.nsfe_step_overrides
+    for step in STEPS:
+        for sub in step["substeps"]:
+            key = sub["id"]
+            if key in overrides:
+                sub["status"] = overrides[key]
+        subs = step["substeps"]
+        total = len([s for s in subs if s["status"] != "future"])
+        done = len([s for s in subs if s["status"] == "done"])
+        deferred = len([s for s in subs if s["status"] == "deferred"])
+        partial = len([s for s in subs if s["status"] == "partial"])
+        if total == 0:
+            step["status"] = "pending"
+            step["progress"] = 0
+        elif deferred == total:
+            step["status"] = "deferred"
+            step["progress"] = 0
+        elif done == total:
+            step["status"] = "done"
+            step["progress"] = 100
+        elif done > 0 or partial > 0:
+            step["status"] = "partial"
+            step["progress"] = int((done / total) * 100)
+        else:
+            step["status"] = "pending"
+            step["progress"] = 0
+
+def _render_update():
+    """Update tab: auto-recompute step statuses and progress from substeps."""
+    _sync_steps()
+
+    st.markdown("""
+    <div class="nsfe-header">
+        <h1>🔄 Status Update</h1>
+        <p>Step-level statuses and progress are auto-computed from substep data.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    status_icons = {
+        "done": "✅", "partial": "🟡",
+        "pending": "⏳", "deferred": "⏸️", "future": "🔮"
+    }
+
+    for step in STEPS:
+        subs = step["substeps"]
+        total = len(subs)
+        done = len([s for s in subs if s["status"] == "done"])
+        icon = status_icons.get(step["status"], "❓")
+
+        with st.expander(
+            f"{step['icon']} Step {step['num']}: {step['title']}  —  "
+            f"{icon} {step['status'].title()}  |  {step['progress']}%  "
+            f"({done}/{total} substeps done)",
+            expanded=False,
+        ):
+            for sub in subs:
+                si = status_icons.get(sub["status"], "❓")
+                st.markdown(f"{si} **{sub['id']}** — {sub['name']}  ·  *{sub['status']}*")
+
+    st.success("✅ All step statuses and progress bars are up to date.")
+
 def render_nsfe_page():
     """Render the password-protected NSFE manager control center."""
     st.markdown(_STYLES, unsafe_allow_html=True)
@@ -987,11 +1052,11 @@ def render_nsfe_page():
         return
 
     # ── Main Menu (Streamlit tabs) ──
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "\U0001f4cb Dashboard",
-        "\U0001f6e1\ufe0f Security",
-        "\u2699\ufe0f Settings",
-        "\U0001f916 AI Assistant",
+    _sync_steps()
+
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📋 Dashboard", "🛡️ Security", "⚙️ Settings",
+        "🤖 AI Assistant", "🔄 Update",
     ])
 
     with tab1:
@@ -1002,6 +1067,9 @@ def render_nsfe_page():
         _render_settings()
     with tab4:
         _render_chat()
+
+    with tab5:
+        _render_update()
 
     # Footer
     st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
