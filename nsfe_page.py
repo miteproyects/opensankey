@@ -1059,39 +1059,293 @@ def _render_infrastructure():
     st.markdown("---")
     st.caption(f"Documents are live-synced with Google Docs. Last rendered: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
-def _render_update():
-    """Update tab: auto-recompute step statuses and progress from substeps."""
-    _sync_steps()
 
-    st.markdown("""
-    <div class="nsfe-header">
-        <h1>🔄 Status Update</h1>
-        <p>Step-level statuses and progress are auto-computed from substep data.</p>
+def _render_certifications():
+    """Certifications tab: ISO 27001 / SOC 2 compliance tracker with status management."""
+    import datetime, json
+
+    st.markdown("## \U0001f6e1\ufe0f ISO 27001 / SOC 2 Certification Tracker")
+    st.caption("Track compliance progress across all phases. Statuses are saved to database and synced with the roadmap document.")
+
+    # ââ Certification task data (from ISO 27001 / SOC 2 Roadmap) ââ
+    CERT_PHASES = [
+        {
+            "phase": "Quick Wins",
+            "icon": "\u26a1",
+            "timeline": "Week 1-2",
+            "color": "#16A34A",
+            "tasks": [
+                {"id": "QW-1", "name": "Enable MFA on GitHub, Railway, Cloudflare, Firebase", "priority": "Critical", "effort": "30 min/service"},
+                {"id": "QW-2", "name": "Enable GitHub branch protection on main (require PR reviews)", "priority": "High", "effort": "15 min"},
+                {"id": "QW-3", "name": "Set up UptimeRobot free-tier monitoring for quartercharts.com", "priority": "Medium", "effort": "10 min"},
+                {"id": "QW-4", "name": "Enable Dependabot security alerts on GitHub repo", "priority": "High", "effort": "5 min"},
+                {"id": "QW-5", "name": "Document current system architecture diagram", "priority": "High", "effort": "2 hours"},
+            ],
+        },
+        {
+            "phase": "Phase 1: Foundation",
+            "icon": "\U0001f3d7\ufe0f",
+            "timeline": "Months 1-3",
+            "color": "#2563EB",
+            "tasks": [
+                {"id": "P1-1", "name": "ISMS Policy Suite (Information Security, Acceptable Use, Data Classification)", "priority": "High", "target": "Month 1"},
+                {"id": "P1-2", "name": "Asset Inventory (catalog all systems, data stores, APIs, third-party services)", "priority": "High", "target": "Month 1"},
+                {"id": "P1-3", "name": "Risk Register (initial risk assessment: threats, likelihood, impact)", "priority": "High", "target": "Month 2"},
+                {"id": "P1-4", "name": "Access Control Policy (RBAC model, enforce MFA on admin accounts)", "priority": "High", "target": "Month 2"},
+                {"id": "P1-5", "name": "Centralized Logging (Railway log drain to Datadog/Papertrail)", "priority": "High", "target": "Month 3"},
+                {"id": "P1-6", "name": "Automated Backups (daily PostgreSQL backups with retention policy)", "priority": "High", "target": "Month 3"},
+                {"id": "P1-7", "name": "Vendor Register (document third-party vendors with risk ratings)", "priority": "Medium", "target": "Month 3"},
+            ],
+        },
+        {
+            "phase": "Phase 2: Technical Hardening",
+            "icon": "\U0001f527",
+            "timeline": "Months 4-6",
+            "color": "#D97706",
+            "tasks": [
+                {"id": "P2-1", "name": "Vulnerability Scanning (SAST with Bandit, dependency scanning with Dependabot)", "priority": "High", "target": "Month 4"},
+                {"id": "P2-2", "name": "Incident Response Plan (detection, containment, eradication, recovery procedures)", "priority": "High", "target": "Month 4"},
+                {"id": "P2-3", "name": "Session Management (timeouts, secure cookie flags, concurrent session limits)", "priority": "High", "target": "Month 4"},
+                {"id": "P2-4", "name": "Uptime Monitoring (external monitoring with UptimeRobot/Pingdom + alerting)", "priority": "Medium", "target": "Month 5"},
+                {"id": "P2-5", "name": "Change Management Process (PR reviews, branch protection, deployment gates)", "priority": "Medium", "target": "Month 5"},
+            ],
+        },
+        {
+            "phase": "Phase 3: Process Maturity",
+            "icon": "\U0001f4cb",
+            "timeline": "Months 7-9",
+            "color": "#7C3AED",
+            "tasks": [
+                {"id": "P3-1", "name": "Security Awareness Training (deliver training for all team members)", "priority": "Medium", "target": "Month 7"},
+                {"id": "P3-2", "name": "Business Continuity Plan (BCP/DR plan, RPO/RTO targets, failover procedures)", "priority": "Medium", "target": "Month 7"},
+                {"id": "P3-3", "name": "Runbooks & SOPs (deployment, rollback, DB maintenance, incident handling)", "priority": "Medium", "target": "Month 8"},
+                {"id": "P3-4", "name": "Internal Audit Program (establish schedule, conduct first ISMS audit)", "priority": "High", "target": "Month 8"},
+                {"id": "P3-5", "name": "Privacy Impact Assessment (assess data handling, document data flows)", "priority": "Medium", "target": "Month 9"},
+                {"id": "P3-6", "name": "Supplier Assessments (security assessments of Railway, Firebase, Cloudflare, Yahoo Finance)", "priority": "Medium", "target": "Month 9"},
+            ],
+        },
+        {
+            "phase": "Phase 4: Certification & Attestation",
+            "icon": "\U0001f3c6",
+            "timeline": "Months 10-12",
+            "color": "#DC2626",
+            "tasks": [
+                {"id": "P4-1", "name": "Pre-Audit Readiness Check (engage consultant for ISO 27001 readiness)", "priority": "High", "target": "Month 10"},
+                {"id": "P4-2", "name": "Evidence Collection (compile 3+ months of logs, reviews, training records)", "priority": "High", "target": "Month 10"},
+                {"id": "P4-3", "name": "SOC 2 Type I Report (engage auditor for point-in-time assessment)", "priority": "High", "target": "Month 11"},
+                {"id": "P4-4", "name": "ISO 27001 Stage 1 Audit (documentation review by certification body)", "priority": "High", "target": "Month 11"},
+                {"id": "P4-5", "name": "ISO 27001 Stage 2 Audit (on-site/remote audit of ISMS implementation)", "priority": "High", "target": "Month 12"},
+                {"id": "P4-6", "name": "SOC 2 Type II Observation (begin 3-6 month observation period)", "priority": "High", "target": "Month 12"},
+            ],
+        },
+    ]
+
+    STATUS_OPTIONS = ["Not Started", "In Progress", "Partial", "Done", "Blocked"]
+    STATUS_ICONS = {
+        "Not Started": "\u23f3",
+        "In Progress": "\U0001f504",
+        "Partial": "\U0001f7e1",
+        "Done": "\u2705",
+        "Blocked": "\U0001f6d1",
+    }
+    STATUS_COLORS = {
+        "Not Started": "#9CA3AF",
+        "In Progress": "#3B82F6",
+        "Partial": "#F59E0B",
+        "Done": "#10B981",
+        "Blocked": "#EF4444",
+    }
+
+    # ââ Load / initialize statuses from session state ââ
+    if "cert_statuses" not in st.session_state:
+        st.session_state.cert_statuses = {}
+    if "cert_notes" not in st.session_state:
+        st.session_state.cert_notes = {}
+
+    # Try loading from database
+    if "cert_loaded" not in st.session_state:
+        st.session_state.cert_loaded = True
+        try:
+            conn = st.session_state.get("db_conn")
+            if conn:
+                cur = conn.cursor()
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS cert_tracker (
+                        task_id TEXT PRIMARY KEY,
+                        status TEXT DEFAULT 'Not Started',
+                        notes TEXT DEFAULT '',
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                conn.commit()
+                cur.execute("SELECT task_id, status, notes FROM cert_tracker")
+                for row in cur.fetchall():
+                    st.session_state.cert_statuses[row[0]] = row[1]
+                    st.session_state.cert_notes[row[0]] = row[2] or ""
+        except Exception:
+            pass
+
+    # ââ Overall progress metrics ââ
+    all_tasks = []
+    for phase in CERT_PHASES:
+        all_tasks.extend(phase["tasks"])
+    total_tasks = len(all_tasks)
+    done_tasks = sum(1 for t in all_tasks if st.session_state.cert_statuses.get(t["id"], "Not Started") == "Done")
+    in_progress_tasks = sum(1 for t in all_tasks if st.session_state.cert_statuses.get(t["id"], "Not Started") in ["In Progress", "Partial"])
+    blocked_tasks = sum(1 for t in all_tasks if st.session_state.cert_statuses.get(t["id"], "Not Started") == "Blocked")
+    pct = int((done_tasks / total_tasks) * 100) if total_tasks else 0
+
+    # Overall progress bar
+    st.markdown(f"""
+    <div style="background:#0F172A; border-radius:12px; padding:20px; margin-bottom:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <span style="color:white; font-size:18px; font-weight:bold;">\U0001f4ca Overall Compliance Progress</span>
+            <span style="color:#10B981; font-size:24px; font-weight:bold;">{pct}%</span>
+        </div>
+        <div style="background:#1E293B; border-radius:8px; height:16px; overflow:hidden;">
+            <div style="background:linear-gradient(90deg, #10B981, #059669); width:{pct}%; height:100%; border-radius:8px; transition:width 0.5s;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-around; margin-top:16px;">
+            <div style="text-align:center;">
+                <div style="color:#10B981; font-size:28px; font-weight:bold;">{done_tasks}</div>
+                <div style="color:#94A3B8; font-size:12px;">Completed</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="color:#3B82F6; font-size:28px; font-weight:bold;">{in_progress_tasks}</div>
+                <div style="color:#94A3B8; font-size:12px;">In Progress</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="color:#EF4444; font-size:28px; font-weight:bold;">{blocked_tasks}</div>
+                <div style="color:#94A3B8; font-size:12px;">Blocked</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="color:#9CA3AF; font-size:28px; font-weight:bold;">{total_tasks - done_tasks - in_progress_tasks - blocked_tasks}</div>
+                <div style="color:#94A3B8; font-size:12px;">Not Started</div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    status_icons = {
-        "done": "✅", "partial": "🟡",
-        "pending": "⏳", "deferred": "⏸️", "future": "🔮"
-    }
+    # ââ Update button ââ
+    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+    with col_btn1:
+        save_clicked = st.button("\U0001f4be Save All Statuses", type="primary", use_container_width=True)
+    with col_btn2:
+        refresh_clicked = st.button("\U0001f504 Refresh from DB", use_container_width=True)
 
-    for step in STEPS:
-        subs = step["substeps"]
-        total = len(subs)
-        done = len([s for s in subs if s["status"] == "done"])
-        icon = status_icons.get(step["status"], "❓")
+    if save_clicked:
+        try:
+            conn = st.session_state.get("db_conn")
+            if conn:
+                cur = conn.cursor()
+                for phase in CERT_PHASES:
+                    for task in phase["tasks"]:
+                        tid = task["id"]
+                        status = st.session_state.cert_statuses.get(tid, "Not Started")
+                        notes = st.session_state.cert_notes.get(tid, "")
+                        cur.execute("""
+                            INSERT INTO cert_tracker (task_id, status, notes, updated_at)
+                            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                            ON CONFLICT (task_id) DO UPDATE
+                            SET status = EXCLUDED.status,
+                                notes = EXCLUDED.notes,
+                                updated_at = CURRENT_TIMESTAMP
+                        """, (tid, status, notes))
+                conn.commit()
+                st.success("\u2705 All statuses saved to database!")
+            else:
+                st.warning("\u26a0\ufe0f Database not connected. Statuses saved in session only.")
+        except Exception as e:
+            st.error(f"Error saving: {e}")
+
+    if refresh_clicked:
+        try:
+            conn = st.session_state.get("db_conn")
+            if conn:
+                cur = conn.cursor()
+                cur.execute("SELECT task_id, status, notes FROM cert_tracker")
+                for row in cur.fetchall():
+                    st.session_state.cert_statuses[row[0]] = row[1]
+                    st.session_state.cert_notes[row[0]] = row[2] or ""
+                st.success("\u2705 Statuses refreshed from database!")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Error refreshing: {e}")
+
+    st.markdown("---")
+
+    # ââ Phase-by-phase task tracker ââ
+    for phase_data in CERT_PHASES:
+        phase_tasks = phase_data["tasks"]
+        phase_done = sum(1 for t in phase_tasks if st.session_state.cert_statuses.get(t["id"], "Not Started") == "Done")
+        phase_total = len(phase_tasks)
+        phase_pct = int((phase_done / phase_total) * 100) if phase_total else 0
 
         with st.expander(
-            f"{step['icon']} Step {step['num']}: {step['title']}  —  "
-            f"{icon} {step['status'].title()}  |  {step['progress']}%  "
-            f"({done}/{total} substeps done)",
-            expanded=False,
+            f"{phase_data['icon']} {phase_data['phase']} ({phase_data['timeline']})  \u2014  "
+            f"{phase_done}/{phase_total} done ({phase_pct}%)",
+            expanded=(phase_pct < 100),
         ):
-            for sub in subs:
-                si = status_icons.get(sub["status"], "❓")
-                st.markdown(f"{si} **{sub['id']}** — {sub['name']}  ·  *{sub['status']}*")
+            # Phase progress bar
+            st.markdown(f"""
+            <div style="background:#E2E8F0; border-radius:6px; height:8px; margin-bottom:16px; overflow:hidden;">
+                <div style="background:{phase_data['color']}; width:{phase_pct}%; height:100%; border-radius:6px;"></div>
+            </div>
+            """, unsafe_allow_html=True)
 
-    st.success("✅ All step statuses and progress bars are up to date.")
+            for task in phase_tasks:
+                tid = task["id"]
+                current_status = st.session_state.cert_statuses.get(tid, "Not Started")
+                current_notes = st.session_state.cert_notes.get(tid, "")
+                icon = STATUS_ICONS.get(current_status, "\u2753")
+                scolor = STATUS_COLORS.get(current_status, "#9CA3AF")
+
+                c1, c2, c3 = st.columns([0.5, 3, 1.5])
+                with c1:
+                    st.markdown(f"<div style='font-size:20px; text-align:center; padding-top:6px;'>{icon}</div>", unsafe_allow_html=True)
+                with c2:
+                    priority_badge = ""
+                    if task.get("priority") == "Critical":
+                        priority_badge = " <span style='background:#DC2626; color:white; padding:1px 8px; border-radius:4px; font-size:11px;'>CRITICAL</span>"
+                    elif task.get("priority") == "High":
+                        priority_badge = " <span style='background:#F59E0B; color:white; padding:1px 8px; border-radius:4px; font-size:11px;'>HIGH</span>"
+                    st.markdown(
+                        f"<div style='padding-top:4px;'><strong>{tid}</strong> \u2014 {task['name']}{priority_badge}</div>",
+                        unsafe_allow_html=True,
+                    )
+                with c3:
+                    new_status = st.selectbox(
+                        "Status",
+                        STATUS_OPTIONS,
+                        index=STATUS_OPTIONS.index(current_status) if current_status in STATUS_OPTIONS else 0,
+                        key=f"cert_status_{tid}",
+                        label_visibility="collapsed",
+                    )
+                    if new_status != current_status:
+                        st.session_state.cert_statuses[tid] = new_status
+
+                # Optional notes field
+                new_notes = st.text_input(
+                    "Notes",
+                    value=current_notes,
+                    key=f"cert_notes_{tid}",
+                    placeholder="Add notes...",
+                    label_visibility="collapsed",
+                )
+                if new_notes != current_notes:
+                    st.session_state.cert_notes[tid] = new_notes
+
+                st.markdown("<hr style='margin:4px 0; border:none; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
+
+    # ââ Reference link ââ
+    st.markdown("---")
+    st.markdown(
+        "\U0001f4c4 **Full Roadmap Document:** "
+        "[Open in Google Docs](https://docs.google.com/document/d/1-wZtRiB6Hvt0DJ8SbTjqXQMJlm8Qzr1S/edit) | "
+        "[Download PDF](https://docs.google.com/document/d/1-wZtRiB6Hvt0DJ8SbTjqXQMJlm8Qzr1S/export?format=pdf)"
+    )
+    st.caption(f"Last rendered: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+
 
 def render_nsfe_page():
     """Render the password-protected NSFE manager control center."""
@@ -1124,7 +1378,7 @@ def render_nsfe_page():
 
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📋 Dashboard", "🛡️ Security", "⚙️ Settings",
-        "🤖 AI Assistant", "🔄 Update", "🏗️ Infrastructure",
+        "🤖 AI Assistant", "🛡️ Certifications", "🏗️ Infrastructure",
     ])
 
     with tab1:
