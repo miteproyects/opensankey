@@ -3538,11 +3538,11 @@ def render_nsfe_page():
         _render_infrastructure()
 
     with tab7:
-        _render_seo()
+        _render_team_admin()
 
 
     with tab8:
-        _render_team_admin()
+        _render_seo()
 
     # Footer
     st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
