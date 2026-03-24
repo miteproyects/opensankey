@@ -3355,10 +3355,10 @@ def _render_team_admin():
     _roles_html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">'
     for _r in _roles_data:
         _roles_html += f'''
-        <div style="background:#0F172A;border-radius:10px;padding:14px;border:1px solid {_r[\'color\']}33;">
-            <div style="color:{_r[\'color\']};font-weight:700;font-size:0.95rem;margin-bottom:4px;">{_r[\'role\']}</div>
-            <div style="color:#94A3B8;font-size:0.8rem;margin-bottom:8px;">{_r[\'desc\']}</div>
-            <div style="color:#64748B;font-size:0.75rem;border-top:1px solid #1E293B;padding-top:6px;">{_r[\'perms\']}</div>
+        <div style="background:#0F172A;border-radius:10px;padding:14px;border:1px solid {_r['color']}33;">
+            <div style="color:{_r['color']};font-weight:700;font-size:0.95rem;margin-bottom:4px;">{_r['role']}</div>
+            <div style="color:#94A3B8;font-size:0.8rem;margin-bottom:8px;">{_r['desc']}</div>
+            <div style="color:#64748B;font-size:0.75rem;border-top:1px solid #1E293B;padding-top:6px;">{_r['perms']}</div>
         </div>'''
     _roles_html += '</div>'
     st.markdown(_roles_html, unsafe_allow_html=True)
@@ -3377,7 +3377,7 @@ def _render_team_admin():
         {"label": "Database", "value": "\U0001f7e2 Connected", "detail": "PostgreSQL \u00b7 Railway \u00b7 99.9% uptime", "color": "#22C55E"},
         {"label": "Auth Service", "value": "\U0001f7e2 Active", "detail": "Firebase Auth \u00b7 2 users registered", "color": "#22C55E"},
         {"label": "Last Deploy", "value": "\U0001f680 Today", "detail": "Auto-deploy from GitHub main", "color": "#3B82F6"},
-        {"label": "SSL/TLS", "value": "\U0001f512 Valid", "detail": "Let\'s Encrypt \u00b7 Auto-renewal", "color": "#22C55E"},
+        {"label": "SSL/TLS", "value": "\U0001f512 Valid", "detail": "Let's Encrypt \u00b7 Auto-renewal", "color": "#22C55E"},
         {"label": "Domain", "value": "\U0001f310 Active", "detail": "quartercharts.com \u00b7 DNS OK", "color": "#22C55E"},
     ]
 
@@ -3386,9 +3386,9 @@ def _render_team_admin():
         _health_html += f'''
         <div style="background:linear-gradient(135deg,#1E293B,#0F172A);border-radius:10px;padding:14px;
                     border:1px solid #334155;">
-            <div style="color:#94A3B8;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">{_h[\'label\']}</div>
-            <div style="color:{_h[\'color\']};font-weight:700;font-size:1rem;margin:4px 0;">{_h[\'value\']}</div>
-            <div style="color:#64748B;font-size:0.75rem;">{_h[\'detail\']}</div>
+            <div style="color:#94A3B8;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">{_h['label']}</div>
+            <div style="color:{_h['color']};font-weight:700;font-size:1rem;margin:4px 0;">{_h['value']}</div>
+            <div style="color:#64748B;font-size:0.75rem;">{_h['detail']}</div>
         </div>'''
     _health_html += '</div>'
     st.markdown(_health_html, unsafe_allow_html=True)
@@ -3414,10 +3414,10 @@ def _render_team_admin():
         _border = "border-bottom:1px solid #1E293B;" if _idx < len(_activities) - 1 else ""
         _activity_html += f'''
         <div style="padding:12px 16px;{_border}display:flex;align-items:center;gap:12px;">
-            <span style="font-size:1.2rem;">{_act[\'icon\']}</span>
+            <span style="font-size:1.2rem;">{_act['icon']}</span>
             <div style="flex:1;">
-                <div style="color:#F8FAFC;font-size:0.85rem;font-weight:500;">{_act[\'action\']}: {_act[\'detail\']}</div>
-                <div style="color:#64748B;font-size:0.75rem;margin-top:2px;">{_act[\'user\']} \u00b7 {_act[\'time\']}</div>
+                <div style="color:#F8FAFC;font-size:0.85rem;font-weight:500;">{_act['action']}: {_act['detail']}</div>
+                <div style="color:#64748B;font-size:0.75rem;margin-top:2px;">{_act['user']} \u00b7 {_act['time']}</div>
             </div>
         </div>'''
     _activity_html += '</div>'
@@ -3457,7 +3457,7 @@ def _render_team_admin():
         ("Database", "PostgreSQL 16 (Railway)"),
         ("Authentication", "Firebase Auth"),
         ("Domain", "quartercharts.com"),
-        ("SSL", "Let\'s Encrypt (auto-renew)"),
+        ("SSL", "Let's Encrypt (auto-renew)"),
         ("CI/CD", "GitHub \u2192 Railway auto-deploy"),
         ("Python", "3.12.x"),
         ("Session Timeout", "30 minutes"),
