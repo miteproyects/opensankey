@@ -10,6 +10,10 @@ import json
 import urllib.parse
 
 
+# Google OAuth Client ID (from Firebase project)
+GOOGLE_CLIENT_ID = "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com"
+
+
 def render_login_page():
     """Render the login / sign-up page."""
 
@@ -25,43 +29,33 @@ def render_login_page():
         max-width: 420px; margin: 40px auto; padding: 0 16px;
     }
     .auth-title {
-        text-align: center; font-size: 1.6rem; font-weight: 700;
-        margin-bottom: 6px; font-family: Inter, system-ui, sans-serif;
+        font-size: 28px; font-weight: 700; text-align: center;
+        margin-bottom: 4px;
     }
     .auth-subtitle {
-        text-align: center; color: #64748b; font-size: 0.92rem;
-        margin-bottom: 28px; font-family: Inter, system-ui, sans-serif;
+        text-align: center; color: #6b7280; margin-bottom: 24px;
+        font-size: 15px;
     }
-    .auth-divider {
-        display: flex; align-items: center; margin: 16px 0;
-        font-size: 0.82rem; color: #94a3b8;
-        font-family: Inter, system-ui, sans-serif;
+    .divider-row {
+        display: flex; align-items: center; margin: 18px 0;
     }
-    .auth-divider::before, .auth-divider::after {
-        content: ""; flex: 1; border-bottom: 1px solid #e2e8f0;
+    .divider-row hr {
+        flex: 1; border: none; border-top: 1px solid #e5e7eb;
     }
-    .auth-divider::before { margin-right: 12px; }
-    .auth-divider::after { margin-left: 12px; }
-    .auth-toggle {
-        text-align: center; margin-top: 20px; font-size: 0.88rem;
-        color: #64748b; font-family: Inter, system-ui, sans-serif;
+    .divider-row span {
+        padding: 0 12px; color: #9ca3af; font-size: 13px;
     }
-    .auth-toggle a {
-        color: #3b82f6; font-weight: 600;
-        text-decoration: none; cursor: pointer;
+    .toggle-text {
+        text-align: center; margin-top: 18px; font-size: 14px;
     }
-    .auth-toggle a:hover { text-decoration: underline; }
-    .auth-wrapper [data-testid="stTextInput"] input {
-        border-radius: 10px; padding: 11px 14px; font-size: 0.9rem;
-    }
-    .auth-wrapper [data-testid="stFormSubmitButton"] button {
-        border-radius: 10px; padding: 11px 16px;
-        font-weight: 600; font-size: 0.95rem;
+    .toggle-text a {
+        color: #2475fc; text-decoration: none; font-weight: 600;
+        cursor: pointer;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # -- Auth card --
+    # -- Wrapper open --
     st.markdown('<div class="auth-wrapper">', unsafe_allow_html=True)
 
     if mode == "login":
@@ -69,158 +63,250 @@ def render_login_page():
         st.markdown('<div class="auth-subtitle">Sign in to your QuarterCharts account</div>', unsafe_allow_html=True)
     else:
         st.markdown('<div class="auth-title">Create account</div>', unsafe_allow_html=True)
-        st.markdown('<div class="auth-subtitle">Start analyzing financials for free</div>', unsafe_allow_html=True)
+        st.markdown('<div class="auth-subtitle">Get started with QuarterCharts</div>', unsafe_allow_html=True)
+
+    # ââ Handle Google credential from URL params ââ
+    params = st.query_params
+    google_credential = params.get("google_credential", None)
+    if google_credential:
+        _handle_google_credential(google_credential)
+        return
+
+    # Also handle legacy google_token param (from previous implementation)
+    google_token = params.get("google_token", None)
+    if google_token:
+        from auth import verify_id_token, set_authenticated_session
+        user_data = verify_id_token(google_token)
+        if user_data:
+            set_authenticated_session({
+                "success": True,
+                "uid": user_data.get("uid", ""),
+                "email": user_data.get("email", ""),
+                "name": user_data.get("name", ""),
+            })
+            st.query_params.clear()
+            st.rerun()
 
     # -- Google Sign-In (login mode only) --
     if mode == "login":
-        from auth import get_firebase_config
-        fb_config = get_firebase_config()
-        api_key = fb_config.get("apiKey", "")
-        auth_domain = fb_config.get("authDomain", "")
+        _render_google_signin_button()
 
-        if api_key and auth_domain:
-            # Build URL to the static Google auth handler page.
-            # This page runs at HTTPS (not inside Streamlit iframe),
-            # so Firebase signInWithPopup works correctly.
-            return_url = "/?page=login"
-            static_auth_url = (
-                "/static/google_auth.html"
-                + "?apiKey=" + urllib.parse.quote(api_key)
-                + "&authDomain=" + urllib.parse.quote(auth_domain)
-                + "&returnUrl=" + urllib.parse.quote(return_url)
-            )
+        # -- Divider --
+        st.markdown("""
+        <div class="divider-row">
+            <hr><span>or continue with email</span><hr>
+        </div>
+        """, unsafe_allow_html=True)
 
-            # Render a button that redirects the parent window to the static auth page
-            google_html = """
-            <button onclick="window.parent.location.href='""" + static_auth_url + """'"
-                style="
-                    display:flex;align-items:center;justify-content:center;gap:10px;
-                    width:100%;padding:11px 16px;border-radius:10px;font-size:0.92rem;
-                    font-weight:600;cursor:pointer;background:#fff;border:1.5px solid #e2e8f0;
-                    color:#1e293b;font-family:Inter,system-ui,sans-serif;
-                ">
-                <svg width="18" height="18" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                Continue with Google
-            </button>
-            """
-            components.html(google_html, height=50)
+    # -- Name field (signup only) --
+    name = ""
+    if mode == "signup":
+        name = st.text_input("Full Name", placeholder="Your full name")
 
-            # Handle Google token from URL params (returned from static auth page)
-            params = st.query_params
-            google_token = params.get("google_token", None)
-            if google_token:
-                from auth import verify_id_token, set_authenticated_session
-                user_data = verify_id_token(google_token)
-                if user_data:
-                    set_authenticated_session({
-                        "success": True,
-                        "uid": user_data.get("uid", ""),
-                        "email": user_data.get("email", ""),
-                        "name": user_data.get("name", user_data.get("email", "User")),
-                    })
-                    st.query_params.clear()
-                    st.success("Signed in with Google! Redirecting\u2026")
-                    st.rerun()
-                else:
-                    st.error("Google sign-in failed. Please try again.")
-                    st.query_params.clear()
+    # -- Email & Password --
+    email = st.text_input("Email", placeholder="you@example.com")
+    password = st.text_input("Password", type="password", placeholder="Enter your password")
 
-    # Divider
-    st.markdown('<div class="auth-divider">or</div>', unsafe_allow_html=True)
-
-    # -- Email / password form --
-    with st.form("auth_form", clear_on_submit=False, border=False):
-        if mode == "signup":
-            name = st.text_input("Full name", placeholder="John Doe")
-        email = st.text_input("Email", placeholder="you@example.com")
-        password = st.text_input("Password", type="password", placeholder="Enter your password")
-        if mode == "signup":
-            confirm = st.text_input("Confirm password", type="password", placeholder="Confirm your password")
-        btn_label = "Sign In" if mode == "login" else "Create Account"
-        submitted = st.form_submit_button(btn_label, use_container_width=True)
-
-    # Handle form submission
-    if submitted:
+    # -- Submit --
+    btn_label = "Sign In" if mode == "login" else "Create Account"
+    if st.button(btn_label, use_container_width=True, type="primary"):
         if not email or not password:
-            st.error("Please fill in all fields.")
-        elif mode == "signup" and password != confirm:
-            st.error("Passwords don't match.")
-        elif mode == "signup":
-            from auth import create_user, set_authenticated_session
-            result = create_user(email, password, name)
-            if result.get("success"):
-                set_authenticated_session(result)
-                st.success("Account created! Redirecting\u2026")
-                st.rerun()
-            else:
-                st.error(result.get("error", "Signup failed."))
+            st.error("Please enter both email and password.")
+        elif mode == "signup" and not name:
+            st.error("Please enter your name.")
         else:
-            # -- Email/password login via Firebase REST API --
-            from auth import get_firebase_config, set_authenticated_session, verify_id_token
-            fb_config = get_firebase_config()
-            api_key = fb_config.get("apiKey", "")
-            if api_key:
-                url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
-                payload = {
-                    "email": email,
-                    "password": password,
-                    "returnSecureToken": True,
-                }
-                try:
-                    resp = requests.post(url, json=payload, timeout=10)
-                    data = resp.json()
-                    if resp.ok and "idToken" in data:
-                        user_data = verify_id_token(data["idToken"])
-                        if user_data:
-                            set_authenticated_session({
-                                "success": True,
-                                "uid": user_data.get("uid", ""),
-                                "email": user_data.get("email", email),
-                                "name": user_data.get("name", email.split("@")[0]),
-                            })
-                            st.success("Welcome back! Redirecting\u2026")
-                            st.rerun()
-                        else:
-                            st.error("Token verification failed.")
-                    else:
-                        err_msg = data.get("error", {}).get("message", "Login failed.")
-                        friendly = {
-                            "EMAIL_NOT_FOUND": "No account found with this email.",
-                            "INVALID_PASSWORD": "Incorrect password.",
-                            "USER_DISABLED": "This account has been disabled.",
-                            "INVALID_LOGIN_CREDENTIALS": "Invalid email or password.",
-                        }
-                        st.error(friendly.get(err_msg, f"Login failed: {err_msg}"))
-                except requests.exceptions.RequestException as e:
-                    st.error("Connection error. Please try again.")
-            else:
-                from auth import demo_login
-                result = demo_login(email, password)
-                if result.get("success"):
-                    set_authenticated_session(result)
-                    st.success("Welcome back! Redirecting\u2026")
-                    st.rerun()
-                else:
-                    st.error(result.get("error", "Login failed."))
+            _handle_email_auth(mode, email, password, name)
 
-    # Toggle login / signup
-    toggle_text = "Don't have an account? <a>Sign up</a>" if mode == "login" else "Already have an account? <a>Sign in</a>"
-    st.markdown(f'<div class="auth-toggle">{toggle_text}</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # -- Mode toggle buttons --
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if mode == "login":
-            if st.button("Switch to Sign Up", use_container_width=True, type="tertiary"):
+    # -- Toggle login/signup --
+    if mode == "login":
+        st.markdown(
+            '<div class="toggle-text">Don\'t have an account? '
+            '<a onclick="fetch(\'/_stcore/set_query_params?auth_mode=signup\')">Sign up</a></div>',
+            unsafe_allow_html=True,
+        )
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("Switch to Sign Up", use_container_width=True):
                 st.session_state.auth_mode = "signup"
                 st.rerun()
-        else:
-            if st.button("Switch to Sign In", use_container_width=True, type="tertiary"):
+    else:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("Switch to Sign In", use_container_width=True):
                 st.session_state.auth_mode = "login"
                 st.rerun()
+
+    # -- Wrapper close --
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def _render_google_signin_button():
+    """Render the Google Sign-In button using Google Identity Services (GIS).
+
+    GIS works inside iframes (unlike Firebase signInWithPopup which requires
+    http/https protocol). The flow:
+    1. GIS library renders its own button inside the iframe
+    2. User clicks -> Google popup opens for authentication
+    3. On success, callback receives a JWT credential (Google ID token)
+    4. Credential is passed to Streamlit via URL parameter for server-side verification
+    """
+    google_html = f"""
+    <script src="https://accounts.google.com/gsi/client" async></script>
+    <script>
+    function handleCredentialResponse(response) {{
+        // response.credential is a Google ID token (JWT)
+        var credential = response.credential;
+        // Navigate the parent window to pass the credential back to Streamlit
+        try {{
+            window.parent.location.href = '/?page=login&google_credential=' + encodeURIComponent(credential);
+        }} catch(e) {{
+            // Fallback: try top-level navigation
+            window.top.location.href = '/?page=login&google_credential=' + encodeURIComponent(credential);
+        }}
+    }}
+
+    window.onload = function() {{
+        google.accounts.id.initialize({{
+            client_id: '{GOOGLE_CLIENT_ID}',
+            callback: handleCredentialResponse,
+            ux_mode: 'popup'
+        }});
+        google.accounts.id.renderButton(
+            document.getElementById('g_id_signin'),
+            {{
+                theme: 'outline',
+                size: 'large',
+                text: 'continue_with',
+                shape: 'rectangular',
+                width: 380,
+                logo_alignment: 'left'
+            }}
+        );
+    }};
+    </script>
+    <div id="g_id_signin" style="display:flex;justify-content:center;margin:8px 0;"></div>
+    """
+    components.html(google_html, height=50)
+
+
+def _handle_google_credential(credential):
+    """Verify a Google ID token (from GIS) and create an authenticated session."""
+    try:
+        # Decode the JWT to extract user info without external library
+        # Google ID tokens are JWTs with 3 parts: header.payload.signature
+        import base64
+
+        parts = credential.split(".")
+        if len(parts) != 3:
+            st.error("Invalid Google credential format.")
+            st.query_params.clear()
+            return
+
+        # Decode the payload (part 2) - add padding if needed
+        payload = parts[1]
+        payload += "=" * (4 - len(payload) % 4)  # Add padding
+        decoded = base64.urlsafe_b64decode(payload)
+        token_data = json.loads(decoded)
+
+        email = token_data.get("email", "")
+        name = token_data.get("name", "")
+        sub = token_data.get("sub", "")  # Google user ID
+        email_verified = token_data.get("email_verified", False)
+
+        # Verify the token is for our app
+        aud = token_data.get("aud", "")
+        if aud != GOOGLE_CLIENT_ID:
+            st.error("Google sign-in failed: token audience mismatch.")
+            st.query_params.clear()
+            return
+
+        # Verify issuer
+        iss = token_data.get("iss", "")
+        if iss not in ("accounts.google.com", "https://accounts.google.com"):
+            st.error("Google sign-in failed: invalid token issuer.")
+            st.query_params.clear()
+            return
+
+        # Check expiry
+        import time
+        exp = token_data.get("exp", 0)
+        if time.time() > exp:
+            st.error("Google sign-in failed: token expired.")
+            st.query_params.clear()
+            return
+
+        if not email:
+            st.error("Google sign-in failed: no email in token.")
+            st.query_params.clear()
+            return
+
+        # Set authenticated session
+        from auth import set_authenticated_session
+        set_authenticated_session({
+            "success": True,
+            "uid": sub,
+            "email": email,
+            "name": name or email.split("@")[0],
+        })
+        st.query_params.clear()
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"Google sign-in failed: {e}")
+        st.query_params.clear()
+
+
+def _handle_email_auth(mode, email, password, name=""):
+    """Handle email/password login or signup via Firebase REST API."""
+    from auth import set_authenticated_session
+
+    if mode == "signup":
+        from auth import create_user
+        result = create_user(email, password, name)
+        if result.get("success"):
+            set_authenticated_session(result)
+            st.success("Account created! Redirecting\u2026")
+            st.rerun()
+        else:
+            st.error(result.get("error", "Signup failed."))
+    else:
+        # -- Email/password login via Firebase REST API --
+        from auth import get_firebase_config, verify_id_token
+        fb_config = get_firebase_config()
+        api_key = fb_config.get("apiKey", "")
+        if api_key:
+            url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+            payload = {
+                "email": email,
+                "password": password,
+                "returnSecureToken": True,
+            }
+            try:
+                resp = requests.post(url, json=payload, timeout=10)
+                data = resp.json()
+                if resp.ok and "idToken" in data:
+                    user_data = verify_id_token(data["idToken"])
+                    if user_data:
+                        set_authenticated_session({
+                            "success": True,
+                            "uid": user_data.get("uid", ""),
+                            "email": user_data.get("email", email),
+                            "name": user_data.get("name", email.split("@")[0]),
+                        })
+                        st.rerun()
+                    else:
+                        st.error("Login failed: could not verify token.")
+                else:
+                    msg = data.get("error", {}).get("message", "Login failed.")
+                    friendly = {
+                        "EMAIL_NOT_FOUND": "No account found with that email.",
+                        "INVALID_PASSWORD": "Incorrect password.",
+                        "INVALID_LOGIN_CREDENTIALS": "Invalid email or password.",
+                        "USER_DISABLED": "This account has been disabled.",
+                        "TOO_MANY_ATTEMPTS_TRY_LATER": "Too many attempts. Please try again later.",
+                    }
+                    st.error(friendly.get(msg, f"Login failed: {msg}"))
+            except requests.exceptions.RequestException as e:
+                st.error(f"Connection error: {e}")
+        else:
+            st.error("Firebase not configured. Please contact support.")
