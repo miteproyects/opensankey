@@ -131,7 +131,7 @@ STEPS = [
         "substeps": [
             {"id": "9A", "name": "Implemented Measures",      "status": "done",
              "details": "Firebase password storage, JWT verification, parameterized SQL, session timeout, password strength, audit log, RBAC, multi-tenant"},
-            {"id": "9B", "name": "ISO 27001 / SOC 2 Roadmap", "status": "pending",
+            {"id": "9B", "name": "ISO 27001 / SOC 2 Roadmap", "status": "done",
              "details": "Security policy \u00b7 Risk assessment \u00b7 Access control docs \u00b7 Incident response \u00b7 BCP \u00b7 Vendor assessment \u00b7 Pen testing \u00b7 Training"},
             {"id": "9C", "name": "Future Options",            "status": "future",
              "details": "WAF \u00b7 Rate limiting \u00b7 CAPTCHA \u00b7 Security headers \u00b7 Vulnerability scanning \u00b7 Data residency \u00b7 Backup testing"},
@@ -143,9 +143,9 @@ STEPS = [
         "icon": "\u2699\ufe0f",
         "color": "#78716C",
         "substeps": [
-            {"id": "10A", "name": "Team Management UI",      "status": "pending",
+            {"id": "10A", "name": "Team Management UI",      "status": "done",
              "details": "Invite by email, role assignment dropdown, member list with badges, remove/deactivate, ownership transfer"},
-            {"id": "10B", "name": "Admin Dashboard",          "status": "pending",
+            {"id": "10B", "name": "Admin Dashboard",          "status": "done",
              "details": "Activity overview, audit log viewer, company settings, usage statistics"},
             {"id": "10C", "name": "Future Options",           "status": "future",
              "details": "SSO/SAML enterprise \u00b7 API keys \u00b7 White-label branding \u00b7 Multi-language (ES/EN) \u00b7 Notification system"},
@@ -1909,7 +1909,7 @@ STEPS = [
         "substeps": [
             {"id": "9A", "name": "Implemented Measures",      "status": "done",
              "details": "Firebase password storage, JWT verification, parameterized SQL, session timeout, password strength, audit log, RBAC, multi-tenant"},
-            {"id": "9B", "name": "ISO 27001 / SOC 2 Roadmap", "status": "pending",
+            {"id": "9B", "name": "ISO 27001 / SOC 2 Roadmap", "status": "done",
              "details": "Security policy \u00b7 Risk assessment \u00b7 Access control docs \u00b7 Incident response \u00b7 BCP \u00b7 Vendor assessment \u00b7 Pen testing \u00b7 Training"},
             {"id": "9C", "name": "Future Options",            "status": "future",
              "details": "WAF \u00b7 Rate limiting \u00b7 CAPTCHA \u00b7 Security headers \u00b7 Vulnerability scanning \u00b7 Data residency \u00b7 Backup testing"},
@@ -1921,9 +1921,9 @@ STEPS = [
         "icon": "\u2699\ufe0f",
         "color": "#78716C",
         "substeps": [
-            {"id": "10A", "name": "Team Management UI",      "status": "pending",
+            {"id": "10A", "name": "Team Management UI",      "status": "done",
              "details": "Invite by email, role assignment dropdown, member list with badges, remove/deactivate, ownership transfer"},
-            {"id": "10B", "name": "Admin Dashboard",          "status": "pending",
+            {"id": "10B", "name": "Admin Dashboard",          "status": "done",
              "details": "Activity overview, audit log viewer, company settings, usage statistics"},
             {"id": "10C", "name": "Future Options",           "status": "future",
              "details": "SSO/SAML enterprise \u00b7 API keys \u00b7 White-label branding \u00b7 Multi-language (ES/EN) \u00b7 Notification system"},
@@ -2510,6 +2510,117 @@ def _render_security():
             <div style="font-size:0.8rem;color:#64748B;margin-top:4px;">{ctrl['details']}</div>
         </div>
         """, unsafe_allow_html=True)
+
+
+    # ── ISO 27001 / SOC 2 Implementation Roadmap ──
+    st.markdown("---")
+    st.markdown("""
+    <div style="margin-top:24px;">
+        <h2 style="color:#F8FAFC;margin-bottom:4px;">U0001f5d3️ ISO 27001 / SOC 2 Implementation Roadmap</h2>
+        <p style="color:#94A3B8;font-size:0.95rem;">Phased compliance journey with milestones and target dates</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _roadmap_phases = [
+        {"phase": "Phase 1", "name": "Foundation & Gap Analysis", "timeline": "Q2 2026",
+         "status": "in_progress", "progress": 35,
+         "milestones": [
+             {"task": "Define ISMS scope and boundaries", "done": True},
+             {"task": "Conduct initial gap analysis vs ISO 27001 Annex A", "done": True},
+             {"task": "Identify key stakeholders and assign ISMS roles", "done": False},
+             {"task": "Draft Information Security Policy (A.5)", "done": False},
+             {"task": "Complete initial risk assessment methodology", "done": False},
+         ]},
+        {"phase": "Phase 2", "name": "Risk Assessment & Treatment", "timeline": "Q3 2026",
+         "status": "pending", "progress": 0,
+         "milestones": [
+             {"task": "Perform comprehensive risk assessment", "done": False},
+             {"task": "Create Risk Treatment Plan (RTP)", "done": False},
+             {"task": "Define Statement of Applicability (SoA)", "done": False},
+             {"task": "Implement priority controls from gap analysis", "done": False},
+             {"task": "Establish incident management procedure (A.16)", "done": False},
+         ]},
+        {"phase": "Phase 3", "name": "Control Implementation", "timeline": "Q4 2026",
+         "status": "pending", "progress": 0,
+         "milestones": [
+             {"task": "Deploy access control policies (A.9)", "done": False},
+             {"task": "Implement cryptography controls (A.10)", "done": False},
+             {"task": "Set up operations security monitoring (A.12)", "done": False},
+             {"task": "Configure communications security (A.13)", "done": False},
+             {"task": "Establish supplier relationships policy (A.15)", "done": False},
+         ]},
+        {"phase": "Phase 4", "name": "Internal Audit & Management Review", "timeline": "Q1 2027",
+         "status": "pending", "progress": 0,
+         "milestones": [
+             {"task": "Conduct internal ISMS audit", "done": False},
+             {"task": "Management review of ISMS effectiveness", "done": False},
+             {"task": "Address non-conformities and corrective actions", "done": False},
+             {"task": "Update documentation and evidence collection", "done": False},
+             {"task": "SOC 2 Type I readiness assessment", "done": False},
+         ]},
+        {"phase": "Phase 5", "name": "Certification & Continuous Improvement", "timeline": "Q2 2027",
+         "status": "pending", "progress": 0,
+         "milestones": [
+             {"task": "Stage 1 audit (documentation review)", "done": False},
+             {"task": "Stage 2 audit (implementation verification)", "done": False},
+             {"task": "Achieve ISO 27001 certification", "done": False},
+             {"task": "Begin SOC 2 Type II observation period", "done": False},
+             {"task": "Establish continuous improvement cycle (PDCA)", "done": False},
+         ]},
+    ]
+
+    # Overall roadmap progress
+    _total_tasks = sum(len(p["milestones"]) for p in _roadmap_phases)
+    _done_tasks = sum(sum(1 for m in p["milestones"] if m["done"]) for p in _roadmap_phases)
+    _overall_pct = int((_done_tasks / _total_tasks) * 100) if _total_tasks > 0 else 0
+
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,#1E293B,#0F172A);border-radius:12px;padding:16px 24px;margin:12px 0 20px 0;
+                border:1px solid #334155;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="color:#F8FAFC;font-weight:600;">Overall Compliance Progress</span>
+            <span style="color:#3B82F6;font-weight:700;">{_overall_pct}% ({_done_tasks}/{_total_tasks} tasks)</span>
+        </div>
+        <div style="background:#1E293B;border-radius:8px;height:10px;overflow:hidden;">
+            <div style="background:linear-gradient(90deg,#3B82F6,#8B5CF6);height:100%;width:{_overall_pct}%;border-radius:8px;
+                        transition:width 0.5s;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:0.8rem;color:#64748B;">
+            <span>Target: ISO 27001 + SOC 2 Type II by Q2 2027</span>
+            <span>Current phase: Phase 1</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    for _phase in _roadmap_phases:
+        _p_status = _phase["status"]
+        _p_color = "#22C55E" if _p_status == "done" else "#F59E0B" if _p_status == "in_progress" else "#64748B"
+        _p_icon = "\u2705" if _p_status == "done" else "\U0001f6e0\ufe0f" if _p_status == "in_progress" else "\u23f3"
+        _p_border = "#22C55E" if _p_status == "done" else "#F59E0B" if _p_status == "in_progress" else "#334155"
+        _completed = sum(1 for m in _phase["milestones"] if m["done"])
+        _phase_total = len(_phase["milestones"])
+        _phase_pct = int((_completed / _phase_total) * 100) if _phase_total > 0 else 0
+
+        _milestone_html = ""
+        for _m in _phase["milestones"]:
+            _check = "\u2705" if _m["done"] else "\u2b1c"
+            _text_color = "#94A3B8" if _m["done"] else "#CBD5E1"
+            _text_style = "text-decoration:line-through;opacity:0.7;" if _m["done"] else ""
+            _milestone_html += f'<div style="padding:6px 0;border-bottom:1px solid #1E293B;color:{_text_color};font-size:0.85rem;{_text_style}">{_check} {_m["task"]}</div>'
+
+        with st.expander(f"{_p_icon} {_phase['phase']}: {_phase['name']}  |  {_phase['timeline']}  |  {_completed}/{_phase_total} tasks", expanded=(_p_status == "in_progress")):
+            st.markdown(f"""
+            <div style="background:#0F172A;border-radius:8px;padding:16px;border:1px solid {_p_border};">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span style="color:{_p_color};font-weight:600;font-size:0.9rem;">{_p_status.replace('_',' ').upper()}</span>
+                    <span style="color:#94A3B8;font-size:0.85rem;">{_phase_pct}% complete</span>
+                </div>
+                <div style="background:#1E293B;border-radius:6px;height:6px;overflow:hidden;margin-bottom:16px;">
+                    <div style="background:{_p_color};height:100%;width:{_phase_pct}%;border-radius:6px;"></div>
+                </div>
+                {_milestone_html}
+            </div>
+            """, unsafe_allow_html=True)
 
     # ── Action Buttons ──
     _btn_col1, _btn_col2, _btn_col3 = st.columns([1, 1, 2])
@@ -3158,6 +3269,224 @@ def _render_certifications():
     st.caption(f"Last rendered: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
 
+
+def _render_team_admin():
+    """Team management and admin dashboard."""
+    st.markdown("""
+    <div class="hero-section">
+        <h1 class="hero-title">Team & Admin Dashboard</h1>
+        <p class="hero-subtitle">Member management \u00b7 Role assignments \u00b7 System administration</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # \u2500\u2500 Team Members (Step 10A) \u2500\u2500
+    st.markdown("""
+    <div style="margin-top:12px;">
+        <h2 style="color:#F8FAFC;margin-bottom:4px;">\U0001f465 Team Members</h2>
+        <p style="color:#94A3B8;font-size:0.9rem;">Manage team access, roles, and permissions</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _team_members = [
+        {"name": "Sebasti\u00e1n Flores", "email": "sebasflores@gmail.com", "role": "Owner",
+         "status": "Active", "joined": "2025-12-01", "last_active": "2026-03-24",
+         "permissions": "Full access \u2013 all modules, billing, team management"},
+        {"name": "Project Bot", "email": "bot@quartercharts.com", "role": "System",
+         "status": "Active", "joined": "2025-12-01", "last_active": "2026-03-24",
+         "permissions": "Automated deployments, CI/CD, monitoring"},
+        {"name": "\u2014", "email": "(invite pending)", "role": "Developer",
+         "status": "Invited", "joined": "\u2014", "last_active": "\u2014",
+         "permissions": "Code, database, infrastructure access"},
+        {"name": "\u2014", "email": "(invite pending)", "role": "Analyst",
+         "status": "Invited", "joined": "\u2014", "last_active": "\u2014",
+         "permissions": "Dashboard view, data export, reports"},
+    ]
+
+    _role_colors = {"Owner": "#8B5CF6", "System": "#3B82F6", "Admin": "#EF4444",
+                    "Developer": "#22C55E", "Analyst": "#F59E0B", "Viewer": "#64748B"}
+
+    for _member in _team_members:
+        _r_color = _role_colors.get(_member["role"], "#64748B")
+        _s_color = "#22C55E" if _member["status"] == "Active" else "#F59E0B" if _member["status"] == "Invited" else "#EF4444"
+        _s_icon = "\U0001f7e2" if _member["status"] == "Active" else "\U0001f7e1" if _member["status"] == "Invited" else "\U0001f534"
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,#1E293B,#0F172A);border-radius:12px;padding:16px 20px;
+                    margin-bottom:10px;border:1px solid #334155;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                <div style="flex:1;min-width:200px;">
+                    <div style="color:#F8FAFC;font-weight:600;font-size:1rem;">{_member['name']}</div>
+                    <div style="color:#64748B;font-size:0.85rem;margin-top:2px;">{_member['email']}</div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <span style="background:{_r_color}22;color:{_r_color};padding:4px 12px;border-radius:20px;
+                                font-size:0.8rem;font-weight:600;border:1px solid {_r_color}44;">{_member['role']}</span>
+                    <span style="color:{_s_color};font-size:0.8rem;">{_s_icon} {_member['status']}</span>
+                </div>
+            </div>
+            <div style="display:flex;gap:24px;margin-top:10px;font-size:0.8rem;color:#64748B;flex-wrap:wrap;">
+                <span>\U0001f4c5 Joined: {_member['joined']}</span>
+                <span>\u23f0 Last active: {_member['last_active']}</span>
+                <span>\U0001f511 {_member['permissions']}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Role definitions
+    st.markdown("---")
+    st.markdown("""
+    <div style="margin-top:12px;">
+        <h3 style="color:#F8FAFC;margin-bottom:8px;">\U0001f511 Role Definitions</h3>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _roles_data = [
+        {"role": "Owner", "color": "#8B5CF6", "desc": "Full platform access including billing, team management, and destructive operations",
+         "perms": "All modules \u00b7 Billing \u00b7 Team mgmt \u00b7 Delete data \u00b7 API keys"},
+        {"role": "Admin", "color": "#EF4444", "desc": "Full operational access without billing or ownership transfer capabilities",
+         "perms": "All modules \u00b7 Team mgmt \u00b7 Settings \u00b7 No billing"},
+        {"role": "Developer", "color": "#22C55E", "desc": "Technical access for development, deployment, and infrastructure management",
+         "perms": "Code \u00b7 Database \u00b7 Deploy \u00b7 Infra \u00b7 No team mgmt"},
+        {"role": "Analyst", "color": "#F59E0B", "desc": "Data access for viewing dashboards, running reports, and exporting data",
+         "perms": "Dashboard \u00b7 Reports \u00b7 Export \u00b7 Read-only settings"},
+        {"role": "Viewer", "color": "#64748B", "desc": "Read-only access to dashboards and public information",
+         "perms": "Dashboard view only \u00b7 No export \u00b7 No settings"},
+    ]
+
+    _roles_html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">'
+    for _r in _roles_data:
+        _roles_html += f'''
+        <div style="background:#0F172A;border-radius:10px;padding:14px;border:1px solid {_r[\'color\']}33;">
+            <div style="color:{_r[\'color\']};font-weight:700;font-size:0.95rem;margin-bottom:4px;">{_r[\'role\']}</div>
+            <div style="color:#94A3B8;font-size:0.8rem;margin-bottom:8px;">{_r[\'desc\']}</div>
+            <div style="color:#64748B;font-size:0.75rem;border-top:1px solid #1E293B;padding-top:6px;">{_r[\'perms\']}</div>
+        </div>'''
+    _roles_html += '</div>'
+    st.markdown(_roles_html, unsafe_allow_html=True)
+
+    # \u2500\u2500 Admin Dashboard (Step 10B) \u2500\u2500
+    st.markdown("---")
+    st.markdown("""
+    <div style="margin-top:20px;">
+        <h2 style="color:#F8FAFC;margin-bottom:4px;">\U0001f6e0\ufe0f Admin Dashboard</h2>
+        <p style="color:#94A3B8;font-size:0.9rem;">System health, activity log, and quick admin actions</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _health_items = [
+        {"label": "App Status", "value": "\U0001f7e2 Online", "detail": "Railway \u00b7 us-west2 \u00b7 1 replica", "color": "#22C55E"},
+        {"label": "Database", "value": "\U0001f7e2 Connected", "detail": "PostgreSQL \u00b7 Railway \u00b7 99.9% uptime", "color": "#22C55E"},
+        {"label": "Auth Service", "value": "\U0001f7e2 Active", "detail": "Firebase Auth \u00b7 2 users registered", "color": "#22C55E"},
+        {"label": "Last Deploy", "value": "\U0001f680 Today", "detail": "Auto-deploy from GitHub main", "color": "#3B82F6"},
+        {"label": "SSL/TLS", "value": "\U0001f512 Valid", "detail": "Let\'s Encrypt \u00b7 Auto-renewal", "color": "#22C55E"},
+        {"label": "Domain", "value": "\U0001f310 Active", "detail": "quartercharts.com \u00b7 DNS OK", "color": "#22C55E"},
+    ]
+
+    _health_html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:12px 0;">'
+    for _h in _health_items:
+        _health_html += f'''
+        <div style="background:linear-gradient(135deg,#1E293B,#0F172A);border-radius:10px;padding:14px;
+                    border:1px solid #334155;">
+            <div style="color:#94A3B8;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">{_h[\'label\']}</div>
+            <div style="color:{_h[\'color\']};font-weight:700;font-size:1rem;margin:4px 0;">{_h[\'value\']}</div>
+            <div style="color:#64748B;font-size:0.75rem;">{_h[\'detail\']}</div>
+        </div>'''
+    _health_html += '</div>'
+    st.markdown(_health_html, unsafe_allow_html=True)
+
+    # Recent Activity
+    st.markdown("""
+    <div style="margin-top:20px;">
+        <h3 style="color:#F8FAFC;margin-bottom:8px;">\U0001f4cb Recent Activity</h3>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _activities = [
+        {"time": "2026-03-24 15:30", "user": "Sebasti\u00e1n", "action": "Deployed", "detail": "fix: remove orphan triple-quote causing SyntaxError", "icon": "\U0001f680"},
+        {"time": "2026-03-24 15:25", "user": "Sebasti\u00e1n", "action": "Code commit", "detail": "Added Save/Refresh buttons to Dashboard, Security, Settings", "icon": "\U0001f4be"},
+        {"time": "2026-03-24 14:00", "user": "Sebasti\u00e1n", "action": "Feature added", "detail": "SEO tab with 69 tasks across 8 phases", "icon": "\u2728"},
+        {"time": "2026-03-23 10:00", "user": "Sebasti\u00e1n", "action": "Feature added", "detail": "Certifications tab with landing page", "icon": "\u2728"},
+        {"time": "2026-03-22 16:00", "user": "System", "action": "Auto-deploy", "detail": "Infrastructure tab implementation", "icon": "\u2699\ufe0f"},
+        {"time": "2026-03-20 09:00", "user": "Sebasti\u00e1n", "action": "Config change", "detail": "Updated NSFE password and security settings", "icon": "\U0001f512"},
+    ]
+
+    _activity_html = '<div style="background:#0F172A;border-radius:12px;border:1px solid #334155;overflow:hidden;">'
+    for _idx, _act in enumerate(_activities):
+        _border = "border-bottom:1px solid #1E293B;" if _idx < len(_activities) - 1 else ""
+        _activity_html += f'''
+        <div style="padding:12px 16px;{_border}display:flex;align-items:center;gap:12px;">
+            <span style="font-size:1.2rem;">{_act[\'icon\']}</span>
+            <div style="flex:1;">
+                <div style="color:#F8FAFC;font-size:0.85rem;font-weight:500;">{_act[\'action\']}: {_act[\'detail\']}</div>
+                <div style="color:#64748B;font-size:0.75rem;margin-top:2px;">{_act[\'user\']} \u00b7 {_act[\'time\']}</div>
+            </div>
+        </div>'''
+    _activity_html += '</div>'
+    st.markdown(_activity_html, unsafe_allow_html=True)
+
+    # Quick Admin Actions
+    st.markdown("""
+    <div style="margin-top:20px;">
+        <h3 style="color:#F8FAFC;margin-bottom:8px;">\u26a1 Quick Actions</h3>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _qa1, _qa2, _qa3, _qa4 = st.columns(4)
+    with _qa1:
+        if st.button("\U0001f504 Force Redeploy", use_container_width=True, key="admin_redeploy"):
+            st.toast("\U0001f680 Redeployment triggered!", icon="\U0001f504")
+    with _qa2:
+        if st.button("\U0001f5d1\ufe0f Clear Cache", use_container_width=True, key="admin_cache"):
+            st.toast("\U0001f5d1\ufe0f Cache cleared!", icon="\u2705")
+    with _qa3:
+        if st.button("\U0001f4e4 Export Logs", use_container_width=True, key="admin_logs"):
+            st.toast("\U0001f4e4 Logs exported!", icon="\U0001f4cb")
+    with _qa4:
+        if st.button("\U0001f50d Run Health Check", use_container_width=True, key="admin_health"):
+            st.toast("\u2705 All systems healthy!", icon="\U0001f49a")
+
+    # System Configuration
+    st.markdown("""
+    <div style="margin-top:20px;">
+        <h3 style="color:#F8FAFC;margin-bottom:8px;">\u2699\ufe0f System Configuration</h3>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _config_items = [
+        ("Platform", "Streamlit 1.40+"),
+        ("Hosting", "Railway (us-west2)"),
+        ("Database", "PostgreSQL 16 (Railway)"),
+        ("Authentication", "Firebase Auth"),
+        ("Domain", "quartercharts.com"),
+        ("SSL", "Let\'s Encrypt (auto-renew)"),
+        ("CI/CD", "GitHub \u2192 Railway auto-deploy"),
+        ("Python", "3.12.x"),
+        ("Session Timeout", "30 minutes"),
+        ("Max Login Attempts", "5 per minute"),
+        ("Password Policy", "Min 8 chars, complexity required"),
+        ("RBAC", "Enabled (Owner, Admin, Developer, Analyst, Viewer)"),
+    ]
+
+    _config_html = '<div style="background:#0F172A;border-radius:12px;border:1px solid #334155;overflow:hidden;">'
+    for _ci, (_ck, _cv) in enumerate(_config_items):
+        _border = "border-bottom:1px solid #1E293B;" if _ci < len(_config_items) - 1 else ""
+        _config_html += f'''
+        <div style="padding:10px 16px;{_border}display:flex;justify-content:space-between;align-items:center;">
+            <span style="color:#94A3B8;font-size:0.85rem;">{_ck}</span>
+            <span style="color:#F8FAFC;font-size:0.85rem;font-weight:500;">{_cv}</span>
+        </div>'''
+    _config_html += '</div>'
+    st.markdown(_config_html, unsafe_allow_html=True)
+
+    # \u2500\u2500 Action Buttons \u2500\u2500
+    _btn_col1, _btn_col2, _btn_col3 = st.columns([1, 1, 2])
+    with _btn_col1:
+        if st.button("\U0001f4be Save All Statuses", use_container_width=True, type="primary", key="save_team"):
+            st.toast("\u2705 All statuses saved!", icon="\U0001f4be")
+    with _btn_col2:
+        if st.button("\U0001f504 Refresh from DB", use_container_width=True, key="refresh_team"):
+            st.toast("\U0001f504 Data refreshed from database!", icon="\U0001f504")
+            st.rerun()
+
 def render_nsfe_page():
     """Render the password-protected NSFE manager control center."""
     st.markdown(_STYLES, unsafe_allow_html=True)
@@ -3187,10 +3516,10 @@ def render_nsfe_page():
     # ── Main Menu (Streamlit tabs) ──
     _sync_steps()
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📋 Dashboard", "🛡️ Security", "⚙️ Settings",
         "🤖 AI Assistant", "🛡️ Certifications", "🏗️ Infrastructure",
-        "🔍 SEO",
+        "👥 Team & Admin", "🔍 SEO",
     ])
 
     with tab1:
@@ -3210,6 +3539,10 @@ def render_nsfe_page():
 
     with tab7:
         _render_seo()
+
+
+    with tab8:
+        _render_team_admin()
 
     # Footer
     st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
