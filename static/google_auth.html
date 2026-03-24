@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuarterCharts - Google Sign In</title>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Inter, system-ui, -apple-system, sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; background: #f8fafc;
+        }
+        .container { text-align: center; padding: 40px; }
+        .spinner {
+            width: 40px; height: 40px; margin: 0 auto 20px;
+            border: 4px solid #e2e8f0; border-top-color: #3b82f6;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #status { color: #64748b; font-size: 1rem; }
+        #error { color: #ef4444; font-size: 0.9rem; margin-top: 12px; display: none; }
+        .back-btn {
+            display: inline-block; margin-top: 16px; padding: 10px 24px;
+            background: #3b82f6; color: #fff; border: none; border-radius: 8px;
+            font-size: 0.9rem; cursor: pointer; text-decoration: none;
+        }
+        .back-btn:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner" id="spinner"></div>
+        <div id="status">Connecting to Google...</div>
+        <div id="error"></div>
+    </div>
+    <script>
+        var params = new URLSearchParams(window.location.search);
+        var apiKey = params.get("apiKey");
+        var authDomain = params.get("authDomain");
+        var returnUrl = params.get("returnUrl") || "/";
+
+        if (!apiKey || !authDomain) {
+            document.getElementById("spinner").style.display = "none";
+            document.getElementById("status").style.display = "none";
+            document.getElementById("error").style.display = "block";
+            document.getElementById("error").textContent = "Missing Firebase configuration.";
+        } else {
+            firebase.initializeApp({ apiKey: apiKey, authDomain: authDomain });
+            var provider = new firebase.auth.GoogleAuthProvider();
+            firebase.auth().signInWithPopup(provider)
+                .then(function(result) {
+                    return result.user.getIdToken();
+                })
+                .then(function(idToken) {
+                    document.getElementById("status").textContent = "Success! Redirecting...";
+                    var url = new URL(returnUrl, window.location.origin);
+                    url.searchParams.set("google_token", idToken);
+                    window.location.href = url.toString();
+                })
+                .catch(function(error) {
+                    document.getElementById("spinner").style.display = "none";
+                    document.getElementById("status").style.display = "none";
+                    document.getElementById("error").style.display = "block";
+                    var msg = error.message || "Authentication failed.";
+                    if (error.code === "auth/popup-closed-by-user") {
+                        msg = "Sign-in popup was closed. Please try again.";
+                    } else if (error.code === "auth/popup-blocked") {
+                        msg = "Popup was blocked by your browser. Please allow popups for this site.";
+                    }
+                    document.getElementById("error").textContent = msg;
+                    var btn = document.createElement("a");
+                    btn.href = returnUrl;
+                    btn.className = "back-btn";
+                    btn.textContent = "Go back";
+                    document.querySelector(".container").appendChild(btn);
+                });
+        }
+    </script>
+</body>
+</html>
