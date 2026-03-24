@@ -979,10 +979,10 @@ _qp_page = st.query_params.get("page", "").lower()
 _qp_ticker = st.query_params.get("ticker", "").upper().strip()
 if _qp_ticker:
     st.session_state.ticker = _qp_ticker
-if _qp_page in ("profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe"):
+if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe"):
     st.session_state.page = _qp_page
 elif "page" not in st.session_state:
-    st.session_state.page = "charts"
+    st.session_state.page = "home"
 # Always keep URL in sync so browser refresh preserves the current page
 _sync_page = st.session_state.page
 _sync_ticker = st.session_state.ticker
@@ -1695,11 +1695,12 @@ current_page = st.session_state.page
 # Nav bar with page switching (using <a> links for reliable navigation)
 st.markdown(f'''
 <div class="nav-bar">
-    <a class="nav-logo" href="/?page=charts&ticker={ticker}" target="_self">
+    <a class="nav-logo" href="/?page=home&ticker={ticker}" target="_self">
         <img src="data:image/png;base64,{LOGO_B64}" style="height:48px;width:auto;" alt="QC"/>
         <span class="nav-logo-text">Quarter<br>Charts</span>
     </a>
     <div class="nav-links">
+                    <a class="nav-link {'active' if current_page == 'home' else ''}" href="/?page=home&ticker={ticker}" target="_self">Home</a>
         <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="/?page=sankey&ticker={ticker}" target="_self">{ticker} Sankey</a>
         <a class="nav-link {'active' if current_page == 'charts' else ''}" href="/?page=charts&ticker={ticker}" target="_self">{ticker} Charts</a>
         <a class="nav-link {'active' if current_page == 'profile' else ''}" href="/?page=profile&ticker={ticker}" target="_self">{ticker} Profile</a>
@@ -2019,6 +2020,11 @@ if current_page == "login":
 if current_page == "pricing":
     from pricing_page import render_pricing_page
     render_pricing_page()
+    st.stop()
+
+if current_page == "home":
+    from home_page import render_home_page
+    render_home_page()
     st.stop()
 
 if current_page == "sankey":
