@@ -161,6 +161,17 @@ def render_home_page():
     }
     .feature-card h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: 8px; }
     .feature-card p  { font-size: .92rem; color: var(--qc-muted); line-height: 1.55; }
+    a.feature-card { text-decoration: none; color: inherit; display: block; }
+    .feature-card .card-link {
+        display: inline-block;
+        margin-top: 14px;
+        font-size: .85rem;
+        font-weight: 600;
+        color: var(--qc-blue);
+        text-decoration: none;
+        transition: gap .2s;
+    }
+    .feature-card:hover .card-link { letter-spacing: .02em; }
 
     /* icon bg colors */
     .ic-blue   { background: rgba(59,130,246,.15); }
@@ -199,6 +210,8 @@ def render_home_page():
     }
     .step h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 6px; }
     .step p  { font-size: .88rem; color: var(--qc-muted); line-height: 1.5; }
+    .step a  { color: var(--qc-blue); text-decoration: none; font-weight: 600; }
+    .step a:hover { text-decoration: underline; }
 
     /* ── PRICING PREVIEW ── */
     .pricing-row {
@@ -282,36 +295,42 @@ def render_home_page():
         <p>Powerful tools, zero learning curve. Explore any public company in a few clicks.</p>
     </div>
     <div class="features">
-        <div class="feature-card">
+        <a class="feature-card" href="/?page=sankey&ticker=NVDA" target="_self">
             <div class="feature-icon ic-blue">🔀</div>
             <h3>Sankey Diagrams</h3>
             <p>See exactly where revenue flows — from top-line sales through costs and expenses to net income — in one interactive visual.</p>
-        </div>
-        <div class="feature-card">
+            <span class="card-link">Try NVDA Sankey →</span>
+        </a>
+        <a class="feature-card" href="/?page=charts&ticker=NVDA" target="_self">
             <div class="feature-icon ic-cyan">📈</div>
             <h3>Income Statement Charts</h3>
             <p>Revenue, gross profit, operating &amp; net income on one chart. Toggle quarterly vs. annual, and compare across 1–10 years.</p>
-        </div>
-        <div class="feature-card">
+            <span class="card-link">View NVDA Charts →</span>
+        </a>
+        <a class="feature-card" href="/?page=profile&ticker=NVDA" target="_self">
             <div class="feature-icon ic-green">🏢</div>
             <h3>Company Profiles</h3>
             <p>Key metrics, sector, market cap, description, and financial ratios — everything you need at a glance for any ticker.</p>
-        </div>
-        <div class="feature-card">
+            <span class="card-link">See NVDA Profile →</span>
+        </a>
+        <a class="feature-card" href="/?page=earnings&ticker=NVDA" target="_self">
             <div class="feature-icon ic-purple">📅</div>
             <h3>Earnings Calendar</h3>
             <p>Never miss an earnings date. Browse upcoming and past reports across the entire market in one clean calendar view.</p>
-        </div>
-        <div class="feature-card">
+            <span class="card-link">Open Calendar →</span>
+        </a>
+        <a class="feature-card" href="/?page=watchlist&ticker=NVDA" target="_self">
             <div class="feature-icon ic-orange">👁️</div>
             <h3>Watchlist</h3>
             <p>Save your favorite tickers and track them in one place. Instant access to charts, profiles, and Sankey diagrams.</p>
-        </div>
-        <div class="feature-card">
+            <span class="card-link">Go to Watchlist →</span>
+        </a>
+        <a class="feature-card" href="/?page=charts&ticker=NVDA" target="_self">
             <div class="feature-icon ic-rose">📄</div>
             <h3>PDF Export</h3>
             <p>Download publication-quality charts and reports as PDFs — perfect for presentations, research, and sharing with your team.</p>
-        </div>
+            <span class="card-link">Export a Chart →</span>
+        </a>
     </div>
 
     <!-- ═══ HOW IT WORKS ═══ -->
@@ -323,12 +342,12 @@ def render_home_page():
         <div class="step">
             <div class="step-num">1</div>
             <h3>Enter a Ticker</h3>
-            <p>Type any US stock symbol — AAPL, TSLA, NVDA, or 6 000+ others.</p>
+            <p>Type any US stock symbol — <a href="/?page=charts&ticker=AAPL" target="_self">AAPL</a>, <a href="/?page=charts&ticker=TSLA" target="_self">TSLA</a>, <a href="/?page=charts&ticker=NVDA" target="_self">NVDA</a>, or 6 000+ others.</p>
         </div>
         <div class="step">
             <div class="step-num">2</div>
             <h3>Explore Visuals</h3>
-            <p>Switch between Sankey, charts, and profiles with a single click.</p>
+            <p>Switch between <a href="/?page=sankey&ticker=NVDA" target="_self">Sankey</a>, <a href="/?page=charts&ticker=NVDA" target="_self">charts</a>, and <a href="/?page=profile&ticker=NVDA" target="_self">profiles</a> with a single click.</p>
         </div>
         <div class="step">
             <div class="step-num">3</div>
@@ -388,7 +407,7 @@ def render_home_page():
     </div>
 
     <div class="foot-bar">
-        © 2026 Quarter Charts · <a href="/?page=pricing" target="_self">Pricing</a>
+        © 2026 Quarter Charts · <a href="/?page=charts&ticker=NVDA" target="_self">Charts</a> · <a href="/?page=sankey&ticker=NVDA" target="_self">Sankey</a> · <a href="/?page=earnings&ticker=NVDA" target="_self">Earnings</a> · <a href="/?page=pricing" target="_self">Pricing</a>
     </div>
 
     </div>
