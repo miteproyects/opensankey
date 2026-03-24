@@ -3154,9 +3154,10 @@ def render_nsfe_page():
     # ── Main Menu (Streamlit tabs) ──
     _sync_steps()
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "📋 Dashboard", "🛡️ Security", "⚙️ Settings",
         "🤖 AI Assistant", "🛡️ Certifications", "🏗️ Infrastructure",
+        "🔍 SEO",
     ])
 
     with tab1:
@@ -3174,6 +3175,10 @@ def render_nsfe_page():
     with tab6:
         _render_infrastructure()
 
+    with tab7:
+        _render_seo()
+
     # Footer
     st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
+
 
