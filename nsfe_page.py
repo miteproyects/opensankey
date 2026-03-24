@@ -2613,6 +2613,16 @@ def _render_settings():
     </div>
     """, unsafe_allow_html=True)
 
+    # ── Action Buttons ──
+    _btn_col1, _btn_col2, _btn_col3 = st.columns([1, 1, 2])
+    with _btn_col1:
+        if st.button("💾 Save All Statuses", use_container_width=True, type="primary"):
+            st.toast("✅ All statuses saved!", icon="💾")
+    with _btn_col2:
+        if st.button("🔄 Refresh from DB", use_container_width=True):
+            st.toast("🔄 Data refreshed from database!", icon="🔄")
+            st.rerun()
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # AI ASSISTANT TAB
@@ -2632,16 +2642,6 @@ Keep answers concise and actionable. Use code blocks when showing code.
 You are part of QuarterCharts \u2014 a financial visualization platform targeting $50K/year B2B SaaS.
 Tech stack: Streamlit + Plotly + Railway + PostgreSQL + Firebase Auth.
 """
-
-    # ── Action Buttons ──
-    _btn_col1, _btn_col2, _btn_col3 = st.columns([1, 1, 2])
-    with _btn_col1:
-        if st.button("💾 Save All Statuses", use_container_width=True, type="primary"):
-            st.toast("✅ All statuses saved!", icon="💾")
-    with _btn_col2:
-        if st.button("🔄 Refresh from DB", use_container_width=True):
-            st.toast("🔄 Data refreshed from database!", icon="🔄")
-            st.rerun()
 
 
 
