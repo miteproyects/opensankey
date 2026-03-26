@@ -104,6 +104,13 @@ def render_home_page():
     }
     /* hide label */
     [data-testid="stForm"] label { display: none !important; }
+    /* input wrapper divs (Streamlit adds white bg on these) */
+    [data-testid="stForm"] [data-testid="stTextInputRootElement"],
+    [data-testid="stForm"] [data-testid="stTextInputRootElement"] > div {
+        background: transparent !important;
+        border: none !important;
+        border-radius: 0 !important;
+    }
     /* input field */
     [data-testid="stForm"] input[type="text"] {
         background: transparent !important;
@@ -124,8 +131,7 @@ def render_home_page():
         border: none !important;
     }
     /* GO button */
-    [data-testid="stForm"] button[kind="secondaryFormSubmit"],
-    [data-testid="stForm"] button[type="submit"] {
+    [data-testid="stForm"] [data-testid="stBaseButton-secondaryFormSubmit"] {
         background: linear-gradient(135deg, var(--qc-blue), #2563EB) !important;
         color: #fff !important;
         border: none !important;
@@ -139,8 +145,7 @@ def render_home_page():
         white-space: nowrap !important;
         min-width: 80px !important;
     }
-    [data-testid="stForm"] button[kind="secondaryFormSubmit"]:hover,
-    [data-testid="stForm"] button[type="submit"]:hover {
+    [data-testid="stForm"] [data-testid="stBaseButton-secondaryFormSubmit"]:hover {
         transform: translateY(-1px) !important;
         box-shadow: 0 4px 20px var(--qc-blue-glow) !important;
     }
