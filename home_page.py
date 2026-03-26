@@ -6,7 +6,7 @@ import streamlit.components.v1 as components
 def render_home_page():
     """Full-width marketing landing page with hero ticker search."""
 
-    # ââ hide default Streamlit chrome ââ
+    # ── hide default Streamlit chrome ──
     st.markdown("""
     <style>
     /* hide sidebar & default header/footer on home page */
@@ -15,7 +15,13 @@ def render_home_page():
     .block-container { padding-top: 0 !important; max-width: 100% !important; }
     footer { display: none !important; }
 
-    /* ââ Home-page variables ââ */
+    /* dark background for entire app on home page */
+    .stApp, [data-testid="stAppViewContainer"],
+    [data-testid="stMain"], .main {
+        background: #0B1120 !important;
+    }
+
+    /* ── Home-page variables ── */
     :root {
         --qc-bg: #0B1120;
         --qc-surface: #131B2E;
@@ -37,7 +43,7 @@ def render_home_page():
         overflow-x: hidden;
     }
 
-    /* ââ HERO ââ */
+    /* ── HERO ── */
     .hero {
         position: relative;
         text-align: center;
@@ -75,20 +81,14 @@ def render_home_page():
         line-height: 1.6;
     }
 
-    /* ââ HERO TICKER SEARCH (Streamlit form override) ââ */
-    .ticker-search-wrap {
-        background:
-            radial-gradient(ellipse 80% 60% at 50% -10%, var(--qc-blue-glow), transparent),
-            var(--qc-bg);
-        padding: 0 24px 20px;
-        text-align: center;
-    }
-    .ticker-search-wrap [data-testid="stForm"] {
+    /* ── HERO TICKER SEARCH (Streamlit form override) ── */
+    /* Target the form directly — no wrapper div needed */
+    [data-testid="stForm"] {
         border: none !important;
         padding: 0 !important;
         background: transparent !important;
     }
-    .ticker-search-wrap [data-testid="stHorizontalBlock"] {
+    [data-testid="stForm"] [data-testid="stHorizontalBlock"] {
         max-width: 520px;
         margin: 0 auto;
         background: var(--qc-surface);
@@ -98,14 +98,14 @@ def render_home_page():
         gap: 0 !important;
         transition: border-color .25s, box-shadow .25s;
     }
-    .ticker-search-wrap [data-testid="stHorizontalBlock"]:focus-within {
+    [data-testid="stForm"] [data-testid="stHorizontalBlock"]:focus-within {
         border-color: var(--qc-blue);
         box-shadow: 0 0 24px var(--qc-blue-glow);
     }
     /* hide label */
-    .ticker-search-wrap label { display: none !important; }
+    [data-testid="stForm"] label { display: none !important; }
     /* input field */
-    .ticker-search-wrap input[type="text"] {
+    [data-testid="stForm"] input[type="text"] {
         background: transparent !important;
         border: none !important;
         color: var(--qc-text) !important;
@@ -115,17 +115,17 @@ def render_home_page():
         caret-color: var(--qc-blue);
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
     }
-    .ticker-search-wrap input[type="text"]::placeholder {
+    [data-testid="stForm"] input[type="text"]::placeholder {
         color: var(--qc-muted) !important;
         opacity: 1 !important;
     }
-    .ticker-search-wrap input[type="text"]:focus {
+    [data-testid="stForm"] input[type="text"]:focus {
         box-shadow: none !important;
         border: none !important;
     }
     /* GO button */
-    .ticker-search-wrap button[kind="secondaryFormSubmit"],
-    .ticker-search-wrap button[type="submit"] {
+    [data-testid="stForm"] button[kind="secondaryFormSubmit"],
+    [data-testid="stForm"] button[type="submit"] {
         background: linear-gradient(135deg, var(--qc-blue), #2563EB) !important;
         color: #fff !important;
         border: none !important;
@@ -139,8 +139,8 @@ def render_home_page():
         white-space: nowrap !important;
         min-width: 80px !important;
     }
-    .ticker-search-wrap button[kind="secondaryFormSubmit"]:hover,
-    .ticker-search-wrap button[type="submit"]:hover {
+    [data-testid="stForm"] button[kind="secondaryFormSubmit"]:hover,
+    [data-testid="stForm"] button[type="submit"]:hover {
         transform: translateY(-1px) !important;
         box-shadow: 0 4px 20px var(--qc-blue-glow) !important;
     }
@@ -159,7 +159,7 @@ def render_home_page():
     }
     .search-hint a:hover { color: #60A5FA; text-decoration: underline; }
 
-    /* ââ CTA BELOW SEARCH ââ */
+    /* ── CTA BELOW SEARCH ── */
     .hero-bottom {
         background: var(--qc-bg);
         text-align: center;
@@ -191,7 +191,7 @@ def render_home_page():
     }
     .btn-ghost:hover { border-color: var(--qc-blue); color: var(--qc-blue); }
 
-    /* ââ METRICS STRIP ââ */
+    /* ── METRICS STRIP ── */
     .metrics-strip {
         display: flex;
         justify-content: center;
@@ -211,7 +211,7 @@ def render_home_page():
     }
     .metric .label { font-size: .85rem; color: var(--qc-muted); margin-top: 4px; }
 
-    /* ââ FEATURES GRID ââ */
+    /* ── FEATURES GRID ── */
     .section-title {
         text-align: center;
         padding: 72px 24px 12px;
@@ -271,7 +271,7 @@ def render_home_page():
     .ic-purple { background: rgba(139,92,246,.15); }
     .ic-orange { background: rgba(249,115,22,.15); }
     .ic-rose   { background: rgba(244,63,94,.15); }
-    /* ââ HOW IT WORKS ââ */
+    /* ── HOW IT WORKS ── */
     .steps {
         display: flex;
         justify-content: center;
@@ -304,7 +304,7 @@ def render_home_page():
     .step a  { color: var(--qc-blue); text-decoration: none; font-weight: 600; }
     .step a:hover { text-decoration: underline; }
 
-    /* ââ PRICING PREVIEW ââ */
+    /* ── PRICING PREVIEW ── */
     .pricing-row {
         display: flex;
         justify-content: center;
@@ -334,7 +334,7 @@ def render_home_page():
     .price-card li { font-size: .88rem; color: var(--qc-muted); padding: 5px 0; }
     .price-card li::before { content: "\\2713  "; color: var(--qc-green); font-weight: 700; }
 
-    /* ââ CTA FOOTER ââ */
+    /* ── CTA FOOTER ── */
     .cta-footer {
         text-align: center;
         padding: 72px 24px 80px;
@@ -359,20 +359,19 @@ def render_home_page():
 
     <!-- hero top: badge + headline + subtitle -->
     <div class="hero">
-        <div class="hero-badge">ð FINANCIAL DATA VISUALIZATION</div>
+        <div class="hero-badge">📊 FINANCIAL DATA VISUALIZATION</div>
         <h1>Understand Any Stock<br>In Seconds</h1>
         <p class="sub">
             Interactive Sankey diagrams, quarterly income charts, and company
-            profiles â all from one search. Built for investors who value
+            profiles &mdash; all from one search. Built for investors who value
             clarity over clutter.
         </p>
     </div>
     """, unsafe_allow_html=True)
 
-    # ââ TICKER SEARCH (real Streamlit form, styled to match hero) ââ
+    # ── TICKER SEARCH (real Streamlit form, styled to match hero) ──
     search_container = st.container()
     with search_container:
-        st.markdown('<div class="ticker-search-wrap">', unsafe_allow_html=True)
         with st.form("home_ticker_form", clear_on_submit=False, border=False):
             col_input, col_btn = st.columns([4, 1], vertical_alignment="center")
             with col_input:
@@ -399,7 +398,6 @@ def render_home_page():
             '</div>',
             unsafe_allow_html=True,
         )
-        st.markdown('</div>', unsafe_allow_html=True)
 
     # handle form submission
     if submitted and new_ticker:
@@ -418,14 +416,14 @@ def render_home_page():
                 unsafe_allow_html=True,
             )
 
-    # ââ rest of the page (CTA buttons + everything below) ââ
+    # ── rest of the page (CTA buttons + everything below) ──
     st.markdown("""
     <div class="home-wrap">
 
     <!-- CTA buttons -->
     <div class="hero-bottom">
         <div class="hero-cta">
-            <a class="btn-primary" href="/?page=charts&ticker=NVDA" target="_self">Explore Charts â Free</a>
+            <a class="btn-primary" href="/?page=charts&ticker=NVDA" target="_self">Explore Charts &mdash; Free</a>
             <a class="btn-ghost"  href="/?page=pricing" target="_self">View Pricing</a>
         </div>
     </div>
@@ -445,40 +443,40 @@ def render_home_page():
     </div>
     <div class="features">
         <a class="feature-card" href="/?page=sankey&ticker=NVDA" target="_self">
-            <div class="feature-icon ic-blue">ð</div>
+            <div class="feature-icon ic-blue">🔀</div>
             <h3>Sankey Diagrams</h3>
-            <p>See exactly where revenue flows â from top-line sales through costs and expenses to net income â</p>
-            <span class="card-link">Try NVDA Sankey â</span>
+            <p>See exactly where revenue flows &mdash; from top-line sales through costs and expenses to net income.</p>
+            <span class="card-link">Try NVDA Sankey →</span>
         </a>
         <a class="feature-card" href="/?page=charts&ticker=NVDA" target="_self">
-            <div class="feature-icon ic-cyan">ð</div>
+            <div class="feature-icon ic-cyan">📈</div>
             <h3>Income Statement Charts</h3>
             <p>Revenue, gross profit, operating &amp; net income on one chart. Toggle quarterly vs. annual, and compare</p>
-            <span class="card-link">View NVDA Charts â</span>
+            <span class="card-link">View NVDA Charts →</span>
         </a>
         <a class="feature-card" href="/?page=profile&ticker=NVDA" target="_self">
-            <div class="feature-icon ic-green">ð¢</div>
+            <div class="feature-icon ic-green">🏢</div>
             <h3>Company Profiles</h3>
-            <p>Key metrics, sector, market cap, description, and financial ratios â everything you need at a glance.</p>
-            <span class="card-link">See NVDA Profile â</span>
+            <p>Key metrics, sector, market cap, description, and financial ratios &mdash; everything you need at a glance.</p>
+            <span class="card-link">See NVDA Profile →</span>
         </a>
         <a class="feature-card" href="/?page=earnings&ticker=NVDA" target="_self">
-            <div class="feature-icon ic-purple">ð</div>
+            <div class="feature-icon ic-purple">📅</div>
             <h3>Earnings Calendar</h3>
             <p>Never miss an earnings date. Browse upcoming and past reports across the entire market in one clean interface.</p>
-            <span class="card-link">Open Calendar â</span>
+            <span class="card-link">Open Calendar →</span>
         </a>
         <a class="feature-card" href="/?page=watchlist&ticker=NVDA" target="_self">
-            <div class="feature-icon ic-orange">ðï¸</div>
+            <div class="feature-icon ic-orange">👁️</div>
             <h3>Watchlist</h3>
             <p>Save your favorite tickers and track them in one place. Instant access to charts, profiles, and Sankey diagrams.</p>
-            <span class="card-link">Go to Watchlist â</span>
+            <span class="card-link">Go to Watchlist →</span>
         </a>
         <a class="feature-card" href="/?page=charts&ticker=NVDA" target="_self">
-            <div class="feature-icon ic-rose">ð</div>
+            <div class="feature-icon ic-rose">📄</div>
             <h3>PDF Export</h3>
-            <p>Download publication-quality charts and reports as PDFs â perfect for presentations, research, and reports.</p>
-            <span class="card-link">Export a Chart â</span>
+            <p>Download publication-quality charts and reports as PDFs &mdash; perfect for presentations, research, and reports.</p>
+            <span class="card-link">Export a Chart →</span>
         </a>
     </div>
 
@@ -491,7 +489,7 @@ def render_home_page():
         <div class="step">
             <div class="step-num">1</div>
             <h3>Enter a Ticker</h3>
-            <p>Type any US stock symbol â <a href="/?page=charts&ticker=AAPL" target="_self">AAPL</a>, <a href="/?page=charts&ticker=TSLA" target="_self">TSLA</a>, <a href="/?page=charts&ticker=NVDA" target="_self">NVDA</a>, or 6 000+ others.</p>
+            <p>Type any US stock symbol &mdash; <a href="/?page=charts&ticker=AAPL" target="_self">AAPL</a>, <a href="/?page=charts&ticker=TSLA" target="_self">TSLA</a>, <a href="/?page=charts&ticker=NVDA" target="_self">NVDA</a>, or 6 000+ others.</p>
         </div>
         <div class="step">
             <div class="step-num">2</div>
@@ -501,7 +499,7 @@ def render_home_page():
         <div class="step">
             <div class="step-num">3</div>
             <h3>Export &amp; Share</h3>
-            <p>Download PDFs or share links â your data, your way.</p>
+            <p>Download PDFs or share links &mdash; your data, your way.</p>
         </div>
     </div>
 
@@ -552,11 +550,11 @@ def render_home_page():
     <div class="cta-footer">
         <h2>Ready to See Your Stocks Differently?</h2>
         <p>Join thousands of investors using Quarter Charts to make smarter decisions.</p>
-        <a class="btn-primary" href="/?page=charts&ticker=AAPL" target="_self">Try It Now â It's Free</a>
+        <a class="btn-primary" href="/?page=charts&ticker=AAPL" target="_self">Try It Now &mdash; It's Free</a>
     </div>
 
     <div class="foot-bar">
-        Â© 2026 Quarter Charts Â· <a href="/?page=charts&ticker=NVDA" target="_self">Charts</a> Â· <a href="/?page=sankey&ticker=NVDA" target="_self">Sankey</a> Â· <a href="/?page=earnings&ticker=NVDA" target="_self">Earnings</a> Â· <a href="/?page=pricing" target="_self">Pricing</a>
+        © 2026 Quarter Charts · <a href="/?page=charts&ticker=NVDA" target="_self">Charts</a> · <a href="/?page=sankey&ticker=NVDA" target="_self">Sankey</a> · <a href="/?page=earnings&ticker=NVDA" target="_self">Earnings</a> · <a href="/?page=pricing" target="_self">Pricing</a>
     </div>
 
     </div>
