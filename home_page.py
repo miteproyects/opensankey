@@ -462,7 +462,15 @@ def render_home_page():
         function doSearch() {
             var v = document.getElementById('ticker').value.trim().toUpperCase();
             if (v) {
-                window.top.location.href = '/?page=charts&ticker=' + encodeURIComponent(v);
+                var url = '/?page=charts&ticker=' + encodeURIComponent(v);
+                // Create a hidden link with target="_top" and click it
+                // This bypasses iframe cross-origin restrictions
+                var a = document.createElement('a');
+                a.href = url;
+                a.target = '_top';
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
             }
         }
     </script>
