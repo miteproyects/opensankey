@@ -288,8 +288,9 @@ def render_home_page():
     <div class="hero">
         <div class="hero-badge">&#128202; FINANCIAL DATA VISUALIZATION</div>
 
-        <!-- Search Bar -->
-        <form class="search-bar" onsubmit="doSearch(); return false;">
+        <!-- Search Bar (native form with target="_top" — no JS needed) -->
+        <form class="search-bar" action="/" method="get" target="_top">
+            <input type="hidden" name="page" value="charts" />
             <div class="s-icon">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                      stroke="#94A3B8" stroke-width="2.5" stroke-linecap="round"
@@ -298,9 +299,9 @@ def render_home_page():
                     <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
             </div>
-            <input id="ticker" type="text"
+            <input name="ticker" type="text"
                    placeholder="Search any ticker &#8212; AAPL, TSLA, NVDA, META ..."
-                   autocomplete="off" spellcheck="false" />
+                   autocomplete="off" spellcheck="false" required />
             <button type="submit">GO</button>
         </form>
 
@@ -458,20 +459,5 @@ def render_home_page():
         <a href="/?page=pricing" target="_top">Pricing</a>
     </div>
 
-    <script>
-        function doSearch() {
-            var v = document.getElementById('ticker').value.trim().toUpperCase();
-            if (v) {
-                var url = '/?page=charts&ticker=' + encodeURIComponent(v);
-                // Create a hidden link with target="_top" and click it
-                // This bypasses iframe cross-origin restrictions
-                var a = document.createElement('a');
-                a.href = url;
-                a.target = '_top';
-                a.style.display = 'none';
-                document.body.appendChild(a);
-                a.click();
-            }
-        }
-    </script>
+    <!-- No JavaScript needed — form uses native target="_top" -->
     """, height=2800, scrolling=False)
