@@ -85,7 +85,7 @@ def render_home_page():
             display: flex;
             align-items: center;
             max-width: 520px;
-            margin: 0 auto 16px;
+            margin: 0 auto 36px;
             background: #131B2E;
             border: 1px solid #1E293B;
             border-radius: 16px;
@@ -287,12 +287,6 @@ def render_home_page():
     <!-- ═══ HERO ═══ -->
     <div class="hero">
         <div class="hero-badge">&#128202; FINANCIAL DATA VISUALIZATION</div>
-        <h1>Understand Any Stock<br>In Seconds</h1>
-        <p class="sub">
-            Interactive Sankey diagrams, quarterly income charts, and company
-            profiles &#8212; all from one search. Built for investors who value
-            clarity over clutter.
-        </p>
 
         <!-- Search Bar -->
         <form class="search-bar" onsubmit="doSearch(); return false;">
@@ -309,6 +303,13 @@ def render_home_page():
                    autocomplete="off" spellcheck="false" />
             <button type="submit">GO</button>
         </form>
+
+        <h1>Understand Any Stock<br>In Seconds</h1>
+        <p class="sub">
+            Interactive Sankey diagrams, quarterly income charts, and company
+            profiles &#8212; all from one search. Built for investors who value
+            clarity over clutter.
+        </p>
         <div class="popular">
             Popular:
             <a href="/?page=charts&ticker=AAPL" target="_top">AAPL</a> &#183;
