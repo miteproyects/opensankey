@@ -397,7 +397,13 @@ def render_home_page():
         function go() {
             var v = document.getElementById('t').value.trim().toUpperCase();
             if (v) {
-                window.parent.location.href = '/?page=charts&ticker=' + encodeURIComponent(v);
+                // Navigate the top-level window (escape Streamlit iframe nesting)
+                var url = '/?page=charts&ticker=' + encodeURIComponent(v);
+                try { window.top.location.href = url; }
+                catch(e) {
+                    try { window.parent.location.href = url; }
+                    catch(e2) { window.location.href = url; }
+                }
             }
         }
     </script>
