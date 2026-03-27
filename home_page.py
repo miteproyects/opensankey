@@ -157,8 +157,9 @@ def render_home_page():
             text-align: center;
             font-size: .85rem;
             color: #64748B;
-            margin-top: 28px;
+            margin-top: 12px;
             margin-bottom: 0;
+            padding-bottom: 60px;
         }
         .popular a {
             color: #3B82F6;
@@ -171,7 +172,7 @@ def render_home_page():
         .hero-cta {
             display: flex; gap: 14px; justify-content: center;
             flex-wrap: wrap;
-            padding-bottom: 80px;
+            padding-bottom: 0;
         }
         .btn-primary, .btn-ghost {
             padding: 14px 32px;
