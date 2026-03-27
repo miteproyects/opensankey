@@ -255,25 +255,23 @@ section[data-testid="stSidebar"] {
 }
 .nav-expand-btn {
     display: none;
-    position: fixed;
-    top: 1rem;
-    right: calc(0.375rem + 1px);
-    z-index: 1000000;
-    width: 28px !important;
-    height: 28px !important;
-    background: transparent !important;
-    border: none !important;
-    border-radius: 8px !important;
+    width: 32px !important;
+    height: 32px !important;
+    background: rgba(255,255,255,0.1) !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    border-radius: 6px !important;
     padding: 0 !important;
-    color: rgba(33, 37, 41, 0.6) !important;
-    font-size: 24px !important;
+    color: rgba(255,255,255,0.7) !important;
+    font-size: 18px !important;
     cursor: pointer;
     transition: all 0.2s;
-    line-height: 24px !important;
+    line-height: 1 !important;
     align-items: center;
     justify-content: center;
+    margin-left: 8px;
+    flex-shrink: 0;
 }
-.nav-expand-btn:hover { background: rgba(33, 37, 41, 0.1) !important; }
+.nav-expand-btn:hover { background: rgba(255,255,255,0.2) !important; color: #fff !important; }
 .nav-links {
     display: flex;
     align-items: center;
@@ -845,9 +843,6 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
             section[data-testid="stSidebar"][aria-expanded="true"] {
                 transform: translateX(0) !important;
                 visibility: visible !important;
-            }
-            .nav-expand-btn {
-                display: inline-flex !important;
             }
             /* Backdrop overlay when sidebar is open on mobile */
             :has(section[data-testid="stSidebar"][aria-expanded="true"]) [data-testid="stAppViewContainer"]::before {
@@ -1741,9 +1736,9 @@ st.markdown(f'''
         <a href="/?page=nsfe&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
                     <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
                     {"" if st.session_state.get("logged_in") else '<a href="/?page=login&ticker=' + ticker + '" target="_self" class="nav-link" style="color:#3b82f6;font-weight:600;">Sign&nbsp;In</a>'}
+        <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#9776;</button>
     </div>
 </div>
-    <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#171;</button>
 ''', unsafe_allow_html=True)
 
 # Ã¢ÂÂÃ¢ÂÂ Sidebar expand click handler (must load with nav bar, not at page end) Ã¢ÂÂÃ¢ÂÂ
