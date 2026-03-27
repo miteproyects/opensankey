@@ -288,9 +288,8 @@ def render_home_page():
     <div class="hero">
         <div class="hero-badge">&#128202; FINANCIAL DATA VISUALIZATION</div>
 
-        <!-- Search Bar (native form with target="_top" — no JS needed) -->
-        <form class="search-bar" action="/" method="get" target="_top">
-            <input type="hidden" name="page" value="charts" />
+        <!-- Search Bar -->
+        <form class="search-bar" onsubmit="goSearch(); return false;">
             <div class="s-icon">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                      stroke="#94A3B8" stroke-width="2.5" stroke-linecap="round"
@@ -299,7 +298,7 @@ def render_home_page():
                     <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
             </div>
-            <input name="ticker" type="text"
+            <input id="ticker" type="text"
                    placeholder="Search any ticker &#8212; AAPL, TSLA, NVDA, META ..."
                    autocomplete="off" spellcheck="false" required />
             <button type="submit">GO</button>
@@ -459,5 +458,21 @@ def render_home_page():
         <a href="/?page=pricing" target="_top">Pricing</a>
     </div>
 
-    <!-- No JavaScript needed — form uses native target="_top" -->
+    <script>
+    function goSearch() {
+        var v = document.getElementById('ticker').value.trim().toUpperCase();
+        if (!v) return;
+        var url = '/?page=charts&ticker=' + encodeURIComponent(v);
+        try {
+            var a = window.parent.document.createElement('a');
+            a.href = url;
+            a.style.display = 'none';
+            window.parent.document.body.appendChild(a);
+            a.click();
+            a.remove();
+        } catch(e) {
+            window.open(url, '_blank');
+        }
+    }
+    </script>
     """, height=2800, scrolling=False)
