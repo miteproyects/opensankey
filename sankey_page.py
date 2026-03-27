@@ -2514,7 +2514,7 @@ def render_sankey_page():
     if sankey_view == "income":
         # ââ Historical trend selector (popup) ââ
         metric_options = list(INCOME_NODE_METRICS.keys())
-        st.markdown('<div style="display:flex;align-items:center;gap:8px;margin:0.25rem 0 0.5rem 0"><div style="width:3px;height:18px;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:2px;flex-shrink:0"></div><span style="font-size:0.88rem;font-weight:600;color:#1e293b;letter-spacing:0.01em">Click a Metric or Sankey Node to View Historical Trends</span><span style="font-size:0.76rem;color:#94a3b8"></span></div>', unsafe_allow_html=True)
+        st.markdown('<div style="display:flex;align-items:center;gap:8px;margin:0.25rem 0 1.2rem 0"><div style="width:3px;height:18px;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:2px;flex-shrink:0"></div><span style="font-size:0.88rem;font-weight:600;color:#1e293b;letter-spacing:0.01em">Click a Metric or Sankey Node to View Historical Trends</span><span style="font-size:0.76rem;color:#94a3b8"></span></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill")
         if sel:
@@ -2576,7 +2576,7 @@ def render_sankey_page():
     elif sankey_view == "balance":
         # ââ Historical trend selector (popup) ââ
         metric_options = list(BALANCE_NODE_METRICS.keys())
-        st.markdown('<div style="display:flex;align-items:center;gap:8px;margin:0.25rem 0 0.5rem 0"><div style="width:3px;height:18px;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:2px;flex-shrink:0"></div><span style="font-size:0.88rem;font-weight:600;color:#1e293b;letter-spacing:0.01em">Click a Metric or Sankey Node to View Historical Trends</span><span style="font-size:0.76rem;color:#94a3b8"></span></div>', unsafe_allow_html=True)
+        st.markdown('<div style="display:flex;align-items:center;gap:8px;margin:0.25rem 0 1.2rem 0"><div style="width:3px;height:18px;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:2px;flex-shrink:0"></div><span style="font-size:0.88rem;font-weight:600;color:#1e293b;letter-spacing:0.01em">Click a Metric or Sankey Node to View Historical Trends</span><span style="font-size:0.76rem;color:#94a3b8"></span></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="balance_metric_pill")
         if sel:
