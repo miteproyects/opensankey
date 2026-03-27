@@ -108,9 +108,12 @@ st.markdown(
     'html,body,.stApp{background:#fff!important;color:#212529!important}'
     '[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(hr){margin-top:-11px;margin-bottom:-11px}'
     '[data-testid="stSidebarUserContent"]{margin-top:-9px!important}'
-    '.block-container{padding-top:0!important}'
-    '[data-testid="stElementContainer"]:has(.nav-bar){margin-bottom:-72px!important}'
+    '.block-container{padding-top:68px!important}'
+    '[data-testid="stElementContainer"]:has(.nav-bar){position:absolute!important;height:0!important;overflow:visible!important;margin:0!important;padding:0!important}'
     '[data-testid="stHeader"]{display:none!important}'
+    '[data-testid="stToolbar"]{display:none!important}'
+    '[data-testid="stDecoration"]{display:none!important}'
+    '[data-testid="stStatusWidget"]{display:none!important}'
     '</style>',
     unsafe_allow_html=True,
 )
@@ -215,9 +218,9 @@ section[data-testid="stSidebar"] {
     display: none !important;
 }
 
-/* Remove default top padding */
+/* Remove default top padding, add space for fixed nav bar */
 .block-container {
-    padding-top: 0 !important;
+    padding-top: 68px !important;
     padding-bottom: 1rem !important;
 }
 
@@ -229,16 +232,22 @@ section[data-testid="stSidebar"] {
     align-items: center;
     gap: 0;
     flex-wrap: nowrap;
-    margin: -0.5rem -1rem 0 -1rem;
-    position: relative;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
     height: 60px;
     box-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 4px 20px rgba(0,0,0,0.25);
     z-index: 999;
     border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-/* Collapse phantom Streamlit flex gaps after nav bar */
+/* Hide the Streamlit container that wraps the nav bar */
 [data-testid="stElementContainer"]:has(.nav-bar) {
-    margin-bottom: -72px !important;
+    position: absolute !important;
+    height: 0 !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 .nav-expand-btn {
     display: none;
@@ -840,7 +849,8 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
             }
         }
     /* Nav bar: scrollable on mobile */
-    .nav-bar { padding: 0 14px !important; height: 50px !important; margin: -0.5rem -0.4rem 10px -0.4rem !important; }
+    .nav-bar { padding: 0 14px !important; height: 50px !important; }
+    .block-container { padding-top: 58px !important; }
     .nav-bar a, .nav-bar .nav-link { font-size: 0.75rem !important; padding: 0 10px !important; height: 50px !important; }
     .nav-logo { margin-right: 14px !important; }
     .nav-logo svg { width: 26px !important; height: 26px !important; }
@@ -883,7 +893,8 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
         padding-left: 0.25rem !important;
         padding-right: 0.25rem !important;
     }
-    .nav-bar { padding: 0 10px !important; height: 46px !important; margin: -0.5rem -0.25rem 8px -0.25rem !important; }
+    .nav-bar { padding: 0 10px !important; height: 46px !important; }
+    .block-container { padding-top: 54px !important; }
     .nav-bar a, .nav-bar .nav-link { font-size: 0.7rem !important; padding: 0 8px !important; height: 46px !important; }
     .nav-logo { margin-right: 8px !important; }
     .nav-logo svg { width: 22px !important; height: 22px !important; }
@@ -935,7 +946,7 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
 @media (max-height: 500px) and (orientation: landscape) {
     .nav-bar { padding: 0 16px !important; height: 44px !important; }
     .nav-bar a, .nav-bar .nav-link { height: 44px !important; }
-    .block-container { padding-top: 0.1rem !important; }
+    .block-container { padding-top: 52px !important; }
 }
 
 /* ====== PRINT ====== */
