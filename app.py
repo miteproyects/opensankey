@@ -501,10 +501,11 @@ section[data-testid="stSidebar"] {
     padding: 0 4px !important;
     gap: 0 !important;
     align-items: center !important;
+    margin-top: 33px !important;
 }
         [data-testid="stHorizontalBlock"].section-row-expanded:has([class*="st-key-hdr_show_income"]),
         [data-testid="stHorizontalBlock"].section-row-collapsed:has([class*="st-key-hdr_show_income"]) {
-            margin-top: 94px !important;
+            margin-top: 10px !important;
         }
 .section-row-collapsed {
     background: #ffffff !important;
@@ -513,6 +514,7 @@ section[data-testid="stSidebar"] {
     padding: 0 4px !important;
     gap: 0 !important;
     align-items: center !important;
+    margin-top: 33px !important;
 }
 /* Header button inside row should be transparent (row provides background) */
 .section-row-expanded .section-header-expanded,
@@ -520,6 +522,7 @@ section[data-testid="stSidebar"] {
     background: transparent !important;
     border: none !important;
     border-radius: 0 !important;
+    margin-top: 0 !important;
 }
 /* PDF button dark variant (inside expanded row) */
 .section-row-expanded button:not(.section-header-expanded) {
