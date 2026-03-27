@@ -2198,8 +2198,8 @@ def render_sankey_page():
             flex: 1;
         }
         .sankey-title {
-            font-size: 1.6rem;
-            font-weight: 700;
+            font-size: 1.15rem;
+            font-weight: 600;
             color: #f8fafc;
             margin-bottom: 0 !important;
             letter-spacing: -0.02em;
