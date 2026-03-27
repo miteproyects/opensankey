@@ -109,7 +109,6 @@ st.markdown(
     '[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(hr){margin-top:-11px;margin-bottom:-11px}'
     '[data-testid="stSidebarUserContent"]{margin-top:-9px!important}'
     '.block-container{padding-top:68px!important}'
-    '[data-testid="stElementContainer"]:has(.nav-bar){position:absolute!important;height:0!important;overflow:visible!important;margin:0!important;padding:0!important}'
     '[data-testid="stHeader"]{display:none!important}'
     '[data-testid="stToolbar"]{display:none!important}'
     '[data-testid="stDecoration"]{display:none!important}'
@@ -1711,6 +1710,9 @@ current_page = st.session_state.page
 
 # Nav bar with page switching (using <a> links for reliable navigation)
 st.markdown(f'''
+<style>
+[data-testid="stElementContainer"]:has(.nav-bar){{position:absolute!important;height:0!important;overflow:visible!important;margin:0!important;padding:0!important}}
+</style>
 <div class="nav-bar">
     <a class="nav-logo" href="/?page=home&ticker={ticker}" target="_self">
         <img src="data:image/png;base64,{LOGO_B64}" style="height:48px;width:auto;" alt="QC"/>
