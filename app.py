@@ -105,7 +105,12 @@ st.set_page_config(
 st.markdown(
     '<meta name="color-scheme" content="light only">'
     '<style>:root{color-scheme:light only !important}'
-    'html,body,.stApp{background:#fff!important;color:#212529!important}[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(hr){margin-top:-11px;margin-bottom:-11px}[data-testid="stSidebarUserContent"]{margin-top:-9px!important}</style>',
+    'html,body,.stApp{background:#fff!important;color:#212529!important}'
+    '[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(hr){margin-top:-11px;margin-bottom:-11px}'
+    '[data-testid="stSidebarUserContent"]{margin-top:-9px!important}'
+    '.stApp{opacity:0;animation:_revealApp .15s ease-in .35s forwards}'
+    '@keyframes _revealApp{to{opacity:1}}'
+    '</style>',
     unsafe_allow_html=True,
 )
 
