@@ -1701,8 +1701,8 @@ st.markdown(f'''
     </a>
     <div class="nav-links">
                     <a class="nav-link {'active' if current_page == 'home' else ''}" href="/?page=home&ticker={ticker}" target="_self">Home</a>
-        <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="/?page=sankey&ticker={ticker}" target="_self">{ticker} Sankey</a>
         <a class="nav-link {'active' if current_page == 'charts' else ''}" href="/?page=charts&ticker={ticker}" target="_self">{ticker} Charts</a>
+        <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="/?page=sankey&ticker={ticker}" target="_self">{ticker} Sankey</a>
         <a class="nav-link {'active' if current_page == 'profile' else ''}" href="/?page=profile&ticker={ticker}" target="_self">{ticker} Profile</a>
         <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="/?page=earnings&ticker={ticker}" target="_self">Earnings Calendar</a>
         <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="/?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
