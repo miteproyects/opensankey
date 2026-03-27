@@ -157,7 +157,8 @@ def render_home_page():
             text-align: center;
             font-size: .85rem;
             color: #64748B;
-            margin-bottom: 40px;
+            margin-top: 28px;
+            margin-bottom: 0;
         }
         .popular a {
             color: #3B82F6;
@@ -333,6 +334,10 @@ def render_home_page():
             profiles &#8212; all from one search. Built for investors who value
             clarity over clutter.
         </p>
+        <div class="hero-cta">
+            <a class="btn-primary" href="/?page=charts&ticker=NVDA" target="_top">Explore Charts &#8212; Free</a>
+            <a class="btn-ghost"  href="/?page=pricing" target="_top">View Pricing</a>
+        </div>
         <div class="popular">
             Popular:
             <a href="/?page=charts&ticker=AAPL" target="_top">AAPL</a> &#183;
@@ -342,10 +347,6 @@ def render_home_page():
             <a href="/?page=charts&ticker=AMZN" target="_top">AMZN</a> &#183;
             <a href="/?page=charts&ticker=GOOG" target="_top">GOOG</a> &#183;
             <a href="/?page=charts&ticker=META" target="_top">META</a>
-        </div>
-        <div class="hero-cta">
-            <a class="btn-primary" href="/?page=charts&ticker=NVDA" target="_top">Explore Charts &#8212; Free</a>
-            <a class="btn-ghost"  href="/?page=pricing" target="_top">View Pricing</a>
         </div>
     </div>
 
