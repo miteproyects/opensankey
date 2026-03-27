@@ -109,6 +109,8 @@ st.markdown(
     '[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(hr){margin-top:-11px;margin-bottom:-11px}'
     '[data-testid="stSidebarUserContent"]{margin-top:-9px!important}'
     '.block-container{padding-top:68px!important}'
+    '.block-container>.stVerticalBlock>[data-testid="stElementContainer"]:has(.stMarkdown:only-child):not(:has(.nav-bar)){position:absolute!important;height:0!important;width:0!important;overflow:hidden!important;margin:0!important;padding:0!important}'
+    '.block-container>.stVerticalBlock>[data-testid="stElementContainer"]:has(>iframe:only-child){position:absolute!important;height:0!important;width:0!important;overflow:hidden!important;margin:0!important;padding:0!important}'
     '[data-testid="stHeader"]{display:none!important}'
     '[data-testid="stToolbar"]{display:none!important}'
     '[data-testid="stDecoration"]{display:none!important}'
@@ -1920,7 +1922,7 @@ with st.sidebar:
                         st.rerun()
 
             # Custom timeframe
-            with st.expander("Ã°ÂÂÂ¯ Custom Timeframe"):
+            with st.expander("🎯 Custom Timeframe"):
                 custom_n = st.number_input(
                     "Number of periods",
                     min_value=1,
@@ -1936,7 +1938,7 @@ with st.sidebar:
             # ---- Analyst Forecast toggle ----
             st.markdown("---")
             st.session_state.show_forecast = st.toggle(
-                "Ã°ÂÂÂ Analyst Forecast",
+                "📊 Analyst Forecast",
                 value=st.session_state.show_forecast,
             )
 
@@ -1958,7 +1960,7 @@ with st.sidebar:
             # ---- Layout selector ----
             st.markdown("---")
             lc = st.columns(3)
-            for i, (ncols, icon) in enumerate([(1, "Ã¢ÂÂ¬"), (2, "Ã¢ÂÂ¦"), (3, "Ã¢ÂÂ©")]):
+            for i, (ncols, icon) in enumerate([(1, "▬"), (2, "▦"), (3, "▩")]):
                 with lc[i]:
                     if st.button(
                         icon,
@@ -2209,7 +2211,7 @@ if st.session_state.show_forecast and forecast:
 
         rec = forecast.get("recommendation", "")
         n_analysts = forecast.get("num_analysts", "N/A")
-        st.caption(f"Recommendation: **{rec.upper() if rec else 'N/A'}** ÃÂ· Analysts: **{n_analysts}**")
+        st.caption(f"Recommendation: **{rec.upper() if rec else 'N/A'}** · Analysts: **{n_analysts}**")
 
         _render_chart(create_analyst_forecast_chart(forecast), "analyst_chart")
 
