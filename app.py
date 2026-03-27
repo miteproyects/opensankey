@@ -109,6 +109,8 @@ st.markdown(
     '[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(hr){margin-top:-11px;margin-bottom:-11px}'
     '[data-testid="stSidebarUserContent"]{margin-top:-9px!important}'
     '.block-container{padding-top:68px!important}'
+    '.block-container>.stVerticalBlock{row-gap:0px!important}'
+    '.block-container>.stVerticalBlock>[data-testid="stElementContainer"]:has(style):not(:has(.nav-bar)){position:absolute!important;height:0!important;overflow:hidden!important}'
     '[data-testid="stHeader"]{display:none!important}'
     '[data-testid="stToolbar"]{display:none!important}'
     '[data-testid="stDecoration"]{display:none!important}'
