@@ -107,13 +107,13 @@ def render_home_page():
             background: transparent;
             border: none;
             outline: none;
-            color: #F1F5F9;
+            color: #FFFFFF;
             font-size: 1rem;
             font-family: inherit;
             padding: 10px 0;
             min-width: 0;
         }
-        .search-bar input::placeholder { color: #64748B; }
+        .search-bar input::placeholder { color: #94A3B8; }
         .search-bar button {
             flex-shrink: 0;
             background: linear-gradient(135deg, #3B82F6, #2563EB);
