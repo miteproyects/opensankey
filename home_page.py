@@ -157,7 +157,7 @@ def render_home_page():
             text-align: center;
             font-size: .85rem;
             color: #64748B;
-            margin-bottom: 32px;
+            margin-bottom: 40px;
         }
         .popular a {
             color: #3B82F6;
