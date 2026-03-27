@@ -109,8 +109,6 @@ st.markdown(
     '[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(hr){margin-top:-11px;margin-bottom:-11px}'
     '[data-testid="stSidebarUserContent"]{margin-top:-9px!important}'
     '.block-container{padding-top:68px!important}'
-    '.block-container>.stVerticalBlock>[data-testid="stElementContainer"]:has(.stMarkdown:only-child):not(:has(.nav-bar)){position:absolute!important;height:0!important;width:0!important;overflow:hidden!important;margin:0!important;padding:0!important}'
-    '.block-container>.stVerticalBlock>[data-testid="stElementContainer"]:has(>iframe:only-child){position:absolute!important;height:0!important;width:0!important;overflow:hidden!important;margin:0!important;padding:0!important}'
     '[data-testid="stHeader"]{display:none!important}'
     '[data-testid="stToolbar"]{display:none!important}'
     '[data-testid="stDecoration"]{display:none!important}'
