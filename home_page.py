@@ -518,4 +518,4 @@ def render_home_page():
         });
     })();
     </script>
-    """, height=2800, scrolling=False)
+    """, height=3200, scrolling=False)
