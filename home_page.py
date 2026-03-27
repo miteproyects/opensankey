@@ -94,15 +94,6 @@ def render_home_page():
             margin: 0 auto 20px;
             text-align: center;
         }
-        .search-label {
-            font-size: .8rem;
-            color: #94A3B8;
-            letter-spacing: .08em;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-        .search-label span { color: #3B82F6; }
         .search-bar {
             display: flex;
             align-items: center;
@@ -161,19 +152,6 @@ def render_home_page():
             box-shadow: 0 6px 24px rgba(59,130,246,.45);
             background: linear-gradient(135deg, #60A5FA, #3B82F6);
         }
-        .search-hint {
-            margin-top: 10px;
-            font-size: .78rem;
-            color: #475569;
-        }
-        .search-hint kbd {
-            background: #1E293B;
-            border: 1px solid #334155;
-            border-radius: 4px;
-            padding: 1px 6px;
-            font-family: inherit;
-            font-size: .75rem;
-            color: #94A3B8;
         }
         .popular {
             text-align: center;
@@ -333,7 +311,6 @@ def render_home_page():
 
         <!-- Search Bar -->
         <div class="search-wrap">
-            <div class="search-label">&#9889; <span>Instant lookup</span> &#8212; type any ticker</div>
             <form class="search-bar" onsubmit="goSearch(); return false;">
                 <div class="s-icon">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -346,9 +323,8 @@ def render_home_page():
                 <input id="ticker" type="text"
                        placeholder="Try AAPL ..."
                        autocomplete="off" spellcheck="false" required />
-                <button type="submit">GO &#8594;</button>
+                <button type="submit">GO</button>
             </form>
-            <div class="search-hint">Press <kbd>Enter</kbd> or click GO to explore</div>
         </div>
 
         <h1>Understand Any Stock<br>In Seconds</h1>
