@@ -81,56 +81,99 @@ def render_home_page():
         }
 
         /* ── SEARCH BAR ── */
+        @keyframes borderGlow {
+            0%, 100% { border-color: #3B82F6; box-shadow: 0 0 20px rgba(59,130,246,.15), inset 0 0 20px rgba(59,130,246,.03); }
+            50% { border-color: #818CF8; box-shadow: 0 0 28px rgba(129,140,248,.2), inset 0 0 20px rgba(129,140,248,.04); }
+        }
+        @keyframes pulseIcon {
+            0%, 100% { opacity: .6; }
+            50% { opacity: 1; }
+        }
+        .search-wrap {
+            max-width: 580px;
+            margin: 0 auto 20px;
+            text-align: center;
+        }
+        .search-label {
+            font-size: .8rem;
+            color: #94A3B8;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .search-label span { color: #3B82F6; }
         .search-bar {
             display: flex;
             align-items: center;
-            max-width: 520px;
-            margin: 0 auto 36px;
-            background: #131B2E;
-            border: 1px solid #1E293B;
-            border-radius: 16px;
-            padding: 6px 6px 6px 16px;
-            transition: border-color .25s, box-shadow .25s;
+            max-width: 580px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #0F172A 0%, #131B2E 100%);
+            border: 1.5px solid #3B82F6;
+            border-radius: 18px;
+            padding: 8px 8px 8px 20px;
+            animation: borderGlow 3s ease-in-out infinite;
+            position: relative;
         }
         .search-bar:focus-within {
-            border-color: #3B82F6;
-            box-shadow: 0 0 20px rgba(59,130,246,.2);
+            border-color: #60A5FA;
+            box-shadow: 0 0 30px rgba(96,165,250,.3), inset 0 0 20px rgba(59,130,246,.05);
+            animation: none;
         }
         .search-bar .s-icon {
             flex-shrink: 0;
             display: flex;
             align-items: center;
-            margin-right: 12px;
+            margin-right: 14px;
+            animation: pulseIcon 2.5s ease-in-out infinite;
         }
+        .search-bar:focus-within .s-icon { animation: none; opacity: 1; }
         .search-bar input {
             flex: 1;
             background: transparent;
             border: none;
             outline: none;
             color: #FFFFFF;
-            font-size: 1rem;
+            font-size: 1.08rem;
             font-family: inherit;
-            padding: 10px 0;
+            padding: 12px 0;
             min-width: 0;
+            font-weight: 500;
         }
-        .search-bar input::placeholder { color: #94A3B8; }
+        .search-bar input::placeholder { color: #64748B; transition: color .2s; }
+        .search-bar:focus-within input::placeholder { color: #94A3B8; }
         .search-bar button {
             flex-shrink: 0;
             background: linear-gradient(135deg, #3B82F6, #2563EB);
             color: #fff;
             border: none;
-            border-radius: 12px;
-            padding: 10px 24px;
-            font-size: .95rem;
+            border-radius: 14px;
+            padding: 12px 28px;
+            font-size: 1rem;
             font-weight: 700;
             font-family: inherit;
             cursor: pointer;
             letter-spacing: .04em;
-            transition: transform .15s, box-shadow .15s;
+            transition: transform .15s, box-shadow .15s, background .2s;
         }
         .search-bar button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 16px rgba(59,130,246,.4);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(59,130,246,.45);
+            background: linear-gradient(135deg, #60A5FA, #3B82F6);
+        }
+        .search-hint {
+            margin-top: 10px;
+            font-size: .78rem;
+            color: #475569;
+        }
+        .search-hint kbd {
+            background: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-family: inherit;
+            font-size: .75rem;
+            color: #94A3B8;
         }
         .popular {
             text-align: center;
@@ -289,20 +332,24 @@ def render_home_page():
         <div class="hero-badge">&#128202; FINANCIAL DATA VISUALIZATION</div>
 
         <!-- Search Bar -->
-        <form class="search-bar" onsubmit="goSearch(); return false;">
-            <div class="s-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                     stroke="#94A3B8" stroke-width="2.5" stroke-linecap="round"
-                     stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"/>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-            </div>
-            <input id="ticker" type="text"
-                   placeholder="Search any ticker &#8212; AAPL, TSLA, NVDA, META ..."
-                   autocomplete="off" spellcheck="false" required />
-            <button type="submit">GO</button>
-        </form>
+        <div class="search-wrap">
+            <div class="search-label">&#9889; <span>Instant lookup</span> &#8212; type any ticker</div>
+            <form class="search-bar" onsubmit="goSearch(); return false;">
+                <div class="s-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                         stroke="#60A5FA" stroke-width="2.5" stroke-linecap="round"
+                         stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                </div>
+                <input id="ticker" type="text"
+                       placeholder="Try AAPL ..."
+                       autocomplete="off" spellcheck="false" required />
+                <button type="submit">GO &#8594;</button>
+            </form>
+            <div class="search-hint">Press <kbd>Enter</kbd> or click GO to explore</div>
+        </div>
 
         <h1>Understand Any Stock<br>In Seconds</h1>
         <p class="sub">
@@ -474,5 +521,25 @@ def render_home_page():
             window.open(url, '_blank');
         }
     }
+
+    /* ── Rotating placeholder ── */
+    (function() {
+        var tickers = ['AAPL','TSLA','NVDA','META','AMZN','GOOG','MSFT','NFLX','AMD','DIS'];
+        var idx = 0;
+        var inp = document.getElementById('ticker');
+        function rotatePlaceholder() {
+            if (document.activeElement === inp || inp.value.length > 0) return;
+            idx = (idx + 1) % tickers.length;
+            inp.placeholder = 'Try ' + tickers[idx] + ' ...';
+        }
+        setInterval(rotatePlaceholder, 2200);
+
+        /* Auto-uppercase as user types */
+        inp.addEventListener('input', function() {
+            var pos = this.selectionStart;
+            this.value = this.value.toUpperCase();
+            this.setSelectionRange(pos, pos);
+        });
+    })();
     </script>
     """, height=2800, scrolling=False)
