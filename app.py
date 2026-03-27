@@ -115,6 +115,9 @@ st.markdown(
     '[data-testid="stToolbar"]{display:none!important}'
     '[data-testid="stDecoration"]{display:none!important}'
     '[data-testid="stStatusWidget"]{display:none!important}'
+    '.nav-bar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:60px!important;z-index:999!important}'
+    '[data-testid="stHorizontalBlock"]:has([class*="st-key-hdr_show_"]){margin-top:33px!important}'
+    '[data-testid="stHorizontalBlock"]:has([class*="st-key-hdr_show_income"]){margin-top:10px!important}'
     '</style>',
     unsafe_allow_html=True,
 )
@@ -369,7 +372,11 @@ section[data-testid="stSidebar"] {
     padding: 0 4px !important;
     gap: 0 !important;
     align-items: center !important;
-        }
+    margin-top: 33px !important;
+}
+[data-testid="stHorizontalBlock"]:has([class*="st-key-hdr_show_income"]):not(.section-row-expanded):not(.section-row-collapsed) {
+    margin-top: 10px !important;
+}
 [class*="st-key-hdr_show_"] button:not(.section-header-expanded):not(.section-header-collapsed) {
     background: transparent !important;
     color: #ffffff !important;
@@ -851,7 +858,6 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
                 z-index: 999998;
                 pointer-events: auto;
             }
-        }
     /* Nav bar: scrollable on mobile */
     .nav-bar { padding: 0 14px !important; height: 50px !important; }
     .block-container { padding-top: 58px !important; }
