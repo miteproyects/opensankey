@@ -9,7 +9,6 @@ def render_home_page():
     # ── hide default Streamlit chrome + force dark background ──
     st.markdown("""
     <style>
-    [data-testid="stSidebar"] { display: none !important; }
     header[data-testid="stHeader"] { display: none !important; }
     .block-container { padding-top: 0 !important; max-width: 100% !important; }
     footer { display: none !important; }
