@@ -201,7 +201,6 @@ def render_home_page():
         .metrics {
             display: flex; justify-content: center; gap: 48px;
             padding: 40px 24px; flex-wrap: wrap;
-            border-top: 1px solid #1E293B;
             border-bottom: 1px solid #1E293B;
         }
         .metric { text-align: center; }
