@@ -14,11 +14,17 @@ import requests
 import json
 import secrets
 import logging
+from rate_limiter import check_login_allowed, record_login_attempt
 
 logger = logging.getLogger(__name__)
 
 # Google OAuth Client ID (from Firebase project)
 GOOGLE_CLIENT_ID = "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com"
+
+# SEC-009: reCAPTCHA v3 site key (set RECAPTCHA_SITE_KEY env var to enable)
+import os
+RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")
+RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY", "")
 
 
 def render_login_page():
@@ -101,6 +107,10 @@ def render_login_page():
     email = st.text_input("Email", placeholder="you@example.com")
     password = st.text_input("Password", type="password", placeholder="Enter your password")
 
+    # SEC-009: Render reCAPTCHA v3 widget on signup (invisible)
+    if mode == "signup" and RECAPTCHA_SITE_KEY:
+        _render_recaptcha_widget()
+
     # -- Submit --
     btn_label = "Sign In" if mode == "login" else "Create Account"
     if st.button(btn_label, use_container_width=True, type="primary"):
@@ -108,6 +118,13 @@ def render_login_page():
             st.error("Please enter both email and password.")
         elif mode == "signup" and not name:
             st.error("Please enter your name.")
+        elif mode == "signup" and RECAPTCHA_SITE_KEY:
+            # SEC-009: Verify CAPTCHA before signup
+            captcha_token = st.session_state.get("recaptcha_token", "")
+            if not _verify_recaptcha(captcha_token):
+                st.error("CAPTCHA verification failed. Please try again.")
+            else:
+                _handle_email_auth(mode, email, password, name)
         else:
             _handle_email_auth(mode, email, password, name)
 
@@ -253,19 +270,36 @@ def _handle_google_credential(credential):
 
 
 def _handle_email_auth(mode, email, password, name=""):
-    """Handle email/password login or signup via Firebase REST API."""
+    """Handle email/password login or signup via Firebase REST API.
+
+    SEC-003: Rate limiting applied to login attempts.
+    """
     from auth import set_authenticated_session
 
     if mode == "signup":
+        # SEC-009: Rate limit signup attempts too
+        allowed, reason = check_login_allowed(email)
+        if not allowed:
+            st.error(reason)
+            return
+
         from auth import create_user
         result = create_user(email, password, name)
         if result.get("success"):
+            record_login_attempt(email, success=True)
             set_authenticated_session(result)
             st.success("Account created! Redirecting\u2026")
             st.rerun()
         else:
+            record_login_attempt(email, success=False)
             st.error(result.get("error", "Signup failed."))
     else:
+        # SEC-003: Check rate limit before attempting login
+        allowed, reason = check_login_allowed(email)
+        if not allowed:
+            st.error(reason)
+            return
+
         # -- Email/password login via Firebase REST API --
         from auth import get_firebase_config, verify_id_token
         fb_config = get_firebase_config()
@@ -283,6 +317,7 @@ def _handle_email_auth(mode, email, password, name=""):
                 if resp.ok and "idToken" in data:
                     user_data = verify_id_token(data["idToken"])
                     if user_data:
+                        record_login_attempt(email, success=True)
                         set_authenticated_session({
                             "success": True,
                             "uid": user_data.get("uid", ""),
@@ -291,8 +326,10 @@ def _handle_email_auth(mode, email, password, name=""):
                         })
                         st.rerun()
                     else:
+                        record_login_attempt(email, success=False)
                         st.error("Login failed: could not verify token.")
                 else:
+                    record_login_attempt(email, success=False)
                     msg = data.get("error", {}).get("message", "Login failed.")
                     friendly = {
                         "EMAIL_NOT_FOUND": "No account found with that email.",
@@ -306,3 +343,65 @@ def _handle_email_auth(mode, email, password, name=""):
                 st.error(f"Connection error: {e}")
         else:
             st.error("Firebase not configured. Please contact support.")
+
+
+# ── SEC-009: reCAPTCHA v3 Helpers ──────────────────────────────────────────
+
+def _render_recaptcha_widget():
+    """Render invisible reCAPTCHA v3 widget that auto-generates a token."""
+    if not RECAPTCHA_SITE_KEY:
+        return
+
+    recaptcha_html = f"""
+    <script src="https://www.google.com/recaptcha/api.js?render={RECAPTCHA_SITE_KEY}"></script>
+    <script>
+    grecaptcha.ready(function() {{
+        grecaptcha.execute('{RECAPTCHA_SITE_KEY}', {{action: 'signup'}}).then(function(token) {{
+            // Store token for Streamlit to read
+            window.parent.postMessage({{type: 'recaptcha_token', token: token}}, '*');
+        }});
+    }});
+    </script>
+    <div id="recaptcha-badge" style="font-size:11px;color:#9ca3af;text-align:center;margin-top:4px;">
+        Protected by reCAPTCHA
+    </div>
+    """
+    components.html(recaptcha_html, height=30)
+
+
+def _verify_recaptcha(token: str) -> bool:
+    """
+    Verify a reCAPTCHA v3 token with Google's API.
+
+    Returns True if the token is valid and score >= 0.5.
+    Returns True (passthrough) if reCAPTCHA is not configured.
+    """
+    if not RECAPTCHA_SECRET_KEY or not token:
+        # If not configured, allow through (rate limiter is the fallback)
+        return True
+
+    try:
+        resp = requests.post(
+            "https://www.google.com/recaptcha/api/siteverify",
+            data={
+                "secret": RECAPTCHA_SECRET_KEY,
+                "response": token,
+            },
+            timeout=5,
+        )
+        result = resp.json()
+        success = result.get("success", False)
+        score = result.get("score", 0)
+
+        if success and score >= 0.5:
+            logger.info(f"reCAPTCHA passed (score={score})")
+            return True
+        else:
+            logger.warning(f"reCAPTCHA failed (success={success}, score={score})")
+            return False
+
+    except Exception as e:
+        logger.error(f"reCAPTCHA verification error: {e}")
+        # Fail open — don't block users if Google API is down
+        # Rate limiter provides backup protection
+        return True

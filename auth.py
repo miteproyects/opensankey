@@ -234,12 +234,30 @@ def set_authenticated_session(user_data: dict):
     Set session state after successful authentication.
 
     user_data should contain: uid, email, display_name
+    SEC-004: Regenerates session token on every auth event.
     """
+    import secrets
     st.session_state.logged_in = True
     st.session_state.user_uid = user_data.get("uid")
     st.session_state.user_email = user_data.get("email")
     st.session_state.user_name = user_data.get("display_name", "")
     st.session_state.auth_token_time = time.time()
+    # SEC-004: Regenerate session token to prevent session fixation
+    st.session_state.auth_token = secrets.token_urlsafe(32)
+
+
+def rotate_session_token():
+    """
+    Regenerate session token after privilege change (SEC-004).
+
+    Call this after any role change, password change, or privilege escalation
+    to prevent session fixation attacks.
+    """
+    import secrets
+    if st.session_state.get("logged_in"):
+        st.session_state.auth_token = secrets.token_urlsafe(32)
+        st.session_state.auth_token_time = time.time()
+        logger.info(f"Session token rotated for user {st.session_state.get('user_uid')}")
 
 
 def clear_session():

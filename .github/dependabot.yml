@@ -1,0 +1,16 @@
+# SEC-007: Automated dependency vulnerability scanning
+# Dependabot will open PRs for outdated/vulnerable dependencies
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
