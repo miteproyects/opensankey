@@ -295,6 +295,39 @@ SECURITY_ISSUES = [
         "recommendation": "Enable 2FA on all admin accounts: Firebase Console, Railway, Stripe Dashboard, GitHub (enforce via org settings).",
         "affected": "Admin accounts on all platforms", "date_found": "2026-03-18",
     },
+    # ── Google Sign-In Issues ──
+    {
+        "id": "SEC-013", "severity": "critical",
+        "title": "Google ID token signature not verified (JWT forgery risk)",
+        "category": "Authentication", "status": "open",
+        "description": "The Google Sign-In flow decodes the JWT payload with base64 but does NOT verify the cryptographic signature. An attacker can craft a fake token with valid-looking claims (aud, iss, email) and bypass authentication entirely.",
+        "recommendation": "Replace manual base64 decoding in _handle_google_credential() with google.oauth2.id_token.verify_oauth2_token() from the google-auth library, or pass the token to Firebase Admin SDK verify_id_token(). Both verify the RSA signature against Google's public keys.",
+        "affected": "login_page.py (_handle_google_credential), auth.py", "date_found": "2026-03-30",
+    },
+    {
+        "id": "SEC-014", "severity": "high",
+        "title": "Google credential passed as URL parameter (token exposure)",
+        "category": "Authentication", "status": "open",
+        "description": "After Google Sign-In, the ID token (JWT) is passed via URL query parameter (?google_credential=...). This exposes the token in browser history, server access logs, HTTP Referer headers, and any analytics/tracking scripts on the page.",
+        "recommendation": "Use window.postMessage() to pass the credential from the GIS iframe to the parent Streamlit window instead of URL navigation. Alternatively, use a short-lived server-side exchange endpoint that accepts the token via POST body.",
+        "affected": "login_page.py (_render_google_signin_button, _handle_google_credential)", "date_found": "2026-03-30",
+    },
+    {
+        "id": "SEC-015", "severity": "high",
+        "title": "OAuth consent screen in Testing mode (public users blocked)",
+        "category": "Authentication", "status": "mitigated",
+        "description": "Google Cloud OAuth consent screen is set to 'Testing' mode. Only emails manually added as test users can authenticate with Google Sign-In. All other users will see 'Access blocked' error. This was a temporary fix \u2014 the app was previously in Production mode but blocked because brand info was incomplete.",
+        "recommendation": "Complete brand verification in Google Cloud Console (already filled: app name, homepage, privacy policy, ToS, developer email). Then click 'Publicar app' on the P\u00fablico page. For basic scopes (email/profile) verification is usually instant. Monitor the Centro de verificaci\u00f3n for any additional requirements.",
+        "affected": "Google Cloud Console (project: quartercharts), login_page.py", "date_found": "2026-03-30",
+    },
+    {
+        "id": "SEC-016", "severity": "medium",
+        "title": "No CSRF protection on Google Sign-In callback",
+        "category": "Authentication", "status": "open",
+        "description": "The Google Sign-In flow does not use a state/nonce parameter. An attacker could initiate a login flow and redirect the victim to complete it, potentially linking the attacker's Google account to the victim's session (login CSRF).",
+        "recommendation": "Generate a random nonce in the Streamlit session before rendering the GIS button. Pass it as the 'nonce' parameter in google.accounts.id.initialize(). Verify the nonce claim in the returned ID token matches the session nonce before accepting authentication.",
+        "affected": "login_page.py (_render_google_signin_button, _handle_google_credential)", "date_found": "2026-03-30",
+    },
 ]
 
 # ── Compliance Data ───────────────────────────────────────────────────
@@ -2130,6 +2163,39 @@ SECURITY_ISSUES = [
         "description": "Platform admin accounts (Firebase, Railway, Stripe, GitHub) do not require 2FA.",
         "recommendation": "Enable 2FA on all admin accounts: Firebase Console, Railway, Stripe Dashboard, GitHub (enforce via org settings).",
         "affected": "Admin accounts on all platforms", "date_found": "2026-03-18",
+    },
+    # ── Google Sign-In Issues ──
+    {
+        "id": "SEC-013", "severity": "critical",
+        "title": "Google ID token signature not verified (JWT forgery risk)",
+        "category": "Authentication", "status": "open",
+        "description": "The Google Sign-In flow decodes the JWT payload with base64 but does NOT verify the cryptographic signature. An attacker can craft a fake token with valid-looking claims (aud, iss, email) and bypass authentication entirely.",
+        "recommendation": "Replace manual base64 decoding in _handle_google_credential() with google.oauth2.id_token.verify_oauth2_token() from the google-auth library, or pass the token to Firebase Admin SDK verify_id_token(). Both verify the RSA signature against Google's public keys.",
+        "affected": "login_page.py (_handle_google_credential), auth.py", "date_found": "2026-03-30",
+    },
+    {
+        "id": "SEC-014", "severity": "high",
+        "title": "Google credential passed as URL parameter (token exposure)",
+        "category": "Authentication", "status": "open",
+        "description": "After Google Sign-In, the ID token (JWT) is passed via URL query parameter (?google_credential=...). This exposes the token in browser history, server access logs, HTTP Referer headers, and any analytics/tracking scripts on the page.",
+        "recommendation": "Use window.postMessage() to pass the credential from the GIS iframe to the parent Streamlit window instead of URL navigation. Alternatively, use a short-lived server-side exchange endpoint that accepts the token via POST body.",
+        "affected": "login_page.py (_render_google_signin_button, _handle_google_credential)", "date_found": "2026-03-30",
+    },
+    {
+        "id": "SEC-015", "severity": "high",
+        "title": "OAuth consent screen in Testing mode (public users blocked)",
+        "category": "Authentication", "status": "mitigated",
+        "description": "Google Cloud OAuth consent screen is set to 'Testing' mode. Only emails manually added as test users can authenticate with Google Sign-In. All other users will see 'Access blocked' error. This was a temporary fix \u2014 the app was previously in Production mode but blocked because brand info was incomplete.",
+        "recommendation": "Complete brand verification in Google Cloud Console (already filled: app name, homepage, privacy policy, ToS, developer email). Then click 'Publicar app' on the P\u00fablico page. For basic scopes (email/profile) verification is usually instant. Monitor the Centro de verificaci\u00f3n for any additional requirements.",
+        "affected": "Google Cloud Console (project: quartercharts), login_page.py", "date_found": "2026-03-30",
+    },
+    {
+        "id": "SEC-016", "severity": "medium",
+        "title": "No CSRF protection on Google Sign-In callback",
+        "category": "Authentication", "status": "open",
+        "description": "The Google Sign-In flow does not use a state/nonce parameter. An attacker could initiate a login flow and redirect the victim to complete it, potentially linking the attacker's Google account to the victim's session (login CSRF).",
+        "recommendation": "Generate a random nonce in the Streamlit session before rendering the GIS button. Pass it as the 'nonce' parameter in google.accounts.id.initialize(). Verify the nonce claim in the returned ID token matches the session nonce before accepting authentication.",
+        "affected": "login_page.py (_render_google_signin_button, _handle_google_credential)", "date_found": "2026-03-30",
     },
 ]
 
