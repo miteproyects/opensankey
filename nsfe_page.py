@@ -419,6 +419,19 @@ _STYLES = """
 <style>
 [data-testid="stSidebar"] { display: none !important; }
 section[data-testid="stMain"] > div { padding-top: 0 !important; }
+/* ── NSFE tab fix: keep tabs visible below fixed navbar ── */
+.block-container:has([data-testid="stTabs"]) {
+    padding-top: 68px !important;
+}
+[data-testid="stTabs"] {
+    position: relative;
+    z-index: 1;
+}
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    background: #0F172A;
+    flex-wrap: wrap;
+    gap: 0;
+}
 .nsfe-topbar {
     background: linear-gradient(90deg, #0F172A 0%, #1E293B 100%);
     border-bottom: 2px solid #334155;
@@ -2197,6 +2210,19 @@ _STYLES = """
 <style>
 [data-testid="stSidebar"] { display: none !important; }
 section[data-testid="stMain"] > div { padding-top: 0 !important; }
+/* ── NSFE tab fix: keep tabs visible below fixed navbar ── */
+.block-container:has([data-testid="stTabs"]) {
+    padding-top: 68px !important;
+}
+[data-testid="stTabs"] {
+    position: relative;
+    z-index: 1;
+}
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    background: #0F172A;
+    flex-wrap: wrap;
+    gap: 0;
+}
 .nsfe-topbar {
     background: linear-gradient(90deg, #0F172A 0%, #1E293B 100%);
     border-bottom: 2px solid #334155;
