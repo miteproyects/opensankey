@@ -421,7 +421,7 @@ _STYLES = """
 section[data-testid="stMain"] > div { padding-top: 0 !important; }
 /* ── NSFE tab fix: keep tabs visible below fixed navbar ── */
 .block-container:has([data-testid="stTabs"]) {
-    padding-top: 68px !important;
+    padding-top: 72px !important;
 }
 [data-testid="stTabs"] {
     position: relative;
@@ -431,6 +431,12 @@ section[data-testid="stMain"] > div { padding-top: 0 !important; }
     background: #0F172A;
     flex-wrap: wrap;
     gap: 0;
+    padding: 4px 8px 0 8px;
+}
+[data-testid="stTabs"] [data-baseweb="tab-list"] button {
+    font-size: 0.82rem !important;
+    padding: 8px 12px !important;
+    white-space: nowrap;
 }
 .nsfe-topbar {
     background: linear-gradient(90deg, #0F172A 0%, #1E293B 100%);
@@ -2212,7 +2218,7 @@ _STYLES = """
 section[data-testid="stMain"] > div { padding-top: 0 !important; }
 /* ── NSFE tab fix: keep tabs visible below fixed navbar ── */
 .block-container:has([data-testid="stTabs"]) {
-    padding-top: 68px !important;
+    padding-top: 72px !important;
 }
 [data-testid="stTabs"] {
     position: relative;
@@ -2222,6 +2228,12 @@ section[data-testid="stMain"] > div { padding-top: 0 !important; }
     background: #0F172A;
     flex-wrap: wrap;
     gap: 0;
+    padding: 4px 8px 0 8px;
+}
+[data-testid="stTabs"] [data-baseweb="tab-list"] button {
+    font-size: 0.82rem !important;
+    padding: 8px 12px !important;
+    white-space: nowrap;
 }
 .nsfe-topbar {
     background: linear-gradient(90deg, #0F172A 0%, #1E293B 100%);
