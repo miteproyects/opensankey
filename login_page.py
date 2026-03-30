@@ -14,23 +14,14 @@ import requests
 import json
 import secrets
 import logging
+import os
 from rate_limiter import check_login_allowed, record_login_attempt
 
 logger = logging.getLogger(__name__)
 
-# Google OAuth Client ID (from Firebase project)
-GOOGLE_CLIENT_ID = "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com"
-
-# Firebase API Key (public client-side key — safe to include in frontend code)
-# This is used for the Firebase REST API (email/password auth).
-# Can be overridden via FIREBASE_CONFIG env var.
-import os
-
-# Firebase Web API Key (public, from Firebase Console > Project Settings > General)
-# This is the same key visible in any firebase-config.js — it identifies the project
-# but does NOT grant any privileged access. All actual auth is handled server-side.
-# Can be overridden via FIREBASE_CONFIG or FIREBASE_API_KEY env vars.
-_FIREBASE_API_KEY_DEFAULT = "AIzaSyCJWifCqPSK_UMwgJL8ZbQM2zT3OwXMehY"
+# ── Credentials from environment variables (never hardcoded) ──
+# Set GOOGLE_CLIENT_ID and FIREBASE_API_KEY in your deployment environment.
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 
 FIREBASE_API_KEY = ""
 _fb_config_json = os.getenv("FIREBASE_CONFIG", "")
@@ -42,8 +33,7 @@ if _fb_config_json:
         pass
 
 if not FIREBASE_API_KEY:
-    _fb_api_key_env = os.getenv("FIREBASE_API_KEY", "")
-    FIREBASE_API_KEY = _fb_api_key_env or _FIREBASE_API_KEY_DEFAULT
+    FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY", "")
 
 # SEC-009: reCAPTCHA v3 site key (set RECAPTCHA_SITE_KEY env var to enable)
 RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")
