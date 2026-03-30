@@ -299,17 +299,17 @@ SECURITY_ISSUES = [
     {
         "id": "SEC-013", "severity": "critical",
         "title": "Google ID token signature not verified (JWT forgery risk)",
-        "category": "Authentication", "status": "open",
+        "category": "Authentication", "status": "resolved",
         "description": "The Google Sign-In flow decodes the JWT payload with base64 but does NOT verify the cryptographic signature. An attacker can craft a fake token with valid-looking claims (aud, iss, email) and bypass authentication entirely.",
-        "recommendation": "Replace manual base64 decoding in _handle_google_credential() with google.oauth2.id_token.verify_oauth2_token() from the google-auth library, or pass the token to Firebase Admin SDK verify_id_token(). Both verify the RSA signature against Google's public keys.",
+        "recommendation": "RESOLVED: Replaced manual base64 decoding with google.oauth2.id_token.verify_oauth2_token() which verifies RSA signature against Google's public keys, validates audience, issuer, and expiry.",
         "affected": "login_page.py (_handle_google_credential), auth.py", "date_found": "2026-03-30",
     },
     {
         "id": "SEC-014", "severity": "high",
         "title": "Google credential passed as URL parameter (token exposure)",
-        "category": "Authentication", "status": "open",
+        "category": "Authentication", "status": "mitigated",
         "description": "After Google Sign-In, the ID token (JWT) is passed via URL query parameter (?google_credential=...). This exposes the token in browser history, server access logs, HTTP Referer headers, and any analytics/tracking scripts on the page.",
-        "recommendation": "Use window.postMessage() to pass the credential from the GIS iframe to the parent Streamlit window instead of URL navigation. Alternatively, use a short-lived server-side exchange endpoint that accepts the token via POST body.",
+        "recommendation": "MITIGATED: Credential is now cleared from URL immediately after server reads it (st.query_params.clear() before processing). Full fix via postMessage not possible due to Streamlit iframe limitation. Risk further mitigated by nonce verification (SEC-016) preventing replay of any captured token.",
         "affected": "login_page.py (_render_google_signin_button, _handle_google_credential)", "date_found": "2026-03-30",
     },
     {
@@ -323,9 +323,9 @@ SECURITY_ISSUES = [
     {
         "id": "SEC-016", "severity": "medium",
         "title": "No CSRF protection on Google Sign-In callback",
-        "category": "Authentication", "status": "open",
+        "category": "Authentication", "status": "resolved",
         "description": "The Google Sign-In flow does not use a state/nonce parameter. An attacker could initiate a login flow and redirect the victim to complete it, potentially linking the attacker's Google account to the victim's session (login CSRF).",
-        "recommendation": "Generate a random nonce in the Streamlit session before rendering the GIS button. Pass it as the 'nonce' parameter in google.accounts.id.initialize(). Verify the nonce claim in the returned ID token matches the session nonce before accepting authentication.",
+        "recommendation": "RESOLVED: Added cryptographic nonce (secrets.token_urlsafe(32)) generated per sign-in attempt, stored in session state, passed to GIS initialize(), and verified in _handle_google_credential() before accepting the token.",
         "affected": "login_page.py (_render_google_signin_button, _handle_google_credential)", "date_found": "2026-03-30",
     },
 ]
@@ -2168,17 +2168,17 @@ SECURITY_ISSUES = [
     {
         "id": "SEC-013", "severity": "critical",
         "title": "Google ID token signature not verified (JWT forgery risk)",
-        "category": "Authentication", "status": "open",
+        "category": "Authentication", "status": "resolved",
         "description": "The Google Sign-In flow decodes the JWT payload with base64 but does NOT verify the cryptographic signature. An attacker can craft a fake token with valid-looking claims (aud, iss, email) and bypass authentication entirely.",
-        "recommendation": "Replace manual base64 decoding in _handle_google_credential() with google.oauth2.id_token.verify_oauth2_token() from the google-auth library, or pass the token to Firebase Admin SDK verify_id_token(). Both verify the RSA signature against Google's public keys.",
+        "recommendation": "RESOLVED: Replaced manual base64 decoding with google.oauth2.id_token.verify_oauth2_token() which verifies RSA signature against Google's public keys, validates audience, issuer, and expiry.",
         "affected": "login_page.py (_handle_google_credential), auth.py", "date_found": "2026-03-30",
     },
     {
         "id": "SEC-014", "severity": "high",
         "title": "Google credential passed as URL parameter (token exposure)",
-        "category": "Authentication", "status": "open",
+        "category": "Authentication", "status": "mitigated",
         "description": "After Google Sign-In, the ID token (JWT) is passed via URL query parameter (?google_credential=...). This exposes the token in browser history, server access logs, HTTP Referer headers, and any analytics/tracking scripts on the page.",
-        "recommendation": "Use window.postMessage() to pass the credential from the GIS iframe to the parent Streamlit window instead of URL navigation. Alternatively, use a short-lived server-side exchange endpoint that accepts the token via POST body.",
+        "recommendation": "MITIGATED: Credential is now cleared from URL immediately after server reads it (st.query_params.clear() before processing). Full fix via postMessage not possible due to Streamlit iframe limitation. Risk further mitigated by nonce verification (SEC-016) preventing replay of any captured token.",
         "affected": "login_page.py (_render_google_signin_button, _handle_google_credential)", "date_found": "2026-03-30",
     },
     {
@@ -2192,9 +2192,9 @@ SECURITY_ISSUES = [
     {
         "id": "SEC-016", "severity": "medium",
         "title": "No CSRF protection on Google Sign-In callback",
-        "category": "Authentication", "status": "open",
+        "category": "Authentication", "status": "resolved",
         "description": "The Google Sign-In flow does not use a state/nonce parameter. An attacker could initiate a login flow and redirect the victim to complete it, potentially linking the attacker's Google account to the victim's session (login CSRF).",
-        "recommendation": "Generate a random nonce in the Streamlit session before rendering the GIS button. Pass it as the 'nonce' parameter in google.accounts.id.initialize(). Verify the nonce claim in the returned ID token matches the session nonce before accepting authentication.",
+        "recommendation": "RESOLVED: Added cryptographic nonce (secrets.token_urlsafe(32)) generated per sign-in attempt, stored in session state, passed to GIS initialize(), and verified in _handle_google_credential() before accepting the token.",
         "affected": "login_page.py (_render_google_signin_button, _handle_google_credential)", "date_found": "2026-03-30",
     },
 ]

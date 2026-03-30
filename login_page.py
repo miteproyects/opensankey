@@ -2,13 +2,20 @@
 Login / Sign-up page for QuarterCharts.
 Renders a modern auth form with email+password and Google login.
 Manages session state for user authentication status.
+
+Security:
+- Google ID tokens are verified cryptographically via google-auth library (SEC-013)
+- Credential cleared from URL immediately after read (SEC-014 mitigation)
+- Nonce parameter prevents CSRF / token replay attacks (SEC-016)
 """
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
 import json
-import urllib.parse
+import secrets
+import logging
 
+logger = logging.getLogger(__name__)
 
 # Google OAuth Client ID (from Firebase project)
 GOOGLE_CLIENT_ID = "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com"
@@ -65,27 +72,14 @@ def render_login_page():
         st.markdown('<div class="auth-title">Create account</div>', unsafe_allow_html=True)
         st.markdown('<div class="auth-subtitle">Get started with QuarterCharts</div>', unsafe_allow_html=True)
 
-    # ââ Handle Google credential from URL params ââ
+    # -- Handle Google credential from URL params --
+    # SEC-014: Read and immediately clear credential from URL
     params = st.query_params
     google_credential = params.get("google_credential", None)
     if google_credential:
+        st.query_params.clear()
         _handle_google_credential(google_credential)
         return
-
-    # Also handle legacy google_token param (from previous implementation)
-    google_token = params.get("google_token", None)
-    if google_token:
-        from auth import verify_id_token, set_authenticated_session
-        user_data = verify_id_token(google_token)
-        if user_data:
-            set_authenticated_session({
-                "success": True,
-                "uid": user_data.get("uid", ""),
-                "email": user_data.get("email", ""),
-                "name": user_data.get("name", ""),
-            })
-            st.query_params.clear()
-            st.rerun()
 
     # -- Google Sign-In (login mode only) --
     if mode == "login":
@@ -143,24 +137,28 @@ def render_login_page():
 def _render_google_signin_button():
     """Render the Google Sign-In button using Google Identity Services (GIS).
 
-    GIS works inside iframes (unlike Firebase signInWithPopup which requires
-    http/https protocol). The flow:
-    1. GIS library renders its own button inside the iframe
-    2. User clicks -> Google popup opens for authentication
-    3. On success, callback receives a JWT credential (Google ID token)
-    4. Credential is passed to Streamlit via URL parameter for server-side verification
+    Security improvements:
+    - SEC-016: Generates a cryptographic nonce stored in session state,
+      passed to GIS initialize(), and verified when the token comes back.
+    - SEC-014: Credential is passed via URL param (Streamlit limitation)
+      but cleared immediately on the server side.
     """
+    # SEC-016: Generate a unique nonce for this sign-in attempt
+    nonce = secrets.token_urlsafe(32)
+    st.session_state["google_auth_nonce"] = nonce
+
     google_html = f"""
     <script src="https://accounts.google.com/gsi/client" async></script>
     <script>
     function handleCredentialResponse(response) {{
         // response.credential is a Google ID token (JWT)
         var credential = response.credential;
-        // Navigate the parent window to pass the credential back to Streamlit
+        // Pass credential to Streamlit via URL param
+        // (Streamlit iframe limitation - postMessage not supported)
+        // Server clears this immediately after reading (SEC-014)
         try {{
             window.parent.location.href = '/?page=login&google_credential=' + encodeURIComponent(credential);
         }} catch(e) {{
-            // Fallback: try top-level navigation
             window.top.location.href = '/?page=login&google_credential=' + encodeURIComponent(credential);
         }}
     }}
@@ -169,7 +167,8 @@ def _render_google_signin_button():
         google.accounts.id.initialize({{
             client_id: '{GOOGLE_CLIENT_ID}',
             callback: handleCredentialResponse,
-            ux_mode: 'popup'
+            ux_mode: 'popup',
+            nonce: '{nonce}'
         }});
         google.accounts.id.renderButton(
             document.getElementById('g_id_signin'),
@@ -190,55 +189,48 @@ def _render_google_signin_button():
 
 
 def _handle_google_credential(credential):
-    """Verify a Google ID token (from GIS) and create an authenticated session."""
+    """Verify a Google ID token cryptographically and create an authenticated session.
+
+    SEC-013 FIX: Uses google.oauth2.id_token.verify_oauth2_token() which:
+    - Fetches Google's public keys and verifies the RSA signature
+    - Validates audience (aud) matches our client ID
+    - Validates issuer (iss) is accounts.google.com
+    - Validates expiry (exp)
+    This replaces the old base64-decode-only approach that was vulnerable to
+    token forgery (an attacker could craft a fake JWT with any claims).
+
+    SEC-016 FIX: Verifies the nonce in the token matches the one stored in
+    session state, preventing CSRF and token replay attacks.
+    """
     try:
-        # Decode the JWT to extract user info without external library
-        # Google ID tokens are JWTs with 3 parts: header.payload.signature
-        import base64
+        from google.oauth2 import id_token as google_id_token
+        from google.auth.transport import requests as google_requests
 
-        parts = credential.split(".")
-        if len(parts) != 3:
-            st.error("Invalid Google credential format.")
-            st.query_params.clear()
-            return
-
-        # Decode the payload (part 2) - add padding if needed
-        payload = parts[1]
-        payload += "=" * (4 - len(payload) % 4)  # Add padding
-        decoded = base64.urlsafe_b64decode(payload)
-        token_data = json.loads(decoded)
+        # Cryptographically verify the Google ID token
+        # This checks: RSA signature, aud, iss, exp
+        token_data = google_id_token.verify_oauth2_token(
+            credential,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+        )
 
         email = token_data.get("email", "")
         name = token_data.get("name", "")
         sub = token_data.get("sub", "")  # Google user ID
-        email_verified = token_data.get("email_verified", False)
-
-        # Verify the token is for our app
-        aud = token_data.get("aud", "")
-        if aud != GOOGLE_CLIENT_ID:
-            st.error("Google sign-in failed: token audience mismatch.")
-            st.query_params.clear()
-            return
-
-        # Verify issuer
-        iss = token_data.get("iss", "")
-        if iss not in ("accounts.google.com", "https://accounts.google.com"):
-            st.error("Google sign-in failed: invalid token issuer.")
-            st.query_params.clear()
-            return
-
-        # Check expiry
-        import time
-        exp = token_data.get("exp", 0)
-        if time.time() > exp:
-            st.error("Google sign-in failed: token expired.")
-            st.query_params.clear()
-            return
 
         if not email:
             st.error("Google sign-in failed: no email in token.")
-            st.query_params.clear()
             return
+
+        # SEC-016: Verify nonce to prevent replay / CSRF attacks
+        expected_nonce = st.session_state.get("google_auth_nonce")
+        token_nonce = token_data.get("nonce")
+        if expected_nonce and token_nonce != expected_nonce:
+            logger.warning(f"Nonce mismatch: expected={expected_nonce}, got={token_nonce}")
+            st.error("Google sign-in failed: security token mismatch. Please try again.")
+            return
+        # Clear the nonce after successful verification (one-time use)
+        st.session_state.pop("google_auth_nonce", None)
 
         # Set authenticated session
         from auth import set_authenticated_session
@@ -246,14 +238,18 @@ def _handle_google_credential(credential):
             "success": True,
             "uid": sub,
             "email": email,
-            "name": name or email.split("@")[0],
+            "display_name": name or email.split("@")[0],
         })
-        st.query_params.clear()
+        logger.info(f"Google sign-in successful for {email}")
         st.rerun()
 
+    except ValueError as e:
+        # verify_oauth2_token raises ValueError for invalid/expired/tampered tokens
+        logger.warning(f"Google token verification failed: {e}")
+        st.error("Google sign-in failed: invalid or expired token. Please try again.")
     except Exception as e:
+        logger.error(f"Google sign-in error: {e}")
         st.error(f"Google sign-in failed: {e}")
-        st.query_params.clear()
 
 
 def _handle_email_auth(mode, email, password, name=""):

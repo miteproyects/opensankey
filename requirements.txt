@@ -9,4 +9,5 @@ lxml>=4.9.0
 Pillow>=10.0.0
 # ── Auth & Database (Phase 2) ──
 firebase-admin>=6.4.0
+google-auth>=2.22.0
 psycopg2-binary>=2.9.9
