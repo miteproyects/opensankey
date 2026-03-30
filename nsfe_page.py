@@ -419,7 +419,7 @@ _STYLES = """
 <style>
 [data-testid="stSidebar"] { display: none !important; }
 section[data-testid="stMain"] > div { padding-top: 0 !important; }
-/* ── NSFE tab fix: keep tabs visible below fixed navbar ── */
+/* ── NSFE tab bar ── */
 .block-container:has([data-testid="stTabs"]) {
     padding-top: 72px !important;
 }
@@ -427,16 +427,55 @@ section[data-testid="stMain"] > div { padding-top: 0 !important; }
     position: relative;
     z-index: 1;
 }
+/* Tab bar container */
 [data-testid="stTabs"] [data-baseweb="tab-list"] {
-    background: #0F172A;
-    flex-wrap: wrap;
-    gap: 0;
-    padding: 4px 8px 0 8px;
+    background: linear-gradient(180deg, #0F172A 0%, #131B2E 100%);
+    border-bottom: 1px solid #1E293B;
+    gap: 2px;
+    padding: 6px 16px 0 16px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
 }
+[data-testid="stTabs"] [data-baseweb="tab-list"]::-webkit-scrollbar {
+    display: none;
+}
+/* Individual tab buttons */
 [data-testid="stTabs"] [data-baseweb="tab-list"] button {
-    font-size: 0.82rem !important;
-    padding: 8px 12px !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    padding: 10px 16px 10px 16px !important;
     white-space: nowrap;
+    color: #64748B !important;
+    border-radius: 8px 8px 0 0 !important;
+    border: 1px solid transparent !important;
+    border-bottom: none !important;
+    transition: all 0.15s ease !important;
+    background: transparent !important;
+    letter-spacing: -0.01em;
+}
+/* Hover state */
+[data-testid="stTabs"] [data-baseweb="tab-list"] button:hover {
+    color: #CBD5E1 !important;
+    background: rgba(30, 41, 59, 0.5) !important;
+}
+/* Active tab */
+[data-testid="stTabs"] [data-baseweb="tab-list"] button[aria-selected="true"] {
+    color: #F1F5F9 !important;
+    font-weight: 600 !important;
+    background: #1E293B !important;
+    border-color: #334155 !important;
+}
+/* Active indicator line */
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+    background-color: #3B82F6 !important;
+    height: 3px !important;
+    border-radius: 3px 3px 0 0 !important;
+}
+/* Tab content panel spacing */
+[data-testid="stTabs"] [data-baseweb="tab-panel"] {
+    padding-top: 8px !important;
 }
 .nsfe-topbar {
     background: linear-gradient(90deg, #0F172A 0%, #1E293B 100%);
@@ -2216,7 +2255,7 @@ _STYLES = """
 <style>
 [data-testid="stSidebar"] { display: none !important; }
 section[data-testid="stMain"] > div { padding-top: 0 !important; }
-/* ── NSFE tab fix: keep tabs visible below fixed navbar ── */
+/* ── NSFE tab bar ── */
 .block-container:has([data-testid="stTabs"]) {
     padding-top: 72px !important;
 }
@@ -2224,16 +2263,55 @@ section[data-testid="stMain"] > div { padding-top: 0 !important; }
     position: relative;
     z-index: 1;
 }
+/* Tab bar container */
 [data-testid="stTabs"] [data-baseweb="tab-list"] {
-    background: #0F172A;
-    flex-wrap: wrap;
-    gap: 0;
-    padding: 4px 8px 0 8px;
+    background: linear-gradient(180deg, #0F172A 0%, #131B2E 100%);
+    border-bottom: 1px solid #1E293B;
+    gap: 2px;
+    padding: 6px 16px 0 16px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
 }
+[data-testid="stTabs"] [data-baseweb="tab-list"]::-webkit-scrollbar {
+    display: none;
+}
+/* Individual tab buttons */
 [data-testid="stTabs"] [data-baseweb="tab-list"] button {
-    font-size: 0.82rem !important;
-    padding: 8px 12px !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    padding: 10px 16px 10px 16px !important;
     white-space: nowrap;
+    color: #64748B !important;
+    border-radius: 8px 8px 0 0 !important;
+    border: 1px solid transparent !important;
+    border-bottom: none !important;
+    transition: all 0.15s ease !important;
+    background: transparent !important;
+    letter-spacing: -0.01em;
+}
+/* Hover state */
+[data-testid="stTabs"] [data-baseweb="tab-list"] button:hover {
+    color: #CBD5E1 !important;
+    background: rgba(30, 41, 59, 0.5) !important;
+}
+/* Active tab */
+[data-testid="stTabs"] [data-baseweb="tab-list"] button[aria-selected="true"] {
+    color: #F1F5F9 !important;
+    font-weight: 600 !important;
+    background: #1E293B !important;
+    border-color: #334155 !important;
+}
+/* Active indicator line */
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+    background-color: #3B82F6 !important;
+    height: 3px !important;
+    border-radius: 3px 3px 0 0 !important;
+}
+/* Tab content panel spacing */
+[data-testid="stTabs"] [data-baseweb="tab-panel"] {
+    padding-top: 8px !important;
 }
 .nsfe-topbar {
     background: linear-gradient(90deg, #0F172A 0%, #1E293B 100%);
