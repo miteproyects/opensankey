@@ -315,8 +315,8 @@ SECURITY_ISSUES = [
     {
         "id": "SEC-015", "severity": "high",
         "title": "OAuth consent screen in Testing mode (public users blocked)",
-        "category": "Authentication", "status": "mitigated",
-        "description": "Google Cloud OAuth consent screen is set to 'Testing' mode. Only emails manually added as test users can authenticate with Google Sign-In. All other users will see 'Access blocked' error. This was a temporary fix \u2014 the app was previously in Production mode but blocked because brand info was incomplete.",
+        "category": "Authentication", "status": "resolved",
+        "description": "Google Cloud OAuth consent screen was in 'Testing' mode, blocking all non-test users. Published to Production mode on 2026-03-30. This was a temporary fix \u2014 the app was previously in Production mode but blocked because brand info was incomplete.",
         "recommendation": "Complete brand verification in Google Cloud Console (already filled: app name, homepage, privacy policy, ToS, developer email). Then click 'Publicar app' on the P\u00fablico page. For basic scopes (email/profile) verification is usually instant. Monitor the Centro de verificaci\u00f3n for any additional requirements.",
         "affected": "Google Cloud Console (project: quartercharts), login_page.py", "date_found": "2026-03-30",
     },
@@ -2184,8 +2184,8 @@ SECURITY_ISSUES = [
     {
         "id": "SEC-015", "severity": "high",
         "title": "OAuth consent screen in Testing mode (public users blocked)",
-        "category": "Authentication", "status": "mitigated",
-        "description": "Google Cloud OAuth consent screen is set to 'Testing' mode. Only emails manually added as test users can authenticate with Google Sign-In. All other users will see 'Access blocked' error. This was a temporary fix \u2014 the app was previously in Production mode but blocked because brand info was incomplete.",
+        "category": "Authentication", "status": "resolved",
+        "description": "Google Cloud OAuth consent screen was in 'Testing' mode, blocking all non-test users. Published to Production mode on 2026-03-30. This was a temporary fix \u2014 the app was previously in Production mode but blocked because brand info was incomplete.",
         "recommendation": "Complete brand verification in Google Cloud Console (already filled: app name, homepage, privacy policy, ToS, developer email). Then click 'Publicar app' on the P\u00fablico page. For basic scopes (email/profile) verification is usually instant. Monitor the Centro de verificaci\u00f3n for any additional requirements.",
         "affected": "Google Cloud Console (project: quartercharts), login_page.py", "date_found": "2026-03-30",
     },
