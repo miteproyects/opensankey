@@ -5,6 +5,26 @@ Run with:  streamlit run app.py
 """
 
 import os
+
+# ── Patch Streamlit index.html to add Google site verification in <head> ──
+def _patch_streamlit_head():
+    """Inject meta tags into Streamlit's index.html <head> at import time."""
+    try:
+        import streamlit as _st
+        idx = os.path.join(os.path.dirname(_st.__file__), "static", "index.html")
+        if os.path.isfile(idx):
+            with open(idx, "r") as f:
+                html = f.read()
+            tag = '<meta name="google-site-verification" content="4yRIohYFN8d_gMq4yQUG3sF9n_tbeZqKEL4pp-SlK9A" />'
+            if "google-site-verification" not in html:
+                html = html.replace("<head>", f"<head>{tag}", 1)
+                with open(idx, "w") as f:
+                    f.write(html)
+    except Exception:
+        pass
+
+_patch_streamlit_head()
+
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
