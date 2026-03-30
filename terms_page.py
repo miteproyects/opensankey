@@ -7,6 +7,7 @@ import streamlit as st
 
 def render_terms_page():
     """Render the terms of service page."""
+    # CSS in separate call so app.py's style-hiding rule doesn't hide content
     st.markdown("""
     <style>
     .legal-content {
@@ -36,6 +37,8 @@ def render_terms_page():
         margin-bottom: 24px;
     }
     </style>
+    """, unsafe_allow_html=True)
+    st.markdown("""
     <div class="legal-content">
     <h1>Terms of Service</h1>
     <p class="legal-date">Last updated: March 30, 2026</p>
