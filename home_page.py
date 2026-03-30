@@ -307,7 +307,7 @@ def render_home_page():
 
     <!-- ═══ HERO ═══ -->
     <div class="hero">
-        <div class="hero-badge">&#128202; FINANCIAL DATA VISUALIZATION</div>
+        <div class="hero-badge">&#128202; QUARTERCHART &mdash; FINANCIAL DATA VISUALIZATION</div>
 
         <!-- Search Bar -->
         <div class="search-wrap">
@@ -329,9 +329,10 @@ def render_home_page():
 
         <h1>Understand Any Stock<br>In Seconds</h1>
         <p class="sub">
-            Interactive Sankey diagrams, quarterly income charts, and company
-            profiles &#8212; all from one search. Built for investors who value
-            clarity over clutter.
+            <strong>QuarterCharts</strong> is a financial data visualization platform
+            that turns SEC filings into interactive Sankey diagrams, quarterly income
+            charts, and company profiles &#8212; all from one search. Built for
+            investors who value clarity over clutter.
         </p>
         <div class="hero-cta">
             <a class="btn-primary" href="/?page=charts&ticker=NVDA" target="_top">Explore Charts &#8212; Free</a>
@@ -474,11 +475,13 @@ def render_home_page():
         <a class="btn-primary" href="/?page=charts&ticker=AAPL" target="_top">Try It Now &#8212; It's Free</a>
     </div>
     <div class="foot-bar">
-        &#169; 2026 Quarter Charts &#183;
+        &#169; 2026 QuarterCharts &#183;
         <a href="/?page=charts&ticker=NVDA" target="_top">Charts</a> &#183;
         <a href="/?page=sankey&ticker=NVDA" target="_top">Sankey</a> &#183;
         <a href="/?page=earnings&ticker=NVDA" target="_top">Earnings</a> &#183;
-        <a href="/?page=pricing" target="_top">Pricing</a>
+        <a href="/?page=pricing" target="_top">Pricing</a> &#183;
+        <a href="/?page=privacy" target="_top">Privacy</a> &#183;
+        <a href="/?page=terms" target="_top">Terms</a>
     </div>
 
     <script>
