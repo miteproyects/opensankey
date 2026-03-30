@@ -33,6 +33,30 @@ def _patch_streamlit_head():
                 desc = '<meta name="description" content="QuarterCharts is a financial data visualization platform that turns SEC filings into interactive Sankey diagrams, quarterly income charts, and company profiles." />'
                 html = html.replace("</head>", f"{desc}</head>", 1)
                 changed = True
+            # Replace noscript with content Google's bot can parse for OAuth verification
+            _noscript_content = (
+                '<noscript>'
+                '<div style="max-width:760px;margin:40px auto;font-family:sans-serif;color:#333">'
+                '<h1>QuarterCharts &mdash; Financial Data Visualization</h1>'
+                '<p>QuarterCharts is a financial data visualization platform that turns '
+                'SEC filings into interactive Sankey diagrams, quarterly income charts, '
+                'and company profiles &mdash; all from one search. Built for investors '
+                'who value clarity over clutter.</p>'
+                '<p>You need to enable JavaScript to run this app.</p>'
+                '<p><a href="/?page=privacy">Privacy Policy</a> | '
+                '<a href="/?page=terms">Terms of Service</a></p>'
+                '</div>'
+                '</noscript>'
+            )
+            if "Privacy Policy" not in html and "<noscript>" in html:
+                import re as _re
+                html = _re.sub(
+                    r'<noscript>.*?</noscript>',
+                    _noscript_content,
+                    html,
+                    flags=_re.DOTALL,
+                )
+                changed = True
             if changed:
                 with open(idx, "w") as f:
                     f.write(html)
@@ -125,7 +149,7 @@ LOGO_B64 = "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAQAElEQVR4AexcCZRcxXV9
 # Page config
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 st.set_page_config(
-    page_title="Quarter Charts",
+    page_title="QuarterCharts",
     page_icon=Image.open(BytesIO(base64.b64decode(FAVICON_B64))),
     layout="wide",
     initial_sidebar_state="auto",
