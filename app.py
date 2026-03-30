@@ -15,9 +15,25 @@ def _patch_streamlit_head():
         if os.path.isfile(idx):
             with open(idx, "r") as f:
                 html = f.read()
+            changed = False
+            # Google site verification
             tag = '<meta name="google-site-verification" content="4yRIohYFN8d_gMq4yQUG3sF9n_tbeZqKEL4pp-SlK9A" />'
             if "google-site-verification" not in html:
                 html = html.replace("<head>", f"<head>{tag}", 1)
+                changed = True
+            # Fix title to match OAuth app name
+            if "<title>Streamlit</title>" in html:
+                html = html.replace(
+                    "<title>Streamlit</title>",
+                    "<title>QuarterCharts \u2014 Financial Data Visualization</title>",
+                )
+                changed = True
+            # Add meta description for Google crawlers
+            if 'name="description"' not in html:
+                desc = '<meta name="description" content="QuarterCharts is a financial data visualization platform that turns SEC filings into interactive Sankey diagrams, quarterly income charts, and company profiles." />'
+                html = html.replace("</head>", f"{desc}</head>", 1)
+                changed = True
+            if changed:
                 with open(idx, "w") as f:
                     f.write(html)
     except Exception:
