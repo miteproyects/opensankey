@@ -19,9 +19,13 @@ from rate_limiter import check_login_allowed, record_login_attempt
 
 logger = logging.getLogger(__name__)
 
-# ── Credentials from environment variables (never hardcoded) ──
-# Set GOOGLE_CLIENT_ID and FIREBASE_API_KEY in your deployment environment.
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+# ── Credentials ──
+# GOOGLE_CLIENT_ID is a public OAuth identifier (visible in page source).
+# FIREBASE_API_KEY must come from env vars only (never hardcoded).
+GOOGLE_CLIENT_ID = os.getenv(
+    "GOOGLE_CLIENT_ID",
+    "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com",
+)
 
 FIREBASE_API_KEY = ""
 _fb_config_json = os.getenv("FIREBASE_CONFIG", "")
