@@ -1043,7 +1043,7 @@ _qp_page = st.query_params.get("page", "").lower()
 _qp_ticker = st.query_params.get("ticker", "").upper().strip()
 if _qp_ticker:
     st.session_state.ticker = _qp_ticker
-if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe"):
+if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe", "privacy", "terms"):
     st.session_state.page = _qp_page
 elif "page" not in st.session_state:
     st.session_state.page = "home"
@@ -2408,8 +2408,8 @@ st.markdown(f"""
 <div class="footer">
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:30px;">
         <div>
-            <h3>What is Quarter Charts?</h3>
-            <p>Quarter Charts is a financial visualization tool that helps investors
+            <h3>What is QuarterCharts?</h3>
+            <p>QuarterCharts is a financial visualization tool that helps investors
             track and analyse company financials through interactive charts.
             This is a local clone powered by SEC EDGAR &amp; Yahoo Finance data.</p>
         </div>
@@ -2436,7 +2436,7 @@ st.markdown(f"""
     </div>
     <hr style="border-color: #495057; margin: 20px 0;">
     <p style="text-align:center; color:#6c757d;">
-        &copy; {datetime.now().year} Quarter Charts &middot; Built with Streamlit &middot; Data from SEC EDGAR, FMP &amp; Yahoo Finance
+        &copy; {datetime.now().year} QuarterCharts &middot; Built with Streamlit &middot; Data from SEC EDGAR, FMP &amp; Yahoo Finance
     </p>
 </div>
 """, unsafe_allow_html=True)

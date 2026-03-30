@@ -307,7 +307,7 @@ def render_home_page():
 
     <!-- ═══ HERO ═══ -->
     <div class="hero">
-        <div class="hero-badge">&#128202; QUARTERCHART &mdash; FINANCIAL DATA VISUALIZATION</div>
+        <div class="hero-badge">&#128202; QUARTERCHARTS &mdash; FINANCIAL DATA VISUALIZATION</div>
 
         <!-- Search Bar -->
         <div class="search-wrap">
@@ -471,7 +471,7 @@ def render_home_page():
     <!-- ═══ CTA FOOTER ═══ -->
     <div class="cta-foot">
         <h2>Ready to See Your Stocks Differently?</h2>
-        <p>Join thousands of investors using Quarter Charts to make smarter decisions.</p>
+        <p>Join thousands of investors using QuarterCharts to make smarter decisions.</p>
         <a class="btn-primary" href="/?page=charts&ticker=AAPL" target="_top">Try It Now &#8212; It's Free</a>
     </div>
     <div class="foot-bar">
