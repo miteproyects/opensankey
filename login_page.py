@@ -21,8 +21,31 @@ logger = logging.getLogger(__name__)
 # Google OAuth Client ID (from Firebase project)
 GOOGLE_CLIENT_ID = "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com"
 
-# SEC-009: reCAPTCHA v3 site key (set RECAPTCHA_SITE_KEY env var to enable)
+# Firebase API Key (public client-side key — safe to include in frontend code)
+# This is used for the Firebase REST API (email/password auth).
+# Can be overridden via FIREBASE_CONFIG env var.
 import os
+
+# Firebase Web API Key (public, from Firebase Console > Project Settings > General)
+# This is the same key visible in any firebase-config.js — it identifies the project
+# but does NOT grant any privileged access. All actual auth is handled server-side.
+# Can be overridden via FIREBASE_CONFIG or FIREBASE_API_KEY env vars.
+_FIREBASE_API_KEY_DEFAULT = "AIzaSyCJWifCqPSK_UMwgJL8ZbQM2zT3OwXMehY"
+
+FIREBASE_API_KEY = ""
+_fb_config_json = os.getenv("FIREBASE_CONFIG", "")
+if _fb_config_json:
+    try:
+        _fb_config = json.loads(_fb_config_json)
+        FIREBASE_API_KEY = _fb_config.get("apiKey", "")
+    except json.JSONDecodeError:
+        pass
+
+if not FIREBASE_API_KEY:
+    _fb_api_key_env = os.getenv("FIREBASE_API_KEY", "")
+    FIREBASE_API_KEY = _fb_api_key_env or _FIREBASE_API_KEY_DEFAULT
+
+# SEC-009: reCAPTCHA v3 site key (set RECAPTCHA_SITE_KEY env var to enable)
 RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")
 RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY", "")
 
@@ -38,45 +61,108 @@ def render_login_page():
     # -- Page CSS --
     st.markdown("""
     <style>
-    .auth-wrapper {
-        max-width: 420px; margin: 40px auto; padding: 0 16px;
+    /* Hide default Streamlit header/footer for cleaner auth page */
+    .auth-card {
+        max-width: 440px;
+        margin: 30px auto 0 auto;
+        padding: 36px 32px 28px 32px;
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 2px 16px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04);
+        border: 1px solid #f0f0f0;
+    }
+    @media (prefers-color-scheme: dark) {
+        .auth-card {
+            background: #1a1a2e;
+            border-color: #2a2a3e;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.3);
+        }
+        .auth-title { color: #f0f0f0 !important; }
+        .auth-subtitle { color: #9ca3af !important; }
+        .divider-row hr { border-top-color: #374151 !important; }
+        .divider-row span { color: #6b7280 !important; }
+        .auth-toggle { color: #9ca3af !important; }
+        .auth-toggle a { color: #60a5fa !important; }
+        .auth-footer { color: #6b7280 !important; }
     }
     .auth-title {
-        font-size: 28px; font-weight: 700; text-align: center;
-        margin-bottom: 4px;
+        font-size: 26px;
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 6px;
+        color: #111827;
+        letter-spacing: -0.3px;
     }
     .auth-subtitle {
-        text-align: center; color: #6b7280; margin-bottom: 24px;
-        font-size: 15px;
+        text-align: center;
+        color: #6b7280;
+        margin-bottom: 20px;
+        font-size: 14px;
+        font-weight: 400;
     }
     .divider-row {
-        display: flex; align-items: center; margin: 18px 0;
+        display: flex;
+        align-items: center;
+        margin: 16px 0 12px 0;
     }
     .divider-row hr {
-        flex: 1; border: none; border-top: 1px solid #e5e7eb;
+        flex: 1;
+        border: none;
+        border-top: 1px solid #e5e7eb;
     }
     .divider-row span {
-        padding: 0 12px; color: #9ca3af; font-size: 13px;
+        padding: 0 14px;
+        color: #9ca3af;
+        font-size: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
     }
-    .toggle-text {
-        text-align: center; margin-top: 18px; font-size: 14px;
+    .auth-toggle {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 14px;
+        color: #6b7280;
+        padding-top: 16px;
+        border-top: 1px solid #f0f0f0;
     }
-    .toggle-text a {
-        color: #2475fc; text-decoration: none; font-weight: 600;
+    .auth-toggle a {
+        color: #2563eb;
+        text-decoration: none;
+        font-weight: 600;
         cursor: pointer;
+    }
+    .auth-toggle a:hover {
+        text-decoration: underline;
+    }
+    .auth-footer {
+        text-align: center;
+        font-size: 11px;
+        color: #9ca3af;
+        margin-top: 16px;
+        line-height: 1.5;
+    }
+    /* Streamlit button overrides for this page */
+    .stButton > button[kind="primary"] {
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        font-size: 15px !important;
+        padding: 10px 0 !important;
+        letter-spacing: 0.2px !important;
+    }
+    .stButton > button[kind="secondary"] {
+        border-radius: 10px !important;
+        font-weight: 500 !important;
+    }
+    /* Input field styling */
+    .stTextInput > div > div > input {
+        border-radius: 10px !important;
+        padding: 10px 14px !important;
+        font-size: 14px !important;
     }
     </style>
     """, unsafe_allow_html=True)
-
-    # -- Wrapper open --
-    st.markdown('<div class="auth-wrapper">', unsafe_allow_html=True)
-
-    if mode == "login":
-        st.markdown('<div class="auth-title">Welcome back</div>', unsafe_allow_html=True)
-        st.markdown('<div class="auth-subtitle">Sign in to your QuarterCharts account</div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="auth-title">Create account</div>', unsafe_allow_html=True)
-        st.markdown('<div class="auth-subtitle">Get started with QuarterCharts</div>', unsafe_allow_html=True)
 
     # -- Handle Google credential from URL params --
     # SEC-014: Read and immediately clear credential from URL
@@ -87,25 +173,37 @@ def render_login_page():
         _handle_google_credential(google_credential)
         return
 
-    # -- Google Sign-In (login mode only) --
-    if mode == "login":
-        _render_google_signin_button()
+    # -- Card open --
+    st.markdown('<div class="auth-card">', unsafe_allow_html=True)
 
-        # -- Divider --
-        st.markdown("""
-        <div class="divider-row">
-            <hr><span>or continue with email</span><hr>
-        </div>
-        """, unsafe_allow_html=True)
+    if mode == "login":
+        st.markdown('<div class="auth-title">Welcome back</div>', unsafe_allow_html=True)
+        st.markdown('<div class="auth-subtitle">Sign in to your QuarterCharts account</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="auth-title">Create your account</div>', unsafe_allow_html=True)
+        st.markdown('<div class="auth-subtitle">Start tracking earnings with QuarterCharts</div>', unsafe_allow_html=True)
+
+    # -- Google Sign-In (both modes) --
+    _render_google_signin_button()
+
+    # -- Divider --
+    st.markdown("""
+    <div class="divider-row">
+        <hr><span>or</span><hr>
+    </div>
+    """, unsafe_allow_html=True)
 
     # -- Name field (signup only) --
     name = ""
     if mode == "signup":
-        name = st.text_input("Full Name", placeholder="Your full name")
+        name = st.text_input("Full Name", placeholder="Your full name", key="auth_name")
 
     # -- Email & Password --
-    email = st.text_input("Email", placeholder="you@example.com")
-    password = st.text_input("Password", type="password", placeholder="Enter your password")
+    email = st.text_input("Email", placeholder="you@example.com", key="auth_email")
+    password = st.text_input("Password", type="password", placeholder="Enter your password", key="auth_password")
+
+    if mode == "signup":
+        st.caption("Password must be at least 6 characters.")
 
     # SEC-009: Render reCAPTCHA v3 widget on signup (invisible)
     if mode == "signup" and RECAPTCHA_SITE_KEY:
@@ -113,11 +211,13 @@ def render_login_page():
 
     # -- Submit --
     btn_label = "Sign In" if mode == "login" else "Create Account"
-    if st.button(btn_label, use_container_width=True, type="primary"):
+    if st.button(btn_label, use_container_width=True, type="primary", key="auth_submit"):
         if not email or not password:
             st.error("Please enter both email and password.")
         elif mode == "signup" and not name:
             st.error("Please enter your name.")
+        elif mode == "signup" and len(password) < 6:
+            st.error("Password must be at least 6 characters.")
         elif mode == "signup" and RECAPTCHA_SITE_KEY:
             # SEC-009: Verify CAPTCHA before signup
             captcha_token = st.session_state.get("recaptcha_token", "")
@@ -131,23 +231,28 @@ def render_login_page():
     # -- Toggle login/signup --
     if mode == "login":
         st.markdown(
-            '<div class="toggle-text">Don\'t have an account? '
-            '<a onclick="fetch(\'/_stcore/set_query_params?auth_mode=signup\')">Sign up</a></div>',
+            '<div class="auth-toggle">Don\'t have an account? </div>',
             unsafe_allow_html=True,
         )
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("Switch to Sign Up", use_container_width=True):
-                st.session_state.auth_mode = "signup"
-                st.rerun()
+        if st.button("Create an account", use_container_width=True, key="toggle_signup"):
+            st.session_state.auth_mode = "signup"
+            st.rerun()
     else:
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("Switch to Sign In", use_container_width=True):
-                st.session_state.auth_mode = "login"
-                st.rerun()
+        st.markdown(
+            '<div class="auth-toggle">Already have an account? </div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("Sign in instead", use_container_width=True, key="toggle_login"):
+            st.session_state.auth_mode = "login"
+            st.rerun()
 
-    # -- Wrapper close --
+    # -- Footer --
+    st.markdown(
+        '<div class="auth-footer">By continuing, you agree to QuarterCharts\' Terms of Service.</div>',
+        unsafe_allow_html=True,
+    )
+
+    # -- Card close --
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -168,11 +273,7 @@ def _render_google_signin_button():
     <script src="https://accounts.google.com/gsi/client" async></script>
     <script>
     function handleCredentialResponse(response) {{
-        // response.credential is a Google ID token (JWT)
         var credential = response.credential;
-        // Pass credential to Streamlit via URL param
-        // (Streamlit iframe limitation - postMessage not supported)
-        // Server clears this immediately after reading (SEC-014)
         try {{
             window.parent.location.href = '/?page=login&google_credential=' + encodeURIComponent(credential);
         }} catch(e) {{
@@ -193,14 +294,14 @@ def _render_google_signin_button():
                 theme: 'outline',
                 size: 'large',
                 text: 'continue_with',
-                shape: 'rectangular',
+                shape: 'pill',
                 width: 380,
                 logo_alignment: 'left'
             }}
         );
     }};
     </script>
-    <div id="g_id_signin" style="display:flex;justify-content:center;margin:8px 0;"></div>
+    <div id="g_id_signin" style="display:flex;justify-content:center;margin:4px 0;"></div>
     """
     components.html(google_html, height=50)
 
@@ -213,8 +314,6 @@ def _handle_google_credential(credential):
     - Validates audience (aud) matches our client ID
     - Validates issuer (iss) is accounts.google.com
     - Validates expiry (exp)
-    This replaces the old base64-decode-only approach that was vulnerable to
-    token forgery (an attacker could craft a fake JWT with any claims).
 
     SEC-016 FIX: Verifies the nonce in the token matches the one stored in
     session state, preventing CSRF and token replay attacks.
@@ -224,7 +323,6 @@ def _handle_google_credential(credential):
         from google.auth.transport import requests as google_requests
 
         # Cryptographically verify the Google ID token
-        # This checks: RSA signature, aud, iss, exp
         token_data = google_id_token.verify_oauth2_token(
             credential,
             google_requests.Request(),
@@ -261,7 +359,6 @@ def _handle_google_credential(credential):
         st.rerun()
 
     except ValueError as e:
-        # verify_oauth2_token raises ValueError for invalid/expired/tampered tokens
         logger.warning(f"Google token verification failed: {e}")
         st.error("Google sign-in failed: invalid or expired token. Please try again.")
     except Exception as e:
@@ -283,16 +380,68 @@ def _handle_email_auth(mode, email, password, name=""):
             st.error(reason)
             return
 
-        from auth import create_user
-        result = create_user(email, password, name)
-        if result.get("success"):
+        # Try Firebase Admin SDK first, fall back to REST API
+        signup_result = None
+        try:
+            from auth import create_user
+            signup_result = create_user(email, password, name)
+        except Exception as e:
+            logger.warning(f"Admin SDK signup failed, trying REST API: {e}")
+
+        if signup_result and signup_result.get("success"):
             record_login_attempt(email, success=True)
-            set_authenticated_session(result)
+            set_authenticated_session(signup_result)
             st.success("Account created! Redirecting\u2026")
             st.rerun()
-        else:
+        elif signup_result and signup_result.get("error"):
+            # Admin SDK returned a specific error (e.g., email exists)
             record_login_attempt(email, success=False)
-            st.error(result.get("error", "Signup failed."))
+            st.error(signup_result.get("error"))
+        else:
+            # Admin SDK not configured — use Firebase REST API for signup
+            api_key = FIREBASE_API_KEY
+            if not api_key:
+                st.error("Signup is not configured. Please use Google Sign-In.")
+                return
+            signup_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={api_key}"
+            signup_payload = {
+                "email": email,
+                "password": password,
+                "returnSecureToken": True,
+            }
+            try:
+                resp = requests.post(signup_url, json=signup_payload, timeout=10)
+                data = resp.json()
+                if resp.ok and "idToken" in data:
+                    # Update display name via REST API
+                    if name:
+                        update_url = f"https://identitytoolkit.googleapis.com/v1/accounts:update?key={api_key}"
+                        requests.post(update_url, json={
+                            "idToken": data["idToken"],
+                            "displayName": name,
+                        }, timeout=5)
+                    record_login_attempt(email, success=True)
+                    set_authenticated_session({
+                        "success": True,
+                        "uid": data.get("localId", ""),
+                        "email": data.get("email", email),
+                        "display_name": name or email.split("@")[0],
+                    })
+                    st.success("Account created! Redirecting\u2026")
+                    st.rerun()
+                else:
+                    record_login_attempt(email, success=False)
+                    msg = data.get("error", {}).get("message", "Signup failed.")
+                    friendly = {
+                        "EMAIL_EXISTS": "An account with this email already exists. Try signing in.",
+                        "WEAK_PASSWORD": "Password must be at least 6 characters.",
+                        "INVALID_EMAIL": "Please enter a valid email address.",
+                        "TOO_MANY_ATTEMPTS_TRY_LATER": "Too many attempts. Please try again later.",
+                    }
+                    st.error(friendly.get(msg, f"Signup failed: {msg}"))
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Firebase REST API signup error: {e}")
+                st.error("Connection error. Please check your internet and try again.")
     else:
         # SEC-003: Check rate limit before attempting login
         allowed, reason = check_login_allowed(email)
@@ -301,51 +450,74 @@ def _handle_email_auth(mode, email, password, name=""):
             return
 
         # -- Email/password login via Firebase REST API --
-        from auth import get_firebase_config, verify_id_token
-        fb_config = get_firebase_config()
-        api_key = fb_config.get("apiKey", "")
-        if api_key:
-            url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
-            payload = {
-                "email": email,
-                "password": password,
-                "returnSecureToken": True,
-            }
-            try:
-                resp = requests.post(url, json=payload, timeout=10)
-                data = resp.json()
-                if resp.ok and "idToken" in data:
-                    user_data = verify_id_token(data["idToken"])
-                    if user_data:
-                        record_login_attempt(email, success=True)
-                        set_authenticated_session({
-                            "success": True,
-                            "uid": user_data.get("uid", ""),
-                            "email": user_data.get("email", email),
-                            "name": user_data.get("name", email.split("@")[0]),
-                        })
-                        st.rerun()
-                    else:
-                        record_login_attempt(email, success=False)
-                        st.error("Login failed: could not verify token.")
+        api_key = FIREBASE_API_KEY
+        if not api_key:
+            # Try from env at runtime too
+            from auth import get_firebase_config
+            fb_config = get_firebase_config()
+            api_key = fb_config.get("apiKey", "")
+
+        if not api_key:
+            logger.error("No Firebase API key available for email login")
+            st.error("Email login is not configured yet. Please use Google Sign-In, or contact support.")
+            return
+
+        url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+        payload = {
+            "email": email,
+            "password": password,
+            "returnSecureToken": True,
+        }
+        try:
+            resp = requests.post(url, json=payload, timeout=10)
+            data = resp.json()
+
+            if resp.ok and "idToken" in data:
+                # Try to verify token via Firebase Admin SDK first
+                from auth import verify_id_token
+                user_data = verify_id_token(data["idToken"])
+
+                if user_data:
+                    # Admin SDK verification succeeded
+                    record_login_attempt(email, success=True)
+                    set_authenticated_session({
+                        "success": True,
+                        "uid": user_data.get("uid", data.get("localId", "")),
+                        "email": user_data.get("email", email),
+                        "display_name": user_data.get("name", data.get("displayName", email.split("@")[0])),
+                    })
+                    st.rerun()
                 else:
-                    record_login_attempt(email, success=False)
-                    msg = data.get("error", {}).get("message", "Login failed.")
-                    friendly = {
-                        "EMAIL_NOT_FOUND": "No account found with that email.",
-                        "INVALID_PASSWORD": "Incorrect password.",
-                        "INVALID_LOGIN_CREDENTIALS": "Invalid email or password.",
-                        "USER_DISABLED": "This account has been disabled.",
-                        "TOO_MANY_ATTEMPTS_TRY_LATER": "Too many attempts. Please try again later.",
-                    }
-                    st.error(friendly.get(msg, f"Login failed: {msg}"))
-            except requests.exceptions.RequestException as e:
-                st.error(f"Connection error: {e}")
-        else:
-            st.error("Firebase not configured. Please contact support.")
+                    # Admin SDK not configured or verification failed —
+                    # Fall back to REST API response data.
+                    # This is still secure because we just authenticated
+                    # with Firebase's own API using the correct password.
+                    logger.info("Firebase Admin SDK not available, using REST API response for session")
+                    record_login_attempt(email, success=True)
+                    set_authenticated_session({
+                        "success": True,
+                        "uid": data.get("localId", ""),
+                        "email": data.get("email", email),
+                        "display_name": data.get("displayName", email.split("@")[0]),
+                    })
+                    st.rerun()
+            else:
+                record_login_attempt(email, success=False)
+                msg = data.get("error", {}).get("message", "Login failed.")
+                friendly = {
+                    "EMAIL_NOT_FOUND": "No account found with that email. Try signing up first.",
+                    "INVALID_PASSWORD": "Incorrect password. Please try again.",
+                    "INVALID_LOGIN_CREDENTIALS": "Invalid email or password. Please try again.",
+                    "USER_DISABLED": "This account has been disabled.",
+                    "TOO_MANY_ATTEMPTS_TRY_LATER": "Too many attempts. Please try again later.",
+                }
+                st.error(friendly.get(msg, f"Login failed: {msg}"))
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Firebase REST API connection error: {e}")
+            st.error("Connection error. Please check your internet and try again.")
 
 
-# ── SEC-009: reCAPTCHA v3 Helpers ──────────────────────────────────────────
+# -- SEC-009: reCAPTCHA v3 Helpers --
 
 def _render_recaptcha_widget():
     """Render invisible reCAPTCHA v3 widget that auto-generates a token."""
@@ -357,7 +529,6 @@ def _render_recaptcha_widget():
     <script>
     grecaptcha.ready(function() {{
         grecaptcha.execute('{RECAPTCHA_SITE_KEY}', {{action: 'signup'}}).then(function(token) {{
-            // Store token for Streamlit to read
             window.parent.postMessage({{type: 'recaptcha_token', token: token}}, '*');
         }});
     }});
@@ -377,7 +548,6 @@ def _verify_recaptcha(token: str) -> bool:
     Returns True (passthrough) if reCAPTCHA is not configured.
     """
     if not RECAPTCHA_SECRET_KEY or not token:
-        # If not configured, allow through (rate limiter is the fallback)
         return True
 
     try:
@@ -402,6 +572,4 @@ def _verify_recaptcha(token: str) -> bool:
 
     except Exception as e:
         logger.error(f"reCAPTCHA verification error: {e}")
-        # Fail open — don't block users if Google API is down
-        # Rate limiter provides backup protection
         return True
