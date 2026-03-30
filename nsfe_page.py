@@ -236,7 +236,7 @@ SECURITY_ISSUES = [
         "title": "No X-Frame-Options or frame-ancestors CSP",
         "category": "HTTP Headers", "status": "resolved",
         "description": "App can be embedded in iframes on malicious sites, enabling clickjacking attacks.",
-        "recommendation": "RESOLVED: Added X-Frame-Options: DENY header and frame-ancestors 'none' in CSP via security_headers.py Tornado middleware.",
+        "recommendation": "RESOLVED: Added X-Frame-Options: SAMEORIGIN and frame-ancestors 'self' in CSP via security_headers.py Tornado middleware. SAMEORIGIN used because Streamlit requires same-origin iframes for components.",
         "affected": "All pages", "date_found": "2026-03-15",
     },
     {
@@ -2105,7 +2105,7 @@ SECURITY_ISSUES = [
         "title": "No X-Frame-Options or frame-ancestors CSP",
         "category": "HTTP Headers", "status": "resolved",
         "description": "App can be embedded in iframes on malicious sites, enabling clickjacking attacks.",
-        "recommendation": "RESOLVED: Added X-Frame-Options: DENY header and frame-ancestors 'none' in CSP via security_headers.py Tornado middleware.",
+        "recommendation": "RESOLVED: Added X-Frame-Options: SAMEORIGIN and frame-ancestors 'self' in CSP via security_headers.py Tornado middleware. SAMEORIGIN used because Streamlit requires same-origin iframes for components.",
         "affected": "All pages", "date_found": "2026-03-15",
     },
     {

@@ -27,9 +27,9 @@ CSP_POLICY = "; ".join([
     "style-src 'self' 'unsafe-inline' https://accounts.google.com https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://accounts.google.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://*.yahoo.com",
+    "connect-src 'self' https://accounts.google.com https://*.googleapis.com https://*.google.com https://*.firebaseio.com wss://*.firebaseio.com https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://*.yahoo.com https://securetoken.googleapis.com",
     "frame-src 'self' https://accounts.google.com",
-    "frame-ancestors 'none'",
+    "frame-ancestors 'self'",
     "base-uri 'self'",
     "form-action 'self' https://accounts.google.com",
     "upgrade-insecure-requests",
@@ -61,7 +61,9 @@ def inject_security_headers():
             self.set_header("Content-Security-Policy", CSP_POLICY)
 
             # SEC-005: Clickjacking protection (X-Frame-Options + CSP frame-ancestors)
-            self.set_header("X-Frame-Options", "DENY")
+            # Using SAMEORIGIN (not DENY) because Streamlit uses same-origin iframes
+            # for components.html() — including the Google Sign-In button
+            self.set_header("X-Frame-Options", "SAMEORIGIN")
 
             # SEC-010: Prevent MIME-type sniffing
             self.set_header("X-Content-Type-Options", "nosniff")
