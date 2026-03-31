@@ -1065,14 +1065,13 @@ restore_session_from_params()
 # intercept the code param here before page routing kicks in.
 _oauth_code = st.query_params.get("code", None)
 if _oauth_code and not st.session_state.get("logged_in"):
-    st.query_params.clear()
+    # Don't clear params — _handle_google_auth_code will JS-redirect on success
     from login_page import _handle_google_auth_code
     _handle_google_auth_code(_oauth_code)
-    # If _handle_google_auth_code succeeded, it already called st.rerun().
-    # If we reach here, auth failed — redirect to login page.
-    st.session_state.page = "login"
-    st.query_params.update({"page": "login", "ticker": st.session_state.get("ticker", "NVDA")})
-    st.rerun()
+    # If we reach here, auth failed (success path does js_redirect + st.stop()).
+    # Redirect to login page so user can try again.
+    from auth import js_redirect as _js_redir
+    _js_redir(f"/?page=login&ticker={st.session_state.get('ticker', 'NVDA')}")
 
 try:
     initialize_schema()
@@ -1940,8 +1939,8 @@ with st.sidebar:
         _user_email = st.session_state.get("user_email", "User")
         if st.button(f"Sign Out ({_user_email})", key="sidebar_signout"):
             clear_session()
-            st.query_params.update({"page": "home", "ticker": st.session_state.get("ticker", "NVDA")})
-            st.rerun()
+            from auth import js_redirect as _js_redir_out
+            _js_redir_out(f"/?page=home&ticker={st.session_state.get('ticker', 'NVDA')}")
     else:
         # Sign In button at the top of the sidebar
         st.markdown(f"""

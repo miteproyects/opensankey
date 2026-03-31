@@ -306,6 +306,8 @@ def restore_session_from_params():
     st.session_state.user_name = user_data.get("display_name", "")
     st.session_state.auth_token_time = time.time()
     st.session_state.auth_token = secrets.token_urlsafe(32)
+    # CRITICAL: Store sid so get_auth_params() can include it in navbar links
+    st.session_state._server_sid = sid
 
     # Refresh the session timestamp (sliding expiry)
     session_data["created_at"] = time.time()
@@ -326,6 +328,22 @@ def get_auth_params() -> str:
     if not sid:
         return ""
     return f"&sid={sid}"
+
+
+def js_redirect(url: str):
+    """Perform a JavaScript redirect — the only bulletproof navigation in Streamlit.
+
+    st.query_params.update() + st.rerun() is unreliable because Streamlit's
+    query param handling can race with the rerun. A JavaScript redirect forces
+    the browser to navigate to the new URL, creating a clean page load where
+    restore_session_from_params() can read the sid from the URL.
+    """
+    import streamlit.components.v1 as components
+    components.html(
+        f'<script>window.parent.location.href = "{url}";</script>',
+        height=0,
+    )
+    st.stop()  # Halt script so no further rendering happens
 
 
 def clear_session_from_disk():

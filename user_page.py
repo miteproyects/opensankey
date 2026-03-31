@@ -478,13 +478,9 @@ def _render_settings():
         with dc1:
             if st.button("Yes, Delete My Account", type="primary", key="confirm_delete_yes"):
                 # Clear session and redirect
-                from auth import clear_session
+                from auth import clear_session, js_redirect
                 clear_session()
-                st.session_state.pop("confirm_delete", None)
-                st.session_state.page = "home"
-                st.query_params.update({"page": "home", "ticker": st.session_state.get("ticker", "NVDA")})
-                st.success("Account deletion requested. You have been signed out.")
-                st.rerun()
+                js_redirect(f"/?page=home&ticker={st.session_state.get('ticker', 'NVDA')}")
         with dc2:
             if st.button("Cancel", key="confirm_delete_no"):
                 st.session_state.pop("confirm_delete", None)
@@ -585,11 +581,9 @@ def render_user_page():
 
         # Sign out at bottom of sidebar
         if st.button("Sign Out", key="user_signout", use_container_width=True):
-            from auth import clear_session
+            from auth import clear_session, js_redirect
             clear_session()
-            st.session_state.page = "home"
-            st.query_params.update({"page": "home", "ticker": st.session_state.get("ticker", "NVDA")})
-            st.rerun()
+            js_redirect(f"/?page=home&ticker={st.session_state.get('ticker', 'NVDA')}")
 
     # ── Main content area ────────────────────────────────────────────────
     with content_col:
