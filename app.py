@@ -2090,55 +2090,104 @@ with st.sidebar:
 # Page routing
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
+def _render_footer():
+    """Render the shared site footer on every page."""
+    st.markdown(f"""
+<div class="footer">
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:30px;">
+        <div>
+            <h3>What is QuarterCharts?</h3>
+            <p>QuarterCharts is a financial visualization tool that helps investors
+            track and analyse company financials through interactive charts.
+            This is a local clone powered by SEC EDGAR &amp; Yahoo Finance data.</p>
+        </div>
+        <div>
+            <h3>Quick Links</h3>
+            <p>
+                <a href="/?page=home">Home</a><br>
+                <a href="/?page=earnings">Earnings Calendar</a><br>
+                <a href="/?page=watchlist">Watchlist</a><br>
+                <a href="/?page=privacy">Privacy Policy</a><br>
+                <a href="/?page=terms">Terms of Service</a>
+            </p>
+        </div>
+        <div>
+            <h3>Popular Companies</h3>
+            <p>AAPL &middot; MSFT &middot; GOOGL &middot; AMZN &middot; NVDA &middot; TSLA &middot; META &middot; NFLX</p>
+        </div>
+        <div>
+            <h3>Disclaimer</h3>
+            <p>This app is for educational and informational purposes only.
+            Data is sourced from SEC EDGAR and Yahoo Finance and may not be 100% accurate.
+            Not financial advice.</p>
+        </div>
+    </div>
+    <hr style="border-color: #495057; margin: 20px 0;">
+    <p style="text-align:center; color:#6c757d;">
+        &copy; {datetime.now().year} QuarterCharts &middot; Built with Streamlit &middot; Data from SEC EDGAR, FMP &amp; Yahoo Finance
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
 if current_page == "profile":
     from profile_page import render_profile_page
     render_profile_page(ticker)
+    _render_footer()
     st.stop()
 
 if current_page == "earnings":
     # Hide sidebar on earnings page (it's a standalone page, not ticker-specific)
     from earnings_page import render_earnings_page
     render_earnings_page()
+    _render_footer()
     st.stop()
 
 if current_page == "login":
     from login_page import render_login_page
     render_login_page()
+    _render_footer()
     st.stop()
 
 if current_page == "pricing":
     from pricing_page import render_pricing_page
     render_pricing_page()
+    _render_footer()
     st.stop()
 
 if current_page == "home":
     from home_page import render_home_page
     render_home_page()
+    _render_footer()
     st.stop()
 
 if current_page == "sankey":
     from sankey_page import render_sankey_page
     render_sankey_page()
+    _render_footer()
     st.stop()
 
 if current_page == "watchlist":
     from watchlist_page import render_watchlist_page
     render_watchlist_page()
+    _render_footer()
     st.stop()
 
 if current_page == "nsfe":
     from nsfe_page import render_nsfe_page
     render_nsfe_page()
+    _render_footer()
     st.stop()
 
 if current_page == "privacy":
     from privacy_page import render_privacy_page
     render_privacy_page()
+    _render_footer()
     st.stop()
 
 if current_page == "terms":
     from terms_page import render_terms_page
     render_terms_page()
+    _render_footer()
     st.stop()
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
@@ -2261,6 +2310,7 @@ if income_df.empty and balance_df.empty and cashflow_df.empty:
         "This might be due to network issues or the ticker not having "
         "financial statements available on Yahoo Finance."
     )
+    _render_footer()
     st.stop()
 
 
@@ -2424,46 +2474,11 @@ if st.session_state.show_metrics:
 
 
 
-# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 # Footer
-# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+# ───────────────────────────────────────────────────────────────────────────
 
-st.markdown(f"""
-<div class="footer">
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:30px;">
-        <div>
-            <h3>What is QuarterCharts?</h3>
-            <p>QuarterCharts is a financial visualization tool that helps investors
-            track and analyse company financials through interactive charts.
-            This is a local clone powered by SEC EDGAR &amp; Yahoo Finance data.</p>
-        </div>
-        <div>
-            <h3>Quick Links</h3>
-            <p>
-                <a href="/?page=home">Home</a><br>
-                <a href="/?page=earnings">Earnings Calendar</a><br>
-                <a href="/?page=watchlist">Watchlist</a><br>
-                <a href="/?page=privacy">Privacy Policy</a><br>
-                <a href="/?page=terms">Terms of Service</a>
-            </p>
-        </div>
-        <div>
-            <h3>Popular Companies</h3>
-            <p>AAPL &middot; MSFT &middot; GOOGL &middot; AMZN &middot; NVDA &middot; TSLA &middot; META &middot; NFLX</p>
-        </div>
-        <div>
-            <h3>Disclaimer</h3>
-            <p>This app is for educational and informational purposes only.
-            Data is sourced from SEC EDGAR and Yahoo Finance and may not be 100% accurate.
-            Not financial advice.</p>
-        </div>
-    </div>
-    <hr style="border-color: #495057; margin: 20px 0;">
-    <p style="text-align:center; color:#6c757d;">
-        &copy; {datetime.now().year} QuarterCharts &middot; Built with Streamlit &middot; Data from SEC EDGAR, FMP &amp; Yahoo Finance
-    </p>
-</div>
-""", unsafe_allow_html=True)
+_render_footer()
+
 
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ

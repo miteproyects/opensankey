@@ -474,15 +474,7 @@ def render_home_page():
         <p>Join thousands of investors using QuarterCharts to make smarter decisions.</p>
         <a class="btn-primary" href="/?page=charts&ticker=AAPL" target="_top">Try It Now &#8212; It's Free</a>
     </div>
-    <div class="foot-bar">
-        &#169; 2026 QuarterCharts &#183;
-        <a href="/?page=charts&ticker=NVDA" target="_top">Charts</a> &#183;
-        <a href="/?page=sankey&ticker=NVDA" target="_top">Sankey</a> &#183;
-        <a href="/?page=earnings&ticker=NVDA" target="_top">Earnings</a> &#183;
-        <a href="/?page=pricing" target="_top">Pricing</a> &#183;
-        <a href="/?page=privacy" target="_top">Privacy</a> &#183;
-        <a href="/?page=terms" target="_top">Terms</a>
-    </div>
+    <!-- footer rendered globally by app.py -->
 
     <script>
     function goSearch() {
