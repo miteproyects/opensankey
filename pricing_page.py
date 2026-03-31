@@ -59,12 +59,12 @@ def render_pricing_page():
         background: #fff;
         border: 2px solid #e2e8f0;
         border-radius: 16px;
-        padding: 28px 24px;
+        padding: 32px 24px 28px;
         text-align: center;
         transition: all 0.2s ease;
-        height: 100%;
         display: flex;
         flex-direction: column;
+        margin-top: 20px;
     }
     .pricing-card:hover {
         border-color: #cbd5e1;
@@ -75,20 +75,23 @@ def render_pricing_page():
         border-color: #3b82f6;
         box-shadow: 0 8px 32px rgba(59,130,246,0.15);
         position: relative;
+        padding-top: 36px;
     }
     .popular-badge {
         position: absolute;
-        top: -13px;
+        top: -14px;
         left: 50%;
         transform: translateX(-50%);
         background: linear-gradient(135deg, #3b82f6, #2563eb);
         color: #fff;
         font-size: 0.75rem;
         font-weight: 700;
-        padding: 4px 16px;
+        padding: 5px 18px;
         border-radius: 20px;
         font-family: Inter, system-ui, sans-serif;
         letter-spacing: 0.03em;
+        white-space: nowrap;
+        z-index: 2;
     }
     .pricing-plan-name {
         font-size: 1.1rem;
@@ -112,7 +115,9 @@ def render_pricing_page():
     .pricing-desc {
         font-size: 0.88rem;
         color: #64748b;
-        margin: 12px 0 20px;
+        margin: 12px 0 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #e2e8f0;
         font-family: Inter, system-ui, sans-serif;
     }
     .pricing-features {
@@ -123,19 +128,25 @@ def render_pricing_page():
         flex: 1;
     }
     .pricing-features li {
-        padding: 6px 0;
+        padding: 8px 0;
         font-size: 0.88rem;
         color: #475569;
         font-family: Inter, system-ui, sans-serif;
         display: flex;
         align-items: flex-start;
-        gap: 8px;
+        gap: 10px;
+        line-height: 1.4;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .pricing-features li:last-child {
+        border-bottom: none;
     }
     .pricing-features li::before {
         content: '\\2713';
         color: #22c55e;
         font-weight: 700;
         flex-shrink: 0;
+        margin-top: 1px;
     }
     .pricing-cta {
         display: block;
