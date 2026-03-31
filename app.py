@@ -2100,7 +2100,7 @@ def _render_footer():
             <h3>What is QuarterCharts?</h3>
             <p>QuarterCharts is a financial visualization tool that helps investors
             track and analyse company financials through interactive charts.
-            This is a local clone powered by SEC EDGAR &amp; Yahoo Finance data.</p>
+            Powered by SEC EDGAR &amp; Yahoo Finance data.</p>
         </div>
         <div>
             <h3>Quick Links</h3>
