@@ -251,51 +251,90 @@ def render_login_page():
 
 
 def _render_google_signin_button():
-    """Render the Google Sign-In button using Google Identity Services (GIS).
+    """Render the Google Sign-In button using Firebase Auth SDK (signInWithPopup).
 
-    Security improvements:
-    - SEC-016: Generates a cryptographic nonce stored in session state,
-      passed to GIS initialize(), and verified when the token comes back.
+    Uses the traditional OAuth 2.0 popup flow via Firebase Auth instead of
+    Google Identity Services (GIS). GIS requires brand verification which
+    fails on Streamlit apps because Google's bot cannot render JS-only content.
+    The traditional OAuth flow works without brand verification.
+
+    Security:
     - SEC-014: Credential is passed via URL param (Streamlit limitation)
       but cleared immediately on the server side.
+    - Token is cryptographically verified server-side (RSA signature, aud, iss, exp).
     """
-    # SEC-016: Generate a unique nonce for this sign-in attempt
-    nonce = secrets.token_urlsafe(32)
-    st.session_state["google_auth_nonce"] = nonce
-
     google_html = f"""
-    <script src="https://accounts.google.com/gsi/client" async></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+    <style>
+    .google-btn {{
+        display: flex; align-items: center; justify-content: center; gap: 10px;
+        width: 380px; max-width: 100%; margin: 4px auto;
+        padding: 10px 24px; border: 1px solid #dadce0; border-radius: 50px;
+        background: #fff; color: #3c4043;
+        font-family: 'Google Sans', Roboto, Arial, sans-serif;
+        font-size: 14px; font-weight: 500; cursor: pointer;
+        transition: background 0.2s, box-shadow 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }}
+    .google-btn:hover {{ background: #f7f8f8; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+    .google-btn:active {{ background: #f1f3f4; }}
+    .google-btn:disabled {{ opacity: 0.6; cursor: not-allowed; }}
+    .google-btn svg {{ flex-shrink: 0; }}
+    </style>
+    <button class="google-btn" id="google-signin-btn" onclick="signInWithGoogle()">
+        <svg width="18" height="18" viewBox="0 0 18 18">
+            <path fill="#4285F4" d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/>
+            <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+        </svg>
+        Continue with Google
+    </button>
     <script>
-    function handleCredentialResponse(response) {{
-        var credential = response.credential;
-        try {{
-            window.parent.location.href = '/?page=login&google_credential=' + encodeURIComponent(credential);
-        }} catch(e) {{
-            window.top.location.href = '/?page=login&google_credential=' + encodeURIComponent(credential);
-        }}
+    var firebaseConfig = {{
+        apiKey: '{FIREBASE_API_KEY}',
+        authDomain: 'quartercharts.firebaseapp.com'
+    }};
+    if (!firebase.apps.length) {{
+        firebase.initializeApp(firebaseConfig);
     }}
 
-    window.onload = function() {{
-        google.accounts.id.initialize({{
-            client_id: '{GOOGLE_CLIENT_ID}',
-            callback: handleCredentialResponse,
-            ux_mode: 'popup',
-            nonce: '{nonce}'
-        }});
-        google.accounts.id.renderButton(
-            document.getElementById('g_id_signin'),
-            {{
-                theme: 'outline',
-                size: 'large',
-                text: 'continue_with',
-                shape: 'pill',
-                width: 380,
-                logo_alignment: 'left'
+    function signInWithGoogle() {{
+        var btn = document.getElementById('google-signin-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" stroke="#dadce0" stroke-width="2" fill="none" stroke-dasharray="30" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 9 9" to="360 9 9" dur="0.8s" repeatCount="indefinite"/></circle></svg> Signing in…';
+
+        var provider = new firebase.auth.GoogleAuthProvider();
+        provider.addScope('email');
+        provider.addScope('profile');
+
+        firebase.auth().signInWithPopup(provider).then(function(result) {{
+            var credential = result.credential;
+            var idToken = credential ? credential.idToken : null;
+            if (idToken) {{
+                try {{
+                    window.parent.location.href = '/?page=login&google_credential=' + encodeURIComponent(idToken);
+                }} catch(e) {{
+                    window.top.location.href = '/?page=login&google_credential=' + encodeURIComponent(idToken);
+                }}
+            }} else {{
+                btn.disabled = false;
+                btn.textContent = 'Sign-in failed. Try again.';
             }}
-        );
-    }};
+        }}).catch(function(error) {{
+            console.error('Google sign-in error:', error.code, error.message);
+            btn.disabled = false;
+            if (error.code === 'auth/popup-blocked') {{
+                btn.textContent = 'Popup blocked. Allow popups and retry.';
+            }} else if (error.code === 'auth/popup-closed-by-user') {{
+                btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg> Continue with Google';
+            }} else {{
+                btn.textContent = 'Sign-in error. Try again.';
+            }}
+        }});
+    }}
     </script>
-    <div id="g_id_signin" style="display:flex;justify-content:center;margin:4px 0;"></div>
     """
     components.html(google_html, height=50)
 
@@ -331,14 +370,15 @@ def _handle_google_credential(credential):
             st.error("Google sign-in failed: no email in token.")
             return
 
-        # SEC-016: Verify nonce to prevent replay / CSRF attacks
+        # SEC-016: Verify nonce if present (GIS flow includes nonce;
+        # Firebase Auth signInWithPopup flow does not, so skip if absent)
         expected_nonce = st.session_state.get("google_auth_nonce")
         token_nonce = token_data.get("nonce")
-        if expected_nonce and token_nonce != expected_nonce:
+        if expected_nonce and token_nonce and token_nonce != expected_nonce:
             logger.warning(f"Nonce mismatch: expected={expected_nonce}, got={token_nonce}")
             st.error("Google sign-in failed: security token mismatch. Please try again.")
             return
-        # Clear the nonce after successful verification (one-time use)
+        # Clear the nonce after verification (one-time use)
         st.session_state.pop("google_auth_nonce", None)
 
         # Set authenticated session
