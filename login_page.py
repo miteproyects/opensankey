@@ -292,6 +292,11 @@ def _handle_google_auth_code(code):
     4. Create an authenticated session
     """
     try:
+        if not GOOGLE_CLIENT_SECRET:
+            logger.error("GOOGLE_CLIENT_SECRET is empty — cannot exchange OAuth code")
+            st.error("Google sign-in failed: server configuration error (missing client secret). Please contact support.")
+            return
+
         # Exchange auth code for tokens
         token_response = requests.post(
             "https://oauth2.googleapis.com/token",
@@ -306,8 +311,14 @@ def _handle_google_auth_code(code):
         )
 
         if token_response.status_code != 200:
-            logger.warning(f"Google token exchange failed: {token_response.status_code} {token_response.text}")
-            st.error("Google sign-in failed: could not exchange authorization code. Please try again.")
+            _err_detail = ""
+            try:
+                _err_json = token_response.json()
+                _err_detail = _err_json.get("error_description", _err_json.get("error", ""))
+            except Exception:
+                _err_detail = token_response.text[:200]
+            logger.warning(f"Google token exchange failed: {token_response.status_code} {_err_detail}")
+            st.error(f"Google sign-in failed: {_err_detail or 'could not exchange authorization code'}. Please try again.")
             return
 
         token_data = token_response.json()

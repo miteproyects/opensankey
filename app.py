@@ -1065,7 +1065,9 @@ restore_session_from_params()
 # intercept the code param here before page routing kicks in.
 _oauth_code = st.query_params.get("code", None)
 if _oauth_code and not st.session_state.get("logged_in"):
-    # Don't clear params — _handle_google_auth_code will JS-redirect on success
+    # Clear params IMMEDIATELY to prevent code reuse on Streamlit reruns
+    # (Google auth codes are single-use; a double-process causes failure)
+    st.query_params.clear()
     from login_page import _handle_google_auth_code
     _handle_google_auth_code(_oauth_code)
     # If we reach here, auth failed (success path does js_redirect + st.stop()).
