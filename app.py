@@ -1781,6 +1781,11 @@ ticker = st.session_state.ticker
 current_page = st.session_state.page
 
 # Nav bar with page switching (using <a> links for reliable navigation)
+_is_logged_in = st.session_state.get("logged_in", False)
+if _is_logged_in:
+    _auth_link = f'<a href="/?page=user&ticker={ticker}" target="_self" class="nav-link {"active" if current_page == "user" else ""}" style="color:#3b82f6;font-weight:600;">My&nbsp;Account</a>'
+else:
+    _auth_link = f'<a href="/?page=login&ticker={ticker}" target="_self" class="nav-link" style="color:#3b82f6;font-weight:600;">Sign&nbsp;In</a>'
 st.markdown(f'''
 <style>
 [data-testid="stElementContainer"]:has(.nav-bar){{position:absolute!important;height:0!important;overflow:visible!important;margin:0!important;padding:0!important}}
@@ -1801,7 +1806,7 @@ st.markdown(f'''
     <div class="nav-right">
         <a href="/?page=nsfe&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
                     <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
-                    <a href="/?page=user&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'user' else ''}" style="color:#3b82f6;font-weight:600;">My&nbsp;Account</a>
+                    {_auth_link}
         <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#9776;</button>
     </div>
 </div>
