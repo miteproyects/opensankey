@@ -28,6 +28,9 @@ GOOGLE_CLIENT_ID = os.getenv(
     "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com",
 )
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+# DEBUG: Print at module load to see if env var is available
+print(f"[LOGIN_PAGE IMPORT] GOOGLE_CLIENT_SECRET present: {bool(GOOGLE_CLIENT_SECRET)}, len={len(GOOGLE_CLIENT_SECRET)}")
+print(f"[LOGIN_PAGE IMPORT] All GOOGLE env vars: {[k for k in os.environ if 'GOOGLE' in k.upper()]}")
 
 # Redirect URI for the server-side OAuth code exchange flow
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://quartercharts.com")
@@ -308,7 +311,7 @@ def _handle_google_auth_code(code):
         # Re-read at call time — module-level os.getenv() runs once at import
         # and may miss env vars that Railway injects after the process starts.
         client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "") or GOOGLE_CLIENT_SECRET
-        logger.info(f"OAuth client_secret present: {bool(client_secret)} (len={len(client_secret)})")
+        print(f"[OAUTH] client_secret present: {bool(client_secret)}, len={len(client_secret)}, from_env={bool(os.getenv('GOOGLE_CLIENT_SECRET', ''))}")
         if not client_secret:
             logger.error("GOOGLE_CLIENT_SECRET is empty — cannot exchange OAuth code")
             _set_error("Server configuration error (missing client secret). Please contact support.")
