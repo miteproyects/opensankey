@@ -229,6 +229,76 @@ def init_session_state():
             st.session_state[key] = default
 
 
+_SESSION_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "_server_session.json"
+)
+
+
+def _save_session_to_disk():
+    """Persist login state to a server-side file so it survives Streamlit reruns."""
+    try:
+        data = {
+            "logged_in": True,
+            "user_uid": st.session_state.get("user_uid"),
+            "user_email": st.session_state.get("user_email"),
+            "user_name": st.session_state.get("user_name"),
+            "user_role": st.session_state.get("user_role"),
+            "auth_token_time": st.session_state.get("auth_token_time", 0),
+        }
+        with open(_SESSION_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        logger.warning(f"Failed to save session to disk: {e}")
+
+
+def restore_session_from_disk():
+    """Restore login state from server-side file if session_state is empty.
+
+    Call this early in app.py on every page load.
+    Returns True if a session was restored, False otherwise.
+    """
+    if st.session_state.get("logged_in"):
+        return False  # Already logged in, nothing to restore
+
+    if not os.path.exists(_SESSION_FILE):
+        return False
+
+    try:
+        with open(_SESSION_FILE, "r") as f:
+            data = json.load(f)
+
+        if not data.get("logged_in"):
+            return False
+
+        # Check session age (expire after 24 hours)
+        token_time = data.get("auth_token_time", 0)
+        if time.time() - token_time > 86400:
+            clear_session_from_disk()
+            return False
+
+        st.session_state.logged_in = True
+        st.session_state.user_uid = data.get("user_uid")
+        st.session_state.user_email = data.get("user_email")
+        st.session_state.user_name = data.get("user_name")
+        st.session_state.user_role = data.get("user_role")
+        st.session_state.auth_token_time = token_time
+        logger.info(f"Session restored from disk for {data.get('user_email')}")
+        return True
+
+    except Exception as e:
+        logger.warning(f"Failed to restore session from disk: {e}")
+        return False
+
+
+def clear_session_from_disk():
+    """Delete the server-side session file (call on sign out)."""
+    try:
+        if os.path.exists(_SESSION_FILE):
+            os.remove(_SESSION_FILE)
+    except Exception as e:
+        logger.warning(f"Failed to clear session file: {e}")
+
+
 def set_authenticated_session(user_data: dict):
     """
     Set session state after successful authentication.
@@ -244,6 +314,8 @@ def set_authenticated_session(user_data: dict):
     st.session_state.auth_token_time = time.time()
     # SEC-004: Regenerate session token to prevent session fixation
     st.session_state.auth_token = secrets.token_urlsafe(32)
+    # Persist to disk so session survives full page reloads
+    _save_session_to_disk()
 
 
 def rotate_session_token():

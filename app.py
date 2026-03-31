@@ -1057,6 +1057,9 @@ if "ticker" not in st.session_state:
     st.session_state.ticker = "NVDA"
 # ─── Auth session & DB schema init ──────────────────────────────────────────
 init_session_state()
+# Restore login state from server-side file (survives full page reloads)
+from auth import restore_session_from_disk
+restore_session_from_disk()
 try:
     initialize_schema()
 except Exception:

@@ -475,6 +475,8 @@ def _render_settings():
         with dc1:
             if st.button("Yes, Delete My Account", type="primary", key="confirm_delete_yes"):
                 # Clear session and redirect
+                from auth import clear_session_from_disk
+                clear_session_from_disk()
                 for key in ["logged_in", "user_uid", "user_email", "user_name",
                             "user_role", "user_company_id", "auth_token", "auth_token_time"]:
                     st.session_state[key] = None
@@ -582,6 +584,8 @@ def render_user_page():
 
         # Sign out at bottom of sidebar
         if st.button("Sign Out", key="user_signout", use_container_width=True):
+            from auth import clear_session_from_disk
+            clear_session_from_disk()
             for key in ["logged_in", "user_uid", "user_email", "user_name",
                         "user_role", "user_company_id", "auth_token", "auth_token_time"]:
                 st.session_state[key] = None
