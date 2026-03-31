@@ -1070,10 +1070,10 @@ if _oauth_code and not st.session_state.get("logged_in"):
     st.query_params.clear()
     from login_page import _handle_google_auth_code
     _handle_google_auth_code(_oauth_code)
-    # If we reach here, auth failed (success path does js_redirect + st.stop()).
+    # If we reach here, auth failed (success path does st.rerun()).
     # Redirect to login page so user can try again.
-    from auth import js_redirect as _js_redir
-    _js_redir(f"/?page=login&ticker={st.session_state.get('ticker', 'NVDA')}")
+    st.session_state.page = "login"
+    st.rerun()
 
 try:
     initialize_schema()
@@ -1089,11 +1089,21 @@ if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", 
     st.session_state.page = _qp_page
 elif "page" not in st.session_state:
     st.session_state.page = "home"
-# Always keep URL in sync so browser refresh preserves the current page
+# Always keep URL in sync so browser refresh preserves the current page.
+# CRITICAL: Also sync the session ID (sid) so login persists across page reloads.
 _sync_page = st.session_state.page
 _sync_ticker = st.session_state.ticker
-if st.query_params.get("page") != _sync_page or st.query_params.get("ticker") != _sync_ticker:
-    st.query_params.update({"page": _sync_page, "ticker": _sync_ticker})
+_sync_sid = st.session_state.get("_server_sid", "")
+_sync_params = {"page": _sync_page, "ticker": _sync_ticker}
+if _sync_sid:
+    _sync_params["sid"] = _sync_sid
+_needs_sync = (
+    st.query_params.get("page") != _sync_page
+    or st.query_params.get("ticker") != _sync_ticker
+    or (_sync_sid and st.query_params.get("sid") != _sync_sid)
+)
+if _needs_sync:
+    st.query_params.update(_sync_params)
 if "quarterly" not in st.session_state:
     st.session_state.quarterly = True
 if "timeframe" not in st.session_state:
@@ -1972,7 +1982,11 @@ with st.sidebar:
     if submitted and new_ticker and new_ticker != st.session_state.ticker:
         if validate_ticker(new_ticker):
             st.session_state.ticker = new_ticker
-            st.query_params.update({"page": st.session_state.page, "ticker": new_ticker})
+            _ticker_params = {"page": st.session_state.page, "ticker": new_ticker}
+            _ticker_sid = st.session_state.get("_server_sid", "")
+            if _ticker_sid:
+                _ticker_params["sid"] = _ticker_sid
+            st.query_params.update(_ticker_params)
             st.rerun()
         else:
             st.error(f"'{new_ticker}' not found.")

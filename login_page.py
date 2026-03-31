@@ -349,6 +349,11 @@ def _handle_google_credential(credential):
     SEC-016 FIX: Verifies the nonce in the token matches the one stored in
     session state, preventing CSRF and token replay attacks.
     """
+    # Verify the token inside try/except, but keep session creation and
+    # redirect OUTSIDE so that st.rerun()'s RerunException is never caught.
+    email = ""
+    name = ""
+    sub = ""
     try:
         from google.oauth2 import id_token as google_id_token
         from google.auth.transport import requests as google_requests
@@ -379,41 +384,42 @@ def _handle_google_credential(credential):
         # Clear the nonce after verification (one-time use)
         st.session_state.pop("google_auth_nonce", None)
 
-        # Set authenticated session
-        from auth import set_authenticated_session
-        set_authenticated_session({
-            "success": True,
-            "uid": sub,
-            "email": email,
-            "display_name": name or email.split("@")[0],
-        })
-        logger.info(f"Google sign-in successful for {email}")
-        _redirect_to_user_page()
-
     except ValueError as e:
         logger.warning(f"Google token verification failed: {e}")
         st.error("Google sign-in failed: invalid or expired token. Please try again.")
+        return
     except Exception as e:
         logger.error(f"Google sign-in error: {e}")
         st.error(f"Google sign-in failed: {e}")
+        return
+
+    # Set authenticated session and redirect — OUTSIDE try/except so that
+    # st.rerun() (which raises RerunException) propagates correctly.
+    from auth import set_authenticated_session
+    set_authenticated_session({
+        "success": True,
+        "uid": sub,
+        "email": email,
+        "display_name": name or email.split("@")[0],
+    })
+    logger.info(f"Google sign-in successful for {email}")
+    _redirect_to_user_page()
 
 
 def _redirect_to_user_page():
-    """Redirect to user dashboard with session ID in URL for session persistence.
+    """Redirect to user dashboard after successful login.
 
-    Uses JavaScript redirect (window.parent.location.href) instead of
-    st.query_params + st.rerun() because JS redirect is the only bulletproof
-    navigation method in Streamlit — it forces a clean browser navigation
-    that creates a fresh page load where restore_session_from_params() can
-    read the sid from the URL reliably.
+    Sets page to 'user' and triggers a Streamlit rerun. The URL sync code
+    in app.py automatically updates the URL to include page, ticker, AND
+    the session ID (sid) — so login state persists across page reloads and
+    navigation via <a> tag links.
+
+    Using st.rerun() is more reliable than js_redirect (components.html +
+    JavaScript) because it works consistently inside button callbacks and
+    doesn't depend on iframe rendering timing.
     """
-    from auth import js_redirect
-    sid = st.session_state.get("_server_sid", "")
-    ticker = st.session_state.get("ticker", "NVDA")
-    url = f"/?page=user&ticker={ticker}"
-    if sid:
-        url += f"&sid={sid}"
-    js_redirect(url)
+    st.session_state.page = "user"
+    st.rerun()
 
 
 def _handle_email_auth(mode, email, password, name=""):
