@@ -2125,7 +2125,7 @@ def _render_footer():
     </div>
     <hr style="border-color: #495057; margin: 20px 0;">
     <p style="text-align:center; color:#6c757d;">
-        &copy; {datetime.now().year} QuarterCharts &middot; Built with Streamlit &middot; Data from SEC EDGAR, FMP &amp; Yahoo Finance
+        &copy; {datetime.now().year} QuarterCharts &middot; Data from SEC EDGAR, FMP &amp; Yahoo Finance
     </p>
 </div>
 """, unsafe_allow_html=True)
