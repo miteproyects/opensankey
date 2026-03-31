@@ -160,6 +160,11 @@ def render_login_page():
         _handle_google_credential(google_credential)
         return
 
+    # -- Show any stored Google auth error from a previous rerun --
+    _google_err = st.session_state.pop("_google_auth_error", None)
+    if _google_err:
+        st.error(f"Google sign-in failed: {_google_err}")
+
     # -- Centered layout using columns --
     _left, center_col, _right = st.columns([1, 1.5, 1])
     with center_col:
@@ -290,11 +295,19 @@ def _handle_google_auth_code(code):
     2. Receive id_token (+ access_token)
     3. Verify the id_token cryptographically
     4. Create an authenticated session
+
+    Errors are stored in st.session_state["_google_auth_error"] so they survive
+    the st.rerun() in the failure path and can be displayed on the login page.
     """
+    def _set_error(msg):
+        """Store error in session state so it survives st.rerun()."""
+        st.session_state["_google_auth_error"] = msg
+        logger.warning(f"Google auth error: {msg}")
+
     try:
         if not GOOGLE_CLIENT_SECRET:
             logger.error("GOOGLE_CLIENT_SECRET is empty — cannot exchange OAuth code")
-            st.error("Google sign-in failed: server configuration error (missing client secret). Please contact support.")
+            _set_error("Server configuration error (missing client secret). Please contact support.")
             return
 
         # Exchange auth code for tokens
@@ -318,7 +331,7 @@ def _handle_google_auth_code(code):
             except Exception:
                 _err_detail = token_response.text[:200]
             logger.warning(f"Google token exchange failed: {token_response.status_code} {_err_detail}")
-            st.error(f"Google sign-in failed: {_err_detail or 'could not exchange authorization code'}. Please try again.")
+            _set_error(f"{_err_detail or 'could not exchange authorization code'}. Please try again.")
             return
 
         token_data = token_response.json()
@@ -326,7 +339,7 @@ def _handle_google_auth_code(code):
 
         if not id_token_str:
             logger.warning("No id_token in Google token response")
-            st.error("Google sign-in failed: no identity token received.")
+            _set_error("No identity token received from Google.")
             return
 
         # Verify the ID token cryptographically (same as legacy flow)
@@ -334,7 +347,7 @@ def _handle_google_auth_code(code):
 
     except requests.RequestException as e:
         logger.error(f"Google token exchange network error: {e}")
-        st.error("Google sign-in failed: network error. Please try again.")
+        _set_error(f"Network error: {e}")
 
 
 def _handle_google_credential(credential):
@@ -370,7 +383,7 @@ def _handle_google_credential(credential):
         sub = token_data.get("sub", "")  # Google user ID
 
         if not email:
-            st.error("Google sign-in failed: no email in token.")
+            st.session_state["_google_auth_error"] = "No email in Google token."
             return
 
         # SEC-016: Verify nonce if present (GIS flow includes nonce;
@@ -379,18 +392,18 @@ def _handle_google_credential(credential):
         token_nonce = token_data.get("nonce")
         if expected_nonce and token_nonce and token_nonce != expected_nonce:
             logger.warning(f"Nonce mismatch: expected={expected_nonce}, got={token_nonce}")
-            st.error("Google sign-in failed: security token mismatch. Please try again.")
+            st.session_state["_google_auth_error"] = "Security token mismatch. Please try again."
             return
         # Clear the nonce after verification (one-time use)
         st.session_state.pop("google_auth_nonce", None)
 
     except ValueError as e:
         logger.warning(f"Google token verification failed: {e}")
-        st.error("Google sign-in failed: invalid or expired token. Please try again.")
+        st.session_state["_google_auth_error"] = f"Invalid or expired token: {e}"
         return
     except Exception as e:
         logger.error(f"Google sign-in error: {e}")
-        st.error(f"Google sign-in failed: {e}")
+        st.session_state["_google_auth_error"] = f"Verification error: {e}"
         return
 
     # Set authenticated session and redirect — OUTSIDE try/except so that
