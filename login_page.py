@@ -60,42 +60,21 @@ def render_login_page():
     # -- Page CSS --
     st.markdown("""
     <style>
-    /* Hide default Streamlit header/footer for cleaner auth page */
-    .auth-card {
-        max-width: 440px;
-        margin: 30px auto 0 auto;
-        padding: 36px 32px 28px 32px;
-        background: #ffffff;
-        border-radius: 16px;
-        box-shadow: 0 2px 16px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04);
-        border: 1px solid #f0f0f0;
-    }
-    @media (prefers-color-scheme: dark) {
-        .auth-card {
-            background: #1a1a2e;
-            border-color: #2a2a3e;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.3);
-        }
-        .auth-title { color: #f0f0f0 !important; }
-        .auth-subtitle { color: #9ca3af !important; }
-        .divider-row hr { border-top-color: #374151 !important; }
-        .divider-row span { color: #6b7280 !important; }
-        .auth-toggle { color: #9ca3af !important; }
-        .auth-toggle a { color: #60a5fa !important; }
-        .auth-footer { color: #6b7280 !important; }
+    .auth-header {
+        text-align: center;
+        margin-bottom: 8px;
     }
     .auth-title {
         font-size: 26px;
         font-weight: 700;
         text-align: center;
         margin-bottom: 6px;
-        color: #111827;
         letter-spacing: -0.3px;
     }
     .auth-subtitle {
         text-align: center;
         color: #6b7280;
-        margin-bottom: 20px;
+        margin-bottom: 12px;
         font-size: 14px;
         font-weight: 400;
     }
@@ -124,7 +103,7 @@ def render_login_page():
         font-size: 14px;
         color: #6b7280;
         padding-top: 16px;
-        border-top: 1px solid #f0f0f0;
+        border-top: 1px solid rgba(128,128,128,0.2);
     }
     .auth-toggle a {
         color: #2563eb;
@@ -181,87 +160,85 @@ def render_login_page():
         _handle_google_credential(google_credential)
         return
 
-    # -- Card open --
-    st.markdown('<div class="auth-card">', unsafe_allow_html=True)
+    # -- Centered layout using columns --
+    _left, center_col, _right = st.columns([1, 1.5, 1])
+    with center_col:
+        # -- Header --
+        if mode == "login":
+            st.markdown('<div class="auth-title">Welcome back</div>', unsafe_allow_html=True)
+            st.markdown('<div class="auth-subtitle">Sign in to your QuarterCharts account</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="auth-title">Create your account</div>', unsafe_allow_html=True)
+            st.markdown('<div class="auth-subtitle">Start tracking earnings with QuarterCharts</div>', unsafe_allow_html=True)
 
-    if mode == "login":
-        st.markdown('<div class="auth-title">Welcome back</div>', unsafe_allow_html=True)
-        st.markdown('<div class="auth-subtitle">Sign in to your QuarterCharts account</div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="auth-title">Create your account</div>', unsafe_allow_html=True)
-        st.markdown('<div class="auth-subtitle">Start tracking earnings with QuarterCharts</div>', unsafe_allow_html=True)
+        # -- Google Sign-In (both modes) --
+        _render_google_signin_button()
 
-    # -- Google Sign-In (both modes) --
-    _render_google_signin_button()
+        # -- Divider --
+        st.markdown("""
+        <div class="divider-row">
+            <hr><span>or</span><hr>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # -- Divider --
-    st.markdown("""
-    <div class="divider-row">
-        <hr><span>or</span><hr>
-    </div>
-    """, unsafe_allow_html=True)
+        # -- Name field (signup only) --
+        name = ""
+        if mode == "signup":
+            name = st.text_input("Full Name", placeholder="Your full name", key="auth_name")
 
-    # -- Name field (signup only) --
-    name = ""
-    if mode == "signup":
-        name = st.text_input("Full Name", placeholder="Your full name", key="auth_name")
+        # -- Email & Password --
+        email = st.text_input("Email", placeholder="you@example.com", key="auth_email")
+        password = st.text_input("Password", type="password", placeholder="Enter your password", key="auth_password")
 
-    # -- Email & Password --
-    email = st.text_input("Email", placeholder="you@example.com", key="auth_email")
-    password = st.text_input("Password", type="password", placeholder="Enter your password", key="auth_password")
+        if mode == "signup":
+            st.caption("Password must be at least 6 characters.")
 
-    if mode == "signup":
-        st.caption("Password must be at least 6 characters.")
+        # SEC-009: Render reCAPTCHA v3 widget on signup (invisible)
+        if mode == "signup" and RECAPTCHA_SITE_KEY:
+            _render_recaptcha_widget()
 
-    # SEC-009: Render reCAPTCHA v3 widget on signup (invisible)
-    if mode == "signup" and RECAPTCHA_SITE_KEY:
-        _render_recaptcha_widget()
-
-    # -- Submit --
-    btn_label = "Sign In" if mode == "login" else "Create Account"
-    if st.button(btn_label, use_container_width=True, type="primary", key="auth_submit"):
-        if not email or not password:
-            st.error("Please enter both email and password.")
-        elif mode == "signup" and not name:
-            st.error("Please enter your name.")
-        elif mode == "signup" and len(password) < 6:
-            st.error("Password must be at least 6 characters.")
-        elif mode == "signup" and RECAPTCHA_SITE_KEY:
-            # SEC-009: Verify CAPTCHA before signup
-            captcha_token = st.session_state.get("recaptcha_token", "")
-            if not _verify_recaptcha(captcha_token):
-                st.error("CAPTCHA verification failed. Please try again.")
+        # -- Submit --
+        btn_label = "Sign In" if mode == "login" else "Create Account"
+        if st.button(btn_label, use_container_width=True, type="primary", key="auth_submit"):
+            if not email or not password:
+                st.error("Please enter both email and password.")
+            elif mode == "signup" and not name:
+                st.error("Please enter your name.")
+            elif mode == "signup" and len(password) < 6:
+                st.error("Password must be at least 6 characters.")
+            elif mode == "signup" and RECAPTCHA_SITE_KEY:
+                # SEC-009: Verify CAPTCHA before signup
+                captcha_token = st.session_state.get("recaptcha_token", "")
+                if not _verify_recaptcha(captcha_token):
+                    st.error("CAPTCHA verification failed. Please try again.")
+                else:
+                    _handle_email_auth(mode, email, password, name)
             else:
                 _handle_email_auth(mode, email, password, name)
+
+        # -- Toggle login/signup --
+        if mode == "login":
+            st.markdown(
+                '<div class="auth-toggle">Don\'t have an account? </div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("Create an account", use_container_width=True, key="toggle_signup"):
+                st.session_state.auth_mode = "signup"
+                st.rerun()
         else:
-            _handle_email_auth(mode, email, password, name)
+            st.markdown(
+                '<div class="auth-toggle">Already have an account? </div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("Sign in instead", use_container_width=True, key="toggle_login"):
+                st.session_state.auth_mode = "login"
+                st.rerun()
 
-    # -- Toggle login/signup --
-    if mode == "login":
+        # -- Footer --
         st.markdown(
-            '<div class="auth-toggle">Don\'t have an account? </div>',
+            '<div class="auth-footer">By continuing, you agree to QuarterCharts\' Terms of Service.</div>',
             unsafe_allow_html=True,
         )
-        if st.button("Create an account", use_container_width=True, key="toggle_signup"):
-            st.session_state.auth_mode = "signup"
-            st.rerun()
-    else:
-        st.markdown(
-            '<div class="auth-toggle">Already have an account? </div>',
-            unsafe_allow_html=True,
-        )
-        if st.button("Sign in instead", use_container_width=True, key="toggle_login"):
-            st.session_state.auth_mode = "login"
-            st.rerun()
-
-    # -- Footer --
-    st.markdown(
-        '<div class="auth-footer">By continuing, you agree to QuarterCharts\' Terms of Service.</div>',
-        unsafe_allow_html=True,
-    )
-
-    # -- Card close --
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def _render_google_signin_button():
