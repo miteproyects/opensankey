@@ -15,6 +15,7 @@ import json
 import secrets
 import logging
 import os
+import urllib.parse
 from rate_limiter import check_login_allowed, record_login_attempt
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,10 @@ GOOGLE_CLIENT_ID = os.getenv(
     "GOOGLE_CLIENT_ID",
     "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com",
 )
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+# Redirect URI for the server-side OAuth code exchange flow
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://quartercharts.com")
 
 FIREBASE_API_KEY = ""
 _fb_config_json = os.getenv("FIREBASE_CONFIG", "")
@@ -158,11 +163,20 @@ def render_login_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # -- Handle Google credential from URL params --
-    # SEC-014: Read and immediately clear credential from URL
+    # -- Handle Google OAuth callback --
+    # Two flows: (1) auth code from direct OAuth redirect, (2) legacy credential param
     params = st.query_params
+    google_code = params.get("code", None)
     google_credential = params.get("google_credential", None)
+
+    if google_code:
+        # Server-side OAuth code exchange flow
+        st.query_params.clear()
+        _handle_google_auth_code(google_code)
+        return
+
     if google_credential:
+        # Legacy: GIS/Firebase flow (credential passed as ID token)
         st.query_params.clear()
         _handle_google_credential(google_credential)
         return
@@ -251,115 +265,88 @@ def render_login_page():
 
 
 def _render_google_signin_button():
-    """Render the Google Sign-In button using Firebase Auth SDK (signInWithPopup).
+    """Render a Google Sign-In button as a direct OAuth redirect link.
 
-    Uses the traditional OAuth 2.0 popup flow via Firebase Auth instead of
-    Google Identity Services (GIS). GIS requires brand verification which
-    fails on Streamlit apps because Google's bot cannot render JS-only content.
-    The traditional OAuth flow works without brand verification.
+    Uses the standard OAuth 2.0 authorization code flow:
+    1. User clicks the link → redirected to Google's consent screen
+    2. After consent, Google redirects back with ?code=...
+    3. Server exchanges the code for tokens (no client-side JS needed)
 
-    Security:
-    - SEC-014: Credential is passed via URL param (Streamlit limitation)
-      but cleared immediately on the server side.
-    - Token is cryptographically verified server-side (RSA signature, aud, iss, exp).
+    This avoids all Streamlit srcdoc iframe issues with GIS / Firebase SDK.
     """
-    google_svg = '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>'
-    spinner_svg = '<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" stroke="#dadce0" stroke-width="2" fill="none" stroke-dasharray="30" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 9 9" to="360 9 9" dur="0.8s" repeatCount="indefinite"/></circle></svg>'
+    # Generate CSRF state token
+    state = secrets.token_urlsafe(32)
+    st.session_state["google_oauth_state"] = state
 
-    google_html = f"""
-    <style>
-    .google-btn {{
+    oauth_params = urllib.parse.urlencode({
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "email profile openid",
+        "state": state,
+        "access_type": "online",
+        "prompt": "select_account",
+    })
+    oauth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{oauth_params}"
+
+    google_svg = '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>'
+
+    st.markdown(f"""
+    <a href="{oauth_url}" style="
         display: flex; align-items: center; justify-content: center; gap: 10px;
         width: 380px; max-width: 100%; margin: 4px auto;
         padding: 10px 24px; border: 1px solid #dadce0; border-radius: 50px;
-        background: #fff; color: #3c4043;
+        background: #fff; color: #3c4043; text-decoration: none;
         font-family: 'Google Sans', Roboto, Arial, sans-serif;
         font-size: 14px; font-weight: 500; cursor: pointer;
         transition: background 0.2s, box-shadow 0.2s;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }}
-    .google-btn:hover {{ background: #f7f8f8; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-    .google-btn:active {{ background: #f1f3f4; }}
-    .google-btn:disabled {{ opacity: 0.6; cursor: not-allowed; }}
-    .google-btn svg {{ flex-shrink: 0; }}
-    </style>
-    <button class="google-btn" id="google-signin-btn" onclick="signInWithGoogle()">
-        {google_svg} Loading…
-    </button>
-    <script>
-    var _fbReady = false;
-    var GOOGLE_SVG = '{google_svg}';
-    var SPINNER_SVG = '{spinner_svg}';
+    ">{google_svg} Continue with Google</a>
+    """, unsafe_allow_html=True)
 
-    /* Dynamically load Firebase SDK scripts in order */
-    (function() {{
-        var s1 = document.createElement('script');
-        s1.src = 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js';
-        s1.onload = function() {{
-            var s2 = document.createElement('script');
-            s2.src = 'https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js';
-            s2.onload = function() {{
-                firebase.initializeApp({{
-                    apiKey: '{FIREBASE_API_KEY}',
-                    authDomain: 'quartercharts.firebaseapp.com'
-                }});
-                _fbReady = true;
-                var btn = document.getElementById('google-signin-btn');
-                if (btn) btn.innerHTML = GOOGLE_SVG + ' Continue with Google';
-            }};
-            s2.onerror = function() {{
-                var btn = document.getElementById('google-signin-btn');
-                if (btn) btn.textContent = 'Failed to load. Refresh page.';
-            }};
-            document.head.appendChild(s2);
-        }};
-        s1.onerror = function() {{
-            var btn = document.getElementById('google-signin-btn');
-            if (btn) btn.textContent = 'Failed to load. Refresh page.';
-        }};
-        document.head.appendChild(s1);
-    }})();
 
-    function signInWithGoogle() {{
-        if (!_fbReady) {{
-            return;  /* SDK still loading */
-        }}
-        var btn = document.getElementById('google-signin-btn');
-        btn.disabled = true;
-        btn.innerHTML = SPINNER_SVG + ' Signing in…';
+def _handle_google_auth_code(code):
+    """Exchange a Google OAuth authorization code for tokens, then authenticate.
 
-        var provider = new firebase.auth.GoogleAuthProvider();
-        provider.addScope('email');
-        provider.addScope('profile');
-
-        firebase.auth().signInWithPopup(provider).then(function(result) {{
-            var credential = result.credential;
-            var idToken = credential ? credential.idToken : null;
-            if (idToken) {{
-                try {{
-                    window.parent.location.href = '/?page=login&google_credential=' + encodeURIComponent(idToken);
-                }} catch(e) {{
-                    window.top.location.href = '/?page=login&google_credential=' + encodeURIComponent(idToken);
-                }}
-            }} else {{
-                btn.disabled = false;
-                btn.textContent = 'Sign-in failed. Try again.';
-            }}
-        }}).catch(function(error) {{
-            console.error('Google sign-in error:', error.code, error.message);
-            btn.disabled = false;
-            if (error.code === 'auth/popup-blocked') {{
-                btn.textContent = 'Popup blocked. Allow popups and retry.';
-            }} else if (error.code === 'auth/popup-closed-by-user') {{
-                btn.innerHTML = GOOGLE_SVG + ' Continue with Google';
-            }} else {{
-                btn.textContent = 'Sign-in error. Try again.';
-            }}
-        }});
-    }}
-    </script>
+    Server-side flow:
+    1. POST code to Google's token endpoint with client_id + client_secret
+    2. Receive id_token (+ access_token)
+    3. Verify the id_token cryptographically
+    4. Create an authenticated session
     """
-    components.html(google_html, height=50)
+    try:
+        # Exchange auth code for tokens
+        token_response = requests.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code",
+            },
+            timeout=10,
+        )
+
+        if token_response.status_code != 200:
+            logger.warning(f"Google token exchange failed: {token_response.status_code} {token_response.text}")
+            st.error("Google sign-in failed: could not exchange authorization code. Please try again.")
+            return
+
+        token_data = token_response.json()
+        id_token_str = token_data.get("id_token")
+
+        if not id_token_str:
+            logger.warning("No id_token in Google token response")
+            st.error("Google sign-in failed: no identity token received.")
+            return
+
+        # Verify the ID token cryptographically (same as legacy flow)
+        _handle_google_credential(id_token_str)
+
+    except requests.RequestException as e:
+        logger.error(f"Google token exchange network error: {e}")
+        st.error("Google sign-in failed: network error. Please try again.")
 
 
 def _handle_google_credential(credential):
