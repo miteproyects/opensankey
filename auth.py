@@ -208,8 +208,52 @@ def disable_user(uid: str) -> bool:
 
 
 # ─── Session Management ─────────────────────────────────────────────────────
+#
+# Architecture: Server-side session store (industry standard pattern)
+#
+# Problem: Streamlit loses st.session_state on every <a> link click because
+# each navigation creates a new WebSocket session. URL params and file-based
+# approaches are fragile.
+#
+# Solution: Module-level dict (_SERVER_SESSIONS) that persists across all
+# Streamlit WebSocket sessions within the same Python process. After login,
+# a random session ID (sid) is stored server-side with user data, and only
+# the sid is passed via URL query param (&sid=...). On each page load, the
+# sid is looked up to restore the session.
+#
+# Security: The sid is a 32-byte cryptographic random token (256 bits of
+# entropy). User data never appears in the URL. Sessions auto-expire after
+# SESSION_TIMEOUT_SECONDS. The store is pruned on every access.
+# ─────────────────────────────────────────────────────────────────────────────
+
+import secrets
 
 SESSION_TIMEOUT_SECONDS = 3600  # 1 hour
+_MAX_SESSIONS = 1000  # Prevent unbounded memory growth
+
+# Server-side session store: {sid: {"user_data": {...}, "created_at": float}}
+# This dict lives in the Python process memory and persists across all
+# Streamlit WebSocket sessions (reruns AND full page reloads).
+_SERVER_SESSIONS: dict = {}
+
+
+def _prune_expired_sessions():
+    """Remove expired sessions to prevent memory leaks."""
+    now = time.time()
+    expired = [
+        sid for sid, data in _SERVER_SESSIONS.items()
+        if now - data.get("created_at", 0) > SESSION_TIMEOUT_SECONDS
+    ]
+    for sid in expired:
+        del _SERVER_SESSIONS[sid]
+    # If still too many, remove oldest
+    if len(_SERVER_SESSIONS) > _MAX_SESSIONS:
+        sorted_sessions = sorted(
+            _SERVER_SESSIONS.items(), key=lambda x: x[1].get("created_at", 0)
+        )
+        for sid, _ in sorted_sessions[:len(_SERVER_SESSIONS) - _MAX_SESSIONS]:
+            del _SERVER_SESSIONS[sid]
+
 
 def init_session_state():
     """Initialize auth-related session state variables."""
@@ -230,45 +274,62 @@ def init_session_state():
 
 
 def restore_session_from_params():
-    """Restore login state from URL query params.
+    """Restore login state from the server-side session store.
 
-    After login, auth info is carried in the URL (&auth=1&uname=...&uemail=...).
-    This ensures login state survives full page reloads caused by <a> tag navigation.
+    Reads the 'sid' query param, looks up the session in _SERVER_SESSIONS,
+    and restores st.session_state if found and not expired.
     Call this early in app.py on every page load.
     """
     if st.session_state.get("logged_in"):
-        return False  # Already logged in
+        return False  # Already logged in in this WebSocket session
 
-    auth_flag = st.query_params.get("auth", "")
-    if auth_flag == "1":
-        st.session_state.logged_in = True
-        st.session_state.user_email = st.query_params.get("uemail", "")
-        st.session_state.user_name = st.query_params.get("uname", "")
-        st.session_state.user_uid = st.query_params.get("uuid", "")
-        st.session_state.auth_token_time = time.time()
-        logger.info(f"Session restored from URL params for {st.session_state.user_email}")
-        return True
+    _prune_expired_sessions()
 
-    return False
+    sid = st.query_params.get("sid", "")
+    if not sid:
+        return False
+
+    session_data = _SERVER_SESSIONS.get(sid)
+    if not session_data:
+        return False
+
+    # Check expiry
+    if time.time() - session_data.get("created_at", 0) > SESSION_TIMEOUT_SECONDS:
+        _SERVER_SESSIONS.pop(sid, None)
+        return False
+
+    # Restore session state from server-side store
+    user_data = session_data.get("user_data", {})
+    st.session_state.logged_in = True
+    st.session_state.user_uid = user_data.get("uid", "")
+    st.session_state.user_email = user_data.get("email", "")
+    st.session_state.user_name = user_data.get("display_name", "")
+    st.session_state.auth_token_time = time.time()
+    st.session_state.auth_token = secrets.token_urlsafe(32)
+
+    # Refresh the session timestamp (sliding expiry)
+    session_data["created_at"] = time.time()
+
+    logger.info(f"Session restored from server store for {st.session_state.user_email}")
+    return True
 
 
 def get_auth_params() -> str:
-    """Return URL query string fragment with auth info for navbar links.
+    """Return URL query string fragment with session ID for navbar links.
 
-    When logged in, returns '&auth=1&uname=...&uemail=...&uuid=...'
+    When logged in, returns '&sid=<session_token>'
     When logged out, returns empty string.
     """
     if not st.session_state.get("logged_in"):
         return ""
-    import urllib.parse
-    uname = urllib.parse.quote(st.session_state.get("user_name") or "", safe="")
-    uemail = urllib.parse.quote(st.session_state.get("user_email") or "", safe="")
-    uuid = urllib.parse.quote(st.session_state.get("user_uid") or "", safe="")
-    return f"&auth=1&uname={uname}&uemail={uemail}&uuid={uuid}"
+    sid = st.session_state.get("_server_sid", "")
+    if not sid:
+        return ""
+    return f"&sid={sid}"
 
 
 def clear_session_from_disk():
-    """No-op kept for backward compatibility with user_page.py sign out."""
+    """No-op kept for backward compatibility."""
     pass
 
 
@@ -276,17 +337,34 @@ def set_authenticated_session(user_data: dict):
     """
     Set session state after successful authentication.
 
+    Creates a server-side session entry and stores the sid in session state.
     user_data should contain: uid, email, display_name
     SEC-004: Regenerates session token on every auth event.
     """
-    import secrets
+    _prune_expired_sessions()
+
+    # Create a server-side session
+    sid = secrets.token_urlsafe(32)
+    _SERVER_SESSIONS[sid] = {
+        "user_data": {
+            "uid": user_data.get("uid", ""),
+            "email": user_data.get("email", ""),
+            "display_name": user_data.get("display_name", ""),
+        },
+        "created_at": time.time(),
+    }
+
+    # Set Streamlit session state
     st.session_state.logged_in = True
     st.session_state.user_uid = user_data.get("uid")
     st.session_state.user_email = user_data.get("email")
     st.session_state.user_name = user_data.get("display_name", "")
     st.session_state.auth_token_time = time.time()
-    # SEC-004: Regenerate session token to prevent session fixation
     st.session_state.auth_token = secrets.token_urlsafe(32)
+    # Store sid so get_auth_params() can reference it
+    st.session_state._server_sid = sid
+
+    logger.info(f"Server session created (sid={sid[:8]}...) for {user_data.get('email')}")
 
 
 def rotate_session_token():
@@ -304,7 +382,12 @@ def rotate_session_token():
 
 
 def clear_session():
-    """Clear all auth session state (logout)."""
+    """Clear all auth session state (logout) and remove server-side session."""
+    # Remove from server-side store
+    sid = st.session_state.get("_server_sid", "")
+    if sid:
+        _SERVER_SESSIONS.pop(sid, None)
+    # Clear Streamlit session state
     st.session_state.logged_in = False
     st.session_state.user_uid = None
     st.session_state.user_email = None
@@ -313,6 +396,7 @@ def clear_session():
     st.session_state.user_company_id = None
     st.session_state.auth_token = None
     st.session_state.auth_token_time = 0
+    st.session_state._server_sid = None
 
 
 def is_session_valid() -> bool:

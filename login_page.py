@@ -369,7 +369,7 @@ def _handle_google_credential(credential):
         st.session_state.pop("google_auth_nonce", None)
 
         # Set authenticated session
-        from auth import set_authenticated_session, get_auth_params
+        from auth import set_authenticated_session
         set_authenticated_session({
             "success": True,
             "uid": sub,
@@ -388,15 +388,12 @@ def _handle_google_credential(credential):
 
 
 def _redirect_to_user_page():
-    """Redirect to user dashboard with auth params in URL for session persistence."""
+    """Redirect to user dashboard with session ID in URL for session persistence."""
     from auth import get_auth_params
-    _ap = get_auth_params()
+    sid = st.session_state.get("_server_sid", "")
     _params = {"page": "user", "ticker": st.session_state.get("ticker", "NVDA")}
-    if _ap:
-        for pair in _ap.lstrip("&").split("&"):
-            if "=" in pair:
-                k, v = pair.split("=", 1)
-                _params[k] = urllib.parse.unquote(v)
+    if sid:
+        _params["sid"] = sid
     st.session_state.page = "user"
     st.query_params.update(_params)
     st.rerun()
