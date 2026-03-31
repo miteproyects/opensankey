@@ -1,6 +1,6 @@
 """
 User dashboard page for QuarterCharts.
-Sidebar navigation with sections: Dashboard, Portfolio, Settings, Activity.
+Sidebar navigation with sections: Dashboard, Portfolio, Settings.
 Accessible via /?page=user tab for development; will later sit behind login.
 """
 
@@ -178,25 +178,6 @@ _PAGE_CSS = """
 .badge-down { color: #dc2626; background: #fef2f2; padding: 2px 8px; border-radius: 6px; font-size: 13px; font-weight: 500; }
 .stock-cap-cell { color: #6b7280; font-size: 13px; }
 
-/* ── Activity feed ───────────────────────────────── */
-.activity-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px 0;
-    border-bottom: 1px solid #f3f4f6;
-}
-.activity-dot {
-    width: 36px; height: 36px;
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 15px;
-    flex-shrink: 0;
-}
-.activity-body { flex: 1; }
-.activity-label { font-size: 14px; color: #374151; }
-.activity-ts { font-size: 11px; color: #9ca3af; margin-top: 2px; }
-
 /* ── Settings ────────────────────────────────────── */
 .settings-section {
     background: #ffffff;
@@ -292,20 +273,13 @@ def _render_dashboard():
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-    # Quick portfolio + activity side by side
-    left, right = st.columns([3, 2])
-
-    with left:
-        st.markdown("**Portfolio Snapshot**")
-        _render_stock_table(watchlist[:5])
-        ticker = st.session_state.get("ticker", "NVDA")
-        st.markdown(f"""<div style="padding:8px 0;font-size:13px;">
-            <a href="/?page=user&ticker={ticker}&section=portfolio" target="_self" style="color:#2563eb;text-decoration:none;font-weight:500;">View full portfolio &rarr;</a>
-        </div>""", unsafe_allow_html=True)
-
-    with right:
-        st.markdown("**Recent Activity**")
-        _render_activity_feed(limit=4)
+    # Portfolio snapshot
+    st.markdown("**Portfolio Snapshot**")
+    _render_stock_table(watchlist[:5])
+    ticker = st.session_state.get("ticker", "NVDA")
+    st.markdown(f"""<div style="padding:8px 0;font-size:13px;">
+        <a href="/?page=user&ticker={ticker}&section=portfolio" target="_self" style="color:#2563eb;text-decoration:none;font-weight:500;">View full portfolio &rarr;</a>
+    </div>""", unsafe_allow_html=True)
 
     # Quick actions
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
@@ -516,20 +490,6 @@ def _render_settings():
                 st.rerun()
 
 
-def _render_activity():
-    """Full activity feed page."""
-    st.markdown("""<div class="page-header">
-        <div class="page-title">Activity</div>
-        <div class="page-subtitle">Your recent actions on QuarterCharts</div>
-    </div>""", unsafe_allow_html=True)
-
-    _render_activity_feed(limit=15)
-
-    st.markdown("""<div style="padding:20px 0;text-align:center;font-size:13px;color:#9ca3af;">
-        Full activity history and analytics coming soon
-    </div>""", unsafe_allow_html=True)
-
-
 # ── Shared components ────────────────────────────────────────────────────────
 
 def _render_stock_table(tickers: list):
@@ -564,41 +524,12 @@ def _render_stock_table(tickers: list):
     </table>""", unsafe_allow_html=True)
 
 
-def _render_activity_feed(limit=5):
-    """Render activity feed items. Placeholder data for now."""
-    activities = [
-        {"icon": "&#128200;", "bg": "#eff6ff", "text": "Viewed <b>NVDA</b> Charts", "time": "10 min ago"},
-        {"icon": "&#9734;",   "bg": "#fefce8", "text": "Added <b>AVGO</b> to Watchlist", "time": "2 hours ago"},
-        {"icon": "&#128200;", "bg": "#eff6ff", "text": "Viewed <b>AAPL</b> Sankey", "time": "Yesterday"},
-        {"icon": "&#128197;", "bg": "#f0fdf4", "text": "Checked Earnings Calendar", "time": "Yesterday"},
-        {"icon": "&#128269;", "bg": "#f5f3ff", "text": "Searched for <b>TSM</b>", "time": "2 days ago"},
-        {"icon": "&#128200;", "bg": "#eff6ff", "text": "Viewed <b>MSFT</b> Profile", "time": "2 days ago"},
-        {"icon": "&#128176;", "bg": "#fefce8", "text": "Viewed Pricing page", "time": "3 days ago"},
-        {"icon": "&#9734;",   "bg": "#fefce8", "text": "Added <b>META</b> to Watchlist", "time": "3 days ago"},
-        {"icon": "&#128200;", "bg": "#eff6ff", "text": "Viewed <b>GOOGL</b> Charts", "time": "4 days ago"},
-        {"icon": "&#128100;", "bg": "#f0fdf4", "text": "Account created", "time": "1 week ago"},
-    ][:limit]
-
-    html = ""
-    for a in activities:
-        html += f"""<div class="activity-row">
-            <div class="activity-dot" style="background:{a['bg']};">{a['icon']}</div>
-            <div class="activity-body">
-                <div class="activity-label">{a['text']}</div>
-                <div class="activity-ts">{a['time']}</div>
-            </div>
-        </div>"""
-
-    st.markdown(html, unsafe_allow_html=True)
-
-
 # ── Main render ──────────────────────────────────────────────────────────────
 
 # Sidebar nav items: (key, icon, label)
 _NAV_ITEMS = [
     ("dashboard", "&#127968;",  "Dashboard"),
     ("portfolio", "&#128200;",  "Portfolio"),
-    ("activity",  "&#128340;",  "Activity"),
     ("settings",  "&#9881;",    "Settings"),
 ]
 
@@ -667,7 +598,5 @@ def render_user_page():
             _render_portfolio()
         elif section == "settings":
             _render_settings()
-        elif section == "activity":
-            _render_activity()
         else:
             _render_dashboard()
