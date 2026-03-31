@@ -229,73 +229,47 @@ def init_session_state():
             st.session_state[key] = default
 
 
-import tempfile
-_SESSION_FILE = os.path.join(tempfile.gettempdir(), "_qc_server_session.json")
+def restore_session_from_params():
+    """Restore login state from URL query params.
 
-
-def _save_session_to_disk():
-    """Persist login state to a server-side file so it survives Streamlit reruns."""
-    try:
-        data = {
-            "logged_in": True,
-            "user_uid": st.session_state.get("user_uid"),
-            "user_email": st.session_state.get("user_email"),
-            "user_name": st.session_state.get("user_name"),
-            "user_role": st.session_state.get("user_role"),
-            "auth_token_time": st.session_state.get("auth_token_time", 0),
-        }
-        with open(_SESSION_FILE, "w") as f:
-            json.dump(data, f)
-    except Exception as e:
-        logger.warning(f"Failed to save session to disk: {e}")
-
-
-def restore_session_from_disk():
-    """Restore login state from server-side file if session_state is empty.
-
+    After login, auth info is carried in the URL (&auth=1&uname=...&uemail=...).
+    This ensures login state survives full page reloads caused by <a> tag navigation.
     Call this early in app.py on every page load.
-    Returns True if a session was restored, False otherwise.
     """
     if st.session_state.get("logged_in"):
-        return False  # Already logged in, nothing to restore
+        return False  # Already logged in
 
-    if not os.path.exists(_SESSION_FILE):
-        return False
-
-    try:
-        with open(_SESSION_FILE, "r") as f:
-            data = json.load(f)
-
-        if not data.get("logged_in"):
-            return False
-
-        # Check session age (expire after 24 hours)
-        token_time = data.get("auth_token_time", 0)
-        if time.time() - token_time > 86400:
-            clear_session_from_disk()
-            return False
-
+    auth_flag = st.query_params.get("auth", "")
+    if auth_flag == "1":
         st.session_state.logged_in = True
-        st.session_state.user_uid = data.get("user_uid")
-        st.session_state.user_email = data.get("user_email")
-        st.session_state.user_name = data.get("user_name")
-        st.session_state.user_role = data.get("user_role")
-        st.session_state.auth_token_time = token_time
-        logger.info(f"Session restored from disk for {data.get('user_email')}")
+        st.session_state.user_email = st.query_params.get("uemail", "")
+        st.session_state.user_name = st.query_params.get("uname", "")
+        st.session_state.user_uid = st.query_params.get("uuid", "")
+        st.session_state.auth_token_time = time.time()
+        logger.info(f"Session restored from URL params for {st.session_state.user_email}")
         return True
 
-    except Exception as e:
-        logger.warning(f"Failed to restore session from disk: {e}")
-        return False
+    return False
+
+
+def get_auth_params() -> str:
+    """Return URL query string fragment with auth info for navbar links.
+
+    When logged in, returns '&auth=1&uname=...&uemail=...&uuid=...'
+    When logged out, returns empty string.
+    """
+    if not st.session_state.get("logged_in"):
+        return ""
+    import urllib.parse
+    uname = urllib.parse.quote(st.session_state.get("user_name") or "", safe="")
+    uemail = urllib.parse.quote(st.session_state.get("user_email") or "", safe="")
+    uuid = urllib.parse.quote(st.session_state.get("user_uid") or "", safe="")
+    return f"&auth=1&uname={uname}&uemail={uemail}&uuid={uuid}"
 
 
 def clear_session_from_disk():
-    """Delete the server-side session file (call on sign out)."""
-    try:
-        if os.path.exists(_SESSION_FILE):
-            os.remove(_SESSION_FILE)
-    except Exception as e:
-        logger.warning(f"Failed to clear session file: {e}")
+    """No-op kept for backward compatibility with user_page.py sign out."""
+    pass
 
 
 def set_authenticated_session(user_data: dict):
@@ -313,8 +287,6 @@ def set_authenticated_session(user_data: dict):
     st.session_state.auth_token_time = time.time()
     # SEC-004: Regenerate session token to prevent session fixation
     st.session_state.auth_token = secrets.token_urlsafe(32)
-    # Persist to disk so session survives full page reloads
-    _save_session_to_disk()
 
 
 def rotate_session_token():

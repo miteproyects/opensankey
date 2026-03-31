@@ -102,7 +102,7 @@ from data_fetcher import (
 from info_data import get_company_icon
 
 # ─── Auth & Database modules ────────────────────────────────────────────────
-from auth import init_session_state, require_auth, is_session_valid, clear_session
+from auth import init_session_state, require_auth, is_session_valid, clear_session, restore_session_from_params, get_auth_params
 from database import initialize_schema, is_db_ready
 
 # Lazy-load page modules: only import when their page is active (saves ~2s)
@@ -1057,9 +1057,8 @@ if "ticker" not in st.session_state:
     st.session_state.ticker = "NVDA"
 # ─── Auth session & DB schema init ──────────────────────────────────────────
 init_session_state()
-# Restore login state from server-side file (survives full page reloads)
-from auth import restore_session_from_disk
-restore_session_from_disk()
+# Restore login state from URL query params (survives full page reloads)
+restore_session_from_params()
 
 # ── Handle Google OAuth callback at app level ────────────────────────────────
 # Google redirects to quartercharts.com?code=... (no ?page=login), so we must
@@ -1069,9 +1068,10 @@ if _oauth_code and not st.session_state.get("logged_in"):
     st.query_params.clear()
     from login_page import _handle_google_auth_code
     _handle_google_auth_code(_oauth_code)
-    # After successful auth, redirect to user dashboard
-    st.session_state.page = "user"
-    st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
+    # If _handle_google_auth_code succeeded, it already called st.rerun().
+    # If we reach here, auth failed — redirect to login page.
+    st.session_state.page = "login"
+    st.query_params.update({"page": "login", "ticker": st.session_state.get("ticker", "NVDA")})
     st.rerun()
 
 try:
@@ -1798,9 +1798,11 @@ ticker = st.session_state.ticker
 current_page = st.session_state.page
 
 # Nav bar with page switching (using <a> links for reliable navigation)
+# Auth params carry login state across full page reloads caused by <a> tag navigation
+_auth_params = get_auth_params()
 _is_logged_in = st.session_state.get("logged_in", False)
 if _is_logged_in:
-    _auth_link = f'<a href="/?page=user&ticker={ticker}" target="_self" class="nav-link {"active" if current_page == "user" else ""}" style="color:#3b82f6;font-weight:600;">My&nbsp;Account</a>'
+    _auth_link = f'<a href="/?page=user&ticker={ticker}{_auth_params}" target="_self" class="nav-link {"active" if current_page == "user" else ""}" style="color:#3b82f6;font-weight:600;">My&nbsp;Account</a>'
 else:
     _auth_link = f'<a href="/?page=login&ticker={ticker}" target="_self" class="nav-link" style="color:#3b82f6;font-weight:600;">Sign&nbsp;In</a>'
 st.markdown(f'''
@@ -1808,21 +1810,21 @@ st.markdown(f'''
 [data-testid="stElementContainer"]:has(.nav-bar){{position:absolute!important;height:0!important;overflow:visible!important;margin:0!important;padding:0!important}}
 </style>
 <div class="nav-bar">
-    <a class="nav-logo" href="/?page=home&ticker={ticker}" target="_self">
+    <a class="nav-logo" href="/?page=home&ticker={ticker}{_auth_params}" target="_self">
         <img src="data:image/png;base64,{LOGO_B64}" style="height:48px;width:auto;" alt="QC"/>
         <span class="nav-logo-text">Quarter<br>Charts</span>
     </a>
     <div class="nav-links">
-                    <a class="nav-link {'active' if current_page == 'home' else ''}" href="/?page=home&ticker={ticker}" target="_self">Home</a>
-        <a class="nav-link {'active' if current_page == 'charts' else ''}" href="/?page=charts&ticker={ticker}" target="_self">{ticker} Charts</a>
-        <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="/?page=sankey&ticker={ticker}" target="_self">{ticker} Sankey</a>
-        <a class="nav-link {'active' if current_page == 'profile' else ''}" href="/?page=profile&ticker={ticker}" target="_self">{ticker} Profile</a>
-        <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="/?page=earnings&ticker={ticker}" target="_self">Earnings Calendar</a>
-        <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="/?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
+                    <a class="nav-link {'active' if current_page == 'home' else ''}" href="/?page=home&ticker={ticker}{_auth_params}" target="_self">Home</a>
+        <a class="nav-link {'active' if current_page == 'charts' else ''}" href="/?page=charts&ticker={ticker}{_auth_params}" target="_self">{ticker} Charts</a>
+        <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="/?page=sankey&ticker={ticker}{_auth_params}" target="_self">{ticker} Sankey</a>
+        <a class="nav-link {'active' if current_page == 'profile' else ''}" href="/?page=profile&ticker={ticker}{_auth_params}" target="_self">{ticker} Profile</a>
+        <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="/?page=earnings&ticker={ticker}{_auth_params}" target="_self">Earnings Calendar</a>
+        <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="/?page=watchlist&ticker={ticker}{_auth_params}" target="_self">Watchlist</a>
     </div>
     <div class="nav-right">
-        <a href="/?page=nsfe&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
-                    <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
+        <a href="/?page=nsfe&ticker={ticker}{_auth_params}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
+                    <a href="/?page=pricing&ticker={ticker}{_auth_params}" target="_self" class="nav-link">Pricing</a>
                     {_auth_link}
         <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#9776;</button>
     </div>
@@ -1938,6 +1940,7 @@ with st.sidebar:
         _user_email = st.session_state.get("user_email", "User")
         if st.button(f"Sign Out ({_user_email})", key="sidebar_signout"):
             clear_session()
+            st.query_params.update({"page": "home", "ticker": st.session_state.get("ticker", "NVDA")})
             st.rerun()
     else:
         # Sign In button at the top of the sidebar

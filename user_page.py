@@ -8,6 +8,7 @@ import streamlit as st
 import json
 import os
 from datetime import datetime
+from auth import get_auth_params
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -277,8 +278,9 @@ def _render_dashboard():
     st.markdown("**Portfolio Snapshot**")
     _render_stock_table(watchlist[:5])
     ticker = st.session_state.get("ticker", "NVDA")
+    _ap = get_auth_params()
     st.markdown(f"""<div style="padding:8px 0;font-size:13px;">
-        <a href="/?page=user&ticker={ticker}&section=portfolio" target="_self" style="color:#2563eb;text-decoration:none;font-weight:500;">View full portfolio &rarr;</a>
+        <a href="/?page=user&ticker={ticker}&section=portfolio{_ap}" target="_self" style="color:#2563eb;text-decoration:none;font-weight:500;">View full portfolio &rarr;</a>
     </div>""", unsafe_allow_html=True)
 
     # Quick actions
@@ -287,25 +289,25 @@ def _render_dashboard():
     qa1, qa2, qa3, qa4 = st.columns(4)
     ticker = st.session_state.get("ticker", "NVDA")
     with qa1:
-        st.markdown(f"""<a href="/?page=charts&ticker={ticker}" target="_self" style="text-decoration:none;">
+        st.markdown(f"""<a href="/?page=charts&ticker={ticker}{_ap}" target="_self" style="text-decoration:none;">
             <div class="stat-card" style="cursor:pointer;text-align:center;padding:16px;">
                 <div style="font-size:22px;">&#128200;</div>
                 <div class="stat-card-label" style="margin-top:6px;">View Charts</div>
             </div></a>""", unsafe_allow_html=True)
     with qa2:
-        st.markdown("""<a href="/?page=earnings" target="_self" style="text-decoration:none;">
+        st.markdown(f"""<a href="/?page=earnings&ticker={ticker}{_ap}" target="_self" style="text-decoration:none;">
             <div class="stat-card" style="cursor:pointer;text-align:center;padding:16px;">
                 <div style="font-size:22px;">&#128197;</div>
                 <div class="stat-card-label" style="margin-top:6px;">Earnings Calendar</div>
             </div></a>""", unsafe_allow_html=True)
     with qa3:
-        st.markdown("""<a href="/?page=watchlist" target="_self" style="text-decoration:none;">
+        st.markdown(f"""<a href="/?page=watchlist&ticker={ticker}{_ap}" target="_self" style="text-decoration:none;">
             <div class="stat-card" style="cursor:pointer;text-align:center;padding:16px;">
                 <div style="font-size:22px;">&#9734;</div>
                 <div class="stat-card-label" style="margin-top:6px;">My Watchlist</div>
             </div></a>""", unsafe_allow_html=True)
     with qa4:
-        st.markdown(f"""<a href="/?page=sankey&ticker={ticker}" target="_self" style="text-decoration:none;">
+        st.markdown(f"""<a href="/?page=sankey&ticker={ticker}{_ap}" target="_self" style="text-decoration:none;">
             <div class="stat-card" style="cursor:pointer;text-align:center;padding:16px;">
                 <div style="font-size:22px;">&#128202;</div>
                 <div class="stat-card-label" style="margin-top:6px;">Sankey Diagram</div>
@@ -326,9 +328,10 @@ def _render_portfolio():
 
     _render_stock_table(watchlist)
 
+    _ap = get_auth_params()
     st.markdown(f"""<div style="padding:12px 0;font-size:13px;color:#6b7280;">
         Showing {len(watchlist)} stocks &middot;
-        <a href="/?page=watchlist" target="_self" style="color:#2563eb;text-decoration:none;font-weight:500;">Manage watchlist &rarr;</a>
+        <a href="/?page=watchlist&ticker={st.session_state.get('ticker', 'NVDA')}{_ap}" target="_self" style="color:#2563eb;text-decoration:none;font-weight:500;">Manage watchlist &rarr;</a>
     </div>""", unsafe_allow_html=True)
 
 
@@ -475,15 +478,11 @@ def _render_settings():
         with dc1:
             if st.button("Yes, Delete My Account", type="primary", key="confirm_delete_yes"):
                 # Clear session and redirect
-                from auth import clear_session_from_disk
-                clear_session_from_disk()
-                for key in ["logged_in", "user_uid", "user_email", "user_name",
-                            "user_role", "user_company_id", "auth_token", "auth_token_time"]:
-                    st.session_state[key] = None
-                st.session_state.logged_in = False
+                from auth import clear_session
+                clear_session()
                 st.session_state.pop("confirm_delete", None)
                 st.session_state.page = "home"
-                st.query_params.update({"page": "home"})
+                st.query_params.update({"page": "home", "ticker": st.session_state.get("ticker", "NVDA")})
                 st.success("Account deletion requested. You have been signed out.")
                 st.rerun()
         with dc2:
@@ -508,12 +507,13 @@ def _render_stock_table(tickers: list):
 
     quotes.sort(key=lambda q: tickers.index(q["symbol"]) if q["symbol"] in tickers else 99)
 
+    _ap = get_auth_params()
     rows = ""
     for q in quotes:
         badge = "badge-up" if q["change"] >= 0 else "badge-down"
         sign = "+" if q["change"] >= 0 else ""
         rows += f"""<tr>
-            <td><a href="/?page=charts&ticker={q['symbol']}" target="_self" class="stock-sym-cell">{q['symbol']}</a></td>
+            <td><a href="/?page=charts&ticker={q['symbol']}{_ap}" target="_self" class="stock-sym-cell">{q['symbol']}</a></td>
             <td class="stock-price-cell">${q['price']:.2f}</td>
             <td><span class="{badge}">{sign}{q['pct']:.2f}%</span></td>
             <td class="stock-cap-cell">{_fmt_cap(q['market_cap'])}</td>
@@ -571,10 +571,11 @@ def render_user_page():
 
         # Nav items as Streamlit buttons (ensures proper state handling)
         ticker = st.session_state.get("ticker", "NVDA")
+        _ap = get_auth_params()
         nav_html = '<div class="user-nav">'
         for key, icon, label in _NAV_ITEMS:
             active = "active" if section == key else ""
-            nav_html += f"""<a href="/?page=user&ticker={ticker}&section={key}" target="_self"
+            nav_html += f"""<a href="/?page=user&ticker={ticker}&section={key}{_ap}" target="_self"
                             class="user-nav-item {active}">
                             <span class="nav-icon">{icon}</span> {label}</a>"""
         nav_html += '</div>'
@@ -584,14 +585,10 @@ def render_user_page():
 
         # Sign out at bottom of sidebar
         if st.button("Sign Out", key="user_signout", use_container_width=True):
-            from auth import clear_session_from_disk
-            clear_session_from_disk()
-            for key in ["logged_in", "user_uid", "user_email", "user_name",
-                        "user_role", "user_company_id", "auth_token", "auth_token_time"]:
-                st.session_state[key] = None
-            st.session_state.logged_in = False
+            from auth import clear_session
+            clear_session()
             st.session_state.page = "home"
-            st.query_params.update({"page": "home"})
+            st.query_params.update({"page": "home", "ticker": st.session_state.get("ticker", "NVDA")})
             st.rerun()
 
     # ── Main content area ────────────────────────────────────────────────

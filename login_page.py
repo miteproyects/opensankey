@@ -369,7 +369,7 @@ def _handle_google_credential(credential):
         st.session_state.pop("google_auth_nonce", None)
 
         # Set authenticated session
-        from auth import set_authenticated_session
+        from auth import set_authenticated_session, get_auth_params
         set_authenticated_session({
             "success": True,
             "uid": sub,
@@ -377,9 +377,7 @@ def _handle_google_credential(credential):
             "display_name": name or email.split("@")[0],
         })
         logger.info(f"Google sign-in successful for {email}")
-        st.session_state.page = "user"
-        st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
-        st.rerun()
+        _redirect_to_user_page()
 
     except ValueError as e:
         logger.warning(f"Google token verification failed: {e}")
@@ -387,6 +385,21 @@ def _handle_google_credential(credential):
     except Exception as e:
         logger.error(f"Google sign-in error: {e}")
         st.error(f"Google sign-in failed: {e}")
+
+
+def _redirect_to_user_page():
+    """Redirect to user dashboard with auth params in URL for session persistence."""
+    from auth import get_auth_params
+    _ap = get_auth_params()
+    _params = {"page": "user", "ticker": st.session_state.get("ticker", "NVDA")}
+    if _ap:
+        for pair in _ap.lstrip("&").split("&"):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                _params[k] = urllib.parse.unquote(v)
+    st.session_state.page = "user"
+    st.query_params.update(_params)
+    st.rerun()
 
 
 def _handle_email_auth(mode, email, password, name=""):
@@ -415,9 +428,7 @@ def _handle_email_auth(mode, email, password, name=""):
             record_login_attempt(email, success=True)
             set_authenticated_session(signup_result)
             st.success("Account created! Redirecting\u2026")
-            st.session_state.page = "user"
-            st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
-            st.rerun()
+            _redirect_to_user_page()
         elif signup_result and signup_result.get("error"):
             # Admin SDK returned a specific error (e.g., email exists)
             record_login_attempt(email, success=False)
@@ -453,9 +464,7 @@ def _handle_email_auth(mode, email, password, name=""):
                         "display_name": name or email.split("@")[0],
                     })
                     st.success("Account created! Redirecting\u2026")
-                    st.session_state.page = "user"
-                    st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
-                    st.rerun()
+                    _redirect_to_user_page()
                 else:
                     record_login_attempt(email, success=False)
                     msg = data.get("error", {}).get("message", "Signup failed.")
@@ -513,9 +522,7 @@ def _handle_email_auth(mode, email, password, name=""):
                         "email": user_data.get("email", email),
                         "display_name": user_data.get("name", data.get("displayName", email.split("@")[0])),
                     })
-                    st.session_state.page = "user"
-                    st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
-                    st.rerun()
+                    _redirect_to_user_page()
                 else:
                     # Admin SDK not configured or verification failed —
                     # Fall back to REST API response data.
@@ -529,9 +536,7 @@ def _handle_email_auth(mode, email, password, name=""):
                         "email": data.get("email", email),
                         "display_name": data.get("displayName", email.split("@")[0]),
                     })
-                    st.session_state.page = "user"
-                    st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
-                    st.rerun()
+                    _redirect_to_user_page()
             else:
                 record_login_attempt(email, success=False)
                 msg = data.get("error", {}).get("message", "Login failed.")
