@@ -263,9 +263,10 @@ def _render_google_signin_button():
       but cleared immediately on the server side.
     - Token is cryptographically verified server-side (RSA signature, aud, iss, exp).
     """
+    google_svg = '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>'
+    spinner_svg = '<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" stroke="#dadce0" stroke-width="2" fill="none" stroke-dasharray="30" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 9 9" to="360 9 9" dur="0.8s" repeatCount="indefinite"/></circle></svg>'
+
     google_html = f"""
-    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
     <style>
     .google-btn {{
         display: flex; align-items: center; justify-content: center; gap: 10px;
@@ -283,27 +284,49 @@ def _render_google_signin_button():
     .google-btn svg {{ flex-shrink: 0; }}
     </style>
     <button class="google-btn" id="google-signin-btn" onclick="signInWithGoogle()">
-        <svg width="18" height="18" viewBox="0 0 18 18">
-            <path fill="#4285F4" d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
-            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/>
-            <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
-            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
-        </svg>
-        Continue with Google
+        {google_svg} Loading…
     </button>
     <script>
-    var firebaseConfig = {{
-        apiKey: '{FIREBASE_API_KEY}',
-        authDomain: 'quartercharts.firebaseapp.com'
-    }};
-    if (!firebase.apps.length) {{
-        firebase.initializeApp(firebaseConfig);
-    }}
+    var _fbReady = false;
+    var GOOGLE_SVG = '{google_svg}';
+    var SPINNER_SVG = '{spinner_svg}';
+
+    /* Dynamically load Firebase SDK scripts in order */
+    (function() {{
+        var s1 = document.createElement('script');
+        s1.src = 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js';
+        s1.onload = function() {{
+            var s2 = document.createElement('script');
+            s2.src = 'https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js';
+            s2.onload = function() {{
+                firebase.initializeApp({{
+                    apiKey: '{FIREBASE_API_KEY}',
+                    authDomain: 'quartercharts.firebaseapp.com'
+                }});
+                _fbReady = true;
+                var btn = document.getElementById('google-signin-btn');
+                if (btn) btn.innerHTML = GOOGLE_SVG + ' Continue with Google';
+            }};
+            s2.onerror = function() {{
+                var btn = document.getElementById('google-signin-btn');
+                if (btn) btn.textContent = 'Failed to load. Refresh page.';
+            }};
+            document.head.appendChild(s2);
+        }};
+        s1.onerror = function() {{
+            var btn = document.getElementById('google-signin-btn');
+            if (btn) btn.textContent = 'Failed to load. Refresh page.';
+        }};
+        document.head.appendChild(s1);
+    }})();
 
     function signInWithGoogle() {{
+        if (!_fbReady) {{
+            return;  /* SDK still loading */
+        }}
         var btn = document.getElementById('google-signin-btn');
         btn.disabled = true;
-        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" stroke="#dadce0" stroke-width="2" fill="none" stroke-dasharray="30" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 9 9" to="360 9 9" dur="0.8s" repeatCount="indefinite"/></circle></svg> Signing in…';
+        btn.innerHTML = SPINNER_SVG + ' Signing in…';
 
         var provider = new firebase.auth.GoogleAuthProvider();
         provider.addScope('email');
@@ -328,7 +351,7 @@ def _render_google_signin_button():
             if (error.code === 'auth/popup-blocked') {{
                 btn.textContent = 'Popup blocked. Allow popups and retry.';
             }} else if (error.code === 'auth/popup-closed-by-user') {{
-                btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg> Continue with Google';
+                btn.innerHTML = GOOGLE_SVG + ' Continue with Google';
             }} else {{
                 btn.textContent = 'Sign-in error. Try again.';
             }}
