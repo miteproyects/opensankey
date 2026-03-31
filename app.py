@@ -1951,8 +1951,8 @@ with st.sidebar:
         _user_email = st.session_state.get("user_email", "User")
         if st.button(f"Sign Out ({_user_email})", key="sidebar_signout"):
             clear_session()
-            from auth import js_redirect as _js_redir_out
-            _js_redir_out(f"/?page=home&ticker={st.session_state.get('ticker', 'NVDA')}")
+            st.session_state.page = "home"
+            st.rerun()
     else:
         # Sign In button at the top of the sidebar
         st.markdown(f"""

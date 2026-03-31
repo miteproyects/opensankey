@@ -305,7 +305,11 @@ def _handle_google_auth_code(code):
         logger.warning(f"Google auth error: {msg}")
 
     try:
-        if not GOOGLE_CLIENT_SECRET:
+        # Re-read at call time — module-level os.getenv() runs once at import
+        # and may miss env vars that Railway injects after the process starts.
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "") or GOOGLE_CLIENT_SECRET
+        logger.info(f"OAuth client_secret present: {bool(client_secret)} (len={len(client_secret)})")
+        if not client_secret:
             logger.error("GOOGLE_CLIENT_SECRET is empty — cannot exchange OAuth code")
             _set_error("Server configuration error (missing client secret). Please contact support.")
             return
@@ -316,7 +320,7 @@ def _handle_google_auth_code(code):
             data={
                 "code": code,
                 "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
+                "client_secret": client_secret,
                 "redirect_uri": GOOGLE_REDIRECT_URI,
                 "grant_type": "authorization_code",
             },
