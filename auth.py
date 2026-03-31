@@ -229,9 +229,8 @@ def init_session_state():
             st.session_state[key] = default
 
 
-_SESSION_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "_server_session.json"
-)
+import tempfile
+_SESSION_FILE = os.path.join(tempfile.gettempdir(), "_qc_server_session.json")
 
 
 def _save_session_to_disk():

@@ -377,6 +377,8 @@ def _handle_google_credential(credential):
             "display_name": name or email.split("@")[0],
         })
         logger.info(f"Google sign-in successful for {email}")
+        st.session_state.page = "user"
+        st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
         st.rerun()
 
     except ValueError as e:
@@ -413,6 +415,8 @@ def _handle_email_auth(mode, email, password, name=""):
             record_login_attempt(email, success=True)
             set_authenticated_session(signup_result)
             st.success("Account created! Redirecting\u2026")
+            st.session_state.page = "user"
+            st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
             st.rerun()
         elif signup_result and signup_result.get("error"):
             # Admin SDK returned a specific error (e.g., email exists)
@@ -449,6 +453,8 @@ def _handle_email_auth(mode, email, password, name=""):
                         "display_name": name or email.split("@")[0],
                     })
                     st.success("Account created! Redirecting\u2026")
+                    st.session_state.page = "user"
+                    st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
                     st.rerun()
                 else:
                     record_login_attempt(email, success=False)
@@ -507,6 +513,8 @@ def _handle_email_auth(mode, email, password, name=""):
                         "email": user_data.get("email", email),
                         "display_name": user_data.get("name", data.get("displayName", email.split("@")[0])),
                     })
+                    st.session_state.page = "user"
+                    st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
                     st.rerun()
                 else:
                     # Admin SDK not configured or verification failed —
@@ -521,6 +529,8 @@ def _handle_email_auth(mode, email, password, name=""):
                         "email": data.get("email", email),
                         "display_name": data.get("displayName", email.split("@")[0]),
                     })
+                    st.session_state.page = "user"
+                    st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
                     st.rerun()
             else:
                 record_login_attempt(email, success=False)

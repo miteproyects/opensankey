@@ -1060,6 +1060,20 @@ init_session_state()
 # Restore login state from server-side file (survives full page reloads)
 from auth import restore_session_from_disk
 restore_session_from_disk()
+
+# ── Handle Google OAuth callback at app level ────────────────────────────────
+# Google redirects to quartercharts.com?code=... (no ?page=login), so we must
+# intercept the code param here before page routing kicks in.
+_oauth_code = st.query_params.get("code", None)
+if _oauth_code and not st.session_state.get("logged_in"):
+    st.query_params.clear()
+    from login_page import _handle_google_auth_code
+    _handle_google_auth_code(_oauth_code)
+    # After successful auth, redirect to user dashboard
+    st.session_state.page = "user"
+    st.query_params.update({"page": "user", "ticker": st.session_state.get("ticker", "NVDA")})
+    st.rerun()
+
 try:
     initialize_schema()
 except Exception:
