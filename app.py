@@ -1067,7 +1067,7 @@ _qp_page = st.query_params.get("page", "").lower()
 _qp_ticker = st.query_params.get("ticker", "").upper().strip()
 if _qp_ticker:
     st.session_state.ticker = _qp_ticker
-if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe", "privacy", "terms"):
+if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe", "privacy", "terms", "user"):
     st.session_state.page = _qp_page
 elif "page" not in st.session_state:
     st.session_state.page = "home"
@@ -1797,11 +1797,12 @@ st.markdown(f'''
         <a class="nav-link {'active' if current_page == 'profile' else ''}" href="/?page=profile&ticker={ticker}" target="_self">{ticker} Profile</a>
         <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="/?page=earnings&ticker={ticker}" target="_self">Earnings Calendar</a>
         <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="/?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
+        <a class="nav-link {'active' if current_page == 'user' else ''}" href="/?page=user&ticker={ticker}" target="_self">User</a>
     </div>
     <div class="nav-right">
         <a href="/?page=nsfe&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
                     <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
-                    {"" if st.session_state.get("logged_in") else '<a href="/?page=login&ticker=' + ticker + '" target="_self" class="nav-link" style="color:#3b82f6;font-weight:600;">Sign&nbsp;In</a>'}
+                    {'<a href="/?page=user&ticker=' + ticker + '" target="_self" class="nav-link {0}" style="color:#3b82f6;font-weight:600;">My&nbsp;Account</a>'.format("active" if current_page == "user" else "") if st.session_state.get("logged_in") else '<a href="/?page=login&ticker=' + ticker + '" target="_self" class="nav-link" style="color:#3b82f6;font-weight:600;">Sign&nbsp;In</a>'}
         <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#9776;</button>
     </div>
 </div>
@@ -2169,6 +2170,12 @@ if current_page == "sankey":
 if current_page == "watchlist":
     from watchlist_page import render_watchlist_page
     render_watchlist_page()
+    _render_footer()
+    st.stop()
+
+if current_page == "user":
+    from user_page import render_user_page
+    render_user_page()
     _render_footer()
     st.stop()
 
