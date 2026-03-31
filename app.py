@@ -1801,7 +1801,7 @@ st.markdown(f'''
     <div class="nav-right">
         <a href="/?page=nsfe&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
                     <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
-                    {'<a href="/?page=user&ticker=' + ticker + '" target="_self" class="nav-link {0}" style="color:#3b82f6;font-weight:600;">My&nbsp;Account</a>'.format("active" if current_page == "user" else "") if st.session_state.get("logged_in") else '<a href="/?page=login&ticker=' + ticker + '" target="_self" class="nav-link" style="color:#3b82f6;font-weight:600;">Sign&nbsp;In</a>'}
+                    <a href="/?page=user&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'user' else ''}" style="color:#3b82f6;font-weight:600;">My&nbsp;Account</a>
         <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#9776;</button>
     </div>
 </div>
