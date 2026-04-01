@@ -2209,10 +2209,10 @@ with st.sidebar:
 
             _is_custom = st.session_state.timeframe == "CUSTOM"
 
-            # Auto-apply callback
+            # Auto-apply callback — also syncs quarterly flag
             def _apply_custom_range():
                 st.session_state.timeframe = "CUSTOM"
-                mode = st.session_state.get("custom_mode", "year")
+                mode = st.session_state.get("custom_mode", "quarter")
                 if mode == "year":
                     y_from = st.session_state.get("_cf_year_from", "")
                     y_to = st.session_state.get("_cf_year_to", "")
@@ -2220,6 +2220,7 @@ with st.sidebar:
                         st.session_state.custom_from = y_from
                         st.session_state.custom_to = y_to
                         st.session_state.custom_mode = "year"
+                        st.session_state.quarterly = False
                 else:
                     qf = st.session_state.get("_cf_q_from", "")
                     qt = st.session_state.get("_cf_q_to", "")
@@ -2227,6 +2228,7 @@ with st.sidebar:
                         st.session_state.custom_from = qf
                         st.session_state.custom_to = qt
                         st.session_state.custom_mode = "quarter"
+                        st.session_state.quarterly = True
 
             # ── Custom Timeframe panel — manual toggle so clicking header activates immediately ──
             has_data = (len(_avail_years) >= 2) or (len(_avail_q_periods) >= 2)
@@ -2252,6 +2254,11 @@ with st.sidebar:
                         # Opening: immediately switch to CUSTOM mode
                         st.session_state.custom_panel_open = True
                         st.session_state.timeframe = "CUSTOM"
+                        # Sync quarterly flag with custom mode
+                        if st.session_state.custom_mode == "quarter":
+                            st.session_state.quarterly = True
+                        else:
+                            st.session_state.quarterly = False
                         # Pre-fill range defaults if not yet set
                         if not st.session_state.get("custom_from"):
                             if st.session_state.custom_mode == "quarter" and _avail_q_periods:
@@ -2333,7 +2340,12 @@ with st.sidebar:
                         key="_cm_quarter",
                     ):
                         st.session_state.custom_mode = "quarter"
+                        st.session_state.quarterly = True
                         st.session_state.timeframe = "CUSTOM"
+                        # Reset range to quarter defaults
+                        if _avail_q_periods:
+                            st.session_state.custom_from = _avail_q_periods[0]
+                            st.session_state.custom_to = _avail_q_periods[-1]
                         st.rerun()
                 with _mode_cols[1]:
                     if st.button(
@@ -2343,7 +2355,12 @@ with st.sidebar:
                         key="_cm_year",
                     ):
                         st.session_state.custom_mode = "year"
+                        st.session_state.quarterly = False
                         st.session_state.timeframe = "CUSTOM"
+                        # Reset range to year defaults
+                        if _avail_years:
+                            st.session_state.custom_from = _avail_years[0]
+                            st.session_state.custom_to = _avail_years[-1]
                         st.rerun()
 
                 if st.session_state.custom_mode == "year" and len(_avail_years) >= 2:
