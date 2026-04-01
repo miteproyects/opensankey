@@ -2227,6 +2227,7 @@ with st.sidebar:
                     "color:#3b82f6 !important;"
                     "font-weight:600 !important;"
                     "background:rgba(59,130,246,0.06) !important;"
+                    "box-shadow:0 0 0 3px rgba(99,130,246,0.25) !important;"
                 )
             else:
                 _header_style = (
@@ -2235,6 +2236,7 @@ with st.sidebar:
                     "color:#94a3b8 !important;"
                     "font-weight:400 !important;"
                     "opacity:0.55 !important;"
+                    "box-shadow:0 0 0 3px rgba(99,130,246,0.15) !important;"
                 )
             st.markdown(
                 f'<style>.ctf-header button {{ {_header_style} }}</style>',
