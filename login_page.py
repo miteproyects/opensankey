@@ -26,8 +26,26 @@ logger = logging.getLogger(__name__)
 _SECRETS_CACHE: dict = {}
 
 
+def _read_proc_environ(key: str) -> str:
+    """Read an env var directly from /proc/1/environ (container PID 1).
+
+    Streamlit's execution context may strip env vars from os.environ,
+    but the original process environment is preserved in procfs.
+    """
+    try:
+        with open("/proc/1/environ", "rb") as f:
+            raw = f.read()
+        for entry in raw.split(b"\x00"):
+            if entry.startswith(key.encode() + b"="):
+                return entry.decode().split("=", 1)[1]
+    except Exception:
+        pass
+    return ""
+
+
 def _load_secrets_file() -> dict:
     """Parse .streamlit/secrets.toml written by start.sh. Cached after first call."""
+    import sys
     global _SECRETS_CACHE
     if _SECRETS_CACHE:
         return _SECRETS_CACHE
@@ -35,7 +53,7 @@ def _load_secrets_file() -> dict:
         try:
             with open(path, "r") as f:
                 raw = f.read()
-            # Simple TOML parser for flat key = "value" pairs (no nested tables)
+            print(f"[SECRETS] read {len(raw)} bytes from {path}", file=sys.stderr)
             for line in raw.splitlines():
                 line = line.strip()
                 if "=" in line and not line.startswith("#"):
@@ -47,15 +65,24 @@ def _load_secrets_file() -> dict:
             break
         except FileNotFoundError:
             continue
+        except Exception as e:
+            print(f"[SECRETS] error reading {path}: {e}", file=sys.stderr)
     return _SECRETS_CACHE
 
 
 def _get_secret(key: str, default: str = "") -> str:
-    """Read a secret: try os.getenv, then secrets.toml file."""
+    """Read a secret: try os.getenv → secrets.toml → /proc/1/environ."""
     val = os.getenv(key, "")
     if val:
         return val
-    return _load_secrets_file().get(key, default)
+    val = _load_secrets_file().get(key, "")
+    if val:
+        return val
+    # Last resort: read from container's PID 1 environment
+    val = _read_proc_environ(key)
+    if val:
+        return val
+    return default
 
 
 # ── Credentials ──
@@ -343,8 +370,15 @@ def _handle_google_auth_code(code):
         logger.warning(f"Google auth error: {msg}")
 
     try:
-        # Re-read at call time via _get_secret (env var → st.secrets fallback).
+        # Re-read at call time — tries os.getenv, secrets.toml, /proc/1/environ
+        import sys
         client_secret = _get_secret("GOOGLE_CLIENT_SECRET") or GOOGLE_CLIENT_SECRET
+        _proc_val = _read_proc_environ("GOOGLE_CLIENT_SECRET")
+        print(f"[OAUTH] secret len={len(client_secret) if client_secret else 0}, "
+              f"module={len(GOOGLE_CLIENT_SECRET) if GOOGLE_CLIENT_SECRET else 0}, "
+              f"env={len(os.getenv('GOOGLE_CLIENT_SECRET', ''))}, "
+              f"proc={len(_proc_val)}, "
+              f"toml_keys={list(_SECRETS_CACHE.keys())}", file=sys.stderr)
         if not client_secret:
             logger.error("GOOGLE_CLIENT_SECRET is empty — cannot exchange OAuth code")
             _set_error("Server configuration error (missing client secret). Please contact support.")
