@@ -2205,7 +2205,7 @@ with st.sidebar:
 
             # Session state defaults
             if "custom_mode" not in st.session_state:
-                st.session_state.custom_mode = "year"  # "year" or "quarter"
+                st.session_state.custom_mode = "quarter"  # "quarter" or "year"
 
             _is_custom = st.session_state.timeframe == "CUSTOM"
 
@@ -2254,24 +2254,43 @@ with st.sidebar:
                         st.session_state.timeframe = "CUSTOM"
                         # Pre-fill range defaults if not yet set
                         if not st.session_state.get("custom_from"):
-                            if st.session_state.custom_mode == "year" and _avail_years:
-                                st.session_state.custom_from = _avail_years[0]
-                                st.session_state.custom_to = _avail_years[-1]
-                            elif _avail_q_periods:
+                            if st.session_state.custom_mode == "quarter" and _avail_q_periods:
                                 st.session_state.custom_from = _avail_q_periods[0]
                                 st.session_state.custom_to = _avail_q_periods[-1]
+                            elif _avail_years:
+                                st.session_state.custom_from = _avail_years[0]
+                                st.session_state.custom_to = _avail_years[-1]
                     else:
                         # Closing: collapse but keep CUSTOM active if range is set
                         st.session_state.custom_panel_open = False
                     st.rerun()
 
             # JS — runs after the button renders, directly styles it via parent DOM
-            _ctf_border   = "2px solid #3b82f6" if _is_custom_active else "1px solid rgba(148,163,184,0.28)"
-            _ctf_color    = "#3b82f6"            if _is_custom_active else "#94a3b8"
-            _ctf_bg       = "rgba(59,130,246,0.06)" if _is_custom_active else "transparent"
-            _ctf_shadow   = "0 0 0 3px rgba(99,130,246,0.25)" if _is_custom_active else "0 0 0 3px rgba(99,130,246,0.15)"
-            _ctf_opacity  = "1"    if _is_custom_active else "0.5"
-            _ctf_weight   = "600"  if _is_custom_active else "400"
+            # Three visual states: editing (panel open), set (panel closed but custom active), inactive
+            if _panel_open and _is_custom_active:
+                # Editing — fully live, bright glow
+                _ctf_border  = "2px solid #3b82f6"
+                _ctf_color   = "#3b82f6"
+                _ctf_bg      = "rgba(59,130,246,0.08)"
+                _ctf_shadow  = "0 0 0 4px rgba(99,130,246,0.3)"
+                _ctf_opacity = "1"
+                _ctf_weight  = "700"
+            elif _is_custom_active:
+                # Range set, panel collapsed — visible but settled
+                _ctf_border  = "2px solid rgba(59,130,246,0.5)"
+                _ctf_color   = "rgba(59,130,246,0.7)"
+                _ctf_bg      = "rgba(59,130,246,0.03)"
+                _ctf_shadow  = "0 0 0 3px rgba(99,130,246,0.15)"
+                _ctf_opacity = "0.7"
+                _ctf_weight  = "600"
+            else:
+                # Inactive — dimmed
+                _ctf_border  = "1px solid rgba(148,163,184,0.28)"
+                _ctf_color   = "#94a3b8"
+                _ctf_bg      = "transparent"
+                _ctf_shadow  = "0 0 0 3px rgba(99,130,246,0.15)"
+                _ctf_opacity = "0.5"
+                _ctf_weight  = "400"
             components.html(f"""<script>
 (function(){{
     var apply = function(){{
@@ -2304,25 +2323,9 @@ with st.sidebar:
 
             # Panel body — shown when open
             if _panel_open and has_data:
-                st.markdown(
-                    '<div style="border:2px solid #3b82f6;border-top:none;border-radius:0 0 10px 10px;'
-                    'padding:10px 8px 12px;margin-top:-4px;background:rgba(59,130,246,0.03);">',
-                    unsafe_allow_html=True,
-                )
-
-                # ── Mode toggle: By Year / By Quarter ──
+                # ── Mode toggle: By Quarter / By Year ──
                 _mode_cols = st.columns(2)
                 with _mode_cols[0]:
-                    if st.button(
-                        "By Year",
-                        use_container_width=True,
-                        type="primary" if st.session_state.custom_mode == "year" else "secondary",
-                        key="_cm_year",
-                    ):
-                        st.session_state.custom_mode = "year"
-                        st.session_state.timeframe = "CUSTOM"
-                        st.rerun()
-                with _mode_cols[1]:
                     if st.button(
                         "By Quarter",
                         use_container_width=True,
@@ -2330,6 +2333,16 @@ with st.sidebar:
                         key="_cm_quarter",
                     ):
                         st.session_state.custom_mode = "quarter"
+                        st.session_state.timeframe = "CUSTOM"
+                        st.rerun()
+                with _mode_cols[1]:
+                    if st.button(
+                        "By Year",
+                        use_container_width=True,
+                        type="primary" if st.session_state.custom_mode == "year" else "secondary",
+                        key="_cm_year",
+                    ):
+                        st.session_state.custom_mode = "year"
                         st.session_state.timeframe = "CUSTOM"
                         st.rerun()
 
@@ -2407,8 +2420,6 @@ with st.sidebar:
                         f'📊 {st.session_state["custom_from"]} → {st.session_state["custom_to"]}</p>',
                         unsafe_allow_html=True,
                     )
-
-                st.markdown('</div>', unsafe_allow_html=True)
 
             elif _panel_open and not has_data:
                 st.info("No data available for this ticker yet.")
