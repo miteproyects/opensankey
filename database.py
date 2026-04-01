@@ -101,17 +101,28 @@ def initialize_schema():
         return False
 
     schema_sql = """
-    -- Users table: links Firebase UID to app-level user data
+    -- Users table: supports email/password and Google sign-in with account linking
     CREATE TABLE IF NOT EXISTS users (
         id              SERIAL PRIMARY KEY,
-        firebase_uid    VARCHAR(128) UNIQUE NOT NULL,
         email           VARCHAR(255) UNIQUE NOT NULL,
         display_name    VARCHAR(255) DEFAULT '',
         avatar_url      VARCHAR(512) DEFAULT '',
+        password_hash   VARCHAR(255),               -- bcrypt hash (NULL if Google-only)
+        google_id       VARCHAR(255) UNIQUE,         -- Google sub claim (NULL if email-only)
+        auth_provider   VARCHAR(50) DEFAULT 'email', -- email, google, both
+        firebase_uid    VARCHAR(128) UNIQUE,          -- legacy, nullable
         is_active       BOOLEAN DEFAULT TRUE,
         created_at      TIMESTAMPTZ DEFAULT NOW(),
         updated_at      TIMESTAMPTZ DEFAULT NOW(),
         last_login_at   TIMESTAMPTZ
+    );
+
+    -- Server-side sessions: persist login across Streamlit page reloads
+    CREATE TABLE IF NOT EXISTS sessions (
+        token           VARCHAR(128) PRIMARY KEY,
+        user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        expires_at      TIMESTAMPTZ NOT NULL
     );
 
     -- Companies table: B2B client organizations
@@ -157,8 +168,10 @@ def initialize_schema():
     );
 
     -- Indexes for performance
-    CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_company_members_user ON company_members(user_id);
     CREATE INDEX IF NOT EXISTS idx_company_members_company ON company_members(company_id);
     CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
@@ -177,60 +190,192 @@ def initialize_schema():
 
 # ─── User Operations ─────────────────────────────────────────────────────────
 
-def create_or_update_user(firebase_uid: str, email: str, display_name: str = "") -> dict | None:
-    """
-    Create a user record or update if already exists.
-    Called after every successful Firebase login.
-    Returns the user dict.
-    """
+def _row_to_user(row) -> dict:
+    """Convert a user row tuple to dict."""
+    return {
+        "id": row[0], "email": row[1], "display_name": row[2],
+        "avatar_url": row[3], "password_hash": row[4], "google_id": row[5],
+        "auth_provider": row[6], "is_active": row[7], "created_at": row[8],
+    }
+
+_USER_COLS = "id, email, display_name, avatar_url, password_hash, google_id, auth_provider, is_active, created_at"
+
+
+def get_user_by_email(email: str) -> dict | None:
+    """Look up a user by email."""
     with get_connection() as conn:
         if conn is None:
             return None
         with conn.cursor() as cur:
+            cur.execute(f"SELECT {_USER_COLS} FROM users WHERE email = %s", (email,))
+            row = cur.fetchone()
+            return _row_to_user(row) if row else None
+
+
+def get_user_by_google_id(google_id: str) -> dict | None:
+    """Look up a user by their Google sub claim."""
+    with get_connection() as conn:
+        if conn is None:
+            return None
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT {_USER_COLS} FROM users WHERE google_id = %s", (google_id,))
+            row = cur.fetchone()
+            return _row_to_user(row) if row else None
+
+
+def get_user_by_id(user_id: int) -> dict | None:
+    """Look up a user by primary key."""
+    with get_connection() as conn:
+        if conn is None:
+            return None
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT {_USER_COLS} FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            return _row_to_user(row) if row else None
+
+
+def create_user_email(email: str, password_hash: str, display_name: str = "") -> dict | None:
+    """Create a new user with email + hashed password."""
+    with get_connection() as conn:
+        if conn is None:
+            return None
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                INSERT INTO users (email, password_hash, display_name, auth_provider, last_login_at)
+                VALUES (%s, %s, %s, 'email', NOW())
+                RETURNING {_USER_COLS}
+            """, (email, password_hash, display_name))
+            row = cur.fetchone()
+            return _row_to_user(row) if row else None
+
+
+def create_user_google(email: str, google_id: str, display_name: str = "",
+                       avatar_url: str = "") -> dict | None:
+    """Create a new user from Google sign-in."""
+    with get_connection() as conn:
+        if conn is None:
+            return None
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                INSERT INTO users (email, google_id, display_name, avatar_url,
+                                   auth_provider, last_login_at)
+                VALUES (%s, %s, %s, %s, 'google', NOW())
+                RETURNING {_USER_COLS}
+            """, (email, google_id, display_name, avatar_url))
+            row = cur.fetchone()
+            return _row_to_user(row) if row else None
+
+
+def link_google_to_user(user_id: int, google_id: str, avatar_url: str = "") -> bool:
+    """Link a Google account to an existing email user."""
+    with get_connection() as conn:
+        if conn is None:
+            return False
+        with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO users (firebase_uid, email, display_name, last_login_at)
-                VALUES (%s, %s, %s, NOW())
-                ON CONFLICT (firebase_uid) DO UPDATE SET
-                    email = EXCLUDED.email,
-                    display_name = EXCLUDED.display_name,
-                    last_login_at = NOW(),
+                UPDATE users SET google_id = %s, auth_provider = 'both',
+                    avatar_url = CASE WHEN avatar_url = '' THEN %s ELSE avatar_url END,
                     updated_at = NOW()
-                RETURNING id, firebase_uid, email, display_name, is_active, created_at
-            """, (firebase_uid, email, display_name))
-            row = cur.fetchone()
-            if row:
-                return {
-                    "id": row[0],
-                    "firebase_uid": row[1],
-                    "email": row[2],
-                    "display_name": row[3],
-                    "is_active": row[4],
-                    "created_at": row[5],
-                }
-    return None
+                WHERE id = %s
+            """, (google_id, avatar_url, user_id))
+            return cur.rowcount > 0
 
 
-def get_user_by_firebase_uid(firebase_uid: str) -> dict | None:
-    """Look up a user by their Firebase UID."""
+def link_password_to_user(user_id: int, password_hash: str) -> bool:
+    """Add a password to a Google-only user (account linking)."""
+    with get_connection() as conn:
+        if conn is None:
+            return False
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users SET password_hash = %s, auth_provider = 'both',
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (password_hash, user_id))
+            return cur.rowcount > 0
+
+
+def update_last_login(user_id: int):
+    """Update last_login_at timestamp."""
+    with get_connection() as conn:
+        if conn is None:
+            return
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET last_login_at = NOW() WHERE id = %s", (user_id,))
+
+
+def update_user_display_name(user_id: int, display_name: str) -> bool:
+    """Update user display name."""
+    with get_connection() as conn:
+        if conn is None:
+            return False
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET display_name = %s, updated_at = NOW() WHERE id = %s",
+                        (display_name, user_id))
+            return cur.rowcount > 0
+
+
+def update_user_password(user_id: int, password_hash: str) -> bool:
+    """Update user password hash."""
+    with get_connection() as conn:
+        if conn is None:
+            return False
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET password_hash = %s, updated_at = NOW() WHERE id = %s",
+                        (password_hash, user_id))
+            return cur.rowcount > 0
+
+
+# ─── Session Operations ─────────────────────────────────────────────────────
+
+def create_session(token: str, user_id: int, expires_at) -> bool:
+    """Store a new session token in the DB."""
+    with get_connection() as conn:
+        if conn is None:
+            return False
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO sessions (token, user_id, expires_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id,
+                    expires_at = EXCLUDED.expires_at, created_at = NOW()
+            """, (token, user_id, expires_at))
+            return True
+
+
+def get_session(token: str) -> dict | None:
+    """Look up a session by token. Returns None if expired."""
     with get_connection() as conn:
         if conn is None:
             return None
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, firebase_uid, email, display_name, is_active, created_at
-                FROM users WHERE firebase_uid = %s
-            """, (firebase_uid,))
+                SELECT token, user_id, created_at, expires_at
+                FROM sessions WHERE token = %s AND expires_at > NOW()
+            """, (token,))
             row = cur.fetchone()
             if row:
-                return {
-                    "id": row[0],
-                    "firebase_uid": row[1],
-                    "email": row[2],
-                    "display_name": row[3],
-                    "is_active": row[4],
-                    "created_at": row[5],
-                }
+                return {"token": row[0], "user_id": row[1],
+                        "created_at": row[2], "expires_at": row[3]}
     return None
+
+
+def delete_session(token: str):
+    """Delete a session (logout)."""
+    with get_connection() as conn:
+        if conn is None:
+            return
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM sessions WHERE token = %s", (token,))
+
+
+def cleanup_expired_sessions():
+    """Remove all expired sessions."""
+    with get_connection() as conn:
+        if conn is None:
+            return
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM sessions WHERE expires_at < NOW()")
 
 
 # ─── Company Operations ──────────────────────────────────────────────────────

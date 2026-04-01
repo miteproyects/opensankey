@@ -79,7 +79,9 @@ from io import BytesIO
 # ── Security Headers (must run before any response is served) ──
 from security_headers import inject_security_headers, get_https_redirect_meta
 inject_security_headers()
-# NOTE: auth/login features removed – will rebuild from scratch later
+
+# ── Auth module ──
+from auth import restore_session, get_auth_params, clear_session_state
 
 from data_fetcher import (
     get_company_info,
@@ -1061,12 +1063,15 @@ try:
 except Exception:
     pass  # DB may not be available in dev mode
 
+# Restore login state from session token in URL (survives full page reloads)
+restore_session()
+
 # Always sync page from query params (navbar uses URL navigation)
 _qp_page = st.query_params.get("page", "").lower()
 _qp_ticker = st.query_params.get("ticker", "").upper().strip()
 if _qp_ticker:
     st.session_state.ticker = _qp_ticker
-if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", "pricing", "nsfe", "privacy", "terms"):
+if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe", "privacy", "terms", "user"):
     st.session_state.page = _qp_page
 elif "page" not in st.session_state:
     st.session_state.page = "home"
@@ -1790,26 +1795,34 @@ ticker = st.session_state.ticker
 current_page = st.session_state.page
 
 # Nav bar with page switching (using <a> links for reliable navigation)
+# Auth params carry login session across full page reloads caused by <a> tag navigation
+_auth_params = get_auth_params()
+_is_logged_in = st.session_state.get("logged_in", False)
+if _is_logged_in:
+    _auth_link = f'<a href="/?page=user&ticker={ticker}{_auth_params}" target="_self" class="nav-link {"active" if current_page == "user" else ""}" style="color:#3b82f6;font-weight:600;">My&nbsp;Account</a>'
+else:
+    _auth_link = f'<a href="/?page=login&ticker={ticker}" target="_self" class="nav-link" style="color:#3b82f6;font-weight:600;">Sign&nbsp;In</a>'
 st.markdown(f'''
 <style>
 [data-testid="stElementContainer"]:has(.nav-bar){{position:absolute!important;height:0!important;overflow:visible!important;margin:0!important;padding:0!important}}
 </style>
 <div class="nav-bar">
-    <a class="nav-logo" href="/?page=home&ticker={ticker}" target="_self">
+    <a class="nav-logo" href="/?page=home&ticker={ticker}{_auth_params}" target="_self">
         <img src="data:image/png;base64,{LOGO_B64}" style="height:48px;width:auto;" alt="QC"/>
         <span class="nav-logo-text">Quarter<br>Charts</span>
     </a>
     <div class="nav-links">
-                    <a class="nav-link {'active' if current_page == 'home' else ''}" href="/?page=home&ticker={ticker}" target="_self">Home</a>
-        <a class="nav-link {'active' if current_page == 'charts' else ''}" href="/?page=charts&ticker={ticker}" target="_self">{ticker} Charts</a>
-        <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="/?page=sankey&ticker={ticker}" target="_self">{ticker} Sankey</a>
-        <a class="nav-link {'active' if current_page == 'profile' else ''}" href="/?page=profile&ticker={ticker}" target="_self">{ticker} Profile</a>
-        <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="/?page=earnings&ticker={ticker}" target="_self">Earnings Calendar</a>
-        <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="/?page=watchlist&ticker={ticker}" target="_self">Watchlist</a>
+                    <a class="nav-link {'active' if current_page == 'home' else ''}" href="/?page=home&ticker={ticker}{_auth_params}" target="_self">Home</a>
+        <a class="nav-link {'active' if current_page == 'charts' else ''}" href="/?page=charts&ticker={ticker}{_auth_params}" target="_self">{ticker} Charts</a>
+        <a class="nav-link {'active' if current_page == 'sankey' else ''}" href="/?page=sankey&ticker={ticker}{_auth_params}" target="_self">{ticker} Sankey</a>
+        <a class="nav-link {'active' if current_page == 'profile' else ''}" href="/?page=profile&ticker={ticker}{_auth_params}" target="_self">{ticker} Profile</a>
+        <a class="nav-link {'active' if current_page == 'earnings' else ''}" href="/?page=earnings&ticker={ticker}{_auth_params}" target="_self">Earnings Calendar</a>
+        <a class="nav-link {'active' if current_page == 'watchlist' else ''}" href="/?page=watchlist&ticker={ticker}{_auth_params}" target="_self">Watchlist</a>
     </div>
     <div class="nav-right">
-        <a href="/?page=nsfe&ticker={ticker}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
-                    <a href="/?page=pricing&ticker={ticker}" target="_self" class="nav-link">Pricing</a>
+        <a href="/?page=nsfe&ticker={ticker}{_auth_params}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
+                    <a href="/?page=pricing&ticker={ticker}{_auth_params}" target="_self" class="nav-link">Pricing</a>
+                    {_auth_link}
         <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#9776;</button>
     </div>
 </div>
@@ -1919,7 +1932,28 @@ with st.sidebar:
     }
     </style>""", unsafe_allow_html=True)
 
-    # Auth/login features removed – sidebar sign-in will be rebuilt later
+    # Sign In / Sign Out button at the top of the sidebar
+    if st.session_state.get("logged_in"):
+        _user_email = st.session_state.get("user_email", "User")
+        if st.button(f"Sign Out ({_user_email})", key="sidebar_signout"):
+            clear_session_state()
+            st.session_state.page = "home"
+            st.query_params.clear()
+            st.query_params["page"] = "home"
+            st.query_params["ticker"] = ticker
+            st.rerun()
+    else:
+        st.markdown(f"""
+    <div style="display:flex; justify-content:flex-end; margin:-8px 0 14px 0;">
+        <a href="/?page=login&ticker={ticker}" target="_self"
+           style="display:inline-flex; align-items:center; gap:5px; background:#3b82f6; color:#fff;
+                  font-size:0.78rem; font-weight:600; padding:5px 16px; border-radius:6px;
+                  text-decoration:none; white-space:nowrap; transition:background 0.2s; box-shadow:0 1px 3px rgba(59,130,246,0.25);"
+           onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'">
+            Sign In
+        </a>
+    </div>
+        """, unsafe_allow_html=True)
 
     with st.form("ticker_form", clear_on_submit=False, border=False):
         col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
@@ -2133,6 +2167,18 @@ if current_page == "earnings":
     # Hide sidebar on earnings page (it's a standalone page, not ticker-specific)
     from earnings_page import render_earnings_page
     render_earnings_page()
+    _render_footer()
+    st.stop()
+
+if current_page == "login":
+    from login_page import render_login_page
+    render_login_page()
+    _render_footer()
+    st.stop()
+
+if current_page == "user":
+    from user_page import render_user_page
+    render_user_page()
     _render_footer()
     st.stop()
 
