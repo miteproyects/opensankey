@@ -2150,21 +2150,26 @@ with st.sidebar:
             if _is_custom_active:
                 components.html("""<script>
 (function(){
-    var PRESET_LABELS = ['Quarterly','Annual','1Y','2Y','4Y','MAX'];
     var apply = function(){
         var sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
         if (!sidebar) return false;
+        // Style the .seg-connected wrappers (the outer blue border containers)
+        var segs = sidebar.querySelectorAll('.seg-connected');
+        for (var s = 0; s < segs.length; s++){
+            segs[s].style.setProperty('border-color','rgba(148,163,184,0.2)','important');
+            segs[s].style.setProperty('box-shadow','inset 0 0 8px rgba(99,130,246,0.12)','important');
+            segs[s].style.setProperty('opacity','0.45','important');
+        }
+        // Also dim individual buttons inside them
+        var PRESET_LABELS = ['Quarterly','Annual','1Y','2Y','4Y','MAX'];
         var btns = sidebar.querySelectorAll('div[data-testid="stButton"] > button');
-        var found = 0;
         for (var i = 0; i < btns.length; i++){
             var txt = (btns[i].innerText || btns[i].textContent || '').trim();
             if (PRESET_LABELS.indexOf(txt) !== -1){
-                btns[i].style.setProperty('opacity','0.45','important');
-                btns[i].style.setProperty('box-shadow','inset 0 0 8px rgba(99,130,246,0.12)','important');
-                found++;
+                btns[i].style.setProperty('border-color','rgba(148,163,184,0.15)','important');
             }
         }
-        return found > 0;
+        return segs.length > 0;
     };
     if (!apply()){
         var t = setInterval(function(){ if(apply()) clearInterval(t); }, 60);
