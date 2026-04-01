@@ -33,22 +33,31 @@ else
 fi
 
 # Write Google OAuth secrets via Streamlit's native secrets.toml mechanism.
-# (Railway env vars are confirmed present in bash but os.getenv() in Python
-#  returns empty — this guarantees Streamlit can read them via st.secrets.)
 if [ -n "$GOOGLE_CLIENT_SECRET" ]; then
-    # Ensure .streamlit dir exists (config.toml may already be there)
     mkdir -p .streamlit
-    # Write secrets.toml (overwrites each deploy to stay in sync with Railway vars)
     cat > .streamlit/secrets.toml <<SECRETS_EOF
 GOOGLE_CLIENT_SECRET = "$GOOGLE_CLIENT_SECRET"
 GOOGLE_CLIENT_ID = "${GOOGLE_CLIENT_ID:-}"
 FIREBASE_API_KEY = "${FIREBASE_API_KEY:-}"
 SECRETS_EOF
     chmod 600 .streamlit/secrets.toml
-    echo "[start.sh] Wrote .streamlit/secrets.toml with GOOGLE_CLIENT_SECRET (len=${#GOOGLE_CLIENT_SECRET})"
+    echo "[start.sh] Wrote .streamlit/secrets.toml (len=${#GOOGLE_CLIENT_SECRET})"
+    echo "[start.sh] secrets.toml exists: $(ls -la .streamlit/secrets.toml)"
+    echo "[start.sh] CWD: $(pwd)"
 else
     echo "[start.sh] WARNING: GOOGLE_CLIENT_SECRET not set!"
 fi
 
-# Start Streamlit
+# Diagnostic: Can Python see the env var BEFORE Streamlit starts?
+python3 -c "
+import os, sys
+gcs = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+print(f'[PYTHON PRE-CHECK] GOOGLE_CLIENT_SECRET in os.environ: {\"GOOGLE_CLIENT_SECRET\" in os.environ}', file=sys.stderr)
+print(f'[PYTHON PRE-CHECK] len={len(gcs)}, val_start={gcs[:6] if gcs else \"EMPTY\"}...', file=sys.stderr)
+print(f'[PYTHON PRE-CHECK] CWD={os.getcwd()}', file=sys.stderr)
+print(f'[PYTHON PRE-CHECK] secrets.toml exists: {os.path.isfile(\".streamlit/secrets.toml\")}', file=sys.stderr)
+"
+
+# Start Streamlit — explicitly pass critical env vars to ensure inheritance
+export GOOGLE_CLIENT_SECRET GOOGLE_CLIENT_ID FIREBASE_API_KEY
 exec streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0
