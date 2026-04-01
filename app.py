@@ -2123,6 +2123,7 @@ with st.sidebar:
                     st.session_state.quarterly = True
                     if _is_custom_active:
                         st.session_state.timeframe = "1Y"
+                        st.session_state.custom_panel_open = False
                     st.rerun()
             with period_col[1]:
                 if st.button(
@@ -2133,6 +2134,7 @@ with st.sidebar:
                     st.session_state.quarterly = False
                     if _is_custom_active:
                         st.session_state.timeframe = "1Y"
+                        st.session_state.custom_panel_open = False
                     st.rerun()
 
             # ---- Timeframe buttons (segmented control) ----
@@ -2147,6 +2149,7 @@ with st.sidebar:
                         key=f"tf_{tf}",
                     ):
                         st.session_state.timeframe = tf
+                        st.session_state.custom_panel_open = False
                         st.rerun()
 
             if _is_custom_active:
@@ -2203,125 +2206,175 @@ with st.sidebar:
                         st.session_state.custom_to = qt
                         st.session_state.custom_mode = "quarter"
 
-            # Visual state: dim the expander when a preset is active
+            # ── Custom Timeframe panel — manual toggle so clicking header activates immediately ──
+            has_data = (len(_avail_years) >= 2) or (len(_avail_q_periods) >= 2)
+
+            # Ensure open-state key exists; auto-open if already in CUSTOM mode
+            if "custom_panel_open" not in st.session_state:
+                st.session_state.custom_panel_open = _is_custom_active
             if _is_custom_active:
-                st.markdown(
-                    '<style>section[data-testid="stSidebar"] div[data-testid="stExpander"]'
-                    '{ border-color: var(--accent) !important; opacity: 1 !important; }</style>',
-                    unsafe_allow_html=True,
+                st.session_state.custom_panel_open = True
+
+            _panel_open = st.session_state.custom_panel_open
+            _chevron = "▾" if _panel_open else "▸"
+
+            # Header button — clicking immediately activates CUSTOM mode
+            _header_label = f"{_chevron} 🎯 Custom Timeframe"
+            if _is_custom_active:
+                _header_style = (
+                    "border:2px solid #3b82f6 !important;"
+                    "border-radius:10px !important;"
+                    "color:#3b82f6 !important;"
+                    "font-weight:600 !important;"
+                    "background:rgba(59,130,246,0.06) !important;"
                 )
             else:
+                _header_style = (
+                    "border:1px solid rgba(148,163,184,0.3) !important;"
+                    "border-radius:10px !important;"
+                    "color:#94a3b8 !important;"
+                    "font-weight:400 !important;"
+                    "opacity:0.55 !important;"
+                )
+            st.markdown(
+                f'<style>.ctf-header button {{ {_header_style} }}</style>',
+                unsafe_allow_html=True,
+            )
+            with st.container():
+                st.markdown('<div class="ctf-header">', unsafe_allow_html=True)
+                if st.button(
+                    _header_label,
+                    use_container_width=True,
+                    key="_ctf_toggle",
+                ):
+                    if not _panel_open:
+                        # Opening: immediately switch to CUSTOM mode
+                        st.session_state.custom_panel_open = True
+                        st.session_state.timeframe = "CUSTOM"
+                        # Pre-fill range defaults if not yet set
+                        if not st.session_state.get("custom_from"):
+                            if st.session_state.custom_mode == "year" and _avail_years:
+                                st.session_state.custom_from = _avail_years[0]
+                                st.session_state.custom_to = _avail_years[-1]
+                            elif _avail_q_periods:
+                                st.session_state.custom_from = _avail_q_periods[0]
+                                st.session_state.custom_to = _avail_q_periods[-1]
+                    else:
+                        # Closing: collapse but keep CUSTOM active if range is set
+                        st.session_state.custom_panel_open = False
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            # Panel body — shown when open
+            if _panel_open and has_data:
                 st.markdown(
-                    '<style>section[data-testid="stSidebar"] div[data-testid="stExpander"]'
-                    '{ border-color: rgba(148,163,184,0.3) !important; opacity: 0.5 !important; }'
-                    'section[data-testid="stSidebar"] div[data-testid="stExpander"] summary p'
-                    '{ color: #94a3b8 !important; }</style>',
+                    '<div style="border:2px solid #3b82f6;border-top:none;border-radius:0 0 10px 10px;'
+                    'padding:10px 8px 12px;margin-top:-4px;background:rgba(59,130,246,0.03);">',
                     unsafe_allow_html=True,
                 )
 
-            with st.expander("🎯 Custom Timeframe", expanded=_is_custom):
-                has_data = (len(_avail_years) >= 2) or (len(_avail_q_periods) >= 2)
-                if has_data:
-                    # ── Mode toggle: By Year / By Quarter ──
-                    _mode_cols = st.columns(2)
-                    with _mode_cols[0]:
-                        if st.button(
-                            "By Year",
-                            use_container_width=True,
-                            type="primary" if st.session_state.custom_mode == "year" else "secondary",
-                            key="_cm_year",
-                        ):
-                            st.session_state.custom_mode = "year"
-                            st.rerun()
-                    with _mode_cols[1]:
-                        if st.button(
-                            "By Quarter",
-                            use_container_width=True,
-                            type="primary" if st.session_state.custom_mode == "quarter" else "secondary",
-                            key="_cm_quarter",
-                        ):
-                            st.session_state.custom_mode = "quarter"
-                            st.rerun()
+                # ── Mode toggle: By Year / By Quarter ──
+                _mode_cols = st.columns(2)
+                with _mode_cols[0]:
+                    if st.button(
+                        "By Year",
+                        use_container_width=True,
+                        type="primary" if st.session_state.custom_mode == "year" else "secondary",
+                        key="_cm_year",
+                    ):
+                        st.session_state.custom_mode = "year"
+                        st.session_state.timeframe = "CUSTOM"
+                        st.rerun()
+                with _mode_cols[1]:
+                    if st.button(
+                        "By Quarter",
+                        use_container_width=True,
+                        type="primary" if st.session_state.custom_mode == "quarter" else "secondary",
+                        key="_cm_quarter",
+                    ):
+                        st.session_state.custom_mode = "quarter"
+                        st.session_state.timeframe = "CUSTOM"
+                        st.rerun()
 
-                    if st.session_state.custom_mode == "year" and len(_avail_years) >= 2:
-                        # ── BY YEAR: simple From Year → To Year ──
-                        _saved_yf = st.session_state.get("custom_from", _avail_years[0])
-                        _saved_yt = st.session_state.get("custom_to", _avail_years[-1])
-                        # If stored values are quarter labels, extract year
-                        if " " in str(_saved_yf):
-                            _saved_yf = str(_saved_yf).split()[-1]
-                        if " " in str(_saved_yt):
-                            _saved_yt = str(_saved_yt).split()[-1]
-                        if _saved_yf not in _avail_years:
-                            _saved_yf = _avail_years[0]
-                        if _saved_yt not in _avail_years:
-                            _saved_yt = _avail_years[-1]
+                if st.session_state.custom_mode == "year" and len(_avail_years) >= 2:
+                    _saved_yf = st.session_state.get("custom_from", _avail_years[0])
+                    _saved_yt = st.session_state.get("custom_to", _avail_years[-1])
+                    if " " in str(_saved_yf):
+                        _saved_yf = str(_saved_yf).split()[-1]
+                    if " " in str(_saved_yt):
+                        _saved_yt = str(_saved_yt).split()[-1]
+                    if _saved_yf not in _avail_years:
+                        _saved_yf = _avail_years[0]
+                    if _saved_yt not in _avail_years:
+                        _saved_yt = _avail_years[-1]
 
-                        st.markdown(
-                            '<p style="color:#94a3b8;font-size:12px;margin:6px 0 4px;font-weight:600;">FROM</p>',
-                            unsafe_allow_html=True,
-                        )
-                        st.selectbox(
-                            "From Year", _avail_years,
-                            index=_avail_years.index(_saved_yf),
-                            key="_cf_year_from",
-                            label_visibility="collapsed",
-                            on_change=_apply_custom_range,
-                        )
-                        st.markdown(
-                            '<p style="color:#94a3b8;font-size:12px;margin:6px 0 4px;font-weight:600;">TO</p>',
-                            unsafe_allow_html=True,
-                        )
-                        st.selectbox(
-                            "To Year", _avail_years,
-                            index=_avail_years.index(_saved_yt),
-                            key="_cf_year_to",
-                            label_visibility="collapsed",
-                            on_change=_apply_custom_range,
-                        )
+                    st.markdown(
+                        '<p style="color:#94a3b8;font-size:12px;margin:8px 0 4px;font-weight:600;">FROM</p>',
+                        unsafe_allow_html=True,
+                    )
+                    st.selectbox(
+                        "From Year", _avail_years,
+                        index=_avail_years.index(_saved_yf),
+                        key="_cf_year_from",
+                        label_visibility="collapsed",
+                        on_change=_apply_custom_range,
+                    )
+                    st.markdown(
+                        '<p style="color:#94a3b8;font-size:12px;margin:6px 0 4px;font-weight:600;">TO</p>',
+                        unsafe_allow_html=True,
+                    )
+                    st.selectbox(
+                        "To Year", _avail_years,
+                        index=_avail_years.index(_saved_yt),
+                        key="_cf_year_to",
+                        label_visibility="collapsed",
+                        on_change=_apply_custom_range,
+                    )
 
-                    elif st.session_state.custom_mode == "quarter" and len(_avail_q_periods) >= 2:
-                        # ── BY QUARTER: From Q + Year → To Q + Year ──
-                        _saved_qf = st.session_state.get("custom_from", _avail_q_periods[0])
-                        _saved_qt = st.session_state.get("custom_to", _avail_q_periods[-1])
-                        if _saved_qf not in _avail_q_periods:
-                            _saved_qf = _avail_q_periods[0]
-                        if _saved_qt not in _avail_q_periods:
-                            _saved_qt = _avail_q_periods[-1]
+                elif st.session_state.custom_mode == "quarter" and len(_avail_q_periods) >= 2:
+                    _saved_qf = st.session_state.get("custom_from", _avail_q_periods[0])
+                    _saved_qt = st.session_state.get("custom_to", _avail_q_periods[-1])
+                    if _saved_qf not in _avail_q_periods:
+                        _saved_qf = _avail_q_periods[0]
+                    if _saved_qt not in _avail_q_periods:
+                        _saved_qt = _avail_q_periods[-1]
 
-                        st.markdown(
-                            '<p style="color:#94a3b8;font-size:12px;margin:6px 0 4px;font-weight:600;">FROM</p>',
-                            unsafe_allow_html=True,
-                        )
-                        st.selectbox(
-                            "From Quarter", _avail_q_periods,
-                            index=_avail_q_periods.index(_saved_qf),
-                            key="_cf_q_from",
-                            label_visibility="collapsed",
-                            on_change=_apply_custom_range,
-                        )
-                        st.markdown(
-                            '<p style="color:#94a3b8;font-size:12px;margin:6px 0 4px;font-weight:600;">TO</p>',
-                            unsafe_allow_html=True,
-                        )
-                        st.selectbox(
-                            "To Quarter", _avail_q_periods,
-                            index=_avail_q_periods.index(_saved_qt),
-                            key="_cf_q_to",
-                            label_visibility="collapsed",
-                            on_change=_apply_custom_range,
-                        )
+                    st.markdown(
+                        '<p style="color:#94a3b8;font-size:12px;margin:8px 0 4px;font-weight:600;">FROM</p>',
+                        unsafe_allow_html=True,
+                    )
+                    st.selectbox(
+                        "From Quarter", _avail_q_periods,
+                        index=_avail_q_periods.index(_saved_qf),
+                        key="_cf_q_from",
+                        label_visibility="collapsed",
+                        on_change=_apply_custom_range,
+                    )
+                    st.markdown(
+                        '<p style="color:#94a3b8;font-size:12px;margin:6px 0 4px;font-weight:600;">TO</p>',
+                        unsafe_allow_html=True,
+                    )
+                    st.selectbox(
+                        "To Quarter", _avail_q_periods,
+                        index=_avail_q_periods.index(_saved_qt),
+                        key="_cf_q_to",
+                        label_visibility="collapsed",
+                        on_change=_apply_custom_range,
+                    )
 
-                    # Show active range indicator
-                    if _is_custom and st.session_state.get("custom_from") and st.session_state.get("custom_to"):
-                        st.markdown(
-                            f'<p style="color:#60a5fa;font-size:12px;margin-top:8px;text-align:center;'
-                            f'background:rgba(59,130,246,0.08);padding:6px 10px;border-radius:6px;">'
-                            f'📊 {st.session_state["custom_from"]} → {st.session_state["custom_to"]}</p>',
-                            unsafe_allow_html=True,
-                        )
-                else:
-                    st.info("No data available for this ticker yet.")
+                # Active range indicator
+                if st.session_state.get("custom_from") and st.session_state.get("custom_to"):
+                    st.markdown(
+                        f'<p style="color:#60a5fa;font-size:12px;margin-top:8px;text-align:center;'
+                        f'background:rgba(59,130,246,0.08);padding:6px 10px;border-radius:6px;">'
+                        f'📊 {st.session_state["custom_from"]} → {st.session_state["custom_to"]}</p>',
+                        unsafe_allow_html=True,
+                    )
+
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            elif _panel_open and not has_data:
+                st.info("No data available for this ticker yet.")
 
             # ---- Analyst Forecast toggle ----
             st.markdown("---")
