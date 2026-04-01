@@ -822,10 +822,11 @@ section[data-testid="stSidebar"] button[kind="primary"] {
     border-right: none !important;
 }
 
-/* Custom Timeframe expander */
+/* Custom Timeframe expander — styled dynamically via .ctf-active / .ctf-inactive classes */
 section[data-testid="stSidebar"] div[data-testid="stExpander"] {
     border: 2px solid var(--accent) !important;
     border-radius: 10px !important;
+    transition: opacity 0.2s, border-color 0.2s;
 }
 section[data-testid="stSidebar"] div[data-testid="stExpander"] summary p {
     color: var(--accent) !important;
@@ -2101,37 +2102,55 @@ with st.sidebar:
         st.markdown("----")
 
         if current_page != "sankey":
+            _is_custom_active = st.session_state.timeframe == "CUSTOM"
+
+            # When Custom is active, dim the preset button rows
+            if _is_custom_active:
+                st.markdown(
+                    '<div style="opacity:0.45;pointer-events:auto;">',
+                    unsafe_allow_html=True,
+                )
+
             # ---- Quarterly / Annual toggle (segmented control) ----
+            # When Custom Timeframe is active, both look unselected (secondary)
             period_col = st.columns(2)
             with period_col[0]:
                 if st.button(
                     "Quarterly",
                     use_container_width=True,
-                    type="primary" if st.session_state.quarterly else "secondary",
+                    type="primary" if (st.session_state.quarterly and not _is_custom_active) else "secondary",
                 ):
                     st.session_state.quarterly = True
+                    if _is_custom_active:
+                        st.session_state.timeframe = "1Y"
                     st.rerun()
             with period_col[1]:
                 if st.button(
                     "Annual",
                     use_container_width=True,
-                    type="primary" if not st.session_state.quarterly else "secondary",
+                    type="primary" if (not st.session_state.quarterly and not _is_custom_active) else "secondary",
                 ):
                     st.session_state.quarterly = False
+                    if _is_custom_active:
+                        st.session_state.timeframe = "1Y"
                     st.rerun()
 
             # ---- Timeframe buttons (segmented control) ----
+            # When Custom Timeframe is active, none are highlighted
             tf_cols = st.columns(4)
             for i, tf in enumerate(["1Y", "2Y", "4Y", "MAX"]):
                 with tf_cols[i]:
                     if st.button(
                         tf,
                         use_container_width=True,
-                        type="primary" if st.session_state.timeframe == tf else "secondary",
+                        type="primary" if (st.session_state.timeframe == tf and not _is_custom_active) else "secondary",
                         key=f"tf_{tf}",
                     ):
                         st.session_state.timeframe = tf
                         st.rerun()
+
+            if _is_custom_active:
+                st.markdown('</div>', unsafe_allow_html=True)
 
             # ── Custom Timeframe — By Year / By Quarter ──
             # Fetch available periods for this ticker
@@ -2183,6 +2202,22 @@ with st.sidebar:
                         st.session_state.custom_from = qf
                         st.session_state.custom_to = qt
                         st.session_state.custom_mode = "quarter"
+
+            # Visual state: dim the expander when a preset is active
+            if _is_custom_active:
+                st.markdown(
+                    '<style>section[data-testid="stSidebar"] div[data-testid="stExpander"]'
+                    '{ border-color: var(--accent) !important; opacity: 1 !important; }</style>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<style>section[data-testid="stSidebar"] div[data-testid="stExpander"]'
+                    '{ border-color: rgba(148,163,184,0.3) !important; opacity: 0.5 !important; }'
+                    'section[data-testid="stSidebar"] div[data-testid="stExpander"] summary p'
+                    '{ color: #94a3b8 !important; }</style>',
+                    unsafe_allow_html=True,
+                )
 
             with st.expander("🎯 Custom Timeframe", expanded=_is_custom):
                 has_data = (len(_avail_years) >= 2) or (len(_avail_q_periods) >= 2)
