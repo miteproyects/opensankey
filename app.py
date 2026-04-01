@@ -2176,11 +2176,12 @@ with st.sidebar:
 </script>""", height=0, scrolling=False)
             else:
                 # Restore preset buttons to normal (remove previously injected dim styles)
+                # Run at multiple delays to handle Streamlit DOM patching and .seg-connected timing
                 components.html("""<script>
 (function(){
-    var apply = function(){
+    var restore = function(){
         var sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
-        if (!sidebar) return false;
+        if (!sidebar) return;
         var segs = sidebar.querySelectorAll('.seg-connected');
         for (var s = 0; s < segs.length; s++){
             segs[s].style.removeProperty('border-color');
@@ -2192,12 +2193,26 @@ with st.sidebar:
             segBtns[i].style.removeProperty('border-color');
             segBtns[i].style.removeProperty('color');
         }
-        return segs.length > 0;
+        // Also clean any horizontal blocks with inline dim styles (before .seg-connected is added)
+        var hBlocks = sidebar.querySelectorAll('[data-testid="stHorizontalBlock"]');
+        for (var h = 0; h < hBlocks.length; h++){
+            hBlocks[h].style.removeProperty('border-color');
+            hBlocks[h].style.removeProperty('box-shadow');
+            hBlocks[h].style.removeProperty('opacity');
+            var btns = hBlocks[h].querySelectorAll('button');
+            for (var b = 0; b < btns.length; b++){
+                btns[b].style.removeProperty('border-color');
+                btns[b].style.removeProperty('color');
+            }
+        }
     };
-    if (!apply()){
-        var t = setInterval(function(){ if(apply()) clearInterval(t); }, 60);
-        setTimeout(function(){ clearInterval(t); }, 4000);
-    }
+    // Run immediately and at multiple delays to catch all timing scenarios
+    restore();
+    setTimeout(restore, 100);
+    setTimeout(restore, 350);
+    setTimeout(restore, 850);
+    setTimeout(restore, 1600);
+    setTimeout(restore, 3100);
 })();
 </script>""", height=0, scrolling=False)
 
