@@ -156,7 +156,7 @@ def render_home_page():
             text-align: center;
             font-size: .85rem;
             color: #64748B;
-            margin-top: 12px;
+            margin-top: 4px;
             margin-bottom: 0;
             padding-bottom: 60px;
         }
@@ -338,8 +338,8 @@ def render_home_page():
             <a class="btn-primary" href="/?page=charts&ticker=NVDA" target="_top">Explore Charts &#8212; Free</a>
             <a class="btn-ghost"  href="/?page=pricing" target="_top">View Pricing</a>
         </div>
-        <div style="height:1px;background:rgba(255,255,255,0.07);max-width:480px;margin:18px auto 0;border-radius:1px;"></div>
-        <div class="popular">
+        <div style="height:0.5px;background:rgba(255,255,255,0.07);max-width:480px;margin:6px auto 0;border-radius:1px;"></div>
+        <div class="popular" style="margin-top:4px;">
             Popular:
             <a href="/?page=charts&ticker=AAPL" target="_top">AAPL</a> &#183;
             <a href="/?page=charts&ticker=TSLA" target="_top">TSLA</a> &#183;
