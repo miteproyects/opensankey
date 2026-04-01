@@ -2026,28 +2026,38 @@ with st.sidebar:
     }
     </style>""", unsafe_allow_html=True)
 
-    # Sign In / My Account + Sign Out links at the top of the sidebar
+    # Sign In / My Account + Sign Out + My Dashboard links at the top of the sidebar
     if st.session_state.get("logged_in"):
         from auth import get_auth_params
         _auth_params = get_auth_params()
         st.markdown(f"""
-    <div style="display:flex; justify-content:space-between; align-items:center;
-                margin:-8px 0 14px 0; padding:10px 14px; border-radius:8px;
-                background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.15);">
+    <div style="margin:-8px 0 14px 0; border-radius:10px; overflow:hidden;
+                background:linear-gradient(135deg, rgba(59,130,246,0.07) 0%, rgba(99,130,246,0.04) 100%);
+                border:1px solid rgba(59,130,246,0.15);">
         <a href="/?page=dashboard&ticker={ticker}{_auth_params}" target="_self"
-           style="color:#60a5fa; font-size:0.82rem; font-weight:700; text-decoration:none;
-                  letter-spacing:0.2px; transition:color 0.2s;"
-           onmouseover="this.style.color='#93c5fd'" onmouseout="this.style.color='#60a5fa'">
-            My Account
+           style="display:block; text-align:center; padding:10px 14px;
+                  color:#3b82f6; font-size:0.88rem; font-weight:700; text-decoration:none;
+                  letter-spacing:0.3px; transition:background 0.2s;"
+           onmouseover="this.style.background='rgba(59,130,246,0.08)'"
+           onmouseout="this.style.background='transparent'">
+            📊 My Dashboard
         </a>
-        <span style="color:#334155; font-size:12px;">|</span>
-        <a href="/?page=__signout__&ticker={ticker}" target="_self"
-           id="sidebar-signout-link"
-           style="color:#f87171; font-size:0.82rem; font-weight:700; text-decoration:none;
-                  letter-spacing:0.2px; transition:color 0.2s;"
-           onmouseover="this.style.color='#fca5a5'" onmouseout="this.style.color='#f87171'">
-            Sign Out
-        </a>
+        <div style="height:1px; background:rgba(59,130,246,0.12); margin:0 12px;"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px;">
+            <a href="/?page=user&ticker={ticker}{_auth_params}" target="_self"
+               style="color:#64748b; font-size:0.78rem; font-weight:600; text-decoration:none;
+                      transition:color 0.2s;"
+               onmouseover="this.style.color='#3b82f6'" onmouseout="this.style.color='#64748b'">
+                My Account
+            </a>
+            <a href="/?page=__signout__&ticker={ticker}" target="_self"
+               id="sidebar-signout-link"
+               style="color:#94a3b8; font-size:0.78rem; font-weight:600; text-decoration:none;
+                      transition:color 0.2s;"
+               onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='#94a3b8'">
+                Sign Out
+            </a>
+        </div>
     </div>
         """, unsafe_allow_html=True)
         # Handle sign-out via URL param
@@ -2069,23 +2079,6 @@ with st.sidebar:
             Sign In
         </a>
     </div>
-        """, unsafe_allow_html=True)
-
-    # My Dashboard link (visible when logged in)
-    if st.session_state.get("logged_in"):
-        from auth import get_auth_params as _get_auth_params_dash
-        _dash_auth = _get_auth_params_dash()
-        st.markdown(f"""
-    <a href="/?page=dashboard&ticker={ticker}{_dash_auth}" target="_self"
-       style="display:block; text-align:center; padding:8px 14px; margin:0 0 12px 0;
-              border-radius:8px; background:rgba(59,130,246,0.06);
-              border:1px solid rgba(59,130,246,0.18); color:#60a5fa;
-              font-size:0.85rem; font-weight:600; text-decoration:none;
-              transition:background 0.2s, border-color 0.2s;"
-       onmouseover="this.style.background='rgba(59,130,246,0.12)';this.style.borderColor='rgba(59,130,246,0.35)'"
-       onmouseout="this.style.background='rgba(59,130,246,0.06)';this.style.borderColor='rgba(59,130,246,0.18)'">
-        📊 My Dashboard
-    </a>
         """, unsafe_allow_html=True)
 
     with st.form("ticker_form", clear_on_submit=False, border=False):
