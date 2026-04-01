@@ -114,7 +114,8 @@ def set_session_state(user: dict, token: str):
 
 def clear_session_state():
     """Remove auth info from st.session_state and delete DB session."""
-    token = st.session_state.get("session_token")
+    # Try to get token from session state first, fall back to URL param
+    token = st.session_state.get("session_token") or st.query_params.get(_SESSION_PARAM, "")
     if token:
         try:
             from database import delete_session

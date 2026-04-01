@@ -2050,7 +2050,7 @@ with st.sidebar:
                onmouseover="this.style.color='#3b82f6'" onmouseout="this.style.color='#64748b'">
                 My Account
             </a>
-            <a href="/?page=__signout__&ticker={ticker}" target="_self"
+            <a href="/?page=__signout__&ticker={ticker}{_auth_params}" target="_self"
                id="sidebar-signout-link"
                style="color:#94a3b8; font-size:0.78rem; font-weight:600; text-decoration:none;
                       transition:color 0.2s;"
