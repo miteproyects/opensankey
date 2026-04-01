@@ -9,7 +9,6 @@ Google Sign-In uses the GIS (Google Identity Services) client-side flow:
 - This bypasses Railway's env-var isolation issue entirely
 """
 import streamlit as st
-import streamlit.components.v1 as components
 import logging
 
 logger = logging.getLogger(__name__)
@@ -132,45 +131,18 @@ def render_login_page():
 
 
 def _render_google_button():
-    """Render the Google Sign-In button using GIS client-side library."""
-    # The GIS library handles the entire OAuth flow in the browser.
-    # On success, it calls our JS callback with a JWT credential.
-    # We redirect back to this page with ?credential=<jwt> so Streamlit
-    # can verify it server-side (using only the public CLIENT_ID).
-    components.html(f"""
-    <script src="https://accounts.google.com/gsi/client" async></script>
-    <div id="qc-google-btn" style="display:flex;justify-content:center;margin:8px 0;"></div>
-    <script>
-    window.addEventListener('load', function() {{
-        if (typeof google === 'undefined' || !google.accounts) {{
-            // GIS library not loaded yet, retry
-            setTimeout(arguments.callee, 200);
-            return;
-        }}
-        google.accounts.id.initialize({{
-            client_id: "{GOOGLE_CLIENT_ID}",
-            callback: function(response) {{
-                // Redirect parent page with the credential for server-side verification
-                var url = new URL(window.parent.location.href);
-                // Clear existing params, keep only what we need
-                var newUrl = url.origin + "/?page=login&credential=" + encodeURIComponent(response.credential);
-                window.parent.location.href = newUrl;
-            }},
-            ux_mode: "popup",
-            context: "signin",
-        }});
-        google.accounts.id.renderButton(
-            document.getElementById("qc-google-btn"),
-            {{
-                type: "standard",
-                theme: "outline",
-                size: "large",
-                text: "continue_with",
-                shape: "rectangular",
-                width: 320,
-                logo_alignment: "left",
-            }}
-        );
-    }});
-    </script>
-    """, height=55)
+    """Render the Google Sign-In button in the main page frame (not an iframe).
+
+    The GIS script is injected into Streamlit's index.html by start.sh so it
+    runs on the top-level page (origin = https://quartercharts.com).
+    This avoids the 'origin=null' error that happens when GIS runs inside
+    a srcdoc iframe created by components.html().
+
+    We render a plain div here via st.markdown(); the GIS script in the main
+    page finds it via MutationObserver and renders the Google button into it.
+    """
+    st.markdown(
+        '<div data-qc-google-btn style="display:flex;justify-content:center;'
+        'min-height:44px;margin:8px 0;"></div>',
+        unsafe_allow_html=True,
+    )
