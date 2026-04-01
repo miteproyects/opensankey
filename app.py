@@ -2285,13 +2285,13 @@ with st.sidebar:
                             st.session_state.quarterly = True
                         else:
                             st.session_state.quarterly = False
-                        # Pre-fill range defaults if not yet set
+                        # Pre-fill range defaults if not yet set (default ~2 years)
                         if not st.session_state.get("custom_from"):
                             if st.session_state.custom_mode == "quarter" and _avail_q_periods:
-                                st.session_state.custom_from = _avail_q_periods[0]
+                                st.session_state.custom_from = _avail_q_periods[max(0, len(_avail_q_periods) - 8)]
                                 st.session_state.custom_to = _avail_q_periods[-1]
                             elif _avail_years:
-                                st.session_state.custom_from = _avail_years[0]
+                                st.session_state.custom_from = _avail_years[max(0, len(_avail_years) - 2)]
                                 st.session_state.custom_to = _avail_years[-1]
                     else:
                         # Closing: collapse but keep CUSTOM active if range is set
@@ -2368,9 +2368,9 @@ with st.sidebar:
                         st.session_state.custom_mode = "quarter"
                         st.session_state.quarterly = True
                         st.session_state.timeframe = "CUSTOM"
-                        # Reset range to quarter defaults
+                        # Reset range to quarter defaults (~2 years = 8 quarters)
                         if _avail_q_periods:
-                            st.session_state.custom_from = _avail_q_periods[0]
+                            st.session_state.custom_from = _avail_q_periods[max(0, len(_avail_q_periods) - 8)]
                             st.session_state.custom_to = _avail_q_periods[-1]
                         st.rerun()
                 with _mode_cols[1]:
@@ -2383,9 +2383,9 @@ with st.sidebar:
                         st.session_state.custom_mode = "year"
                         st.session_state.quarterly = False
                         st.session_state.timeframe = "CUSTOM"
-                        # Reset range to year defaults
+                        # Reset range to year defaults (~2 years)
                         if _avail_years:
-                            st.session_state.custom_from = _avail_years[0]
+                            st.session_state.custom_from = _avail_years[max(0, len(_avail_years) - 2)]
                             st.session_state.custom_to = _avail_years[-1]
                         st.rerun()
 
