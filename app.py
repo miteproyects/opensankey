@@ -1117,9 +1117,25 @@ def _trim_timeframe(df: pd.DataFrame) -> pd.DataFrame:
     tf = st.session_state.timeframe
     if df.empty or tf == "MAX":
         return df
-    if tf == "CUSTOM" and "custom_n" in st.session_state:
-        n = st.session_state.custom_n
-        return df.tail(min(n, len(df)))
+    if tf == "CUSTOM":
+        # Range-based custom filter (From → To quarter/year labels)
+        cf = st.session_state.get("custom_from")
+        ct = st.session_state.get("custom_to")
+        if cf and ct:
+            labels = list(df.index)
+            try:
+                i_from = labels.index(cf)
+                i_to = labels.index(ct)
+                if i_from > i_to:
+                    i_from, i_to = i_to, i_from
+                return df.iloc[i_from : i_to + 1]
+            except ValueError:
+                pass
+        # Legacy fallback: "custom_n" (number of periods)
+        if "custom_n" in st.session_state:
+            n = st.session_state.custom_n
+            return df.tail(min(n, len(df)))
+        return df
     n_map = {"1Y": 4, "2Y": 8, "4Y": 16}
     n = n_map.get(tf, len(df))
     if not st.session_state.quarterly:
@@ -1153,10 +1169,27 @@ def _trim_segment_timeframe(df: pd.DataFrame) -> pd.DataFrame:
     else:
         n = year_map.get(tf, len(df))
 
-    if tf == "CUSTOM" and "custom_n" in st.session_state:
-        n = st.session_state.custom_n
-        if is_annual:
-            n = max(n // 4, 2)
+    if tf == "CUSTOM":
+        # Range-based custom filter
+        cf = st.session_state.get("custom_from")
+        ct = st.session_state.get("custom_to")
+        if cf and ct:
+            labels = list(df.index)
+            try:
+                i_from = labels.index(cf)
+                i_to = labels.index(ct)
+                if i_from > i_to:
+                    i_from, i_to = i_to, i_from
+                return df.iloc[i_from : i_to + 1]
+            except ValueError:
+                pass  # Labels don't match (segment data may have different labels)
+        # Legacy fallback
+        if "custom_n" in st.session_state:
+            n = st.session_state.custom_n
+            if is_annual:
+                n = max(n // 4, 2)
+        else:
+            return df
 
     return df.tail(min(n, len(df)))
 
@@ -2041,19 +2074,59 @@ with st.sidebar:
                         st.session_state.timeframe = tf
                         st.rerun()
 
-            # Custom timeframe
-            with st.expander("🎯 Custom Timeframe"):
-                custom_n = st.number_input(
-                    "Number of periods",
-                    min_value=1,
-                    max_value=40,
-                    value=st.session_state.get("custom_n", 5),
-                    key="custom_input",
-                )
-                if st.button("Apply", use_container_width=True, key="apply_custom"):
-                    st.session_state.timeframe = "CUSTOM"
-                    st.session_state.custom_n = custom_n
-                    st.rerun()
+            # Custom timeframe — From/To quarter selector
+            # Fetch available periods for this ticker (cached, fast)
+            _avail_periods = []
+            try:
+                _avail_df = get_income_statement(ticker, quarterly=st.session_state.quarterly)
+                if not _avail_df.empty:
+                    _avail_periods = list(_avail_df.index)  # sorted chronologically
+            except Exception:
+                pass
+
+            _is_custom = st.session_state.timeframe == "CUSTOM"
+            with st.expander("🎯 Custom Timeframe", expanded=_is_custom):
+                if _avail_periods and len(_avail_periods) >= 2:
+                    # Determine defaults
+                    _saved_from = st.session_state.get("custom_from", _avail_periods[0])
+                    _saved_to = st.session_state.get("custom_to", _avail_periods[-1])
+                    # Ensure saved values are in available list
+                    if _saved_from not in _avail_periods:
+                        _saved_from = _avail_periods[0]
+                    if _saved_to not in _avail_periods:
+                        _saved_to = _avail_periods[-1]
+                    _idx_from = _avail_periods.index(_saved_from)
+                    _idx_to = _avail_periods.index(_saved_to)
+
+                    st.markdown(
+                        '<p style="color:#94a3b8;font-size:13px;margin:0 0 6px;">From</p>',
+                        unsafe_allow_html=True,
+                    )
+                    custom_from = st.selectbox(
+                        "From", _avail_periods, index=_idx_from,
+                        key="custom_from_select", label_visibility="collapsed",
+                    )
+                    st.markdown(
+                        '<p style="color:#94a3b8;font-size:13px;margin:4px 0 6px;">To</p>',
+                        unsafe_allow_html=True,
+                    )
+                    custom_to = st.selectbox(
+                        "To", _avail_periods, index=_idx_to,
+                        key="custom_to_select", label_visibility="collapsed",
+                    )
+                    if st.button("Apply Range", use_container_width=True, type="primary", key="apply_custom"):
+                        st.session_state.timeframe = "CUSTOM"
+                        st.session_state.custom_from = custom_from
+                        st.session_state.custom_to = custom_to
+                        st.rerun()
+                    if _is_custom and st.session_state.get("custom_from") and st.session_state.get("custom_to"):
+                        st.markdown(
+                            f'<p style="color:#60a5fa;font-size:12px;margin-top:6px;text-align:center;">'
+                            f'Showing: {st.session_state["custom_from"]} → {st.session_state["custom_to"]}</p>',
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.info("No data available for this ticker yet.")
 
             # ---- Analyst Forecast toggle ----
             st.markdown("---")
