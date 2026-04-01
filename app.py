@@ -2159,7 +2159,8 @@ with st.sidebar:
         for (var i = 0; i < btns.length; i++){
             var txt = (btns[i].innerText || btns[i].textContent || '').trim();
             if (PRESET_LABELS.indexOf(txt) !== -1){
-                btns[i].style.setProperty('opacity','0.38','important');
+                btns[i].style.setProperty('opacity','0.45','important');
+                btns[i].style.setProperty('box-shadow','inset 0 0 8px rgba(99,130,246,0.12)','important');
                 found++;
             }
         }
