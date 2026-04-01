@@ -146,7 +146,22 @@ def _render_google_button():
     https://quartercharts.com (not srcdoc), so the iframe's origin is
     https://quartercharts.com — satisfying Google's OAuth 2.0 policy.
 
-    The component's JS navigates window.parent to /?page=login&credential=...
-    when the user completes Google sign-in.
+    The component's JS navigates window.top to /?page=login&credential=...
+    when the user completes Google sign-in.  If that fails, it falls back to
+    setting the component value via postMessage.
     """
-    _google_signin(key="google_signin_btn", height=50)
+    credential = _google_signin(key="google_signin_btn", height=50)
+    # Fallback: if the component returned a credential via postMessage
+    if credential and isinstance(credential, str) and len(credential) > 50:
+        logger.info("Got Google credential via component value fallback")
+        from auth import login_with_google, get_auth_params
+        success, error = login_with_google(credential)
+        if success:
+            st.session_state.page = "dashboard"
+            st.query_params["page"] = "dashboard"
+            token = st.session_state.get("session_token", "")
+            if token:
+                st.query_params["_sid"] = token
+            st.rerun()
+        else:
+            st.session_state["_auth_error"] = error

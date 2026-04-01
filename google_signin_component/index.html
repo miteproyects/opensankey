@@ -24,23 +24,47 @@
     var CLIENT_ID = "61622589594-3tet7j0drvkam8js5gtisbiv8bs2hevj.apps.googleusercontent.com";
 
     function onGoogleCallback(response) {
-      // Same-origin: this iframe is served from https://quartercharts.com
-      // so we can navigate the parent window directly.
+      console.log("[GIS] Callback fired! credential length:", response.credential ? response.credential.length : 0);
+
+      // Try navigating the top-level window (most reliable)
       try {
-        var parentUrl = new URL(window.parent.location.href);
-        var ticker = parentUrl.searchParams.get("ticker") || "AAPL";
-        window.parent.location.href =
-          parentUrl.origin +
+        var topUrl = new URL(window.top.location.href);
+        var ticker = topUrl.searchParams.get("ticker") || "AAPL";
+        var targetUrl = topUrl.origin +
           "/?page=login&credential=" + encodeURIComponent(response.credential) +
           "&ticker=" + encodeURIComponent(ticker);
-      } catch (e) {
-        // Fallback: use postMessage to Streamlit
+        console.log("[GIS] Navigating window.top to:", targetUrl.substring(0, 80) + "...");
+        window.top.location.href = targetUrl;
+        return;
+      } catch (e1) {
+        console.error("[GIS] window.top navigation failed:", e1.message);
+      }
+
+      // Fallback: try window.parent
+      try {
+        var parentUrl = new URL(window.parent.location.href);
+        var ticker2 = parentUrl.searchParams.get("ticker") || "AAPL";
+        var targetUrl2 = parentUrl.origin +
+          "/?page=login&credential=" + encodeURIComponent(response.credential) +
+          "&ticker=" + encodeURIComponent(ticker2);
+        console.log("[GIS] Navigating window.parent to:", targetUrl2.substring(0, 80) + "...");
+        window.parent.location.href = targetUrl2;
+        return;
+      } catch (e2) {
+        console.error("[GIS] window.parent navigation failed:", e2.message);
+      }
+
+      // Final fallback: postMessage to Streamlit
+      try {
+        console.log("[GIS] Using postMessage fallback");
         window.parent.postMessage({
           isStreamlitMessage: true,
           type: "streamlit:setComponentValue",
           value: response.credential,
           dataType: "json"
         }, "*");
+      } catch (e3) {
+        console.error("[GIS] All fallbacks failed:", e3.message);
       }
     }
 
@@ -49,10 +73,12 @@
         setTimeout(initGIS, 100);
         return;
       }
+      console.log("[GIS] Library loaded, initializing...");
       google.accounts.id.initialize({
         client_id: CLIENT_ID,
         callback: onGoogleCallback,
-        ux_mode: "popup"
+        ux_mode: "popup",
+        itp_support: true
       });
       google.accounts.id.renderButton(
         document.getElementById("google-btn"),
@@ -65,6 +91,7 @@
           width: 320
         }
       );
+      console.log("[GIS] Button rendered");
       // Tell Streamlit frame height
       window.parent.postMessage({
         isStreamlitMessage: true,
