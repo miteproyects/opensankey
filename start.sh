@@ -32,10 +32,19 @@ else
     echo "WARNING: Could not find Streamlit index.html at $STREAMLIT_INDEX"
 fi
 
-# DEBUG: Check if GOOGLE env vars are injected by Railway
-echo "[DEBUG] GOOGLE_CLIENT_SECRET set: $([ -n \"$GOOGLE_CLIENT_SECRET\" ] && echo 'YES (len='${#GOOGLE_CLIENT_SECRET}')' || echo 'NO')"
-echo "[DEBUG] GOOGLE_CLIENT_ID set: $([ -n \"$GOOGLE_CLIENT_ID\" ] && echo 'YES' || echo 'NO')"
-echo "[DEBUG] All env vars with GOOGLE: $(env | grep -i GOOGLE | sed 's/=.*/=***/')"
+# Write Google OAuth secrets to temp files so Python can read them reliably.
+# (Railway env vars are confirmed present in bash but os.getenv() in Python
+#  sometimes returns empty — this file-based fallback guarantees access.)
+if [ -n "$GOOGLE_CLIENT_SECRET" ]; then
+    echo -n "$GOOGLE_CLIENT_SECRET" > /tmp/.gcs
+    chmod 600 /tmp/.gcs
+    echo "[start.sh] Wrote GOOGLE_CLIENT_SECRET to /tmp/.gcs (len=${#GOOGLE_CLIENT_SECRET})"
+fi
+if [ -n "$GOOGLE_CLIENT_ID" ]; then
+    echo -n "$GOOGLE_CLIENT_ID" > /tmp/.gci
+    chmod 600 /tmp/.gci
+    echo "[start.sh] Wrote GOOGLE_CLIENT_ID to /tmp/.gci"
+fi
 
 # Start Streamlit
 exec streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0

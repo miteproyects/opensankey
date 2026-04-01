@@ -7,11 +7,6 @@ Run with:  streamlit run app.py
 import os
 import sys
 
-# DEBUG: Check env vars at Python startup (before Streamlit captures stdout)
-_debug_gcs = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-print(f"[APP.PY STARTUP] GOOGLE_CLIENT_SECRET present: {bool(_debug_gcs)}, len={len(_debug_gcs)}", file=sys.stderr)
-print(f"[APP.PY STARTUP] GOOGLE env vars: {[k for k in os.environ if 'GOOGLE' in k]}", file=sys.stderr)
-
 # ── Patch Streamlit index.html to add Google site verification in <head> ──
 def _patch_streamlit_head():
     """Inject meta tags into Streamlit's index.html <head> at import time."""
