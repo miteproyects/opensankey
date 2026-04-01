@@ -32,13 +32,22 @@ else
     echo "WARNING: Could not find Streamlit index.html at $STREAMLIT_INDEX"
 fi
 
-# Write secrets to /tmp/ as plain text files (absolute paths).
-# Streamlit strips env vars AND changes CWD, so relative paths fail.
-echo -n "$GOOGLE_CLIENT_SECRET" > /tmp/.gcs
-echo -n "$GOOGLE_CLIENT_ID" > /tmp/.gci
-echo -n "$FIREBASE_API_KEY" > /tmp/.fbk
-echo "[start.sh] Wrote secrets to /tmp/ (GCS len=${#GOOGLE_CLIENT_SECRET})" >&2
+# ── Inject secrets directly into Python source via sed ──────────────────────
+# Railway's container runtime makes env vars AND /tmp/ files invisible to the
+# Streamlit process.  But sed -i on existing files DOES persist (proven by the
+# index.html patches above).  So we replace placeholder tokens in login_page.py
+# with the actual secret values before launching Streamlit.
+if [ -n "$GOOGLE_CLIENT_SECRET" ]; then
+    sed -i "s|__GCS_PLACEHOLDER__|${GOOGLE_CLIENT_SECRET}|g" login_page.py
+    echo "[start.sh] Injected GOOGLE_CLIENT_SECRET (${#GOOGLE_CLIENT_SECRET} chars) into login_page.py"
+else
+    echo "[start.sh] WARNING: GOOGLE_CLIENT_SECRET env var is empty!"
+fi
 
-# Start Streamlit — explicitly pass critical env vars to ensure inheritance
-export GOOGLE_CLIENT_SECRET GOOGLE_CLIENT_ID FIREBASE_API_KEY
+if [ -n "$GOOGLE_CLIENT_ID" ]; then
+    sed -i "s|__GCI_PLACEHOLDER__|${GOOGLE_CLIENT_ID}|g" login_page.py
+    echo "[start.sh] Injected GOOGLE_CLIENT_ID into login_page.py"
+fi
+
+# Start Streamlit
 exec streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0

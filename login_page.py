@@ -20,22 +20,21 @@ from rate_limiter import check_login_allowed, record_login_attempt
 
 logger = logging.getLogger(__name__)
 
-# ── Helper: read a secret from /tmp/ (written by start.sh at container boot) ──
-def _read_secret_file(path, fallback=""):
-    try:
-        with open(path, "r") as f:
-            val = f.read().strip()
-            return val if val else fallback
-    except Exception:
-        return fallback
-
 # ── Credentials ──
+# start.sh uses sed to replace __PLACEHOLDER__ tokens below at container boot.
+# This is the ONLY reliable way to pass secrets on Railway (env vars and /tmp/
+# files are both invisible to the Streamlit process).
+_GCI_INJECTED = "__GCI_PLACEHOLDER__"  # replaced by start.sh sed at boot
 GOOGLE_CLIENT_ID = (
     os.getenv("GOOGLE_CLIENT_ID", "")
-    or _read_secret_file("/tmp/.gci")
+    or (_GCI_INJECTED if _GCI_INJECTED != "__GCI_PLAC" + "EHOLDER__" else "")
     or "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com"
 )
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "") or _read_secret_file("/tmp/.gcs")
+_GCS_INJECTED = "__GCS_PLACEHOLDER__"  # replaced by start.sh sed at boot
+GOOGLE_CLIENT_SECRET = (
+    os.getenv("GOOGLE_CLIENT_SECRET", "")
+    or (_GCS_INJECTED if _GCS_INJECTED != "__GCS_PLAC" + "EHOLDER__" else "")
+)
 
 # Redirect URI for the server-side OAuth code exchange flow
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://quartercharts.com")
@@ -313,27 +312,10 @@ def _handle_google_auth_code(code):
         logger.warning(f"Google auth error: {msg}")
 
     try:
-        # Use module-level secret; re-read from /tmp/.gcs as fallback
         client_secret = GOOGLE_CLIENT_SECRET
-        if not client_secret:
-            client_secret = _read_secret_file("/tmp/.gcs")
-        if not client_secret:
-            client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
-        if not client_secret:
-            # Diagnostic: try reading /tmp/.gcs directly and report result
-            import os.path as _osp
-            _diag_parts = []
-            _diag_parts.append(f"mod={len(GOOGLE_CLIENT_SECRET) if GOOGLE_CLIENT_SECRET else 0}")
-            _diag_parts.append(f"env={len(os.getenv('GOOGLE_CLIENT_SECRET', ''))}")
-            _diag_parts.append(f"exists={_osp.exists('/tmp/.gcs')}")
-            try:
-                with open("/tmp/.gcs", "r") as _df:
-                    _dv = _df.read()
-                    _diag_parts.append(f"raw_len={len(_dv)}")
-                    _diag_parts.append(f"stripped={len(_dv.strip())}")
-            except Exception as _de:
-                _diag_parts.append(f"read_err={_de}")
-            _set_error(f"Missing secret. {'; '.join(_diag_parts)}")
+        # If placeholder was never replaced by start.sh, treat as missing
+        if not client_secret or client_secret == ("__GCS_PLAC" + "EHOLDER__"):
+            _set_error("Server configuration error (missing client secret). Please try again later.")
             return
 
         # Exchange auth code for tokens
