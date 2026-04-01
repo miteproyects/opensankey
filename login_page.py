@@ -20,21 +20,42 @@ from rate_limiter import check_login_allowed, record_login_attempt
 
 logger = logging.getLogger(__name__)
 
-# ── Helper: read from Streamlit secrets (written by start.sh) ──
+# ── Load secrets from .streamlit/secrets.toml at module level ──
+# Railway env vars are confirmed in os.environ BEFORE Streamlit starts, but
+# Streamlit's script execution clears them. We read the TOML file directly.
+_SECRETS_CACHE: dict = {}
+
+
+def _load_secrets_file() -> dict:
+    """Parse .streamlit/secrets.toml written by start.sh. Cached after first call."""
+    global _SECRETS_CACHE
+    if _SECRETS_CACHE:
+        return _SECRETS_CACHE
+    for path in (".streamlit/secrets.toml", "/app/.streamlit/secrets.toml"):
+        try:
+            with open(path, "r") as f:
+                raw = f.read()
+            # Simple TOML parser for flat key = "value" pairs (no nested tables)
+            for line in raw.splitlines():
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip().strip('"').strip("'")
+                    if v:
+                        _SECRETS_CACHE[k] = v
+            break
+        except FileNotFoundError:
+            continue
+    return _SECRETS_CACHE
+
+
 def _get_secret(key: str, default: str = "") -> str:
-    """Read a secret from st.secrets (secrets.toml), falling back to os.getenv."""
-    # 1. Try os.getenv first (standard)
+    """Read a secret: try os.getenv, then secrets.toml file."""
     val = os.getenv(key, "")
     if val:
         return val
-    # 2. Try Streamlit secrets.toml (written by start.sh from Railway env vars)
-    try:
-        val = st.secrets.get(key, "")
-        if val:
-            return str(val)
-    except Exception:
-        pass
-    return default
+    return _load_secrets_file().get(key, default)
 
 
 # ── Credentials ──
