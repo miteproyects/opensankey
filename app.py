@@ -2172,6 +2172,8 @@ with st.sidebar:
 })();
 </script>""", height=0, scrolling=False)
 
+            st.markdown("---")
+
             # ── Custom Timeframe — By Year / By Quarter ──
             # Fetch available periods for this ticker
             _avail_q_periods = []  # quarterly labels like "Q1 2024"
