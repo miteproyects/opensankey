@@ -20,23 +20,22 @@ from rate_limiter import check_login_allowed, record_login_attempt
 
 logger = logging.getLogger(__name__)
 
-# ── Load secrets from _runtime_secrets.py (written by start.sh at container boot) ──
-# Streamlit strips env vars from os.environ in its execution context.
-# start.sh writes them to a Python module before launching Streamlit.
-try:
-    from _runtime_secrets import GOOGLE_CLIENT_SECRET as _RUNTIME_GCS
-    from _runtime_secrets import GOOGLE_CLIENT_ID as _RUNTIME_GCI
-except ImportError:
-    _RUNTIME_GCS = ""
-    _RUNTIME_GCI = ""
+# ── Helper: read a secret from /tmp/ (written by start.sh at container boot) ──
+def _read_secret_file(path, fallback=""):
+    try:
+        with open(path, "r") as f:
+            val = f.read().strip()
+            return val if val else fallback
+    except Exception:
+        return fallback
 
 # ── Credentials ──
 GOOGLE_CLIENT_ID = (
     os.getenv("GOOGLE_CLIENT_ID", "")
-    or _RUNTIME_GCI
+    or _read_secret_file("/tmp/.gci")
     or "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com"
 )
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "") or _RUNTIME_GCS
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "") or _read_secret_file("/tmp/.gcs")
 
 # Redirect URI for the server-side OAuth code exchange flow
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://quartercharts.com")
@@ -314,67 +313,15 @@ def _handle_google_auth_code(code):
         logger.warning(f"Google auth error: {msg}")
 
     try:
-        # Try EVERY method to get client secret (Streamlit strips env vars)
-        import sys
-        _diag = []
-        client_secret = ""
-
-        # Method 1: module-level variable (set at import time)
-        if GOOGLE_CLIENT_SECRET:
-            client_secret = GOOGLE_CLIENT_SECRET
-            _diag.append(f"mod={len(client_secret)}")
-        else:
-            _diag.append("mod=0")
-
-        # Method 2: force-reload _runtime_secrets module
+        # Use module-level secret; re-read from /tmp/.gcs as fallback
+        client_secret = GOOGLE_CLIENT_SECRET
         if not client_secret:
-            try:
-                import importlib
-                import _runtime_secrets as _rs
-                importlib.reload(_rs)
-                client_secret = getattr(_rs, "GOOGLE_CLIENT_SECRET", "")
-                _diag.append(f"reload={len(client_secret) if client_secret else 0}")
-            except Exception as _e2:
-                _diag.append(f"reload_err={_e2}")
-
-        # Method 3: read _runtime_secrets.py file directly (parse text)
-        if not client_secret:
-            try:
-                import pathlib
-                for _p in [pathlib.Path("_runtime_secrets.py"),
-                           pathlib.Path("/app/_runtime_secrets.py")]:
-                    if _p.exists():
-                        for _line in _p.read_text().splitlines():
-                            if _line.startswith("GOOGLE_CLIENT_SECRET"):
-                                client_secret = _line.split('"')[1]
-                                _diag.append(f"file={len(client_secret)}@{_p}")
-                                break
-                    if client_secret:
-                        break
-                if not client_secret:
-                    _diag.append("file=not_found")
-            except Exception as _e3:
-                _diag.append(f"file_err={_e3}")
-
-        # Method 4: os.environ
+            client_secret = _read_secret_file("/tmp/.gcs")
         if not client_secret:
             client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
-            _diag.append(f"env={len(client_secret) if client_secret else 0}")
-
-        # Method 5: read /proc/1/environ (parent process env)
         if not client_secret:
-            try:
-                with open("/proc/1/environ", "r") as _ef:
-                    for _chunk in _ef.read().split("\0"):
-                        if _chunk.startswith("GOOGLE_CLIENT_SECRET="):
-                            client_secret = _chunk.split("=", 1)[1]
-                            _diag.append(f"proc={len(client_secret)}")
-                            break
-            except Exception as _e5:
-                _diag.append(f"proc_err={_e5}")
-
-        if not client_secret:
-            _set_error(f"Missing client secret. Diag: {'; '.join(_diag)}")
+            logger.error("GOOGLE_CLIENT_SECRET is empty — cannot exchange OAuth code")
+            _set_error("Server configuration error (missing client secret). Please contact support.")
             return
 
         # Exchange auth code for tokens

@@ -32,20 +32,12 @@ else
     echo "WARNING: Could not find Streamlit index.html at $STREAMLIT_INDEX"
 fi
 
-# Write secrets as importable Python module (most reliable method).
-# Streamlit strips env vars from os.environ in its execution context,
-# so we write them to a .py file that login_page.py can import directly.
-python3 -c "
-import os, sys
-gcs = os.environ.get('GOOGLE_CLIENT_SECRET', '')
-gci = os.environ.get('GOOGLE_CLIENT_ID', '')
-fbk = os.environ.get('FIREBASE_API_KEY', '')
-with open('_runtime_secrets.py', 'w') as f:
-    f.write(f'GOOGLE_CLIENT_SECRET = \"{gcs}\"\n')
-    f.write(f'GOOGLE_CLIENT_ID = \"{gci}\"\n')
-    f.write(f'FIREBASE_API_KEY = \"{fbk}\"\n')
-print(f'[start.sh] Wrote _runtime_secrets.py (GCS len={len(gcs)})', file=sys.stderr)
-"
+# Write secrets to /tmp/ as plain text files (absolute paths).
+# Streamlit strips env vars AND changes CWD, so relative paths fail.
+echo -n "$GOOGLE_CLIENT_SECRET" > /tmp/.gcs
+echo -n "$GOOGLE_CLIENT_ID" > /tmp/.gci
+echo -n "$FIREBASE_API_KEY" > /tmp/.fbk
+echo "[start.sh] Wrote secrets to /tmp/ (GCS len=${#GOOGLE_CLIENT_SECRET})" >&2
 
 # Start Streamlit — explicitly pass critical env vars to ensure inheritance
 export GOOGLE_CLIENT_SECRET GOOGLE_CLIENT_ID FIREBASE_API_KEY
