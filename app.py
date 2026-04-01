@@ -2160,14 +2160,11 @@ with st.sidebar:
             segs[s].style.setProperty('box-shadow','inset 0 0 8px rgba(99,130,246,0.12)','important');
             segs[s].style.setProperty('opacity','0.45','important');
         }
-        // Also dim individual buttons inside them
-        var PRESET_LABELS = ['Quarterly','Annual','1Y','2Y','4Y','MAX'];
-        var btns = sidebar.querySelectorAll('div[data-testid="stButton"] > button');
-        for (var i = 0; i < btns.length; i++){
-            var txt = (btns[i].innerText || btns[i].textContent || '').trim();
-            if (PRESET_LABELS.indexOf(txt) !== -1){
-                btns[i].style.setProperty('border-color','rgba(148,163,184,0.15)','important');
-            }
+        // Grey out all buttons inside seg-connected (borders + text color)
+        var segBtns = sidebar.querySelectorAll('.seg-connected button');
+        for (var i = 0; i < segBtns.length; i++){
+            segBtns[i].style.setProperty('border-color','rgba(148,163,184,0.18)','important');
+            segBtns[i].style.setProperty('color','rgba(148,163,184,0.7)','important');
         }
         return segs.length > 0;
     };
