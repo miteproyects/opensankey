@@ -1932,10 +1932,32 @@ with st.sidebar:
     }
     </style>""", unsafe_allow_html=True)
 
-    # Sign In / Sign Out button at the top of the sidebar
+    # Sign In / My Account + Sign Out links at the top of the sidebar
     if st.session_state.get("logged_in"):
-        _user_email = st.session_state.get("user_email", "User")
-        if st.button(f"Sign Out ({_user_email})", key="sidebar_signout"):
+        from auth import get_auth_params
+        _auth_params = get_auth_params()
+        st.markdown(f"""
+    <div style="display:flex; justify-content:space-between; align-items:center;
+                margin:-8px 0 14px 0; padding:10px 14px; border-radius:8px;
+                background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.15);">
+        <a href="/?page=dashboard&ticker={ticker}{_auth_params}" target="_self"
+           style="color:#60a5fa; font-size:0.82rem; font-weight:700; text-decoration:none;
+                  letter-spacing:0.2px; transition:color 0.2s;"
+           onmouseover="this.style.color='#93c5fd'" onmouseout="this.style.color='#60a5fa'">
+            My Account
+        </a>
+        <span style="color:#334155; font-size:12px;">|</span>
+        <a href="/?page=__signout__&ticker={ticker}" target="_self"
+           id="sidebar-signout-link"
+           style="color:#f87171; font-size:0.82rem; font-weight:700; text-decoration:none;
+                  letter-spacing:0.2px; transition:color 0.2s;"
+           onmouseover="this.style.color='#fca5a5'" onmouseout="this.style.color='#f87171'">
+            Sign Out
+        </a>
+    </div>
+        """, unsafe_allow_html=True)
+        # Handle sign-out via URL param
+        if st.query_params.get("page") == "__signout__":
             clear_session_state()
             st.session_state.page = "home"
             st.query_params.clear()
