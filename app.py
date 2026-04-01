@@ -2070,6 +2070,23 @@ with st.sidebar:
     </div>
         """, unsafe_allow_html=True)
 
+    # My Dashboard link (visible when logged in)
+    if st.session_state.get("logged_in"):
+        from auth import get_auth_params as _get_auth_params_dash
+        _dash_auth = _get_auth_params_dash()
+        st.markdown(f"""
+    <a href="/?page=dashboard&ticker={ticker}{_dash_auth}" target="_self"
+       style="display:block; text-align:center; padding:8px 14px; margin:0 0 12px 0;
+              border-radius:8px; background:rgba(59,130,246,0.06);
+              border:1px solid rgba(59,130,246,0.18); color:#60a5fa;
+              font-size:0.85rem; font-weight:600; text-decoration:none;
+              transition:background 0.2s, border-color 0.2s;"
+       onmouseover="this.style.background='rgba(59,130,246,0.12)';this.style.borderColor='rgba(59,130,246,0.35)'"
+       onmouseout="this.style.background='rgba(59,130,246,0.06)';this.style.borderColor='rgba(59,130,246,0.18)'">
+        📊 My Dashboard
+    </a>
+        """, unsafe_allow_html=True)
+
     with st.form("ticker_form", clear_on_submit=False, border=False):
         col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
         with col_input:
