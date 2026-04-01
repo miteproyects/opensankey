@@ -2174,6 +2174,32 @@ with st.sidebar:
     }
 })();
 </script>""", height=0, scrolling=False)
+            else:
+                # Restore preset buttons to normal (remove previously injected dim styles)
+                components.html("""<script>
+(function(){
+    var apply = function(){
+        var sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
+        if (!sidebar) return false;
+        var segs = sidebar.querySelectorAll('.seg-connected');
+        for (var s = 0; s < segs.length; s++){
+            segs[s].style.removeProperty('border-color');
+            segs[s].style.removeProperty('box-shadow');
+            segs[s].style.removeProperty('opacity');
+        }
+        var segBtns = sidebar.querySelectorAll('.seg-connected button');
+        for (var i = 0; i < segBtns.length; i++){
+            segBtns[i].style.removeProperty('border-color');
+            segBtns[i].style.removeProperty('color');
+        }
+        return segs.length > 0;
+    };
+    if (!apply()){
+        var t = setInterval(function(){ if(apply()) clearInterval(t); }, 60);
+        setTimeout(function(){ clearInterval(t); }, 4000);
+    }
+})();
+</script>""", height=0, scrolling=False)
 
             st.markdown("---")
 
