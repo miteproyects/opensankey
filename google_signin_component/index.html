@@ -73,6 +73,13 @@
       }, "*");
     }
 
+    // Tell Streamlit this component is ready (MUST come before setFrameHeight)
+    window.parent.postMessage({
+      isStreamlitMessage: true,
+      type: "streamlit:componentReady",
+      apiVersion: 1
+    }, "*");
+
     // Start polling for GIS
     initGIS();
   </script>
