@@ -1067,6 +1067,17 @@ except Exception:
 # Restore login state from session token in URL (survives full page reloads)
 restore_session()
 
+# Handle sign-out BEFORE URL sync so the __signout__ param isn't overwritten
+if st.query_params.get("page") == "__signout__":
+    from auth import clear_session_state as _clear_session
+    _clear_session()
+    _so_ticker = st.query_params.get("ticker", "AAPL").upper().strip()
+    st.session_state.page = "home"
+    st.query_params.clear()
+    st.query_params["page"] = "home"
+    st.query_params["ticker"] = _so_ticker
+    st.rerun()
+
 # Always sync page from query params (navbar uses URL navigation)
 _qp_page = st.query_params.get("page", "").lower()
 _qp_ticker = st.query_params.get("ticker", "").upper().strip()
@@ -2060,14 +2071,7 @@ with st.sidebar:
         </div>
     </div>
         """, unsafe_allow_html=True)
-        # Handle sign-out via URL param
-        if st.query_params.get("page") == "__signout__":
-            clear_session_state()
-            st.session_state.page = "home"
-            st.query_params.clear()
-            st.query_params["page"] = "home"
-            st.query_params["ticker"] = ticker
-            st.rerun()
+        # Sign-out is handled early in app startup (before URL sync)
     else:
         st.markdown(f"""
     <div style="display:flex; justify-content:flex-end; margin:-8px 0 14px 0;">
