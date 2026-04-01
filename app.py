@@ -2169,20 +2169,28 @@ with st.sidebar:
     var apply = function(){
         var sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
         if (!sidebar) return false;
-        // Style the .seg-connected wrappers (the outer blue border containers)
+        // Style only the timeframe .seg-connected wrappers (skip layout selector)
         var segs = sidebar.querySelectorAll('.seg-connected');
+        var dimmed = 0;
         for (var s = 0; s < segs.length; s++){
+            // Skip layout selector: its buttons contain icons (▬ ▦ ▩), not timeframe text
+            var btns = segs[s].querySelectorAll('button');
+            var isLayout = false;
+            for (var b = 0; b < btns.length; b++){
+                var t = (btns[b].innerText||'').trim();
+                if (t==='\\u25AC'||t==='\\u25A6'||t==='\\u25A9'||t==='▬'||t==='▦'||t==='▩') { isLayout = true; break; }
+            }
+            if (isLayout) continue;
             segs[s].style.setProperty('border-color','rgba(148,163,184,0.2)','important');
             segs[s].style.setProperty('box-shadow','inset 0 0 8px rgba(99,130,246,0.12)','important');
             segs[s].style.setProperty('opacity','0.45','important');
+            for (var b = 0; b < btns.length; b++){
+                btns[b].style.setProperty('border-color','rgba(148,163,184,0.18)','important');
+                btns[b].style.setProperty('color','rgba(148,163,184,0.7)','important');
+            }
+            dimmed++;
         }
-        // Grey out all buttons inside seg-connected (borders + text color)
-        var segBtns = sidebar.querySelectorAll('.seg-connected button');
-        for (var i = 0; i < segBtns.length; i++){
-            segBtns[i].style.setProperty('border-color','rgba(148,163,184,0.18)','important');
-            segBtns[i].style.setProperty('color','rgba(148,163,184,0.7)','important');
-        }
-        return segs.length > 0;
+        return dimmed > 0;
     };
     if (!apply()){
         var t = setInterval(function(){ if(apply()) clearInterval(t); }, 60);
