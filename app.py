@@ -2099,6 +2099,22 @@ with st.sidebar:
     if current_page != "profile":
 
         info = get_company_info(ticker)
+
+        # ---- Layout selector (below ticker input) ----
+        if current_page != "sankey":
+            st.markdown("---")
+            lc = st.columns(3)
+            for i, (ncols, icon) in enumerate([(1, "▬"), (2, "▦"), (3, "▩")]):
+                with lc[i]:
+                    if st.button(
+                        icon,
+                        use_container_width=True,
+                        type="primary" if st.session_state.layout_cols == ncols else "secondary",
+                        key=f"layout_{ncols}",
+                    ):
+                        st.session_state.layout_cols = ncols
+                        st.rerun()
+
         st.markdown("----")
 
         if current_page != "sankey":
@@ -2503,20 +2519,6 @@ with st.sidebar:
             st.session_state.show_metrics = st.checkbox(
                 "Key Metrics", value=st.session_state.show_metrics, key="cb_km"
             )
-
-            # ---- Layout selector ----
-            st.markdown("---")
-            lc = st.columns(3)
-            for i, (ncols, icon) in enumerate([(1, "▬"), (2, "▦"), (3, "▩")]):
-                with lc[i]:
-                    if st.button(
-                        icon,
-                        use_container_width=True,
-                        type="primary" if st.session_state.layout_cols == ncols else "secondary",
-                        key=f"layout_{ncols}",
-                    ):
-                        st.session_state.layout_cols = ncols
-                        st.rerun()
 
         else:
             st.markdown('<style>[data-testid="stSidebar"] [data-testid="stImage"]{display:none!important}</style>', unsafe_allow_html=True)
