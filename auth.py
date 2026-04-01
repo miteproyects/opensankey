@@ -234,6 +234,96 @@ def register_with_email(email: str, password: str, display_name: str = "") -> tu
     return True, ""
 
 
+def verify_google_access_token(access_token: str) -> dict | None:
+    """
+    Verify a Google access token by calling Google's tokeninfo endpoint.
+    Returns a dict with 'sub', 'email', 'email_verified', etc. on success.
+    """
+    import requests as req
+    try:
+        resp = req.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            logger.warning(f"Google userinfo request failed: {resp.status_code}")
+            return None
+
+        data = resp.json()
+        email = data.get("email", "")
+        if not email or not data.get("email_verified", False):
+            logger.warning("Google email not present or not verified")
+            return None
+
+        # Also verify the token was issued for our client
+        tokeninfo_resp = req.get(
+            f"https://oauth2.googleapis.com/tokeninfo?access_token={access_token}",
+            timeout=10,
+        )
+        if tokeninfo_resp.status_code == 200:
+            ti = tokeninfo_resp.json()
+            if ti.get("aud") != GOOGLE_CLIENT_ID and ti.get("azp") != GOOGLE_CLIENT_ID:
+                logger.warning(f"Token not issued for our client: aud={ti.get('aud')}")
+                return None
+
+        return {
+            "sub": data.get("sub"),
+            "email": email.lower(),
+            "name": data.get("name", email.split("@")[0]),
+            "picture": data.get("picture", ""),
+            "email_verified": True,
+        }
+
+    except Exception as e:
+        logger.warning(f"Google access token verification failed: {e}")
+        return None
+
+
+def login_with_google_access_token(access_token: str) -> tuple[bool, str]:
+    """
+    Authenticate with a Google access token (from OAuth2 token client flow).
+    Same account creation/linking logic as login_with_google.
+    """
+    from database import (get_user_by_google_id, get_user_by_email,
+                          create_user_google, link_google_to_user, update_last_login)
+
+    payload = verify_google_access_token(access_token)
+    if not payload:
+        return False, "Google sign-in failed. Could not verify token."
+
+    google_id = payload["sub"]
+    email = payload["email"]
+    name = payload.get("name", email.split("@")[0])
+    picture = payload.get("picture", "")
+
+    # 1. Check if user already exists by Google ID
+    user = get_user_by_google_id(google_id)
+    if user:
+        token = create_login_session(user["id"])
+        set_session_state(user, token)
+        update_last_login(user["id"])
+        return True, ""
+
+    # 2. Check if email exists → link Google
+    user = get_user_by_email(email)
+    if user:
+        link_google_to_user(user["id"], google_id, picture)
+        token = create_login_session(user["id"])
+        set_session_state(user, token)
+        update_last_login(user["id"])
+        return True, ""
+
+    # 3. New user → create from Google
+    user = create_user_google(email, google_id, name, picture)
+    if not user:
+        return False, "Failed to create account. Please try again."
+
+    token = create_login_session(user["id"])
+    set_session_state(user, token)
+    return True, ""
+
+
 def login_with_google(id_token_str: str) -> tuple[bool, str]:
     """
     Authenticate with a Google ID token (from GIS client-side flow).

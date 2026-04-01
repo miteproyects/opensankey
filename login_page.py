@@ -35,7 +35,24 @@ def render_login_page():
         st.query_params["page"] = "dashboard"
         st.rerun()
 
-    # -- Handle Google ID token callback --
+    # -- Handle Google access token callback (OAuth2 token client flow) --
+    google_access_token = st.query_params.get("access_token", "")
+    if google_access_token:
+        st.query_params.clear()
+        from auth import login_with_google_access_token, get_auth_params
+        success, error = login_with_google_access_token(google_access_token)
+        if success:
+            st.session_state.page = "dashboard"
+            _params = get_auth_params()
+            st.query_params["page"] = "dashboard"
+            token = st.session_state.get("session_token", "")
+            if token:
+                st.query_params["_sid"] = token
+            st.rerun()
+        else:
+            st.session_state["_auth_error"] = error
+
+    # -- Handle Google ID token callback (legacy GIS flow) --
     google_credential = st.query_params.get("credential", "")
     if google_credential:
         st.query_params.clear()
@@ -142,20 +159,17 @@ def render_login_page():
 def _render_google_button():
     """Render the Google Sign-In button using a declared component.
 
-    declare_component(path=...) serves the component HTML from a real URL on
-    https://quartercharts.com (not srcdoc), so the iframe's origin is
-    https://quartercharts.com — satisfying Google's OAuth 2.0 policy.
-
-    The component's JS navigates window.top to /?page=login&credential=...
-    when the user completes Google sign-in.  If that fails, it falls back to
-    setting the component value via postMessage.
+    Uses google.accounts.oauth2.initTokenClient to get an access token
+    via a popup. The access token is then verified server-side by calling
+    Google's userinfo endpoint.
     """
-    credential = _google_signin(key="google_signin_btn", height=50)
-    # Fallback: if the component returned a credential via postMessage
-    if credential and isinstance(credential, str) and len(credential) > 50:
-        logger.info("Got Google credential via component value fallback")
-        from auth import login_with_google, get_auth_params
-        success, error = login_with_google(credential)
+    result = _google_signin(key="google_signin_btn", height=50)
+    # Fallback: if the component returned a token via postMessage
+    if result and isinstance(result, str) and result.startswith("access_token:"):
+        access_token = result[len("access_token:"):]
+        logger.info("Got Google access token via component value fallback")
+        from auth import login_with_google_access_token, get_auth_params
+        success, error = login_with_google_access_token(access_token)
         if success:
             st.session_state.page = "dashboard"
             st.query_params["page"] = "dashboard"
