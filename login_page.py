@@ -8,10 +8,19 @@ Google Sign-In uses the GIS (Google Identity Services) client-side flow:
 - Server verifies the token using Google's public keys
 - This bypasses Railway's env-var isolation issue entirely
 """
+import os
 import streamlit as st
+import streamlit.components.v1 as components
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Declare the Google Sign-In component served from a real URL on the same
+# origin (https://quartercharts.com). Unlike components.html() which uses
+# srcdoc (null origin), this iframe gets origin = https://quartercharts.com,
+# which satisfies Google's OAuth 2.0 origin validation.
+_COMPONENT_DIR = os.path.join(os.path.dirname(__file__), "google_signin_component")
+_google_signin = components.declare_component("google_signin", path=_COMPONENT_DIR)
 
 GOOGLE_CLIENT_ID = "61622589594-3tet7j0drvkam8js5gtisbiv8bs2hevj.apps.googleusercontent.com"
 
@@ -131,18 +140,13 @@ def render_login_page():
 
 
 def _render_google_button():
-    """Render the Google Sign-In button in the main page frame (not an iframe).
+    """Render the Google Sign-In button using a declared component.
 
-    The GIS script is injected into Streamlit's index.html by start.sh so it
-    runs on the top-level page (origin = https://quartercharts.com).
-    This avoids the 'origin=null' error that happens when GIS runs inside
-    a srcdoc iframe created by components.html().
+    declare_component(path=...) serves the component HTML from a real URL on
+    https://quartercharts.com (not srcdoc), so the iframe's origin is
+    https://quartercharts.com — satisfying Google's OAuth 2.0 policy.
 
-    We render a plain div here via st.markdown(); the GIS script in the main
-    page finds it via MutationObserver and renders the Google button into it.
+    The component's JS navigates window.parent to /?page=login&credential=...
+    when the user completes Google sign-in.
     """
-    st.markdown(
-        '<div data-qc-google-btn style="display:flex;justify-content:center;'
-        'min-height:44px;margin:8px 0;"></div>',
-        unsafe_allow_html=True,
-    )
+    _google_signin(key="google_signin_btn", height=50)

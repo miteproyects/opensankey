@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 50px;
+      overflow: hidden;
+      background: transparent;
+    }
+    #google-btn { display: flex; justify-content: center; }
+  </style>
+</head>
+<body>
+  <div id="google-btn"></div>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    var CLIENT_ID = "61622589594-3tet7j0drvkam8js5gtisbiv8bs2hevj.apps.googleusercontent.com";
+
+    function onGoogleCallback(response) {
+      // Same-origin: this iframe is served from https://quartercharts.com
+      // so we can navigate the parent window directly.
+      try {
+        var parentUrl = new URL(window.parent.location.href);
+        var ticker = parentUrl.searchParams.get("ticker") || "AAPL";
+        window.parent.location.href =
+          parentUrl.origin +
+          "/?page=login&credential=" + encodeURIComponent(response.credential) +
+          "&ticker=" + encodeURIComponent(ticker);
+      } catch (e) {
+        // Fallback: use postMessage to Streamlit
+        window.parent.postMessage({
+          isStreamlitMessage: true,
+          type: "streamlit:setComponentValue",
+          value: response.credential,
+          dataType: "json"
+        }, "*");
+      }
+    }
+
+    function initGIS() {
+      if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+        setTimeout(initGIS, 100);
+        return;
+      }
+      google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: onGoogleCallback,
+        ux_mode: "popup"
+      });
+      google.accounts.id.renderButton(
+        document.getElementById("google-btn"),
+        {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          text: "continue_with",
+          shape: "rectangular",
+          width: 320
+        }
+      );
+      // Tell Streamlit frame height
+      window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: "streamlit:setFrameHeight",
+        height: 50
+      }, "*");
+    }
+
+    // Start polling for GIS
+    initGIS();
+  </script>
+</body>
+</html>
