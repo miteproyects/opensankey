@@ -20,25 +20,31 @@ from rate_limiter import check_login_allowed, record_login_attempt
 
 logger = logging.getLogger(__name__)
 
-# ── Helper: read secret from temp file (bash-based fallback) ──
-def _read_secret_file(path: str) -> str:
-    """Read a secret written by start.sh as a fallback for os.getenv()."""
+# ── Helper: read from Streamlit secrets (written by start.sh) ──
+def _get_secret(key: str, default: str = "") -> str:
+    """Read a secret from st.secrets (secrets.toml), falling back to os.getenv."""
+    # 1. Try os.getenv first (standard)
+    val = os.getenv(key, "")
+    if val:
+        return val
+    # 2. Try Streamlit secrets.toml (written by start.sh from Railway env vars)
     try:
-        with open(path, "r") as f:
-            return f.read().strip()
-    except (FileNotFoundError, PermissionError):
-        return ""
+        val = st.secrets.get(key, "")
+        if val:
+            return str(val)
+    except Exception:
+        pass
+    return default
 
 
 # ── Credentials ──
 # GOOGLE_CLIENT_ID is a public OAuth identifier (visible in page source).
 # FIREBASE_API_KEY must come from env vars only (never hardcoded).
-GOOGLE_CLIENT_ID = (
-    os.getenv("GOOGLE_CLIENT_ID", "")
-    or _read_secret_file("/tmp/.gci")
-    or "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = _get_secret(
+    "GOOGLE_CLIENT_ID",
+    "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com",
 )
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "") or _read_secret_file("/tmp/.gcs")
+GOOGLE_CLIENT_SECRET = _get_secret("GOOGLE_CLIENT_SECRET")
 
 # Redirect URI for the server-side OAuth code exchange flow
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://quartercharts.com")
@@ -316,13 +322,8 @@ def _handle_google_auth_code(code):
         logger.warning(f"Google auth error: {msg}")
 
     try:
-        # Re-read at call time — module-level os.getenv() runs once at import.
-        # Fall back to temp file written by start.sh if env var is missing.
-        client_secret = (
-            os.getenv("GOOGLE_CLIENT_SECRET", "")
-            or GOOGLE_CLIENT_SECRET
-            or _read_secret_file("/tmp/.gcs")
-        )
+        # Re-read at call time via _get_secret (env var → st.secrets fallback).
+        client_secret = _get_secret("GOOGLE_CLIENT_SECRET") or GOOGLE_CLIENT_SECRET
         if not client_secret:
             logger.error("GOOGLE_CLIENT_SECRET is empty — cannot exchange OAuth code")
             _set_error("Server configuration error (missing client secret). Please contact support.")

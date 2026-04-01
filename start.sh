@@ -32,18 +32,22 @@ else
     echo "WARNING: Could not find Streamlit index.html at $STREAMLIT_INDEX"
 fi
 
-# Write Google OAuth secrets to temp files so Python can read them reliably.
+# Write Google OAuth secrets via Streamlit's native secrets.toml mechanism.
 # (Railway env vars are confirmed present in bash but os.getenv() in Python
-#  sometimes returns empty — this file-based fallback guarantees access.)
+#  returns empty — this guarantees Streamlit can read them via st.secrets.)
 if [ -n "$GOOGLE_CLIENT_SECRET" ]; then
-    echo -n "$GOOGLE_CLIENT_SECRET" > /tmp/.gcs
-    chmod 600 /tmp/.gcs
-    echo "[start.sh] Wrote GOOGLE_CLIENT_SECRET to /tmp/.gcs (len=${#GOOGLE_CLIENT_SECRET})"
-fi
-if [ -n "$GOOGLE_CLIENT_ID" ]; then
-    echo -n "$GOOGLE_CLIENT_ID" > /tmp/.gci
-    chmod 600 /tmp/.gci
-    echo "[start.sh] Wrote GOOGLE_CLIENT_ID to /tmp/.gci"
+    # Ensure .streamlit dir exists (config.toml may already be there)
+    mkdir -p .streamlit
+    # Write secrets.toml (overwrites each deploy to stay in sync with Railway vars)
+    cat > .streamlit/secrets.toml <<SECRETS_EOF
+GOOGLE_CLIENT_SECRET = "$GOOGLE_CLIENT_SECRET"
+GOOGLE_CLIENT_ID = "${GOOGLE_CLIENT_ID:-}"
+FIREBASE_API_KEY = "${FIREBASE_API_KEY:-}"
+SECRETS_EOF
+    chmod 600 .streamlit/secrets.toml
+    echo "[start.sh] Wrote .streamlit/secrets.toml with GOOGLE_CLIENT_SECRET (len=${#GOOGLE_CLIENT_SECRET})"
+else
+    echo "[start.sh] WARNING: GOOGLE_CLIENT_SECRET not set!"
 fi
 
 # Start Streamlit
