@@ -320,8 +320,20 @@ def _handle_google_auth_code(code):
         if not client_secret:
             client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
         if not client_secret:
-            logger.error("GOOGLE_CLIENT_SECRET is empty — cannot exchange OAuth code")
-            _set_error("Server configuration error (missing client secret). Please contact support.")
+            # Diagnostic: try reading /tmp/.gcs directly and report result
+            import os.path as _osp
+            _diag_parts = []
+            _diag_parts.append(f"mod={len(GOOGLE_CLIENT_SECRET) if GOOGLE_CLIENT_SECRET else 0}")
+            _diag_parts.append(f"env={len(os.getenv('GOOGLE_CLIENT_SECRET', ''))}")
+            _diag_parts.append(f"exists={_osp.exists('/tmp/.gcs')}")
+            try:
+                with open("/tmp/.gcs", "r") as _df:
+                    _dv = _df.read()
+                    _diag_parts.append(f"raw_len={len(_dv)}")
+                    _diag_parts.append(f"stripped={len(_dv.strip())}")
+            except Exception as _de:
+                _diag_parts.append(f"read_err={_de}")
+            _set_error(f"Missing secret. {'; '.join(_diag_parts)}")
             return
 
         # Exchange auth code for tokens
