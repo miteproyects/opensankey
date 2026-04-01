@@ -2176,6 +2176,12 @@ if current_page == "login":
     _render_footer()
     st.stop()
 
+if current_page == "dashboard":
+    from dashboard_page import render_dashboard_page
+    render_dashboard_page()
+    _render_footer()
+    st.stop()
+
 if current_page == "user":
     from user_page import render_user_page
     render_user_page()

@@ -28,11 +28,11 @@ GOOGLE_CLIENT_ID = "61622589594-3tet7j0drvkam8js5gtisbiv8bs2hevj.apps.googleuser
 def render_login_page():
     """Render the login / sign-up page."""
 
-    # -- If already logged in, redirect to user page --
+    # -- If already logged in, redirect to dashboard --
     if st.session_state.get("logged_in"):
         from auth import get_auth_params
-        st.session_state.page = "user"
-        st.query_params["page"] = "user"
+        st.session_state.page = "dashboard"
+        st.query_params["page"] = "dashboard"
         st.rerun()
 
     # -- Handle Google ID token callback --
@@ -42,9 +42,9 @@ def render_login_page():
         from auth import login_with_google, get_auth_params
         success, error = login_with_google(google_credential)
         if success:
-            st.session_state.page = "user"
+            st.session_state.page = "dashboard"
             _params = get_auth_params()
-            st.query_params["page"] = "user"
+            st.query_params["page"] = "dashboard"
             token = st.session_state.get("session_token", "")
             if token:
                 st.query_params["_sid"] = token
@@ -108,8 +108,8 @@ def render_login_page():
                 success, error = register_with_email(email, password, name)
 
             if success:
-                st.session_state.page = "user"
-                st.query_params["page"] = "user"
+                st.session_state.page = "dashboard"
+                st.query_params["page"] = "dashboard"
                 token = st.session_state.get("session_token", "")
                 if token:
                     st.query_params["_sid"] = token
