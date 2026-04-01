@@ -10,4 +10,5 @@ env/
 dist/
 build/
 .streamlit/secrets.toml
+_runtime_secrets.py
 .DS_Store

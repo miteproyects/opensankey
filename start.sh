@@ -32,30 +32,19 @@ else
     echo "WARNING: Could not find Streamlit index.html at $STREAMLIT_INDEX"
 fi
 
-# Write Google OAuth secrets via Streamlit's native secrets.toml mechanism.
-if [ -n "$GOOGLE_CLIENT_SECRET" ]; then
-    mkdir -p .streamlit
-    cat > .streamlit/secrets.toml <<SECRETS_EOF
-GOOGLE_CLIENT_SECRET = "$GOOGLE_CLIENT_SECRET"
-GOOGLE_CLIENT_ID = "${GOOGLE_CLIENT_ID:-}"
-FIREBASE_API_KEY = "${FIREBASE_API_KEY:-}"
-SECRETS_EOF
-    chmod 600 .streamlit/secrets.toml
-    echo "[start.sh] Wrote .streamlit/secrets.toml (len=${#GOOGLE_CLIENT_SECRET})"
-    echo "[start.sh] secrets.toml exists: $(ls -la .streamlit/secrets.toml)"
-    echo "[start.sh] CWD: $(pwd)"
-else
-    echo "[start.sh] WARNING: GOOGLE_CLIENT_SECRET not set!"
-fi
-
-# Diagnostic: Can Python see the env var BEFORE Streamlit starts?
+# Write secrets as importable Python module (most reliable method).
+# Streamlit strips env vars from os.environ in its execution context,
+# so we write them to a .py file that login_page.py can import directly.
 python3 -c "
 import os, sys
 gcs = os.environ.get('GOOGLE_CLIENT_SECRET', '')
-print(f'[PYTHON PRE-CHECK] GOOGLE_CLIENT_SECRET in os.environ: {\"GOOGLE_CLIENT_SECRET\" in os.environ}', file=sys.stderr)
-print(f'[PYTHON PRE-CHECK] len={len(gcs)}, val_start={gcs[:6] if gcs else \"EMPTY\"}...', file=sys.stderr)
-print(f'[PYTHON PRE-CHECK] CWD={os.getcwd()}', file=sys.stderr)
-print(f'[PYTHON PRE-CHECK] secrets.toml exists: {os.path.isfile(\".streamlit/secrets.toml\")}', file=sys.stderr)
+gci = os.environ.get('GOOGLE_CLIENT_ID', '')
+fbk = os.environ.get('FIREBASE_API_KEY', '')
+with open('_runtime_secrets.py', 'w') as f:
+    f.write(f'GOOGLE_CLIENT_SECRET = \"{gcs}\"\n')
+    f.write(f'GOOGLE_CLIENT_ID = \"{gci}\"\n')
+    f.write(f'FIREBASE_API_KEY = \"{fbk}\"\n')
+print(f'[start.sh] Wrote _runtime_secrets.py (GCS len={len(gcs)})', file=sys.stderr)
 "
 
 # Start Streamlit — explicitly pass critical env vars to ensure inheritance

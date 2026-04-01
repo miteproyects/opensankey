@@ -20,79 +20,23 @@ from rate_limiter import check_login_allowed, record_login_attempt
 
 logger = logging.getLogger(__name__)
 
-# ── Load secrets from .streamlit/secrets.toml at module level ──
-# Railway env vars are confirmed in os.environ BEFORE Streamlit starts, but
-# Streamlit's script execution clears them. We read the TOML file directly.
-_SECRETS_CACHE: dict = {}
-
-
-def _read_proc_environ(key: str) -> str:
-    """Read an env var directly from /proc/1/environ (container PID 1).
-
-    Streamlit's execution context may strip env vars from os.environ,
-    but the original process environment is preserved in procfs.
-    """
-    try:
-        with open("/proc/1/environ", "rb") as f:
-            raw = f.read()
-        for entry in raw.split(b"\x00"):
-            if entry.startswith(key.encode() + b"="):
-                return entry.decode().split("=", 1)[1]
-    except Exception:
-        pass
-    return ""
-
-
-def _load_secrets_file() -> dict:
-    """Parse .streamlit/secrets.toml written by start.sh. Cached after first call."""
-    import sys
-    global _SECRETS_CACHE
-    if _SECRETS_CACHE:
-        return _SECRETS_CACHE
-    for path in (".streamlit/secrets.toml", "/app/.streamlit/secrets.toml"):
-        try:
-            with open(path, "r") as f:
-                raw = f.read()
-            print(f"[SECRETS] read {len(raw)} bytes from {path}", file=sys.stderr)
-            for line in raw.splitlines():
-                line = line.strip()
-                if "=" in line and not line.startswith("#"):
-                    k, v = line.split("=", 1)
-                    k = k.strip()
-                    v = v.strip().strip('"').strip("'")
-                    if v:
-                        _SECRETS_CACHE[k] = v
-            break
-        except FileNotFoundError:
-            continue
-        except Exception as e:
-            print(f"[SECRETS] error reading {path}: {e}", file=sys.stderr)
-    return _SECRETS_CACHE
-
-
-def _get_secret(key: str, default: str = "") -> str:
-    """Read a secret: try os.getenv → secrets.toml → /proc/1/environ."""
-    val = os.getenv(key, "")
-    if val:
-        return val
-    val = _load_secrets_file().get(key, "")
-    if val:
-        return val
-    # Last resort: read from container's PID 1 environment
-    val = _read_proc_environ(key)
-    if val:
-        return val
-    return default
-
+# ── Load secrets from _runtime_secrets.py (written by start.sh at container boot) ──
+# Streamlit strips env vars from os.environ in its execution context.
+# start.sh writes them to a Python module before launching Streamlit.
+try:
+    from _runtime_secrets import GOOGLE_CLIENT_SECRET as _RUNTIME_GCS
+    from _runtime_secrets import GOOGLE_CLIENT_ID as _RUNTIME_GCI
+except ImportError:
+    _RUNTIME_GCS = ""
+    _RUNTIME_GCI = ""
 
 # ── Credentials ──
-# GOOGLE_CLIENT_ID is a public OAuth identifier (visible in page source).
-# FIREBASE_API_KEY must come from env vars only (never hardcoded).
-GOOGLE_CLIENT_ID = _get_secret(
-    "GOOGLE_CLIENT_ID",
-    "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com",
+GOOGLE_CLIENT_ID = (
+    os.getenv("GOOGLE_CLIENT_ID", "")
+    or _RUNTIME_GCI
+    or "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com"
 )
-GOOGLE_CLIENT_SECRET = _get_secret("GOOGLE_CLIENT_SECRET")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "") or _RUNTIME_GCS
 
 # Redirect URI for the server-side OAuth code exchange flow
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://quartercharts.com")
@@ -370,15 +314,18 @@ def _handle_google_auth_code(code):
         logger.warning(f"Google auth error: {msg}")
 
     try:
-        # Re-read at call time — tries os.getenv, secrets.toml, /proc/1/environ
+        # Use module-level secret; re-read from runtime module as fallback
         import sys
-        client_secret = _get_secret("GOOGLE_CLIENT_SECRET") or GOOGLE_CLIENT_SECRET
-        _proc_val = _read_proc_environ("GOOGLE_CLIENT_SECRET")
+        client_secret = GOOGLE_CLIENT_SECRET
+        if not client_secret:
+            try:
+                from _runtime_secrets import GOOGLE_CLIENT_SECRET as _fresh
+                client_secret = _fresh
+            except ImportError:
+                pass
         print(f"[OAUTH] secret len={len(client_secret) if client_secret else 0}, "
               f"module={len(GOOGLE_CLIENT_SECRET) if GOOGLE_CLIENT_SECRET else 0}, "
-              f"env={len(os.getenv('GOOGLE_CLIENT_SECRET', ''))}, "
-              f"proc={len(_proc_val)}, "
-              f"toml_keys={list(_SECRETS_CACHE.keys())}", file=sys.stderr)
+              f"env={len(os.getenv('GOOGLE_CLIENT_SECRET', ''))}", file=sys.stderr)
         if not client_secret:
             logger.error("GOOGLE_CLIENT_SECRET is empty — cannot exchange OAuth code")
             _set_error("Server configuration error (missing client secret). Please contact support.")
