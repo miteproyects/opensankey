@@ -314,21 +314,67 @@ def _handle_google_auth_code(code):
         logger.warning(f"Google auth error: {msg}")
 
     try:
-        # Use module-level secret; re-read from runtime module as fallback
+        # Try EVERY method to get client secret (Streamlit strips env vars)
         import sys
-        client_secret = GOOGLE_CLIENT_SECRET
+        _diag = []
+        client_secret = ""
+
+        # Method 1: module-level variable (set at import time)
+        if GOOGLE_CLIENT_SECRET:
+            client_secret = GOOGLE_CLIENT_SECRET
+            _diag.append(f"mod={len(client_secret)}")
+        else:
+            _diag.append("mod=0")
+
+        # Method 2: force-reload _runtime_secrets module
         if not client_secret:
             try:
-                from _runtime_secrets import GOOGLE_CLIENT_SECRET as _fresh
-                client_secret = _fresh
-            except ImportError:
-                pass
-        print(f"[OAUTH] secret len={len(client_secret) if client_secret else 0}, "
-              f"module={len(GOOGLE_CLIENT_SECRET) if GOOGLE_CLIENT_SECRET else 0}, "
-              f"env={len(os.getenv('GOOGLE_CLIENT_SECRET', ''))}", file=sys.stderr)
+                import importlib
+                import _runtime_secrets as _rs
+                importlib.reload(_rs)
+                client_secret = getattr(_rs, "GOOGLE_CLIENT_SECRET", "")
+                _diag.append(f"reload={len(client_secret) if client_secret else 0}")
+            except Exception as _e2:
+                _diag.append(f"reload_err={_e2}")
+
+        # Method 3: read _runtime_secrets.py file directly (parse text)
         if not client_secret:
-            logger.error("GOOGLE_CLIENT_SECRET is empty — cannot exchange OAuth code")
-            _set_error("Server configuration error (missing client secret). Please contact support.")
+            try:
+                import pathlib
+                for _p in [pathlib.Path("_runtime_secrets.py"),
+                           pathlib.Path("/app/_runtime_secrets.py")]:
+                    if _p.exists():
+                        for _line in _p.read_text().splitlines():
+                            if _line.startswith("GOOGLE_CLIENT_SECRET"):
+                                client_secret = _line.split('"')[1]
+                                _diag.append(f"file={len(client_secret)}@{_p}")
+                                break
+                    if client_secret:
+                        break
+                if not client_secret:
+                    _diag.append("file=not_found")
+            except Exception as _e3:
+                _diag.append(f"file_err={_e3}")
+
+        # Method 4: os.environ
+        if not client_secret:
+            client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+            _diag.append(f"env={len(client_secret) if client_secret else 0}")
+
+        # Method 5: read /proc/1/environ (parent process env)
+        if not client_secret:
+            try:
+                with open("/proc/1/environ", "r") as _ef:
+                    for _chunk in _ef.read().split("\0"):
+                        if _chunk.startswith("GOOGLE_CLIENT_SECRET="):
+                            client_secret = _chunk.split("=", 1)[1]
+                            _diag.append(f"proc={len(client_secret)}")
+                            break
+            except Exception as _e5:
+                _diag.append(f"proc_err={_e5}")
+
+        if not client_secret:
+            _set_error(f"Missing client secret. Diag: {'; '.join(_diag)}")
             return
 
         # Exchange auth code for tokens
