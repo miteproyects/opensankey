@@ -2105,12 +2105,6 @@ with st.sidebar:
             _is_custom_active = st.session_state.timeframe == "CUSTOM"
 
             # When Custom is active, dim the preset button rows
-            if _is_custom_active:
-                st.markdown(
-                    '<div style="opacity:0.45;pointer-events:auto;">',
-                    unsafe_allow_html=True,
-                )
-
             # ---- Quarterly / Annual toggle (segmented control) ----
             # When Custom Timeframe is active, both look unselected (secondary)
             period_col = st.columns(2)
@@ -2152,8 +2146,31 @@ with st.sidebar:
                         st.session_state.custom_panel_open = False
                         st.rerun()
 
+            # JS — dim preset buttons (Quarterly/Annual + 1Y/2Y/4Y/MAX) when custom is active
             if _is_custom_active:
-                st.markdown('</div>', unsafe_allow_html=True)
+                components.html("""<script>
+(function(){
+    var PRESET_LABELS = ['Quarterly','Annual','1Y','2Y','4Y','MAX'];
+    var apply = function(){
+        var sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
+        if (!sidebar) return false;
+        var btns = sidebar.querySelectorAll('div[data-testid="stButton"] > button');
+        var found = 0;
+        for (var i = 0; i < btns.length; i++){
+            var txt = (btns[i].innerText || btns[i].textContent || '').trim();
+            if (PRESET_LABELS.indexOf(txt) !== -1){
+                btns[i].style.setProperty('opacity','0.38','important');
+                found++;
+            }
+        }
+        return found > 0;
+    };
+    if (!apply()){
+        var t = setInterval(function(){ if(apply()) clearInterval(t); }, 60);
+        setTimeout(function(){ clearInterval(t); }, 4000);
+    }
+})();
+</script>""", height=0, scrolling=False)
 
             # ── Custom Timeframe — By Year / By Quarter ──
             # Fetch available periods for this ticker
@@ -2220,30 +2237,7 @@ with st.sidebar:
 
             # Header button — clicking immediately activates CUSTOM mode
             _header_label = f"{_chevron} 🎯 Custom Timeframe"
-            if _is_custom_active:
-                _header_style = (
-                    "border:2px solid #3b82f6 !important;"
-                    "border-radius:10px !important;"
-                    "color:#3b82f6 !important;"
-                    "font-weight:600 !important;"
-                    "background:rgba(59,130,246,0.06) !important;"
-                    "box-shadow:0 0 0 3px rgba(99,130,246,0.25) !important;"
-                )
-            else:
-                _header_style = (
-                    "border:1px solid rgba(148,163,184,0.3) !important;"
-                    "border-radius:10px !important;"
-                    "color:#94a3b8 !important;"
-                    "font-weight:400 !important;"
-                    "opacity:0.55 !important;"
-                    "box-shadow:0 0 0 3px rgba(99,130,246,0.15) !important;"
-                )
-            st.markdown(
-                f'<style>.ctf-header button {{ {_header_style} }}</style>',
-                unsafe_allow_html=True,
-            )
             with st.container():
-                st.markdown('<div class="ctf-header">', unsafe_allow_html=True)
                 if st.button(
                     _header_label,
                     use_container_width=True,
@@ -2265,7 +2259,43 @@ with st.sidebar:
                         # Closing: collapse but keep CUSTOM active if range is set
                         st.session_state.custom_panel_open = False
                     st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+
+            # JS — runs after the button renders, directly styles it via parent DOM
+            _ctf_border   = "2px solid #3b82f6" if _is_custom_active else "1px solid rgba(148,163,184,0.28)"
+            _ctf_color    = "#3b82f6"            if _is_custom_active else "#94a3b8"
+            _ctf_bg       = "rgba(59,130,246,0.06)" if _is_custom_active else "transparent"
+            _ctf_shadow   = "0 0 0 3px rgba(99,130,246,0.25)" if _is_custom_active else "0 0 0 3px rgba(99,130,246,0.15)"
+            _ctf_opacity  = "1"    if _is_custom_active else "0.5"
+            _ctf_weight   = "600"  if _is_custom_active else "400"
+            components.html(f"""<script>
+(function(){{
+    var apply = function(){{
+        var sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
+        if (!sidebar) return false;
+        var btns = sidebar.querySelectorAll('div[data-testid="stButton"] > button');
+        for (var i = 0; i < btns.length; i++){{
+            var txt = (btns[i].innerText || btns[i].textContent || '');
+            if (txt.indexOf('Custom Timeframe') !== -1){{
+                var b = btns[i];
+                b.style.setProperty('border',        '{_ctf_border}',   'important');
+                b.style.setProperty('border-radius', '10px',            'important');
+                b.style.setProperty('color',         '{_ctf_color}',    'important');
+                b.style.setProperty('background',    '{_ctf_bg}',       'important');
+                b.style.setProperty('box-shadow',    '{_ctf_shadow}',   'important');
+                b.style.setProperty('opacity',       '{_ctf_opacity}',  'important');
+                b.style.setProperty('font-weight',   '{_ctf_weight}',   'important');
+                b.style.setProperty('transition',    'all 0.2s',        'important');
+                return true;
+            }}
+        }}
+        return false;
+    }};
+    if (!apply()){{
+        var t = setInterval(function(){{ if(apply()) clearInterval(t); }}, 60);
+        setTimeout(function(){{ clearInterval(t); }}, 4000);
+    }}
+}})();
+</script>""", height=0, scrolling=False)
 
             # Panel body — shown when open
             if _panel_open and has_data:
