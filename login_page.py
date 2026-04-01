@@ -14,7 +14,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-GOOGLE_CLIENT_ID = "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = "61622589594-3tet7j0drvkam8js5gtisbiv8bs2hevj.apps.googleusercontent.com"
 
 
 def render_login_page():

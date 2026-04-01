@@ -117,6 +117,58 @@ def initialize_schema():
         last_login_at   TIMESTAMPTZ
     );
 
+    -- ── Migration: add new columns to existing users table ──
+    -- These are safe to run repeatedly (IF NOT EXISTS / OR REPLACE).
+    DO $$
+    BEGIN
+        -- Add password_hash if missing
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'users' AND column_name = 'password_hash') THEN
+            ALTER TABLE users ADD COLUMN password_hash VARCHAR(255);
+        END IF;
+
+        -- Add google_id if missing
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'users' AND column_name = 'google_id') THEN
+            ALTER TABLE users ADD COLUMN google_id VARCHAR(255) UNIQUE;
+        END IF;
+
+        -- Add auth_provider if missing
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'users' AND column_name = 'auth_provider') THEN
+            ALTER TABLE users ADD COLUMN auth_provider VARCHAR(50) DEFAULT 'email';
+        END IF;
+
+        -- Add avatar_url if missing
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'users' AND column_name = 'avatar_url') THEN
+            ALTER TABLE users ADD COLUMN avatar_url VARCHAR(512) DEFAULT '';
+        END IF;
+
+        -- Add display_name if missing
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'users' AND column_name = 'display_name') THEN
+            ALTER TABLE users ADD COLUMN display_name VARCHAR(255) DEFAULT '';
+        END IF;
+
+        -- Add last_login_at if missing
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'users' AND column_name = 'last_login_at') THEN
+            ALTER TABLE users ADD COLUMN last_login_at TIMESTAMPTZ;
+        END IF;
+
+        -- Add updated_at if missing
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'users' AND column_name = 'updated_at') THEN
+            ALTER TABLE users ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
+        END IF;
+
+        -- Make firebase_uid nullable (was NOT NULL in old schema)
+        ALTER TABLE users ALTER COLUMN firebase_uid DROP NOT NULL;
+    EXCEPTION WHEN others THEN
+        NULL;  -- Ignore errors (e.g., column already nullable)
+    END $$;
+
     -- Server-side sessions: persist login across Streamlit page reloads
     CREATE TABLE IF NOT EXISTS sessions (
         token           VARCHAR(128) PRIMARY KEY,
