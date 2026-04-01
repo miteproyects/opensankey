@@ -1892,7 +1892,8 @@ current_page = st.session_state.page
 _auth_params = get_auth_params()
 _is_logged_in = st.session_state.get("logged_in", False)
 if _is_logged_in:
-    _auth_link = f'<a href="/?page=user&ticker={ticker}{_auth_params}" target="_self" class="nav-link {"active" if current_page == "user" else ""}" style="color:#3b82f6;font-weight:600;">My&nbsp;Account</a>'
+    _dashboard_link = f'<a href="/?page=dashboard&ticker={ticker}{_auth_params}" target="_self" class="nav-link {"active" if current_page == "dashboard" else ""}" style="color:#3b82f6;font-weight:600;">My&nbsp;Dashboard</a>'
+    _auth_link = f'{_dashboard_link}<a href="/?page=user&ticker={ticker}{_auth_params}" target="_self" class="nav-link {"active" if current_page == "user" else ""}" style="color:#3b82f6;font-weight:600;">My&nbsp;Account</a>'
 else:
     _auth_link = f'<a href="/?page=login&ticker={ticker}" target="_self" class="nav-link" style="color:#3b82f6;font-weight:600;">Sign&nbsp;In</a>'
 st.markdown(f'''
