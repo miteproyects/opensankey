@@ -2103,6 +2103,7 @@ with st.sidebar:
         # ---- Layout selector (below ticker input) ----
         if current_page != "sankey":
             st.markdown("---")
+            st.markdown("Chart Column Layout:")
             lc = st.columns(3)
             for i, (ncols, icon) in enumerate([(1, "▬"), (2, "▦"), (3, "▩")]):
                 with lc[i]:
