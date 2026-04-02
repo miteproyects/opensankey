@@ -331,28 +331,27 @@ def render_earnings_page():
     if "ec_week_offset" not in st.session_state:
         st.session_state.ec_week_offset = 0
 
-    # Prev / Next buttons (Streamlit native, single row)
-    nav_left, nav_center, nav_right = st.columns([1, 4, 1])
-    with nav_left:
-        if st.button("< Prev", key="ec_prev", use_container_width=True):
-            st.session_state.ec_week_offset -= 1
-            st.rerun()
-    with nav_right:
-        if st.button("Next >", key="ec_next", use_container_width=True):
-            st.session_state.ec_week_offset += 1
-            st.rerun()
-
     week_start = _get_week_start(today) + timedelta(weeks=st.session_state.ec_week_offset)
     week_end = week_start + timedelta(days=6)
 
-    with nav_center:
-        st.markdown(
-            f'<div style="text-align:center;">'
-            f'<span class="ec-week-nav">'
-            f'<span class="ec-date-label">{_format_date_range(week_start)}</span>'
-            f'</span></div>',
-            unsafe_allow_html=True,
-        )
+    # Date range — standalone centered line
+    st.markdown(
+        f'<div style="text-align:center;margin:8px 0 12px;">'
+        f'<span class="ec-date-label">{_format_date_range(week_start)}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    # Prev / Next — separate row, no overlap
+    nav_l, nav_spacer, nav_r = st.columns([1, 5, 1])
+    with nav_l:
+        if st.button("< Prev", key="ec_prev", use_container_width=True):
+            st.session_state.ec_week_offset -= 1
+            st.rerun()
+    with nav_r:
+        if st.button("Next >", key="ec_next", use_container_width=True):
+            st.session_state.ec_week_offset += 1
+            st.rerun()
 
     # ── Fetch week data (single Finnhub API call, cached 15 min) ──
     _debug(f"Fetching: {week_start.isoformat()} to {week_end.isoformat()}")
@@ -396,15 +395,25 @@ def render_earnings_page():
             if not selected_day:
                 selected_day = (week_start + timedelta(days=1)).isoformat()
 
-    # Build day pills using native Streamlit buttons (uniform single-line labels)
+    # Inject CSS to make all day buttons the same height
+    st.markdown(
+        '<style>'
+        '[data-testid="stHorizontalBlock"] button[kind="secondary"],'
+        '[data-testid="stHorizontalBlock"] button[kind="primary"] {'
+        '  min-height: 52px !important; white-space: nowrap !important;'
+        '}</style>',
+        unsafe_allow_html=True,
+    )
+
+    # Build day pills — short labels that never wrap: "Mon 30 · 207"
     day_cols = st.columns(7)
     for i, (d, count) in enumerate(days_in_week):
         with day_cols[i]:
             is_active = d.isoformat() == selected_day
             wd = d.weekday()
-            day_name = _DAY_MAP[wd]
+            day_abbr = _DAY_MAP[wd][:2]
             count_text = str(count) if count > 0 else "-"
-            label = f"{day_name} {d.day} ({count_text})"
+            label = f"{day_abbr}{d.day} · {count_text}"
 
             if st.button(
                 label,
