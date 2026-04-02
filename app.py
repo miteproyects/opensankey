@@ -2085,30 +2085,29 @@ with st.sidebar:
     </div>
         """, unsafe_allow_html=True)
 
-    if current_page != "earnings":
-        with st.form("ticker_form", clear_on_submit=False, border=False):
-            col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
-            with col_input:
-                st.markdown("<style>.stTextInput label { white-space: nowrap !important; }</style>", unsafe_allow_html=True)
-                new_ticker = st.text_input(
-                    "Type a Ticker to Explore Data:",
-                    value=st.session_state.ticker,
-                    placeholder="e.g. AAPL, MSFT, TSLA",
-                ).upper().strip()
-            with col_btn:
-                submitted = st.form_submit_button("GO")
+    with st.form("ticker_form", clear_on_submit=False, border=False):
+        col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
+        with col_input:
+            st.markdown("<style>.stTextInput label { white-space: nowrap !important; }</style>", unsafe_allow_html=True)
+            new_ticker = st.text_input(
+                "Type a Ticker to Explore Data:",
+                value=st.session_state.ticker,
+                placeholder="e.g. AAPL, MSFT, TSLA",
+            ).upper().strip()
+        with col_btn:
+            submitted = st.form_submit_button("GO")
 
-        if submitted and new_ticker and new_ticker != st.session_state.ticker:
-            if validate_ticker(new_ticker):
-                st.session_state.ticker = new_ticker
-                _ticker_params = {"page": st.session_state.page, "ticker": new_ticker}
-                _ticker_sid = st.session_state.get("_server_sid", "")
-                if _ticker_sid:
-                    _ticker_params["sid"] = _ticker_sid
-                st.query_params.update(_ticker_params)
-                st.rerun()
-            else:
-                st.error(f"'{new_ticker}' not found.")
+    if submitted and new_ticker and new_ticker != st.session_state.ticker:
+        if validate_ticker(new_ticker):
+            st.session_state.ticker = new_ticker
+            _ticker_params = {"page": st.session_state.page, "ticker": new_ticker}
+            _ticker_sid = st.session_state.get("_server_sid", "")
+            if _ticker_sid:
+                _ticker_params["sid"] = _ticker_sid
+            st.query_params.update(_ticker_params)
+            st.rerun()
+        else:
+            st.error(f"'{new_ticker}' not found.")
 
     ticker = st.session_state.ticker
 
