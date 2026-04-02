@@ -6,7 +6,7 @@ numpy>=1.24.0
 matplotlib>=3.7.0
 requests>=2.28.0
 lxml>=4.9.0
-html5lib>=1.1
+
 Pillow>=10.0.0
 # ── Auth & Database ──
 bcrypt>=4.1.0
