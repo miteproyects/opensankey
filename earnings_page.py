@@ -617,6 +617,7 @@ def _render_footer():
         unsafe_allow_html=True,
     )
 
+    st.markdown('<div style="margin-top:20px;"></div>', unsafe_allow_html=True)
     st.caption(
         "Earnings data powered by Finnhub.io. Dates, estimates, and reported figures are for "
         "informational purposes only. QuarterCharts does not guarantee accuracy or completeness. "
