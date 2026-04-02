@@ -494,12 +494,8 @@ def render_earnings_page():
 
 
 def _render_debug():
-    with st.expander("Data fetch diagnostics", expanded=False):
-        if _DEBUG_LOG:
-            for line in _DEBUG_LOG:
-                st.code(line, language=None)
-        else:
-            st.caption("No debug messages — data served from cache.")
+    # Debug diagnostics hidden from users; _DEBUG_LOG still collected internally
+    pass
 
 
 def _render_ticker_search(symbol: str):
