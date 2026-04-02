@@ -321,22 +321,28 @@ def render_earnings_page():
     )
 
     # ── Search bar ──
-    sc1, sc2, sc3 = st.columns([1, 3, 1])
+    st.markdown(
+        '<style>'
+        'div[data-testid="stTextInput"].ec-search-input input {'
+        '  border-radius: 10px !important; border: 1.5px solid #e2e8f0 !important;'
+        '  background: #f8fafc !important; padding: 12px 18px !important;'
+        '  font-size: 0.95rem !important; color: #334155 !important;'
+        '  box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;'
+        '}'
+        'div[data-testid="stTextInput"].ec-search-input input:focus {'
+        '  border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important;'
+        '}'
+        '</style>',
+        unsafe_allow_html=True,
+    )
+    sc1, sc2, sc3 = st.columns([1, 4, 1])
     with sc2:
-        lbl_col, inp_col = st.columns([1, 3], vertical_alignment="center")
-        with lbl_col:
-            st.markdown(
-                '<p style="text-align:right; font-size:0.9rem; font-weight:600; '
-                'color:#475569; margin:0; white-space:nowrap;">Enter ticker symbol:</p>',
-                unsafe_allow_html=True,
-            )
-        with inp_col:
-            search_query = st.text_input(
-                "Search",
-                placeholder="e.g. AAPL, MSFT, NVDA",
-                key="ec_search",
-                label_visibility="collapsed",
-            )
+        search_query = st.text_input(
+            "Search",
+            placeholder="Search by ticker symbol (e.g. AAPL, MSFT, NVDA)",
+            key="ec_search",
+            label_visibility="collapsed",
+        )
 
     st.markdown('<div style="margin-bottom:20px;"></div>', unsafe_allow_html=True)
 
