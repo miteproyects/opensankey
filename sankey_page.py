@@ -2576,10 +2576,7 @@ def render_sankey_page():
         st.caption(f"QuarterCharts \u00b7 SEC EDGAR data \u00b7 {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
 
     elif sankey_view == "balance":
-        # ââ Historical trend selector (popup) ââ
         metric_options = list(BALANCE_NODE_METRICS.keys())
-                _show_metric_popup(ticker, active_metric, "balance")
-            _balance_popup()
         st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:1.5rem">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
         # ââ KPI Metric Cards for Balance Sheet ââ
@@ -2615,6 +2612,8 @@ def render_sankey_page():
             active_metric = st.session_state["popup_active_balance"]
             @st.dialog(f"{active_metric} — Historical Trend", width="large")
             def _balance_popup():
+                _show_metric_popup(ticker, active_metric, "balance")
+            _balance_popup()
 
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period)
         if fig:
