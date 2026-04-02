@@ -51,7 +51,6 @@ def _fetch_week_earnings(from_str: str, to_str: str) -> dict:
     Single API call — fast and reliable.
     """
     result = {}
-    # Init all days to empty
     from_d = date.fromisoformat(from_str)
     to_d = date.fromisoformat(to_str)
     d = from_d
@@ -81,7 +80,7 @@ def _fetch_week_earnings(from_str: str, to_str: str) -> dict:
                     continue
                 result[row_date].append({
                     "ticker": item.get("symbol", ""),
-                    "company": item.get("symbol", ""),  # Finnhub doesn't return company name
+                    "company": item.get("symbol", ""),
                     "event": f"Q{item.get('quarter', '?')} {item.get('year', '')} Earnings",
                     "call_time": _map_hour(item.get("hour", "")),
                     "eps_estimate": _safe_float(item.get("epsEstimate")),
@@ -163,11 +162,11 @@ def _get_week_start(d: date) -> date:
 def _format_date_range(week_start: date) -> str:
     week_end = week_start + timedelta(days=6)
     if week_start.month == week_end.month:
-        return f"{week_start.strftime('%b %d')} – {week_end.strftime('%d, %Y')}"
+        return f"{week_start.strftime('%b %d')} &ndash; {week_end.strftime('%d, %Y')}"
     elif week_start.year == week_end.year:
-        return f"{week_start.strftime('%b %d')} – {week_end.strftime('%b %d, %Y')}"
+        return f"{week_start.strftime('%b %d')} &ndash; {week_end.strftime('%b %d, %Y')}"
     else:
-        return f"{week_start.strftime('%b %d, %Y')} – {week_end.strftime('%b %d, %Y')}"
+        return f"{week_start.strftime('%b %d, %Y')} &ndash; {week_end.strftime('%b %d, %Y')}"
 
 
 _DAY_MAP = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
@@ -175,207 +174,123 @@ _DAY_MAP = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"
 
 # ── Styles ─────────────────────────────────────────────────────────────
 
-_STYLES = """
-<style>
+_STYLES = """<style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-.ec-hero {
-    text-align: center;
-    padding: 40px 20px 8px;
-}
+.ec-hero { text-align: center; padding: 32px 20px 4px; }
 .ec-hero h1 {
-    font-size: 2.6rem;
-    font-weight: 900;
-    background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #f472b6 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin: 0 0 8px;
-    font-family: Inter, system-ui, sans-serif;
-    letter-spacing: -0.03em;
+  font-size: 2.4rem; font-weight: 900;
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #f472b6 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin: 0 0 6px;
+  font-family: Inter, system-ui, sans-serif; letter-spacing: -0.03em;
 }
-.ec-hero p {
-    font-size: 1rem;
-    color: #64748b;
-    margin: 0;
-    font-family: Inter, system-ui, sans-serif;
+.ec-hero p { font-size: 0.95rem; color: #64748b; margin: 0; font-family: Inter, system-ui, sans-serif; }
+
+/* ── Week nav bar ── */
+.ec-week-nav {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; margin: 20px 0 16px; font-family: Inter, system-ui, sans-serif;
+}
+.ec-week-nav .ec-nav-btn {
+  background: #1e293b; color: #94a3b8; border: 1px solid #334155;
+  border-radius: 10px; padding: 8px 20px; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s ease; text-decoration: none;
+  font-family: Inter, system-ui, sans-serif; display: inline-block;
+}
+.ec-week-nav .ec-nav-btn:hover { background: #334155; color: #e2e8f0; }
+.ec-week-nav .ec-date-label {
+  font-size: 1rem; font-weight: 700; color: #e2e8f0;
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  border: 1px solid #334155; border-radius: 12px;
+  padding: 8px 28px; white-space: nowrap;
 }
 
-.ec-date-range {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: #e2e8f0;
-    background: linear-gradient(135deg, #1e293b, #0f172a);
-    border: 1px solid #334155;
-    border-radius: 12px;
-    padding: 10px 28px;
-    font-family: Inter, system-ui, sans-serif;
-    display: inline-block;
+/* ── Day selector pills ── */
+.ec-day-row {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: 8px; margin: 0 0 24px; font-family: Inter, system-ui, sans-serif;
 }
+.ec-day-pill {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 10px 4px; border-radius: 12px; cursor: pointer;
+  border: 1px solid #1e293b; background: #0f172a;
+  transition: all 0.15s ease; text-decoration: none; min-height: 72px;
+}
+.ec-day-pill:hover { border-color: #3b82f6; background: rgba(59,130,246,0.06); }
+.ec-day-pill.active {
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  border-color: #3b82f6; box-shadow: 0 2px 12px rgba(59,130,246,0.25);
+}
+.ec-day-pill .day-name { font-size: 0.72rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+.ec-day-pill.active .day-name { color: rgba(255,255,255,0.7); }
+.ec-day-pill .day-num { font-size: 1.15rem; font-weight: 800; color: #e2e8f0; margin: 2px 0; }
+.ec-day-pill.active .day-num { color: #fff; }
+.ec-day-pill .day-count { font-size: 0.7rem; font-weight: 600; color: #475569; }
+.ec-day-pill.active .day-count { color: rgba(255,255,255,0.8); }
 
-.ec-section-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 28px 0 16px;
-    font-family: Inter, system-ui, sans-serif;
-}
-.ec-section-header h2 {
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: #f1f5f9;
-    margin: 0;
-}
+/* ── Section header ── */
+.ec-section-header { display: flex; align-items: center; gap: 12px; margin: 24px 0 14px; font-family: Inter, system-ui, sans-serif; }
+.ec-section-header h2 { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin: 0; }
 .ec-section-header .ec-count-badge {
-    background: linear-gradient(135deg, #1e40af, #3b82f6);
-    color: #fff;
-    font-size: 0.72rem;
-    font-weight: 700;
-    padding: 3px 12px;
-    border-radius: 20px;
+  background: linear-gradient(135deg, #1e40af, #3b82f6); color: #fff;
+  font-size: 0.7rem; font-weight: 700; padding: 3px 12px; border-radius: 20px;
 }
 
-.ec-table-wrap {
-    border-radius: 16px;
-    border: 1px solid #1e293b;
-    overflow: hidden;
-    margin-bottom: 20px;
-    background: #0f172a;
-}
-.ec-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: Inter, system-ui, sans-serif;
-}
+/* ── Table ── */
+.ec-table-wrap { border-radius: 14px; border: 1px solid #1e293b; overflow: hidden; margin-bottom: 20px; background: #0f172a; }
+.ec-table { width: 100%; border-collapse: collapse; font-family: Inter, system-ui, sans-serif; }
 .ec-table thead th {
-    background: linear-gradient(180deg, #1e293b, #0f172a);
-    color: #64748b;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 14px 16px;
-    text-align: left;
-    border-bottom: 1px solid #1e293b;
-    position: sticky;
-    top: 0;
-    z-index: 1;
+  background: linear-gradient(180deg, #1e293b, #0f172a); color: #64748b;
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 12px 14px; text-align: left; border-bottom: 1px solid #1e293b;
 }
-.ec-table tbody tr {
-    border-bottom: 1px solid rgba(30,41,59,0.5);
-    transition: all 0.15s ease;
-}
-.ec-table tbody tr:hover {
-    background: linear-gradient(90deg, rgba(59,130,246,0.06), rgba(59,130,246,0.02));
-}
-.ec-table tbody td {
-    padding: 14px 16px;
-    font-size: 0.88rem;
-    color: #94a3b8;
-    vertical-align: middle;
-}
-.ec-ticker {
-    color: #60a5fa;
-    font-weight: 700;
-    text-decoration: none;
-    cursor: pointer;
-    font-size: 0.9rem;
-    letter-spacing: 0.02em;
-}
+.ec-table tbody tr { border-bottom: 1px solid rgba(30,41,59,0.5); transition: all 0.15s ease; }
+.ec-table tbody tr:hover { background: linear-gradient(90deg, rgba(59,130,246,0.06), rgba(59,130,246,0.02)); }
+.ec-table tbody td { padding: 11px 14px; font-size: 0.85rem; color: #94a3b8; vertical-align: middle; }
+.ec-ticker { color: #60a5fa; font-weight: 700; text-decoration: none; cursor: pointer; font-size: 0.88rem; letter-spacing: 0.02em; }
 .ec-ticker:hover { color: #93c5fd; }
-.ec-company { color: #cbd5e1; font-weight: 500; font-size: 0.85rem; }
-.ec-event { color: #475569; font-size: 0.78rem; font-style: italic; }
+.ec-event { color: #475569; font-size: 0.76rem; font-style: italic; }
 
-.ec-badge-bmo {
-    background: rgba(59,130,246,0.12);
-    color: #60a5fa;
-    padding: 4px 12px;
-    border-radius: 8px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    border: 1px solid rgba(59,130,246,0.2);
-}
-.ec-badge-amc {
-    background: rgba(168,85,247,0.12);
-    color: #c084fc;
-    padding: 4px 12px;
-    border-radius: 8px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    border: 1px solid rgba(168,85,247,0.2);
-}
-.ec-badge-other {
-    background: rgba(100,116,139,0.1);
-    color: #64748b;
-    padding: 4px 12px;
-    border-radius: 8px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    border: 1px solid rgba(100,116,139,0.15);
-}
+.ec-badge-bmo { background: rgba(59,130,246,0.12); color: #60a5fa; padding: 3px 10px; border-radius: 8px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; border: 1px solid rgba(59,130,246,0.2); }
+.ec-badge-amc { background: rgba(168,85,247,0.12); color: #c084fc; padding: 3px 10px; border-radius: 8px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; border: 1px solid rgba(168,85,247,0.2); }
+.ec-badge-other { background: rgba(100,116,139,0.1); color: #64748b; padding: 3px 10px; border-radius: 8px; font-size: 0.7rem; font-weight: 600; border: 1px solid rgba(100,116,139,0.15); }
 
 .ec-eps-positive { color: #22c55e; font-weight: 600; }
 .ec-eps-negative { color: #ef4444; font-weight: 600; }
 .ec-eps-neutral { color: #475569; }
-.ec-surprise-positive {
-    color: #22c55e; font-weight: 700; font-size: 0.82rem;
-    background: rgba(34,197,94,0.08); padding: 2px 8px; border-radius: 6px;
-}
-.ec-surprise-negative {
-    color: #ef4444; font-weight: 700; font-size: 0.82rem;
-    background: rgba(239,68,68,0.08); padding: 2px 8px; border-radius: 6px;
-}
+.ec-surprise-positive { color: #22c55e; font-weight: 700; font-size: 0.8rem; background: rgba(34,197,94,0.08); padding: 2px 8px; border-radius: 6px; }
+.ec-surprise-negative { color: #ef4444; font-weight: 700; font-size: 0.8rem; background: rgba(239,68,68,0.08); padding: 2px 8px; border-radius: 6px; }
 
-.ec-empty {
-    text-align: center;
-    padding: 64px 20px;
-    font-family: Inter, system-ui, sans-serif;
-}
-.ec-empty-icon { font-size: 3rem; margin-bottom: 16px; opacity: 0.4; }
-.ec-empty-text { font-size: 1rem; font-weight: 500; color: #475569; }
-.ec-empty-sub { font-size: 0.85rem; color: #334155; margin-top: 6px; }
+/* ── Empty state ── */
+.ec-empty { text-align: center; padding: 56px 20px; font-family: Inter, system-ui, sans-serif; }
+.ec-empty-icon { font-size: 2.5rem; margin-bottom: 14px; opacity: 0.4; }
+.ec-empty-text { font-size: 0.95rem; font-weight: 500; color: #475569; }
+.ec-empty-sub { font-size: 0.82rem; color: #334155; margin-top: 4px; }
 
-.ec-search-banner {
-    background: linear-gradient(135deg, #172554 0%, #1e3a5f 50%, #172554 100%);
-    border: 1px solid rgba(59,130,246,0.3);
-    border-radius: 16px;
-    padding: 20px 24px;
-    margin-bottom: 24px;
-    font-family: Inter, system-ui, sans-serif;
-}
-.ec-search-banner h3 { color: #60a5fa; font-size: 1.1rem; font-weight: 700; margin: 0 0 4px; }
-.ec-search-banner p { color: #93c5fd; font-size: 0.85rem; margin: 0; opacity: 0.8; }
+/* ── Search banner ── */
+.ec-search-banner { background: linear-gradient(135deg, #172554 0%, #1e3a5f 50%, #172554 100%); border: 1px solid rgba(59,130,246,0.3); border-radius: 14px; padding: 18px 22px; margin-bottom: 20px; font-family: Inter, system-ui, sans-serif; }
+.ec-search-banner h3 { color: #60a5fa; font-size: 1.05rem; font-weight: 700; margin: 0 0 3px; }
+.ec-search-banner p { color: #93c5fd; font-size: 0.82rem; margin: 0; opacity: 0.8; }
 
-.ec-glossary {
-    margin-top: 36px;
-    padding: 24px;
-    background: linear-gradient(135deg, #0f172a, #1e293b);
-    border: 1px solid #1e293b;
-    border-radius: 16px;
-    font-family: Inter, system-ui, sans-serif;
-}
-.ec-glossary h4 {
-    color: #64748b; font-size: 0.72rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 16px;
-}
-.ec-glossary-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 12px;
-}
+/* ── Glossary ── */
+.ec-glossary { margin-top: 32px; padding: 20px; background: linear-gradient(135deg, #0f172a, #1e293b); border: 1px solid #1e293b; border-radius: 14px; font-family: Inter, system-ui, sans-serif; }
+.ec-glossary h4 { color: #64748b; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 14px; }
+.ec-glossary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .ec-glossary-item { display: flex; align-items: baseline; gap: 8px; }
-.ec-glossary-item .term { color: #94a3b8; font-size: 0.78rem; font-weight: 700; min-width: 40px; }
-.ec-glossary-item .def { color: #475569; font-size: 0.75rem; line-height: 1.5; }
+.ec-glossary-item .term { color: #94a3b8; font-size: 0.75rem; font-weight: 700; min-width: 40px; }
+.ec-glossary-item .def { color: #475569; font-size: 0.72rem; line-height: 1.4; }
 
 @media (max-width: 768px) {
-    .ec-hero h1 { font-size: 1.8rem; }
-    .ec-table thead th, .ec-table tbody td { padding: 10px 10px; font-size: 0.8rem; }
-    .ec-glossary-grid { grid-template-columns: 1fr; }
+  .ec-hero h1 { font-size: 1.7rem; }
+  .ec-day-row { gap: 4px; }
+  .ec-day-pill { padding: 8px 2px; min-height: 60px; }
+  .ec-day-pill .day-num { font-size: 1rem; }
+  .ec-table thead th, .ec-table tbody td { padding: 8px 8px; font-size: 0.78rem; }
+  .ec-glossary-grid { grid-template-columns: 1fr; }
+  .ec-week-nav .ec-date-label { font-size: 0.85rem; padding: 8px 16px; }
 }
-</style>
-"""
+</style>"""
 
 
 # ── Main Render ────────────────────────────────────────────────────────
@@ -387,12 +302,13 @@ def render_earnings_page():
     st.markdown(_STYLES, unsafe_allow_html=True)
 
     # ── Hero ──
-    st.markdown("""
-    <div class="ec-hero">
-        <h1>Earnings Calendar</h1>
-        <p>Track upcoming and recent earnings announcements across the market</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div class="ec-hero">'
+        '<h1>Earnings Calendar</h1>'
+        '<p>Track upcoming and recent earnings announcements across the market</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
     # ── Search bar ──
     sc1, sc2, sc3 = st.columns([1, 3, 1])
@@ -415,24 +331,26 @@ def render_earnings_page():
     if "ec_week_offset" not in st.session_state:
         st.session_state.ec_week_offset = 0
 
-    nc1, nc2, nc3, nc4, nc5 = st.columns([2, 1, 3, 1, 2])
-    with nc2:
-        if st.button("◂ Prev", key="ec_prev", use_container_width=True):
+    # Prev / Next buttons (Streamlit native, single row)
+    nav_left, nav_center, nav_right = st.columns([1, 4, 1])
+    with nav_left:
+        if st.button("< Prev", key="ec_prev", use_container_width=True):
             st.session_state.ec_week_offset -= 1
             st.rerun()
-    with nc4:
-        if st.button("Next ▸", key="ec_next", use_container_width=True):
+    with nav_right:
+        if st.button("Next >", key="ec_next", use_container_width=True):
             st.session_state.ec_week_offset += 1
             st.rerun()
 
     week_start = _get_week_start(today) + timedelta(weeks=st.session_state.ec_week_offset)
     week_end = week_start + timedelta(days=6)
 
-    with nc3:
+    with nav_center:
         st.markdown(
-            f'<div style="text-align:center;padding:6px 0;">'
-            f'<span class="ec-date-range">{_format_date_range(week_start)}</span>'
-            f'</div>',
+            f'<div style="text-align:center;">'
+            f'<span class="ec-week-nav">'
+            f'<span class="ec-date-label">{_format_date_range(week_start)}</span>'
+            f'</span></div>',
             unsafe_allow_html=True,
         )
 
@@ -448,7 +366,7 @@ def render_earnings_page():
         _debug(traceback.format_exc())
         week_data = {(week_start + timedelta(days=i)).isoformat(): [] for i in range(7)}
 
-    # ── Day selector buttons ──
+    # ── Day selector (HTML pills — uniform size) ──
     days_in_week = []
     for i in range(7):
         d = week_start + timedelta(days=i)
@@ -478,16 +396,18 @@ def render_earnings_page():
             if not selected_day:
                 selected_day = (week_start + timedelta(days=1)).isoformat()
 
+    # Build day pills using native Streamlit buttons (uniform single-line labels)
     day_cols = st.columns(7)
     for i, (d, count) in enumerate(days_in_week):
         with day_cols[i]:
             is_active = d.isoformat() == selected_day
             wd = d.weekday()
             day_name = _DAY_MAP[wd]
-            count_text = str(count) if count > 0 else "—"
+            count_text = str(count) if count > 0 else "-"
+            label = f"{day_name} {d.day} ({count_text})"
 
             if st.button(
-                f"{day_name}\n{d.day}\n{count_text}",
+                label,
                 key=f"ec_day_{d.isoformat()}",
                 use_container_width=True,
                 type="primary" if is_active else "secondary",
@@ -505,22 +425,24 @@ def render_earnings_page():
     wd = sel_date.weekday()
     day_title = f"Earnings on {_DAY_MAP[wd]}, {sel_date.strftime('%B')} {sel_date.day}"
 
-    count_badge = f'<span class="ec-count-badge">{len(day_earnings)} report{"s" if len(day_earnings) != 1 else ""}</span>' if day_earnings else ''
-    st.markdown(f"""
-    <div class="ec-section-header">
-        <h2>{day_title}</h2>
-        {count_badge}
-    </div>
-    """, unsafe_allow_html=True)
+    count_badge = (
+        f'<span class="ec-count-badge">{len(day_earnings)} report{"s" if len(day_earnings) != 1 else ""}</span>'
+        if day_earnings else ''
+    )
+    st.markdown(
+        f'<div class="ec-section-header"><h2>{day_title}</h2>{count_badge}</div>',
+        unsafe_allow_html=True,
+    )
 
     if not day_earnings:
-        st.markdown(f"""
-        <div class="ec-empty">
-            <div class="ec-empty-icon">📊</div>
-            <div class="ec-empty-text">No earnings reports scheduled</div>
-            <div class="ec-empty-sub">{_DAY_MAP[wd]}, {sel_date.strftime('%B %d, %Y')}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="ec-empty">'
+            f'<div class="ec-empty-icon">📊</div>'
+            f'<div class="ec-empty-text">No earnings reports scheduled</div>'
+            f'<div class="ec-empty-sub">{_DAY_MAP[wd]}, {sel_date.strftime("%B %d, %Y")}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
     else:
         _render_earnings_table(day_earnings)
 
@@ -558,21 +480,19 @@ def _render_ticker_search(symbol: str):
     past = [r for r in results if r["date"] < today_str]
 
     if upcoming:
-        st.markdown(f"""
-        <div class="ec-section-header">
-            <h2>Upcoming Earnings</h2>
-            <span class="ec-count-badge">{len(upcoming)}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="ec-section-header"><h2>Upcoming Earnings</h2>'
+            f'<span class="ec-count-badge">{len(upcoming)}</span></div>',
+            unsafe_allow_html=True,
+        )
         _render_earnings_table(upcoming, show_date=True)
 
     if past:
-        st.markdown(f"""
-        <div class="ec-section-header">
-            <h2>Past Earnings</h2>
-            <span class="ec-count-badge">{len(past)}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="ec-section-header"><h2>Past Earnings</h2>'
+            f'<span class="ec-count-badge">{len(past)}</span></div>',
+            unsafe_allow_html=True,
+        )
         _render_earnings_table(past, show_date=True)
 
 
@@ -610,7 +530,7 @@ def _render_earnings_table(earnings: list[dict], show_date: bool = False):
             except (ValueError, TypeError):
                 eps_actual_html = f'<span class="ec-eps-neutral">{eps_actual}</span>'
         else:
-            eps_actual_html = '<span class="ec-eps-neutral">–</span>'
+            eps_actual_html = '<span class="ec-eps-neutral">&ndash;</span>'
 
         if surprise != "-":
             try:
@@ -621,7 +541,7 @@ def _render_earnings_table(earnings: list[dict], show_date: bool = False):
             except (ValueError, TypeError):
                 surprise_html = f'<span class="ec-eps-neutral">{surprise}</span>'
         else:
-            surprise_html = '<span class="ec-eps-neutral">–</span>'
+            surprise_html = '<span class="ec-eps-neutral">&ndash;</span>'
 
         ticker_link = f'/?page=charts&ticker={ticker}{_auth_params}'
         date_col = f'<td>{e.get("date", "")}</td>' if show_date else ''
@@ -645,20 +565,18 @@ def _render_earnings_table(earnings: list[dict], show_date: bool = False):
 
 
 def _render_footer():
-    st.markdown("""
-    <div class="ec-glossary">
-        <h4>Glossary</h4>
-        <div class="ec-glossary-grid">
-            <div class="ec-glossary-item"><span class="term">BMO</span><span class="def">Before Market Open — reported before 9:30 AM ET</span></div>
-            <div class="ec-glossary-item"><span class="term">AMC</span><span class="def">After Market Close — reported after 4:00 PM ET</span></div>
-            <div class="ec-glossary-item"><span class="term">TAS</span><span class="def">During Market Hours</span></div>
-            <div class="ec-glossary-item"><span class="term">TNS</span><span class="def">Time Not Supplied — exact time not announced</span></div>
-            <div class="ec-glossary-item"><span class="term">EPS Est.</span><span class="def">Consensus analyst estimate for Earnings Per Share</span></div>
-            <div class="ec-glossary-item"><span class="term">Reported</span><span class="def">Actual EPS reported by the company</span></div>
-            <div class="ec-glossary-item"><span class="term">Surprise</span><span class="def">% difference between reported and estimated EPS</span></div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div class="ec-glossary"><h4>Glossary</h4><div class="ec-glossary-grid">'
+        '<div class="ec-glossary-item"><span class="term">BMO</span><span class="def">Before Market Open &mdash; reported before 9:30 AM ET</span></div>'
+        '<div class="ec-glossary-item"><span class="term">AMC</span><span class="def">After Market Close &mdash; reported after 4:00 PM ET</span></div>'
+        '<div class="ec-glossary-item"><span class="term">TAS</span><span class="def">During Market Hours</span></div>'
+        '<div class="ec-glossary-item"><span class="term">TNS</span><span class="def">Time Not Supplied &mdash; exact time not announced</span></div>'
+        '<div class="ec-glossary-item"><span class="term">EPS Est.</span><span class="def">Consensus analyst estimate for Earnings Per Share</span></div>'
+        '<div class="ec-glossary-item"><span class="term">Reported</span><span class="def">Actual EPS reported by the company</span></div>'
+        '<div class="ec-glossary-item"><span class="term">Surprise</span><span class="def">% difference between reported and estimated EPS</span></div>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
 
     st.caption(
         "Earnings data powered by Finnhub.io. Dates, estimates, and reported figures are for "
