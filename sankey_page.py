@@ -2504,29 +2504,29 @@ def render_sankey_page():
                 font-size: 0.72rem !important;
             }
         }
-        /* ── Metric filter pills: compact + glow on hover ── */
+        /* ── Metric filter pills: compact + blue border glow on hover ── */
+        [data-testid="stPills"] button,
         [data-testid="stPillsButton"] {
             font-size: 0.78rem !important;
             padding: 4px 10px !important;
+            border: 1.5px solid #e2e8f0 !important;
             transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.15s ease !important;
         }
+        [data-testid="stPills"] button:hover,
         [data-testid="stPillsButton"]:hover {
-            box-shadow:
-                0 0 0 1px rgba(59, 130, 246, 0.6),
-                0 0 8px 2px rgba(59, 130, 246, 0.5),
-                0 0 20px 5px rgba(59, 130, 246, 0.2) !important;
             border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.35), 0 0 12px 3px rgba(59,130,246,0.4), 0 0 24px 6px rgba(59,130,246,0.15) !important;
             transform: translateY(-1px) !important;
         }
+        [data-testid="stPills"] button[aria-checked="true"],
         [data-testid="stPillsButton"][aria-checked="true"] {
+            border: 1.5px solid #6366f1 !important;
             transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.15s ease !important;
         }
+        [data-testid="stPills"] button[aria-checked="true"]:hover,
         [data-testid="stPillsButton"][aria-checked="true"]:hover {
-            box-shadow:
-                0 0 0 1px rgba(59, 130, 246, 0.8),
-                0 0 10px 3px rgba(59, 130, 246, 0.65),
-                0 0 28px 8px rgba(59, 130, 246, 0.25) !important;
             border-color: #60a5fa !important;
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.5), 0 0 14px 4px rgba(59,130,246,0.55), 0 0 30px 8px rgba(59,130,246,0.2) !important;
             transform: translateY(-1px) !important;
         }
     </style>
