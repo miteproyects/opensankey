@@ -347,7 +347,10 @@ def render_earnings_page():
     st.markdown('<div style="margin-bottom:20px;"></div>', unsafe_allow_html=True)
 
     if search_query and search_query.strip():
-        _render_ticker_search(search_query.strip().upper())
+        symbol = search_query.strip().upper()
+        # Clear the search box so it's empty on return
+        st.session_state["ec_search"] = ""
+        _render_ticker_search(symbol)
         _render_footer()
         _render_debug()
         return
