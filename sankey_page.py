@@ -2516,7 +2516,7 @@ def render_sankey_page():
     if sankey_view == "income":
         # ââ Historical trend selector (popup) ââ
         metric_options = list(INCOME_NODE_METRICS.keys())
-        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:0.5rem">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:1.5rem">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
         # ââ KPI Metric Cards ââ
         revenue      = _safe(income_df, "Total Revenue")
@@ -2580,7 +2580,7 @@ def render_sankey_page():
         metric_options = list(BALANCE_NODE_METRICS.keys())
                 _show_metric_popup(ticker, active_metric, "balance")
             _balance_popup()
-        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:0.5rem">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:1.5rem">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
         # ââ KPI Metric Cards for Balance Sheet ââ
         total_assets = _safe(balance_df, "Total Assets")
