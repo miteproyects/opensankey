@@ -279,7 +279,7 @@ _STYLES = """<style>
 .ec-empty-text { font-size: 1rem; font-weight: 600; color: #64748b; }
 
 /* ── Search banner ── */
-.ec-search-banner { background: linear-gradient(135deg, #172554 0%, #1e3a5f 50%, #172554 100%); border: 1px solid rgba(59,130,246,0.3); border-radius: 14px; padding: 18px 22px; margin-bottom: 20px; font-family: Inter, system-ui, sans-serif; }
+.ec-search-banner { background: linear-gradient(135deg, #172554 0%, #1e3a5f 50%, #172554 100%); border: 1px solid rgba(59,130,246,0.3); border-radius: 14px; padding: 18px 22px; margin-top: 24px; margin-bottom: 20px; font-family: Inter, system-ui, sans-serif; }
 .ec-search-banner h3 { color: #60a5fa; font-size: 1.05rem; font-weight: 700; margin: 0 0 3px; }
 .ec-search-banner p { color: #93c5fd; font-size: 0.82rem; margin: 0; opacity: 0.8; }
 
