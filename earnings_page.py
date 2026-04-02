@@ -637,10 +637,12 @@ def render_earnings_page():
         )
 
     # ── Fetch week data (cached — fast after first load) ──
-    _debug("Starting data fetch...")
+    _debug(f"Fetching week: {week_start.isoformat()}")
     try:
         with st.spinner("Loading earnings data..."):
             week_data = _fetch_week_earnings_cached(week_start.isoformat())
+        total = sum(len(v) for v in week_data.values())
+        _debug(f"Result: {total} total earnings across 7 days (may be from cache)")
     except Exception as e:
         _debug(f"FATAL fetch error: {e}")
         _debug(traceback.format_exc())
@@ -677,31 +679,18 @@ def render_earnings_page():
             if not selected_day:
                 selected_day = (week_start + timedelta(days=1)).isoformat()
 
-    # Render day pill buttons
+    # Render day selector buttons styled as pills
     day_cols = st.columns(7)
     for i, (d, count) in enumerate(days_in_week):
         with day_cols[i]:
             is_active = d.isoformat() == selected_day
             wd = d.weekday()
             day_name = _DAY_MAP[wd]
-
-            # Build rich HTML pill content
-            active_cls = "active" if is_active else ""
-            dot_cls = "" if count > 0 else "empty"
-            count_text = f"{count} report{'s' if count != 1 else ''}" if count > 0 else "—"
-
-            pill_html = f"""
-            <div class="ec-day-pill {active_cls}" style="width:100%;text-align:center;">
-                <span class="day-name">{day_name}</span>
-                <span class="day-num">{d.day}</span>
-                <span class="day-count">{count_text}</span>
-                <span class="day-dot {dot_cls}"></span>
-            </div>
-            """
-            st.markdown(pill_html, unsafe_allow_html=True)
+            count_text = f"{count}" if count > 0 else "—"
+            btn_label = f"{day_name}\n{d.day}\n{count_text}"
 
             if st.button(
-                f"Select {day_name}",
+                btn_label,
                 key=f"ec_day_{d.isoformat()}",
                 use_container_width=True,
                 type="primary" if is_active else "secondary",
