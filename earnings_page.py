@@ -283,7 +283,7 @@ _STYLES = """<style>
 .ec-search-banner p { color: #93c5fd; font-size: 0.82rem; margin: 0; opacity: 0.8; }
 
 /* ── Glossary ── */
-.ec-glossary { margin-top: 32px; padding: 20px; background: linear-gradient(135deg, #0f172a, #1e293b); border: 1px solid #1e293b; border-radius: 14px; font-family: Inter, system-ui, sans-serif; }
+.ec-glossary { margin-top: 32px; margin-bottom: 28px; padding: 20px; background: linear-gradient(135deg, #0f172a, #1e293b); border: 1px solid #1e293b; border-radius: 14px; font-family: Inter, system-ui, sans-serif; }
 .ec-glossary h4 { color: #64748b; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 14px; }
 .ec-glossary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .ec-glossary-item { display: flex; align-items: baseline; gap: 8px; }
@@ -617,9 +617,11 @@ def _render_footer():
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div style="margin-top:20px;"></div>', unsafe_allow_html=True)
-    st.caption(
-        "Earnings data powered by Finnhub.io. Dates, estimates, and reported figures are for "
-        "informational purposes only. QuarterCharts does not guarantee accuracy or completeness. "
-        "This is not financial advice — verify with official SEC EDGAR filings and company IR pages."
+    st.markdown(
+        '<p style="margin-top:24px; font-size:0.82rem; color:#94a3b8; line-height:1.6; font-family:Inter,system-ui,sans-serif;">'
+        'Earnings data powered by Finnhub.io. Dates, estimates, and reported figures are for '
+        'informational purposes only. QuarterCharts does not guarantee accuracy or completeness. '
+        'This is not financial advice &mdash; verify with official SEC EDGAR filings and company IR pages.'
+        '</p>',
+        unsafe_allow_html=True,
     )
