@@ -2629,6 +2629,9 @@ def _render_footer():
     <p style="text-align:center; color:#6c757d;">
         &copy; {datetime.now().year} QuarterCharts &middot; Data from SEC EDGAR, FMP, Yahoo Finance &amp; Finnhub.io
     </p>
+    <p style="text-align:center; color:#6c757d; margin-top:4px;">
+        Built by Sebasti&aacute;n Flores + AI Team
+    </p>
 </div>
 """, unsafe_allow_html=True)
 
