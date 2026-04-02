@@ -2412,8 +2412,10 @@ def render_sankey_page():
                 font-size: 0.72rem !important;
             }
         }
-        /* ── Metric filter pills glow on hover ── */
+        /* ── Metric filter pills: compact + glow on hover ── */
         [data-testid="stPillsButton"] {
+            font-size: 0.78rem !important;
+            padding: 4px 10px !important;
             transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.15s ease !important;
         }
         [data-testid="stPillsButton"]:hover {
