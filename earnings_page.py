@@ -444,8 +444,8 @@ def render_earnings_page():
         with day_cols[i]:
             is_active = d.isoformat() == selected_day
             wd = d.weekday()
-            day_abbr = _DAY_MAP[wd][:2]
-            label = f"{day_abbr}{d.day}"
+            day_name = _DAY_MAP[wd]
+            label = f"{day_name} {d.day}"
 
             if st.button(
                 label,
