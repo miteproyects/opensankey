@@ -2354,7 +2354,7 @@ def render_sankey_page():
             border: 1px solid rgba(99, 102, 241, 0.25);
             border-radius: 14px;
             padding: 16px 22px;
-            margin: 0 0 1rem;
+            margin: 0 0 1.75rem;
             box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1), 0 0 0 1px rgba(99, 102, 241, 0.05);
             transition: box-shadow 0.25s ease;
         }
