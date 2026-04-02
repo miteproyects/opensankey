@@ -161,12 +161,21 @@ def _get_week_start(d: date) -> date:
 
 def _format_date_range(week_start: date) -> str:
     week_end = week_start + timedelta(days=6)
-    if week_start.month == week_end.month:
-        return f"{week_start.strftime('%b %d')} &ndash; {week_end.strftime('%d, %Y')}"
-    elif week_start.year == week_end.year:
-        return f"{week_start.strftime('%b %d')} &ndash; {week_end.strftime('%b %d, %Y')}"
+    today = date.today()
+    # Determine label
+    if week_start <= today <= week_end:
+        label = "This Week"
+    elif week_start > today:
+        label = "Next Week" if (week_start - today).days <= 7 else "Upcoming"
     else:
-        return f"{week_start.strftime('%b %d, %Y')} &ndash; {week_end.strftime('%b %d, %Y')}"
+        label = "Past Week" if (today - week_end).days <= 7 else "Week"
+    if week_start.month == week_end.month:
+        dates = f"{week_start.strftime('%b %d')} &ndash; {week_end.strftime('%d, %Y')}"
+    elif week_start.year == week_end.year:
+        dates = f"{week_start.strftime('%b %d')} &ndash; {week_end.strftime('%b %d, %Y')}"
+    else:
+        dates = f"{week_start.strftime('%b %d, %Y')} &ndash; {week_end.strftime('%b %d, %Y')}"
+    return f"{label}: {dates}"
 
 
 _DAY_MAP = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
@@ -188,22 +197,22 @@ _STYLES = """<style>
 .ec-hero p { font-size: 0.95rem; color: #64748b; margin: 0 0 8px; font-family: Inter, system-ui, sans-serif; }
 
 /* ── Week nav bar ── */
-.ec-week-nav {
-  display: flex; align-items: center; justify-content: center;
-  gap: 12px; margin: 20px 0 16px; font-family: Inter, system-ui, sans-serif;
+.ec-nav-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 4px 0 24px; font-family: Inter, system-ui, sans-serif;
 }
-.ec-week-nav .ec-nav-btn {
-  background: #1e293b; color: #94a3b8; border: 1px solid #334155;
-  border-radius: 10px; padding: 8px 20px; font-size: 0.85rem; font-weight: 600;
-  cursor: pointer; transition: all 0.15s ease; text-decoration: none;
-  font-family: Inter, system-ui, sans-serif; display: inline-block;
+.ec-nav-btn {
+  background: #ffffff; color: #475569; border: 1px solid #e2e8f0;
+  border-radius: 10px; padding: 10px 22px; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s ease; text-decoration: none;
+  font-family: Inter, system-ui, sans-serif; display: inline-flex; align-items: center; gap: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
-.ec-week-nav .ec-nav-btn:hover { background: #334155; color: #e2e8f0; }
-.ec-week-nav .ec-date-label {
-  font-size: 1rem; font-weight: 700; color: #e2e8f0;
-  background: linear-gradient(135deg, #1e293b, #0f172a);
-  border: 1px solid #334155; border-radius: 12px;
-  padding: 8px 28px; white-space: nowrap;
+.ec-nav-btn:hover { background: #f1f5f9; color: #1e293b; border-color: #cbd5e1; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+.ec-date-label {
+  font-size: 1.05rem; font-weight: 800; color: #1e293b;
+  font-family: Inter, system-ui, sans-serif; white-space: nowrap;
+  letter-spacing: -0.01em;
 }
 
 /* ── Day selector pills ── */
@@ -336,22 +345,47 @@ def render_earnings_page():
 
     # Date range — standalone centered line
     st.markdown(
-        f'<div style="text-align:center;margin:8px 0 12px;">'
+        f'<div style="text-align:center;margin:8px 0 4px;">'
         f'<span class="ec-date-label">{_format_date_range(week_start)}</span>'
         f'</div>',
         unsafe_allow_html=True,
     )
 
-    # Prev / Next — separate row, no overlap
-    nav_l, nav_spacer, nav_r = st.columns([1, 5, 1])
-    with nav_l:
-        if st.button("< Prev", key="ec_prev", use_container_width=True):
-            st.session_state.ec_week_offset -= 1
-            st.rerun()
-    with nav_r:
-        if st.button("Next >", key="ec_next", use_container_width=True):
-            st.session_state.ec_week_offset += 1
-            st.rerun()
+    # Style the Prev / Next buttons to match new design
+    st.markdown(
+        '<style>'
+        '.ec-nav-wrap [data-testid="stHorizontalBlock"] { margin-bottom: 20px !important; }'
+        '.ec-nav-wrap button[kind="secondary"] {'
+        '  background: #ffffff !important; color: #475569 !important;'
+        '  border: 1px solid #e2e8f0 !important; border-radius: 10px !important;'
+        '  padding: 10px 22px !important; font-size: 0.85rem !important;'
+        '  font-weight: 600 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;'
+        '  transition: all 0.2s ease !important;'
+        '}'
+        '.ec-nav-wrap button[kind="secondary"]:hover {'
+        '  background: #f1f5f9 !important; color: #1e293b !important;'
+        '  border-color: #cbd5e1 !important; box-shadow: 0 2px 6px rgba(0,0,0,0.1) !important;'
+        '}'
+        '</style>',
+        unsafe_allow_html=True,
+    )
+
+    # Prev / Next — separate row with spacing below
+    nav_container = st.container()
+    with nav_container:
+        st.markdown('<div class="ec-nav-wrap">', unsafe_allow_html=True)
+        nav_l, nav_spacer, nav_r = st.columns([1, 5, 1])
+        with nav_l:
+            if st.button("\u2190 Prev", key="ec_prev", use_container_width=True):
+                st.session_state.ec_week_offset -= 1
+                st.rerun()
+        with nav_r:
+            if st.button("Next \u2192", key="ec_next", use_container_width=True):
+                st.session_state.ec_week_offset += 1
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+    # Add spacing between nav and day pills
+    st.markdown('<div style="margin-bottom:12px;"></div>', unsafe_allow_html=True)
 
     # ── Fetch week data (single Finnhub API call, cached 15 min) ──
     _debug(f"Fetching: {week_start.isoformat()} to {week_end.isoformat()}")
