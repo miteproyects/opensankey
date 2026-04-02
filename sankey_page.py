@@ -2505,20 +2505,17 @@ def render_sankey_page():
             }
         }
         /* ── Metric filter pills: compact + blue glow on hover ── */
-        [data-testid="stPills"] button,
-        [data-testid="stPillsButton"] {
+        [data-testid="stBaseButton-pills"] {
             font-size: 0.78rem !important;
             padding: 4px 10px !important;
             transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.15s ease !important;
         }
-        [data-testid="stPills"] button:hover,
-        [data-testid="stPillsButton"]:hover {
+        [data-testid="stBaseButton-pills"]:hover {
             border-color: #3b82f6 !important;
             box-shadow: 0 0 0 2px rgba(59,130,246,0.4), 0 0 10px 3px rgba(59,130,246,0.45), 0 0 22px 6px rgba(59,130,246,0.18) !important;
             transform: translateY(-1px) !important;
         }
-        [data-testid="stPills"] button[aria-checked="true"]:hover,
-        [data-testid="stPillsButton"][aria-checked="true"]:hover {
+        [data-testid="stBaseButton-pills"][aria-checked="true"]:hover {
             border-color: #60a5fa !important;
             box-shadow: 0 0 0 2px rgba(59,130,246,0.55), 0 0 14px 4px rgba(59,130,246,0.55), 0 0 28px 8px rgba(59,130,246,0.22) !important;
             transform: translateY(-1px) !important;
