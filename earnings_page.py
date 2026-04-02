@@ -323,12 +323,20 @@ def render_earnings_page():
     # ── Search bar ──
     sc1, sc2, sc3 = st.columns([1, 3, 1])
     with sc2:
-        search_query = st.text_input(
-            "Search",
-            placeholder="Search by ticker symbol (e.g. AAPL, MSFT, NVDA)",
-            key="ec_search",
-            label_visibility="collapsed",
-        )
+        lbl_col, inp_col = st.columns([1, 3], vertical_alignment="center")
+        with lbl_col:
+            st.markdown(
+                '<p style="text-align:right; font-size:0.9rem; font-weight:600; '
+                'color:#475569; margin:0; white-space:nowrap;">Enter ticker symbol:</p>',
+                unsafe_allow_html=True,
+            )
+        with inp_col:
+            search_query = st.text_input(
+                "Search",
+                placeholder="e.g. AAPL, MSFT, NVDA",
+                key="ec_search",
+                label_visibility="collapsed",
+            )
 
     st.markdown('<div style="margin-bottom:20px;"></div>', unsafe_allow_html=True)
 
