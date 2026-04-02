@@ -155,8 +155,8 @@ def _fetch_ticker_earnings(symbol: str) -> list[dict]:
 # ── Week helpers ──────────────────────────────────────────────────────
 
 def _get_week_start(d: date) -> date:
-    """Get Sunday of the week containing date d."""
-    return d - timedelta(days=d.weekday() + 1) if d.weekday() != 6 else d
+    """Get Monday of the week containing date d."""
+    return d - timedelta(days=d.weekday())
 
 
 def _format_date_range(week_start: date) -> str:
