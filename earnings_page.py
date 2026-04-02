@@ -36,21 +36,49 @@ def _set_cached(key: str, data):
 
 
 # ── Yahoo Finance Earnings Fetcher ──────────────────────────────────────
+# Uses Yahoo Finance's internal screener API (same as yfinance uses).
+# This works server-side unlike HTML scraping which gets blocked.
 
-_YF_BASE = "https://finance.yahoo.com/calendar/earnings"
+_YF_SCREENER_URL = "https://query2.finance.yahoo.com/v1/finance/screener"
+_YF_CALENDAR_URL = "https://finance.yahoo.com/calendar/earnings"
 _YF_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) "
                   "Chrome/131.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": "application/json,text/html,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
 }
+
+# Crumb/cookie state for Yahoo Finance API auth
+_yf_crumb: str = ""
+_yf_cookies: dict = {}
+
+
+def _get_yf_crumb():
+    """Get Yahoo Finance crumb + cookies for API auth."""
+    global _yf_crumb, _yf_cookies
+    if _yf_crumb:
+        return _yf_crumb, _yf_cookies
+    try:
+        sess = requests.Session()
+        sess.headers.update(_YF_HEADERS)
+        # Visit main page to get cookies
+        r1 = sess.get("https://finance.yahoo.com/", timeout=8)
+        # Get crumb
+        r2 = sess.get("https://query2.finance.yahoo.com/v1/test/getcrumb", timeout=8)
+        if r2.status_code == 200 and r2.text:
+            _yf_crumb = r2.text.strip()
+            _yf_cookies = dict(sess.cookies)
+            return _yf_crumb, _yf_cookies
+    except Exception:
+        pass
+    return "", {}
 
 
 def _fetch_earnings_for_date(target_date: date) -> list[dict]:
     """
     Fetch earnings for a single date from Yahoo Finance.
-    Returns list of dicts with normalized keys.
+    Uses multiple strategies: yfinance library, then direct API.
     """
     cache_key = _cache_key(target_date)
     cached = _get_cached(cache_key)
@@ -60,112 +88,150 @@ def _fetch_earnings_for_date(target_date: date) -> list[dict]:
     date_str = target_date.strftime("%Y-%m-%d")
     results = []
 
+    # Strategy 1: Use yahoo_earnings_calendar or yfinance
+    results = _fetch_via_yfinance_calendar(target_date)
+
+    # Strategy 2: Direct Yahoo Finance calendar page with pandas
+    if not results:
+        results = _fetch_via_html_table(target_date)
+
+    _set_cached(cache_key, results)
+    return results
+
+
+def _fetch_via_yfinance_calendar(target_date: date) -> list[dict]:
+    """Fetch via yahoo_earnings_calendar package or screen endpoint."""
+    results = []
+    date_str = target_date.strftime("%Y-%m-%d")
+
+    # Try yahoo_earnings_calendar package first
     try:
-        # Yahoo Finance earnings calendar uses day= param
+        from yahoo_earnings_calendar import YahooEarningsCalendar
+        yec = YahooEarningsCalendar()
+        raw = yec.earnings_on(target_date)
+        if raw:
+            for item in raw:
+                row = _normalize_yec_row(item, target_date)
+                if row:
+                    results.append(row)
+            return results
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Try scraping the JSON from Yahoo Finance calendar page
+    try:
+        import re
         resp = requests.get(
-            _YF_BASE,
+            _YF_CALENDAR_URL,
             params={"day": date_str},
             headers=_YF_HEADERS,
-            timeout=10,
+            timeout=12,
+            cookies=_yf_cookies if _yf_cookies else None,
         )
-        if resp.status_code != 200:
-            _set_cached(cache_key, [])
-            return []
+        if resp.status_code == 200:
+            html = resp.text
+            # Try to extract embedded JSON data
+            for pattern in [
+                r'"rows"\s*:\s*(\[.*?\])\s*[,}]',
+                r'"results"\s*:\s*(\[.*?\])\s*[,}]',
+            ]:
+                match = re.search(pattern, html, re.DOTALL)
+                if match:
+                    try:
+                        data = json.loads(match.group(1))
+                        if isinstance(data, list):
+                            for item in data:
+                                row = _normalize_yec_row(item, target_date)
+                                if row:
+                                    results.append(row)
+                            if results:
+                                return results
+                    except (json.JSONDecodeError, KeyError):
+                        continue
 
-        html = resp.text
-
-        # Yahoo embeds JSON data in a script tag — extract from the HTML
-        # Look for the earnings data in the page's embedded JSON
-        rows = _parse_earnings_html(html, target_date)
-        _set_cached(cache_key, rows)
-        return rows
-
-    except Exception:
-        _set_cached(cache_key, [])
-        return []
-
-
-def _parse_earnings_html(html: str, target_date: date) -> list[dict]:
-    """Parse earnings data from Yahoo Finance HTML response."""
-    results = []
-
-    try:
-        # Try to find JSON data embedded in the page
-        # Yahoo Finance stores data in various script tags
-        import re
-
-        # Method 1: Look for the earnings table data in JSON format
-        # Yahoo Finance often embeds data as JSON in script tags
-        json_patterns = [
-            r'"rows":\s*(\[.*?\])\s*[,}]',
-            r'"earningsCalendarData":\s*(\{.*?\})\s*[,}]',
-        ]
-
-        for pattern in json_patterns:
-            match = re.search(pattern, html, re.DOTALL)
-            if match:
-                try:
-                    data = json.loads(match.group(1))
-                    if isinstance(data, list):
-                        for item in data:
-                            row = _normalize_yf_row(item, target_date)
-                            if row:
-                                results.append(row)
-                        if results:
-                            return results
-                except (json.JSONDecodeError, KeyError):
-                    continue
-
-        # Method 2: Parse HTML table directly with pandas
-        try:
-            tables = pd.read_html(html)
-            if tables:
-                df = tables[0]
-                for _, row in df.iterrows():
-                    parsed = _parse_table_row(row, target_date)
-                    if parsed:
-                        results.append(parsed)
-                return results
-        except Exception:
-            pass
-
-        # Method 3: Parse using regex on table rows
-        row_pattern = re.compile(
-            r'<td[^>]*>.*?<a[^>]*href="/quote/([^/"]+)"[^>]*>.*?</a>.*?</td>'
-            r'.*?<td[^>]*>(.*?)</td>'  # company
-            r'.*?<td[^>]*>(.*?)</td>'  # event name
-            r'.*?<td[^>]*>(.*?)</td>'  # call time
-            r'.*?<td[^>]*>(.*?)</td>'  # eps estimate
-            r'.*?<td[^>]*>(.*?)</td>',  # reported eps
-            re.DOTALL
-        )
-        for m in row_pattern.finditer(html):
-            ticker = m.group(1).strip()
-            company = _strip_html(m.group(2)).strip()
-            event = _strip_html(m.group(3)).strip()
-            call_time = _strip_html(m.group(4)).strip()
-            eps_est = _strip_html(m.group(5)).strip()
-            eps_actual = _strip_html(m.group(6)).strip()
-
-            results.append({
-                "ticker": ticker,
-                "company": company,
-                "event": event or f"Earnings Announcement",
-                "call_time": call_time if call_time in ("BMO", "AMC", "TAS", "TNS") else "-",
-                "eps_estimate": _safe_float(eps_est),
-                "eps_actual": _safe_float(eps_actual),
-                "date": target_date.isoformat(),
-            })
-
+            # Fallback: parse HTML table with pandas
+            try:
+                tables = pd.read_html(html)
+                if tables:
+                    df = tables[0]
+                    for _, row in df.iterrows():
+                        parsed = _parse_table_row(row, target_date)
+                        if parsed:
+                            results.append(parsed)
+                    if results:
+                        return results
+            except Exception:
+                pass
     except Exception:
         pass
 
     return results
 
 
-def _strip_html(s: str) -> str:
-    import re
-    return re.sub(r'<[^>]+>', '', s)
+def _fetch_via_html_table(target_date: date) -> list[dict]:
+    """Last resort: fetch via the earnings page with different headers."""
+    results = []
+    date_str = target_date.strftime("%Y-%m-%d")
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                          "AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+        }
+        resp = requests.get(
+            _YF_CALENDAR_URL,
+            params={"day": date_str},
+            headers=headers,
+            timeout=12,
+        )
+        if resp.status_code == 200:
+            try:
+                tables = pd.read_html(resp.text)
+                if tables:
+                    df = tables[0]
+                    for _, row in df.iterrows():
+                        parsed = _parse_table_row(row, target_date)
+                        if parsed:
+                            results.append(parsed)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return results
+
+
+def _normalize_yec_row(item: dict, target_date: date) -> dict | None:
+    """Normalize a row from yahoo_earnings_calendar or embedded JSON."""
+    try:
+        ticker = (item.get("ticker") or item.get("symbol") or
+                  item.get("TICKER") or item.get("Symbol") or "")
+        if not ticker:
+            return None
+
+        company = (item.get("companyshortname") or item.get("companyShortName") or
+                   item.get("shortName") or item.get("Company") or ticker)
+
+        call_time_raw = (item.get("startdatetimetype") or item.get("startDateTimeType") or
+                         item.get("Earnings Call Time") or item.get("callTime") or "")
+
+        return {
+            "ticker": str(ticker).upper().strip(),
+            "company": str(company).strip(),
+            "event": str(item.get("eventname") or item.get("eventName") or
+                        item.get("Event Name") or "Earnings Announcement").strip(),
+            "call_time": _map_call_time(str(call_time_raw)),
+            "eps_estimate": _safe_float(item.get("epsestimate") or item.get("epsEstimate") or
+                                        item.get("EPS Estimate")),
+            "eps_actual": _safe_float(item.get("epsactual") or item.get("epsActual") or
+                                      item.get("Reported EPS")),
+            "surprise_pct": _safe_float(item.get("epssurprisepct") or item.get("epsSurprisePct") or
+                                        item.get("Surprise(%)")),
+            "date": target_date.isoformat(),
+        }
+    except Exception:
+        return None
 
 
 def _safe_float(val) -> str:
@@ -877,26 +943,30 @@ def _render_earnings_table(earnings: list[dict], sel_date: date | None, show_dat
 
 def _render_footer_notes():
     """Render data attribution and glossary footer."""
+    st.markdown("---")
+    st.markdown("#### Glossary & Notes")
     st.markdown("""
-    <div class="ec-footer-notes">
-        <h4>Glossary & Notes</h4>
-        <ul>
-            <li><strong>BMO</strong> — Before Market Open. The company reports earnings before the stock market opens (typically before 9:30 AM ET).</li>
-            <li><strong>AMC</strong> — After Market Close. The company reports earnings after the market closes (typically after 4:00 PM ET).</li>
-            <li><strong>TAS</strong> — Time Already Supplied / During Market Hours.</li>
-            <li><strong>TNS</strong> — Time Not Supplied. The exact reporting time has not been announced.</li>
-            <li><strong>EPS Estimate</strong> — The consensus Wall Street analyst estimate for Earnings Per Share for the reporting period.</li>
-            <li><strong>Reported EPS</strong> — The actual Earnings Per Share reported by the company. Available after the announcement.</li>
-            <li><strong>Surprise %</strong> — The percentage difference between Reported EPS and the consensus EPS Estimate. Positive means the company beat expectations.</li>
-        </ul>
+**BMO** — Before Market Open. The company reports earnings before the stock market opens (typically before 9:30 AM ET).
 
-        <h4 style="margin-top: 16px;">Data Source & Disclaimer</h4>
-        <p>Earnings calendar data is sourced from Yahoo Finance. Earnings dates, estimates, and reported figures are provided
-           for informational purposes only and may be subject to change. QuarterCharts does not guarantee the accuracy,
-           completeness, or timeliness of this data.</p>
-        <p>Consensus EPS estimates are compiled from analyst forecasts and may differ from other sources. Actual earnings
-           results are reported by the companies themselves via SEC filings (8-K, 10-Q, 10-K) and press releases.</p>
-        <p>This information does not constitute financial advice. Always verify earnings dates and estimates with official
-           company investor relations pages and SEC EDGAR filings before making investment decisions.</p>
-    </div>
-    """, unsafe_allow_html=True)
+**AMC** — After Market Close. The company reports earnings after the market closes (typically after 4:00 PM ET).
+
+**TAS** — Time Already Supplied / During Market Hours.
+
+**TNS** — Time Not Supplied. The exact reporting time has not been announced.
+
+**EPS Estimate** — The consensus Wall Street analyst estimate for Earnings Per Share for the reporting period.
+
+**Reported EPS** — The actual Earnings Per Share reported by the company. Available after the announcement.
+
+**Surprise %** — The percentage difference between Reported EPS and the consensus EPS Estimate. Positive means the company beat expectations.
+""")
+    st.markdown("#### Data Source & Disclaimer")
+    st.caption(
+        "Earnings calendar data is sourced from Yahoo Finance. Earnings dates, estimates, and reported figures are provided "
+        "for informational purposes only and may be subject to change. QuarterCharts does not guarantee the accuracy, "
+        "completeness, or timeliness of this data.\n\n"
+        "Consensus EPS estimates are compiled from analyst forecasts and may differ from other sources. Actual earnings "
+        "results are reported by the companies themselves via SEC filings (8-K, 10-Q, 10-K) and press releases.\n\n"
+        "This information does not constitute financial advice. Always verify earnings dates and estimates with official "
+        "company investor relations pages and SEC EDGAR filings before making investment decisions."
+    )
