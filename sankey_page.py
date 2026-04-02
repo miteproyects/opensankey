@@ -2414,14 +2414,26 @@ def render_sankey_page():
         }
         /* ── Metric filter pills glow on hover ── */
         [data-testid="stPillsButton"] {
-            transition: box-shadow 0.2s ease, border-color 0.2s ease !important;
+            transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.15s ease !important;
         }
         [data-testid="stPillsButton"]:hover {
-            box-shadow: 0 0 10px rgba(99, 102, 241, 0.55), 0 0 20px rgba(99, 102, 241, 0.25) !important;
-            border-color: #6366f1 !important;
+            box-shadow:
+                0 0 0 1px rgba(59, 130, 246, 0.6),
+                0 0 8px 2px rgba(59, 130, 246, 0.5),
+                0 0 20px 5px rgba(59, 130, 246, 0.2) !important;
+            border-color: #3b82f6 !important;
+            transform: translateY(-1px) !important;
+        }
+        [data-testid="stPillsButton"][aria-checked="true"] {
+            transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.15s ease !important;
         }
         [data-testid="stPillsButton"][aria-checked="true"]:hover {
-            box-shadow: 0 0 12px rgba(99, 102, 241, 0.75), 0 0 24px rgba(99, 102, 241, 0.35) !important;
+            box-shadow:
+                0 0 0 1px rgba(59, 130, 246, 0.8),
+                0 0 10px 3px rgba(59, 130, 246, 0.65),
+                0 0 28px 8px rgba(59, 130, 246, 0.25) !important;
+            border-color: #60a5fa !important;
+            transform: translateY(-1px) !important;
         }
     </style>
     """, unsafe_allow_html=True)
