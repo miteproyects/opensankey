@@ -83,6 +83,27 @@ BS_COLORS = {
 }
 
 
+# Pill label → node hex color (for hover effects)
+INCOME_PILL_COLORS = {
+    "Revenue": VIVID[0], "Cost of Revenue": VIVID[1], "Gross Profit": VIVID[2],
+    "R&D": VIVID[3], "SG&A": VIVID[4], "D&A": VIVID[5], "Other OpEx": VIVID[5],
+    "Operating Income": VIVID[6], "Interest Exp.": VIVID[7],
+    "Pretax Income": VIVID[8], "Income Tax": VIVID[9], "Net Income": VIVID[10],
+}
+BALANCE_PILL_COLORS = {
+    "Total Assets": BS_COLORS["asset"], "Current Assets": BS_COLORS["asset"],
+    "Non-Current Assets": BS_COLORS["asset2"], "Cash": BS_COLORS["cash"],
+    "ST Investments": BS_COLORS["invest"], "Receivables": BS_COLORS["asset"],
+    "Inventory": BS_COLORS["asset"], "PPE": BS_COLORS["asset2"],
+    "Goodwill": BS_COLORS["asset2"], "Intangibles": BS_COLORS["asset2"],
+    "Investments": BS_COLORS["invest"], "Total Liabilities": BS_COLORS["liability"],
+    "Current Liab.": BS_COLORS["liability"], "Non-Current Liab.": BS_COLORS["liability"],
+    "Accounts Payable": BS_COLORS["payable"], "Short-Term Debt": BS_COLORS["debt"],
+    "Deferred Revenue": BS_COLORS["liability"], "Long-Term Debt": BS_COLORS["debt"],
+    "Equity": BS_COLORS["equity"], "Retained Earnings": BS_COLORS["retained"],
+}
+
+
 def _rgba(hex_color, alpha=0.42):
     """Convert hex to rgba string."""
     h = hex_color.lstrip("#")
@@ -1054,6 +1075,132 @@ def _show_metric_popup(ticker, node_label, view):
             )
         st.divider()
 
+
+
+def _inject_pill_hover_js(metric_map, color_map):
+    """Inject JS that:
+    1. Colors each pill on hover using its Sankey node color (background + border).
+    2. Highlights the matching Sankey node & links while dimming the rest.
+    """
+    import json as _json
+    colors_js = _json.dumps(color_map)
+
+    js = f"""
+    <script>
+    (function() {{
+        const COLORS = {colors_js};
+        const parentDoc = window.parent.document;
+
+        function hexToRgba(hex, alpha) {{
+            var r = parseInt(hex.slice(1,3), 16);
+            var g = parseInt(hex.slice(3,5), 16);
+            var b = parseInt(hex.slice(5,7), 16);
+            return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+        }}
+
+        function setupPillHovers() {{
+            var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
+            if (!btns.length) return false;
+            var bound = false;
+            btns.forEach(function(btn) {{
+                if (btn._pillHoverBound) return;
+                btn._pillHoverBound = true;
+                bound = true;
+                var label = btn.textContent.trim();
+                var color = COLORS[label];
+                if (!color) return;
+
+                btn.addEventListener('mouseenter', function() {{
+                    btn.style.background = hexToRgba(color, 0.15);
+                    btn.style.borderColor = color;
+                    btn.style.boxShadow = '0 0 0 2px ' + hexToRgba(color, 0.4) + ', 0 0 10px 3px ' + hexToRgba(color, 0.35);
+                    btn.style.color = color;
+                    highlightSankey(label, color);
+                }});
+                btn.addEventListener('mouseleave', function() {{
+                    btn.style.background = '';
+                    btn.style.borderColor = '';
+                    btn.style.boxShadow = '';
+                    btn.style.color = '';
+                    resetSankey();
+                }});
+            }});
+            return bound;
+        }}
+
+        function highlightSankey(pillLabel, color) {{
+            var plots = parentDoc.querySelectorAll('.js-plotly-plot');
+            plots.forEach(function(plotDiv) {{
+                var sankeyEl = plotDiv.querySelector('.sankey');
+                if (!sankeyEl) return;
+
+                // Dim all nodes
+                var nodeRects = sankeyEl.querySelectorAll('.node-rect');
+                var nodeLabels = sankeyEl.querySelectorAll('.node-label');
+                nodeRects.forEach(function(r) {{ r.style.opacity = '0.2'; r.style.transition = 'opacity 0.25s ease'; }});
+                nodeLabels.forEach(function(l) {{ l.style.opacity = '0.2'; l.style.transition = 'opacity 0.25s ease'; }});
+
+                // Dim all links
+                var links = sankeyEl.querySelectorAll('.sankey-link');
+                links.forEach(function(lnk) {{ lnk.style.opacity = '0.08'; lnk.style.transition = 'opacity 0.25s ease'; }});
+
+                // Find matching node index by label text
+                var matchIdx = -1;
+                nodeLabels.forEach(function(l, i) {{
+                    var txt = (l.textContent || '').split(/\\n/)[0].trim().split(/  /)[0].trim();
+                    if (txt === pillLabel) {{
+                        matchIdx = i;
+                        l.style.opacity = '1';
+                        l.style.fontWeight = '700';
+                    }}
+                }});
+                if (matchIdx >= 0 && nodeRects[matchIdx]) {{
+                    nodeRects[matchIdx].style.opacity = '1';
+                    nodeRects[matchIdx].style.filter = 'drop-shadow(0 0 8px ' + color + ')';
+                }}
+
+                // Highlight connected links
+                if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].link) {{
+                    var linkData = plotDiv.data[0].link;
+                    links.forEach(function(lnk, li) {{
+                        if (linkData.source[li] === matchIdx || linkData.target[li] === matchIdx) {{
+                            lnk.style.opacity = '0.7';
+                        }}
+                    }});
+                }}
+            }});
+        }}
+
+        function resetSankey() {{
+            var plots = parentDoc.querySelectorAll('.js-plotly-plot');
+            plots.forEach(function(plotDiv) {{
+                var sankeyEl = plotDiv.querySelector('.sankey');
+                if (!sankeyEl) return;
+                sankeyEl.querySelectorAll('.node-rect').forEach(function(r) {{
+                    r.style.opacity = '';
+                    r.style.filter = '';
+                }});
+                sankeyEl.querySelectorAll('.node-label').forEach(function(l) {{
+                    l.style.opacity = '';
+                    l.style.fontWeight = '';
+                }});
+                sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
+                    lnk.style.opacity = '';
+                }});
+            }});
+        }}
+
+        if (!setupPillHovers()) {{
+            var obs = new MutationObserver(function() {{
+                if (setupPillHovers()) obs.disconnect();
+            }});
+            obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+            setTimeout(function() {{ setupPillHovers(); obs.disconnect(); }}, 8000);
+        }}
+    }})();
+    </script>
+    """
+    components.html(js, height=0)
 
 
 def _inject_sankey_click_js(metric_map):
@@ -2504,25 +2651,11 @@ def render_sankey_page():
                 font-size: 0.72rem !important;
             }
         }
-        /* ── Metric filter pills: compact + blue glow on hover ── */
+        /* ── Metric filter pills: compact + transition (JS applies per-node colors on hover) ── */
         [data-testid="stBaseButton-pills"] {
             font-size: 0.78rem !important;
             padding: 4px 10px !important;
-            transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.15s ease !important;
-        }
-        [data-testid="stBaseButton-pills"]:hover {
-            background: #dbeafe !important;
-            border-color: #3b82f6 !important;
-            color: #1e40af !important;
-            box-shadow: 0 0 0 2px rgba(59,130,246,0.4), 0 0 10px 3px rgba(59,130,246,0.45), 0 0 22px 6px rgba(59,130,246,0.18) !important;
-            transform: translateY(-1px) !important;
-        }
-        [data-testid="stBaseButton-pills"][aria-checked="true"]:hover {
-            background: #bfdbfe !important;
-            border-color: #2563eb !important;
-            color: #1e3a8a !important;
-            box-shadow: 0 0 0 2px rgba(59,130,246,0.55), 0 0 14px 4px rgba(59,130,246,0.55), 0 0 28px 8px rgba(59,130,246,0.22) !important;
-            transform: translateY(-1px) !important;
+            transition: background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.15s ease !important;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -2683,6 +2816,7 @@ def render_sankey_page():
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
+            _inject_pill_hover_js(INCOME_NODE_METRICS, INCOME_PILL_COLORS)
         else:
             st.warning(f"No income statement data available for {ticker}.")
 
@@ -2735,6 +2869,7 @@ def render_sankey_page():
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
+            _inject_pill_hover_js(BALANCE_NODE_METRICS, BALANCE_PILL_COLORS)
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
 
