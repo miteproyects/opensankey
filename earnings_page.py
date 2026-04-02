@@ -705,7 +705,6 @@ def render_earnings_page():
                 key=f"ec_day_{d.isoformat()}",
                 use_container_width=True,
                 type="primary" if is_active else "secondary",
-                label_visibility="collapsed",
             ):
                 st.session_state.ec_selected_day = d.isoformat()
                 st.rerun()
