@@ -35,6 +35,7 @@ def _set_cached(key: str, data):
 
 # ── Yahoo Finance Earnings Fetcher ──────────────────────────────────────
 # Uses ONLY yfinance Python API (get_earnings_dates) — no web scraping.
+# Optimized for speed: small ticker list, no .info calls, persistent cache.
 
 # Debug log — always visible in UI for diagnostics
 _DEBUG_LOG: list[str] = []
@@ -44,55 +45,58 @@ def _debug(msg: str):
     _DEBUG_LOG.append(f"[{time.strftime('%H:%M:%S')}] {msg}")
 
 
-# ── Broad ticker universe for scanning ──
+# ── Top tickers to scan (kept small for speed ~5-8s) ──
 _SCAN_TICKERS = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "BRK-B",
-    "JPM", "V", "JNJ", "WMT", "PG", "UNH", "HD", "MA", "DIS", "PYPL",
-    "NFLX", "CRM", "INTC", "AMD", "ORCL", "CSCO", "PEP", "KO", "MRK",
-    "ABT", "TMO", "COST", "NKE", "LLY", "AVGO", "QCOM", "TXN", "HON",
-    "LOW", "SBUX", "MDLZ", "GS", "BLK", "AXP", "MS", "C", "BAC", "WFC",
-    "DE", "CAT", "BA", "GE", "RTX", "LMT", "UPS", "FDX", "T", "VZ",
-    "CMCSA", "TMUS", "CVX", "XOM", "COP", "SLB", "EOG", "MPC", "PSX",
-    "PFE", "BMY", "GILD", "AMGN", "REGN", "VRTX", "ISRG", "MDT",
-    "DHR", "SYK", "ZTS", "CI", "ELV", "HCA", "MCK", "CVS",
-    "SCHW", "MMM", "IBM", "ACN", "NOW", "SNOW", "UBER",
-    "ABNB", "SQ", "SHOP", "PLTR", "RIVN", "LCID", "F", "GM",
-    "AAL", "DAL", "UAL", "LUV", "MAR", "HLT", "WYNN", "MGM",
-    "ADBE", "INTU", "PANW", "CRWD", "ZS", "NET", "DDOG", "MDB",
-    "COIN", "HOOD", "SOFI", "AFRM", "UPST", "BILL", "HUBS",
-    "ROKU", "SNAP", "PINS", "TTD", "RBLX", "U", "DKNG", "PENN",
-    "CHWY", "ETSY", "W", "BKNG", "EXPE", "DASH",
-    "ZM", "DOCU", "OKTA", "TWLO", "FIVN", "RNG",
-    "CLX", "KMB", "SJM", "GIS", "K", "CPB", "HSY", "MKC",
-    "TGT", "DG", "DLTR", "ROST", "TJX", "BBY", "LULU",
-    "FIS", "FISV", "GPN", "SYF", "DFS", "COF", "AIG",
-    "MET", "PRU", "AFL", "TRV", "CB", "ALL", "PGR",
-    "SO", "DUK", "NEE", "AEP", "D", "SRE", "EXC", "XEL",
-    "AMT", "PLD", "CCI", "EQIX", "SPG", "O", "WELL", "DLR",
-    "USB", "PNC", "TFC", "FITB", "KEY", "RF", "CFG", "HBAN",
-    "LEN", "DHI", "PHM", "TOL", "KBH", "NVR",
-    "ON", "MCHP", "KLAC", "LRCX", "AMAT", "ASML", "SNPS", "CDNS",
-    "ENPH", "FSLR", "RUN", "SEDG",
-    "WDAY", "VEEV", "ANSS", "FTNT",
-    "CMG", "YUM", "QSR", "MCD", "DPZ", "WEN", "JACK",
-    "CL", "EL", "CHD", "MNST", "STZ", "DEO", "SAM",
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
+    "JPM", "V", "JNJ", "WMT", "PG", "UNH", "HD", "MA",
+    "NFLX", "CRM", "INTC", "AMD", "ORCL", "CSCO", "PEP", "KO",
+    "COST", "NKE", "LLY", "AVGO", "QCOM", "TXN",
+    "GS", "BAC", "WFC", "MS", "C",
+    "BA", "CAT", "GE", "UPS", "FDX",
+    "CVX", "XOM", "COP",
+    "PFE", "AMGN", "GILD", "ABT",
+    "ADBE", "NOW", "UBER", "ABNB", "SHOP",
+    "F", "GM", "DAL", "AAL",
+    "DIS", "SBUX", "MCD", "CMG",
+    "TGT", "BBY", "LULU",
+    "COIN", "PLTR", "SNAP", "ROKU",
+    "NET", "CRWD", "PANW", "DDOG",
 ]
-_SCAN_TICKERS = list(dict.fromkeys(_SCAN_TICKERS))
 
 
-def _fetch_earnings_for_date(target_date: date) -> list[dict]:
-    """Fetch earnings for a single date using yfinance API only."""
-    cache_key = _cache_key(target_date)
-    cached = _get_cached(cache_key)
-    if cached is not None:
-        return cached
-    results = _scan_tickers_for_date(target_date)
-    _set_cached(cache_key, results)
-    return results
+# ── Static company name map (avoids slow .info API calls) ──
+_COMPANY_NAMES = {
+    "AAPL": "Apple Inc.", "MSFT": "Microsoft Corp.", "GOOGL": "Alphabet Inc.",
+    "AMZN": "Amazon.com Inc.", "META": "Meta Platforms", "NVDA": "NVIDIA Corp.",
+    "TSLA": "Tesla Inc.", "JPM": "JPMorgan Chase", "V": "Visa Inc.",
+    "JNJ": "Johnson & Johnson", "WMT": "Walmart Inc.", "PG": "Procter & Gamble",
+    "UNH": "UnitedHealth Group", "HD": "Home Depot", "MA": "Mastercard Inc.",
+    "NFLX": "Netflix Inc.", "CRM": "Salesforce Inc.", "INTC": "Intel Corp.",
+    "AMD": "AMD Inc.", "ORCL": "Oracle Corp.", "CSCO": "Cisco Systems",
+    "PEP": "PepsiCo Inc.", "KO": "Coca-Cola Co.", "COST": "Costco Wholesale",
+    "NKE": "Nike Inc.", "LLY": "Eli Lilly", "AVGO": "Broadcom Inc.",
+    "QCOM": "Qualcomm Inc.", "TXN": "Texas Instruments",
+    "GS": "Goldman Sachs", "BAC": "Bank of America", "WFC": "Wells Fargo",
+    "MS": "Morgan Stanley", "C": "Citigroup Inc.",
+    "BA": "Boeing Co.", "CAT": "Caterpillar Inc.", "GE": "GE Aerospace",
+    "UPS": "United Parcel Service", "FDX": "FedEx Corp.",
+    "CVX": "Chevron Corp.", "XOM": "Exxon Mobil", "COP": "ConocoPhillips",
+    "PFE": "Pfizer Inc.", "AMGN": "Amgen Inc.", "GILD": "Gilead Sciences",
+    "ABT": "Abbott Labs", "ADBE": "Adobe Inc.", "NOW": "ServiceNow",
+    "UBER": "Uber Technologies", "ABNB": "Airbnb Inc.", "SHOP": "Shopify Inc.",
+    "F": "Ford Motor Co.", "GM": "General Motors", "DAL": "Delta Air Lines",
+    "AAL": "American Airlines", "DIS": "Walt Disney Co.", "SBUX": "Starbucks Corp.",
+    "MCD": "McDonald's Corp.", "CMG": "Chipotle Mexican Grill",
+    "TGT": "Target Corp.", "BBY": "Best Buy Co.", "LULU": "Lululemon",
+    "COIN": "Coinbase Global", "PLTR": "Palantir Technologies",
+    "SNAP": "Snap Inc.", "ROKU": "Roku Inc.",
+    "NET": "Cloudflare Inc.", "CRWD": "CrowdStrike", "PANW": "Palo Alto Networks",
+    "DDOG": "Datadog Inc.",
+}
 
 
 def _check_ticker_earnings(symbol: str, target_dates: set[str]) -> list[dict]:
-    """Check a single ticker's earnings dates via yfinance API."""
+    """Check a single ticker's earnings dates via yfinance API. No .info call."""
     import yfinance as yf
     try:
         tk = yf.Ticker(symbol)
@@ -104,106 +108,57 @@ def _check_ticker_earnings(symbol: str, target_dates: set[str]) -> list[dict]:
             earn_date = idx.date() if hasattr(idx, 'date') else idx
             earn_str = str(earn_date)
             if earn_str in target_dates:
-                eps_est = row.get("EPS Estimate")
-                eps_actual = row.get("Reported EPS")
-                surprise = row.get("Surprise(%)")
-                company_name = symbol
-                try:
-                    company_name = tk.info.get("shortName", symbol)
-                except Exception:
-                    pass
                 matches.append({
                     "ticker": symbol.upper(),
-                    "company": company_name,
+                    "company": _COMPANY_NAMES.get(symbol.upper(), symbol.upper()),
                     "event": "Earnings Announcement",
                     "call_time": "-",
-                    "eps_estimate": _safe_float(eps_est),
-                    "eps_actual": _safe_float(eps_actual),
-                    "surprise_pct": _safe_float(surprise),
+                    "eps_estimate": _safe_float(row.get("EPS Estimate")),
+                    "eps_actual": _safe_float(row.get("Reported EPS")),
+                    "surprise_pct": _safe_float(row.get("Surprise(%)")),
                     "date": earn_str,
                 })
         return matches
-    except Exception as e:
+    except Exception:
         return []
 
 
-def _scan_tickers_for_date(target_date: date) -> list[dict]:
-    """Scan ticker universe via yfinance API to find earnings on target_date."""
-    target_str = target_date.isoformat()
-    target_set = {target_str}
-    results = []
-    _debug(f"Scanning {len(_SCAN_TICKERS)} tickers for {target_str}")
-    t0 = time.time()
-    try:
-        with ThreadPoolExecutor(max_workers=15) as executor:
-            futures = {
-                executor.submit(_check_ticker_earnings, sym, target_set): sym
-                for sym in _SCAN_TICKERS
-            }
-            for future in as_completed(futures, timeout=30):
-                try:
-                    matches = future.result(timeout=8)
-                    results.extend(matches)
-                except Exception:
-                    continue
-    except Exception as e:
-        _debug(f"Scan error: {e}")
-        _debug(traceback.format_exc())
-    elapsed = time.time() - t0
-    _debug(f"Scan done: {len(results)} earnings found in {elapsed:.1f}s")
-    return results
-
-
-def _fetch_week_earnings(week_start: date) -> dict[str, list[dict]]:
-    """Fetch earnings for an entire week in a single parallel ticker scan."""
+@st.cache_data(ttl=900, show_spinner=False)
+def _fetch_week_earnings_cached(week_start_str: str) -> dict:
+    """
+    Fetch earnings for entire week. Uses @st.cache_data for persistence
+    across Streamlit reruns (15 min TTL). Accepts str for hashability.
+    """
+    week_start = date.fromisoformat(week_start_str)
     days = [week_start + timedelta(days=i) for i in range(7)]
-    result = {}
-    all_cached = True
-    for d in days:
-        ck = _cache_key(d)
-        c = _get_cached(ck)
-        if c is not None:
-            result[d.isoformat()] = c
-        else:
-            result[d.isoformat()] = []
-            all_cached = False
-
-    if all_cached:
-        _debug("All 7 days served from cache")
-        return result
-
     target_dates = {d.isoformat() for d in days}
-    _debug(f"Week scan: {week_start.isoformat()} to {days[-1].isoformat()} ({len(_SCAN_TICKERS)} tickers)")
+    result = {d.isoformat(): [] for d in days}
+
+    _debug(f"Week scan: {len(_SCAN_TICKERS)} tickers, {week_start_str} to {days[-1].isoformat()}")
     t0 = time.time()
     errors = 0
 
     try:
-        with ThreadPoolExecutor(max_workers=15) as executor:
+        with ThreadPoolExecutor(max_workers=20) as executor:
             futures = {
                 executor.submit(_check_ticker_earnings, sym, target_dates): sym
                 for sym in _SCAN_TICKERS
             }
-            for future in as_completed(futures, timeout=45):
+            for future in as_completed(futures, timeout=20):
                 try:
-                    matches = future.result(timeout=8)
+                    matches = future.result(timeout=6)
                     for m in matches:
                         d_str = m["date"]
                         if d_str in result:
                             result[d_str].append(m)
                 except Exception:
                     errors += 1
-                    continue
     except Exception as e:
-        _debug(f"Week scan error: {e}")
-        _debug(traceback.format_exc())
+        _debug(f"Scan error: {e}")
 
     elapsed = time.time() - t0
     total = sum(len(v) for v in result.values())
-    _debug(f"Week scan done: {total} earnings, {errors} errors, {elapsed:.1f}s")
-
-    for d in days:
-        _set_cached(_cache_key(d), result[d.isoformat()])
-
+    _debug(f"Done: {total} earnings, {errors} errors, {elapsed:.1f}s")
     return result
 
 
@@ -681,11 +636,11 @@ def render_earnings_page():
             unsafe_allow_html=True,
         )
 
-    # ── Fetch week data ──
+    # ── Fetch week data (cached — fast after first load) ──
     _debug("Starting data fetch...")
     try:
         with st.spinner("Loading earnings data..."):
-            week_data = _fetch_week_earnings(week_start)
+            week_data = _fetch_week_earnings_cached(week_start.isoformat())
     except Exception as e:
         _debug(f"FATAL fetch error: {e}")
         _debug(traceback.format_exc())
