@@ -2238,9 +2238,10 @@ def render_sankey_page():
             background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
             border-radius: 12px !important;
             border: 1px solid rgba(255,255,255,0.06) !important;
-            padding: 8px 4px !important;
+            padding: 12px 4px !important;
             gap: 0 !important;
             align-items: center !important;
+            justify-content: center !important;
             margin-top: 23px !important;
             margin-bottom: 4px !important;
         }
@@ -2254,7 +2255,18 @@ def render_sankey_page():
             background: transparent !important;
             border: none !important;
             border-radius: 0 !important;
-            margin-bottom: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        /* Kill all inner margins so title stays vertically centered */
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]) [data-testid="stColumn"] [data-testid="stMarkdownContainer"],
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) [data-testid="stColumn"] [data-testid="stMarkdownContainer"] {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]) [data-testid="stColumn"] [data-testid="stMarkdownContainer"] p,
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) [data-testid="stColumn"] [data-testid="stMarkdownContainer"] p {
+            margin: 0 !important;
         }
         /* PDF download button inside header row */
         [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]) [data-testid="stDownloadButton"] button,
