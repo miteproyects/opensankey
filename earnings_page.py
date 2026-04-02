@@ -541,8 +541,8 @@ def _render_ticker_search(symbol: str):
         return
 
     today_str = date.today().isoformat()
-    upcoming = [r for r in results if r["date"] >= today_str]
-    past = [r for r in results if r["date"] < today_str]
+    upcoming = sorted([r for r in results if r["date"] >= today_str], key=lambda r: r["date"])
+    past = sorted([r for r in results if r["date"] < today_str], key=lambda r: r["date"], reverse=True)
 
     if upcoming:
         st.markdown(
