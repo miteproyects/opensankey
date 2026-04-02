@@ -212,7 +212,9 @@ _STYLES = """<style>
 .ec-date-label {
   font-size: 1.05rem; font-weight: 800; color: #1e293b;
   font-family: Inter, system-ui, sans-serif; white-space: nowrap;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.01em; display: inline-block;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 10px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
 /* ── Day selector pills ── */
@@ -343,14 +345,6 @@ def render_earnings_page():
     week_start = _get_week_start(today) + timedelta(weeks=st.session_state.ec_week_offset)
     week_end = week_start + timedelta(days=6)
 
-    # Date range — standalone centered line
-    st.markdown(
-        f'<div style="text-align:center;margin:8px 0 4px;">'
-        f'<span class="ec-date-label">{_format_date_range(week_start)}</span>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-
     # Style the Prev / Next buttons to match new design
     st.markdown(
         '<style>'
@@ -370,22 +364,27 @@ def render_earnings_page():
         unsafe_allow_html=True,
     )
 
-    # Prev / Next — separate row with spacing below
+    # Prev / Date label / Next — single row
     nav_container = st.container()
     with nav_container:
         st.markdown('<div class="ec-nav-wrap">', unsafe_allow_html=True)
-        nav_l, nav_spacer, nav_r = st.columns([1, 5, 1])
+        nav_l, nav_center, nav_r = st.columns([1, 5, 1])
         with nav_l:
             if st.button("\u2190 Prev", key="ec_prev", use_container_width=True):
                 st.session_state.ec_week_offset -= 1
                 st.rerun()
+        with nav_center:
+            st.markdown(
+                f'<div style="text-align:center;padding-top:4px;">'
+                f'<span class="ec-date-label">{_format_date_range(week_start)}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
         with nav_r:
             if st.button("Next \u2192", key="ec_next", use_container_width=True):
                 st.session_state.ec_week_offset += 1
                 st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-    # Add spacing between nav and day pills
-    st.markdown('<div style="margin-bottom:12px;"></div>', unsafe_allow_html=True)
 
     # ── Fetch week data (single Finnhub API call, cached 15 min) ──
     _debug(f"Fetching: {week_start.isoformat()} to {week_end.isoformat()}")
