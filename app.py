@@ -2602,7 +2602,7 @@ def _render_footer():
             <h3>What is QuarterCharts?</h3>
             <p>QuarterCharts is a financial visualization tool that helps investors
             track and analyse company financials through interactive charts.
-            Powered by SEC EDGAR &amp; Yahoo Finance data.</p>
+            Powered by SEC EDGAR, Yahoo Finance &amp; Finnhub.io data.</p>
         </div>
         <div>
             <h3>Quick Links</h3>
@@ -2621,13 +2621,13 @@ def _render_footer():
         <div>
             <h3>Disclaimer</h3>
             <p>This app is for educational and informational purposes only.
-            Data is sourced from SEC EDGAR and Yahoo Finance and may not be 100% accurate.
+            Data is sourced from SEC EDGAR, Yahoo Finance, and Finnhub.io and may not be 100% accurate.
             Not financial advice.</p>
         </div>
     </div>
     <hr style="border-color: #495057; margin: 20px 0;">
     <p style="text-align:center; color:#6c757d;">
-        &copy; {datetime.now().year} QuarterCharts &middot; Data from SEC EDGAR, FMP &amp; Yahoo Finance
+        &copy; {datetime.now().year} QuarterCharts &middot; Data from SEC EDGAR, FMP, Yahoo Finance &amp; Finnhub.io
     </p>
 </div>
 """, unsafe_allow_html=True)
