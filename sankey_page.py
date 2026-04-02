@@ -1026,7 +1026,7 @@ def _show_metric_popup(ticker, node_label, view):
         hovermode="x unified",
     )
 
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]}, key=f"hist_{freq}_{period}")
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}, key=f"hist_{freq}_{period}")
     # ââ Node info: "What it means" + "How to read it" ââ
     info_map = INCOME_NODE_INFO if view == "income" else BALANCE_NODE_INFO
     node_info = info_map.get(clean_label, {})
@@ -2564,7 +2564,7 @@ def render_sankey_page():
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period)
         if fig:
 
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
@@ -2617,7 +2617,7 @@ def render_sankey_page():
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period)
         if fig:
 
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)

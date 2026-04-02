@@ -93,6 +93,7 @@ def _layout(title: str, height: int = 420, **overrides) -> Dict[str, Any]:
         ),
         autosize=True,
         height=height,
+        dragmode=False,
     )
     base.update(overrides)
     return base

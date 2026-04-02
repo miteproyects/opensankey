@@ -183,7 +183,7 @@ def _fetch_candlestick_chart(ticker: str, period: str = "3mo") -> Optional[go.Fi
             yaxis2=dict(
                 showgrid=False, side="right", title="",
             ),
-            dragmode="pan",
+            dragmode=False,
         )
 
         # Remove weekend gaps for daily/weekly data
@@ -452,6 +452,7 @@ def render_profile_page(ticker: str) -> None:
         st.plotly_chart(candle_fig, use_container_width=True, config={
             "displayModeBar": "hover",
             "displaylogo": False,
+            "scrollZoom": False,
             "modeBarButtons": [["toImage"]],
         })
     else:
@@ -989,14 +990,14 @@ def render_profile_page(ticker: str) -> None:
                 public_pct=ownership_data.get("public_pct", 0),
                 company_name=name,
             )
-            st.plotly_chart(pie_fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
+            st.plotly_chart(pie_fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
 
         with own_col_right:
             # Institutional holders
             institutional_holders = ownership_data.get("institutional_holders", [])
             if institutional_holders:
                 bar_fig = create_institutional_bar(institutional_holders)
-                st.plotly_chart(bar_fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
+                st.plotly_chart(bar_fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
             else:
                 st.info("No institutional holding data available.")
 
@@ -1016,7 +1017,7 @@ def render_profile_page(ticker: str) -> None:
             monthly_data = insider_trades.get("monthly_activity", [])
             if monthly_data:
                 activity_fig = create_insider_activity_chart(monthly_data)
-                st.plotly_chart(activity_fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "modeBarButtons": [["toImage"]]})
+                st.plotly_chart(activity_fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
             else:
                 st.info("No monthly insider activity data available.")
 

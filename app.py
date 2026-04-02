@@ -1597,10 +1597,12 @@ def _render_chart(fig, key: str):
                         unsafe_allow_html=True,
                     )
 
+    fig.update_layout(dragmode=False)
     st.plotly_chart(fig, use_container_width=True, key=key, config={
         "displayModeBar": "hover",
         "displaylogo": False,
-        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+        "scrollZoom": False,
+        "modeBarButtonsToRemove": ["lasso2d", "select2d", "zoom2d", "pan2d", "zoomIn2d", "zoomOut2d", "autoScale2d", "resetScale2d"],
     })
 
 
