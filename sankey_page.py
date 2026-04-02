@@ -2320,10 +2320,86 @@ def render_sankey_page():
             color: #334155;
         }
         div[data-testid="metric-container"] {
-            background: #1e1e2e;
-            border-radius: 12px;
-            padding: 14px 18px;
-            border: 1px solid #2d2d42;
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 18px 20px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+        div[data-testid="metric-container"]:hover {
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06);
+            transform: translateY(-1px);
+        }
+        /* ── Compare badge card ── */
+        .sankey-compare-card {
+            text-align: center;
+            margin: 0.75rem auto 1.5rem;
+        }
+        /* ── KPI row card wrapper ── */
+        .sankey-kpi-card {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 6px 20px rgba(0,0,0,0.04);
+            padding: 24px 20px 20px;
+            margin-bottom: 1.5rem;
+        }
+        /* ── Instruction CTA banner ── */
+        .sankey-cta-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 50%, #dbeafe 100%);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-radius: 14px;
+            padding: 16px 22px;
+            margin: 0 0 1rem;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1), 0 0 0 1px rgba(99, 102, 241, 0.05);
+            transition: box-shadow 0.25s ease;
+        }
+        .sankey-cta-banner:hover {
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.18), 0 0 0 1px rgba(99, 102, 241, 0.12);
+        }
+        .sankey-cta-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #6366f1, #818cf8);
+            border-radius: 10px;
+            flex-shrink: 0;
+        }
+        .sankey-cta-text {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #312e81;
+            letter-spacing: 0.01em;
+        }
+        .sankey-cta-sub {
+            font-size: 0.76rem;
+            color: #6366f1;
+            font-weight: 500;
+            margin-top: 2px;
+        }
+        /* ── Pills card wrapper ── */
+        .sankey-pills-card {
+            background: #ffffff;
+            border-radius: 14px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.03);
+            padding: 16px 18px;
+            margin-bottom: 1.5rem;
+        }
+        /* ── Sankey chart card ── */
+        .sankey-chart-card {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 6px 20px rgba(0,0,0,0.04);
+            padding: 8px 4px;
+            margin-bottom: 1rem;
         }
         .sankey-legend {
             display: flex;
@@ -2331,10 +2407,11 @@ def render_sankey_page():
             margin-top: 12px;
             padding: 12px 16px;
             background: #f8fafc;
-            border-radius: 8px;
+            border-radius: 10px;
             border: 1px solid #e2e8f0;
             font-size: 0.85rem;
             color: #475569;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
         }
         .sankey-legend span {
             display: flex;
@@ -2376,7 +2453,10 @@ def render_sankey_page():
                 font-size: 0.78rem !important;
             }
             div[data-testid="metric-container"] {
-                padding: 10px 12px !important;
+                padding: 12px 14px !important;
+            }
+            .sankey-cta-banner {
+                padding: 12px 16px !important;
             }
             [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]),
             [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) {
@@ -2542,7 +2622,7 @@ def render_sankey_page():
     if sankey_view == "income":
         # ââ Historical trend selector (popup) ââ
         metric_options = list(INCOME_NODE_METRICS.keys())
-        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:1.5rem">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="sankey-compare-card">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
         # ââ KPI Metric Cards ââ
         revenue      = _safe(income_df, "Total Revenue")
@@ -2574,8 +2654,8 @@ def render_sankey_page():
         m3.metric("Operating Income", _fmt(op_income), _yoy_delta(op_income, oi_prev, _compare_label))
         m4.metric("Net Income", _fmt(net_income), _yoy_delta(net_income, ni_prev, _compare_label))
 
-        st.divider()
-        st.markdown('<div style="display:flex;align-items:center;gap:8px;margin:0.25rem 0 1.2rem 0"><div style="width:3px;height:18px;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:2px;flex-shrink:0"></div><span style="font-size:0.88rem;font-weight:600;color:#1e293b;letter-spacing:0.01em">Click a Metric or Sankey Node to View Historical Trends</span><span style="font-size:0.76rem;color:#94a3b8"></span></div>', unsafe_allow_html=True)
+        st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Explore quarterly performance over time</div></div></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill")
         if sel:
@@ -2603,7 +2683,7 @@ def render_sankey_page():
 
     elif sankey_view == "balance":
         metric_options = list(BALANCE_NODE_METRICS.keys())
-        st.markdown(f'<div style="text-align:center;margin-top:0.75rem;margin-bottom:1.5rem">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="sankey-compare-card">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
         # ââ KPI Metric Cards for Balance Sheet ââ
         total_assets = _safe(balance_df, "Total Assets")
@@ -2626,8 +2706,8 @@ def render_sankey_page():
         m3.metric("Equity", _fmt(equity_val), _yoy_delta(equity_val, eq_prev, _compare_label))
         m4.metric("Cash", _fmt(cash_val), _yoy_delta(cash_val, cash_prev, _compare_label))
 
-        st.divider()
-        st.markdown('<div style="display:flex;align-items:center;gap:8px;margin:0.25rem 0 1.2rem 0"><div style="width:3px;height:18px;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:2px;flex-shrink:0"></div><span style="font-size:0.88rem;font-weight:600;color:#1e293b;letter-spacing:0.01em">Click a Metric or Sankey Node to View Historical Trends</span><span style="font-size:0.76rem;color:#94a3b8"></span></div>', unsafe_allow_html=True)
+        st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Explore quarterly performance over time</div></div></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="balance_metric_pill")
         if sel:
