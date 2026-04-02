@@ -177,7 +177,7 @@ _DAY_MAP = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"
 _STYLES = """<style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-.ec-hero { text-align: center; padding: 32px 20px 4px; }
+.ec-hero { text-align: center; padding: 32px 20px 20px; }
 .ec-hero h1 {
   font-size: 2.4rem; font-weight: 900;
   background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #f472b6 100%);
@@ -185,7 +185,7 @@ _STYLES = """<style>
   background-clip: text; margin: 0 0 6px;
   font-family: Inter, system-ui, sans-serif; letter-spacing: -0.03em;
 }
-.ec-hero p { font-size: 0.95rem; color: #64748b; margin: 0; font-family: Inter, system-ui, sans-serif; }
+.ec-hero p { font-size: 0.95rem; color: #64748b; margin: 0 0 8px; font-family: Inter, system-ui, sans-serif; }
 
 /* ── Week nav bar ── */
 .ec-week-nav {
