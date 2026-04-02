@@ -2286,7 +2286,7 @@ def render_sankey_page():
         .sankey-tab-container {
             display: flex;
             gap: 0;
-            margin-bottom: 1rem;
+            margin-bottom: 2rem;
             justify-content: center;
         }
         .sankey-tab {
