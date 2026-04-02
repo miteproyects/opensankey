@@ -1801,6 +1801,379 @@ def _render_team_admin():
             st.rerun()
 
 
+def _render_seo():
+    """SEO tab: comprehensive SEO roadmap & task tracker for quartercharts.com."""
+    import datetime, json
+
+    st.markdown("## 🔍 SEO Roadmap — quartercharts.com")
+    st.caption("Living task tracker for Search Engine Optimization & Generative Engine Optimization (GEO). Statuses update as work progresses.")
+
+    # ── Competitors Reference ──
+    with st.expander("🏆 Competitor Landscape", expanded=False):
+        st.markdown("""
+        | # | Competitor | URL | Focus |
+        |---|-----------|-----|-------|
+        | 1 | Finviz | finviz.com | Screener, maps, charts |
+        | 2 | TradingView | tradingview.com | Charting, social trading |
+        | 3 | Macrotrends | macrotrends.net | Historical financial data |
+        | 4 | Simply Wall St | simplywall.st | Visual investing, Snowflake |
+        | 5 | Wisesheets | wisesheets.io | Excel/Sheets financial add-on |
+        | 6 | Stock Analysis | stockanalysis.com | Fundamentals, screener |
+        | 7 | Seeking Alpha | seekingalpha.com | Research, ratings |
+        | 8 | Yahoo Finance | finance.yahoo.com | News, quotes, portfolios |
+        | 9 | Koyfin | koyfin.com | Dashboards, comps |
+        | 10 | GuruFocus | gurufocus.com | Value investing, screeners |
+        """)
+
+    # ── SEO task data ──
+    SEO_PHASES = [
+        {
+            "phase": "Phase 1: Technical SEO Foundation",
+            "icon": "⚙️",
+            "timeline": "Week 1-2",
+            "color": "#3B82F6",
+            "tasks": [
+                {"id": "T1-1", "name": "Fix SPA Rendering: Add SSR or pre-rendering for Streamlit pages so Google can crawl dynamic content", "priority": "Critical", "effort": "1-2 days"},
+                {"id": "T1-2", "name": "Generate and submit XML sitemap (sitemap.xml) covering all key pages", "priority": "Critical", "effort": "2 hours"},
+                {"id": "T1-3", "name": "Create and configure robots.txt — allow public pages, block admin/NSFE", "priority": "Critical", "effort": "30 min"},
+                {"id": "T1-4", "name": "Set up Google Search Console — verify ownership, submit sitemap", "priority": "Critical", "effort": "1 hour"},
+                {"id": "T1-5", "name": "Set up Google Analytics 4 (GA4) — track page views, events, user flows", "priority": "High", "effort": "1 hour"},
+                {"id": "T1-6", "name": "Core Web Vitals optimization: measure LCP, FID/INP, CLS — target all green", "priority": "High", "effort": "3-5 days"},
+                {"id": "T1-7", "name": "Mobile responsiveness audit — ensure all pages work on mobile", "priority": "High", "effort": "2-3 days"},
+                {"id": "T1-8", "name": "Implement HTTPS redirect (force SSL) and verify no mixed-content", "priority": "High", "effort": "30 min"},
+                {"id": "T1-9", "name": "Set up canonical URLs to avoid duplicate content", "priority": "Medium", "effort": "1 hour"},
+                {"id": "T1-10", "name": "Optimize page load speed: compress images, lazy-load charts, minimize bundles", "priority": "High", "effort": "2-3 days"},
+            ],
+        },
+        {
+            "phase": "Phase 2: On-Page SEO & Meta Tags",
+            "icon": "📝",
+            "timeline": "Week 2-3",
+            "color": "#10B981",
+            "tasks": [
+                {"id": "T2-1", "name": "Write unique title tags for each page (50-60 chars) with primary keyword + brand", "priority": "Critical", "effort": "2 hours"},
+                {"id": "T2-2", "name": "Write compelling meta descriptions for each page (150-160 chars) with CTAs", "priority": "Critical", "effort": "2 hours"},
+                {"id": "T2-3", "name": "Add Open Graph (og:) tags for social sharing on every page", "priority": "High", "effort": "2 hours"},
+                {"id": "T2-4", "name": "Add Twitter Card tags for all pages", "priority": "Medium", "effort": "1 hour"},
+                {"id": "T2-5", "name": "Implement proper heading hierarchy (H1>H2>H3) — one H1 per page", "priority": "High", "effort": "2 hours"},
+                {"id": "T2-6", "name": "Add descriptive alt text to all images and chart screenshots", "priority": "Medium", "effort": "2 hours"},
+                {"id": "T2-7", "name": "Create SEO-friendly URL structure with clean slugs", "priority": "High", "effort": "1-2 days"},
+                {"id": "T2-8", "name": "Internal linking strategy: connect related pages for same ticker", "priority": "Medium", "effort": "3 hours"},
+                {"id": "T2-9", "name": "Add breadcrumb navigation for better UX and search display", "priority": "Medium", "effort": "3 hours"},
+                {"id": "T2-10", "name": "Implement hreflang tags if targeting international audiences", "priority": "Low", "effort": "1 hour"},
+            ],
+        },
+        {
+            "phase": "Phase 3: Schema Markup & Structured Data",
+            "icon": "🏗️",
+            "timeline": "Week 3-4",
+            "color": "#8B5CF6",
+            "tasks": [
+                {"id": "T3-1", "name": "Add Organization schema (JSON-LD): name, logo, url, sameAs", "priority": "Critical", "effort": "1 hour"},
+                {"id": "T3-2", "name": "Add WebSite schema with SearchAction for sitelinks search box", "priority": "High", "effort": "1 hour"},
+                {"id": "T3-3", "name": "Add FinancialProduct schema for stock analysis tools", "priority": "High", "effort": "2 hours"},
+                {"id": "T3-4", "name": "Add FAQPage schema on pricing and features pages", "priority": "Medium", "effort": "2 hours"},
+                {"id": "T3-5", "name": "Add BreadcrumbList schema matching visible breadcrumbs", "priority": "Medium", "effort": "1 hour"},
+                {"id": "T3-6", "name": "Add SoftwareApplication schema for app listing", "priority": "Medium", "effort": "1 hour"},
+                {"id": "T3-7", "name": "Validate all structured data with Google Rich Results Test", "priority": "High", "effort": "1 hour"},
+                {"id": "T3-8", "name": "Add Dataset schema for stock financial data tables", "priority": "Low", "effort": "2 hours"},
+            ],
+        },
+        {
+            "phase": "Phase 4: Content Strategy & Keyword Targeting",
+            "icon": "📚",
+            "timeline": "Month 2-3",
+            "color": "#F59E0B",
+            "tasks": [
+                {"id": "T4-1", "name": "Keyword research: identify 50+ target keywords with Ahrefs/SEMrush", "priority": "Critical", "effort": "1-2 days"},
+                {"id": "T4-2", "name": "Create blog/learn section with SEO-optimized articles", "priority": "Critical", "effort": "Ongoing"},
+                {"id": "T4-3", "name": "Build individual stock landing pages (/stock/NVDA) aggregating all tools", "priority": "Critical", "effort": "3-5 days"},
+                {"id": "T4-4", "name": "Create comparison pages: Quarter Charts vs Finviz, vs TradingView", "priority": "High", "effort": "2-3 days"},
+                {"id": "T4-5", "name": "Write a glossary of financial terms with internal links", "priority": "Medium", "effort": "2-3 days"},
+                {"id": "T4-6", "name": "Create How It Works guide pages for each feature", "priority": "High", "effort": "3-5 days"},
+                {"id": "T4-7", "name": "Publish weekly market analysis or earnings season previews", "priority": "Medium", "effort": "Ongoing"},
+                {"id": "T4-8", "name": "Target long-tail keywords for niche financial visualization queries", "priority": "High", "effort": "Ongoing"},
+                {"id": "T4-9", "name": "Optimize existing feature descriptions with keyword-rich copy", "priority": "Medium", "effort": "3 hours"},
+                {"id": "T4-10", "name": "Create use-case pages: For Day Traders, Value Investors, Advisors", "priority": "Medium", "effort": "2-3 days"},
+            ],
+        },
+        {
+            "phase": "Phase 5: GEO & AI Optimization (2025-2026)",
+            "icon": "🤖",
+            "timeline": "Month 2-4",
+            "color": "#EC4899",
+            "tasks": [
+                {"id": "T5-1", "name": "Create /llms.txt file: structured summary for LLM crawlers", "priority": "Critical", "effort": "2 hours"},
+                {"id": "T5-2", "name": "Optimize for AI Overviews (Google SGE): write citation-worthy content", "priority": "Critical", "effort": "Ongoing"},
+                {"id": "T5-3", "name": "Add authoritative citations and data sources (E-E-A-T signals)", "priority": "High", "effort": "Ongoing"},
+                {"id": "T5-4", "name": "Structure content with Q&A format for ChatGPT/Perplexity extraction", "priority": "High", "effort": "2-3 days"},
+                {"id": "T5-5", "name": "Ensure crawlability by AI agents (GPTBot, PerplexityBot in robots.txt)", "priority": "High", "effort": "1 hour"},
+                {"id": "T5-6", "name": "Build topical authority with content clusters", "priority": "High", "effort": "Ongoing"},
+                {"id": "T5-7", "name": "Add author bios and credentials (E-E-A-T signals) to content", "priority": "Medium", "effort": "2 hours"},
+                {"id": "T5-8", "name": "Create /about page with team credentials and company story", "priority": "Medium", "effort": "3 hours"},
+                {"id": "T5-9", "name": "Monitor AI search visibility in ChatGPT, Perplexity, AI Overviews", "priority": "Medium", "effort": "Ongoing"},
+                {"id": "T5-10", "name": "Submit site to AI directories and training datasets", "priority": "Low", "effort": "2 hours"},
+            ],
+        },
+        {
+            "phase": "Phase 6: Backlinks & Off-Page SEO",
+            "icon": "🔗",
+            "timeline": "Month 3-6",
+            "color": "#06B6D4",
+            "tasks": [
+                {"id": "T6-1", "name": "Create free embeddable widget (mini Sankey) linking back to site", "priority": "High", "effort": "3-5 days"},
+                {"id": "T6-2", "name": "Guest post on finance/fintech blogs and publications", "priority": "High", "effort": "Ongoing"},
+                {"id": "T6-3", "name": "Submit to Product Hunt, AlternativeTo, SaaSHub directories", "priority": "High", "effort": "1 day"},
+                {"id": "T6-4", "name": "Create data-driven infographics for embedding and link building", "priority": "Medium", "effort": "3-5 days"},
+                {"id": "T6-5", "name": "Build relationships with finance YouTubers/bloggers", "priority": "Medium", "effort": "Ongoing"},
+                {"id": "T6-6", "name": "Share on Reddit (r/stocks, r/investing, r/dataisbeautiful)", "priority": "Medium", "effort": "Ongoing"},
+                {"id": "T6-7", "name": "Set up HARO/Connectively alerts for finance/fintech queries", "priority": "Low", "effort": "1 hour"},
+                {"id": "T6-8", "name": "Create public API or data feed encouraging developer backlinks", "priority": "Low", "effort": "1-2 weeks"},
+            ],
+        },
+        {
+            "phase": "Phase 7: Local & Social Signals",
+            "icon": "📱",
+            "timeline": "Month 4-6",
+            "color": "#F97316",
+            "tasks": [
+                {"id": "T7-1", "name": "Create and optimize Google Business Profile", "priority": "Medium", "effort": "1 hour"},
+                {"id": "T7-2", "name": "Set up social profiles: Twitter/X, LinkedIn, YouTube", "priority": "High", "effort": "2 hours"},
+                {"id": "T7-3", "name": "Create YouTube channel with tutorials and feature demos", "priority": "High", "effort": "Ongoing"},
+                {"id": "T7-4", "name": "Share chart screenshots and insights on Twitter/X", "priority": "Medium", "effort": "Ongoing"},
+                {"id": "T7-5", "name": "Build email newsletter for market updates", "priority": "Medium", "effort": "Ongoing"},
+            ],
+        },
+        {
+            "phase": "Phase 8: Monitoring & Continuous Optimization",
+            "icon": "📊",
+            "timeline": "Ongoing",
+            "color": "#6366F1",
+            "tasks": [
+                {"id": "T8-1", "name": "Set up weekly rank tracking for target keywords", "priority": "High", "effort": "1 hour"},
+                {"id": "T8-2", "name": "Monitor Google Search Console: impressions, clicks, CTR, positions", "priority": "High", "effort": "Weekly"},
+                {"id": "T8-3", "name": "Monthly competitor analysis: rankings, content, backlinks", "priority": "Medium", "effort": "Monthly"},
+                {"id": "T8-4", "name": "A/B test title tags and meta descriptions for CTR", "priority": "Medium", "effort": "Ongoing"},
+                {"id": "T8-5", "name": "Run quarterly Core Web Vitals audit", "priority": "Medium", "effort": "Quarterly"},
+                {"id": "T8-6", "name": "Monitor and fix 404 errors, broken links, crawl errors", "priority": "High", "effort": "Weekly"},
+                {"id": "T8-7", "name": "Track AI search visibility: cited in AI Overviews, ChatGPT, Perplexity", "priority": "Medium", "effort": "Monthly"},
+                {"id": "T8-8", "name": "Update content regularly: refresh stats, add tickers, keep current", "priority": "Medium", "effort": "Ongoing"},
+            ],
+        },
+    ]
+
+    STATUS_OPTIONS = ["Not Started", "In Progress", "Partial", "Done", "Blocked", "Future"]
+    STATUS_ICONS = {
+        "Not Started": "⏳",
+        "In Progress": "🔄",
+        "Partial": "🟡",
+        "Done": "✅",
+        "Blocked": "🛑",
+        "Future": "🔮",
+    }
+    STATUS_COLORS = {
+        "Not Started": "#9CA3AF",
+        "In Progress": "#3B82F6",
+        "Partial": "#F59E0B",
+        "Done": "#10B981",
+        "Blocked": "#EF4444",
+        "Future": "#A78BFA",
+    }
+
+    # ── Load / initialize statuses from session state ──
+    if "seo_statuses" not in st.session_state:
+        st.session_state.seo_statuses = {}
+    if "seo_notes" not in st.session_state:
+        st.session_state.seo_notes = {}
+
+    # Try loading from database
+    if "seo_loaded" not in st.session_state:
+        st.session_state.seo_loaded = True
+        try:
+            conn = st.session_state.get("db_conn")
+            if conn:
+                cur = conn.cursor()
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS seo_tracker (
+                        task_id TEXT PRIMARY KEY,
+                        status TEXT DEFAULT 'Not Started',
+                        notes TEXT DEFAULT '',
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                conn.commit()
+                cur.execute("SELECT task_id, status, notes FROM seo_tracker")
+                for row in cur.fetchall():
+                    st.session_state.seo_statuses[row[0]] = row[1]
+                    st.session_state.seo_notes[row[0]] = row[2] or ""
+        except Exception:
+            pass
+
+    # ── Progress Overview ──
+    total_tasks = sum(len(p["tasks"]) for p in SEO_PHASES)
+    done_tasks = sum(1 for t in st.session_state.seo_statuses.values() if t == "Done")
+    in_progress_tasks = sum(1 for t in st.session_state.seo_statuses.values() if t == "In Progress")
+    blocked_tasks = sum(1 for t in st.session_state.seo_statuses.values() if t == "Blocked")
+    pct = int((done_tasks / total_tasks) * 100) if total_tasks else 0
+
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,#0F172A,#1E293B);border-radius:16px;padding:28px;margin-bottom:28px;border:1px solid #334155;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 style="margin:0;color:#F1F5F9;">📈 SEO Progress</h3>
+            <span style="color:#3B82F6;font-weight:bold;font-size:24px;">{pct}%</span>
+        </div>
+        <div style="background:#1E293B;border-radius:8px;height:16px;overflow:hidden;">
+            <div style="background:linear-gradient(90deg, #3B82F6, #06B6D4); width:{pct}%; height:100%; border-radius:8px; transition:width 0.5s;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-around; margin-top:16px;">
+            <div style="text-align:center;">
+                <div style="color:#10B981; font-size:28px; font-weight:bold;">{done_tasks}</div>
+                <div style="color:#94A3B8; font-size:12px;">Completed</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="color:#3B82F6; font-size:28px; font-weight:bold;">{in_progress_tasks}</div>
+                <div style="color:#94A3B8; font-size:12px;">In Progress</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="color:#EF4444; font-size:28px; font-weight:bold;">{blocked_tasks}</div>
+                <div style="color:#94A3B8; font-size:12px;">Blocked</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="color:#9CA3AF; font-size:28px; font-weight:bold;">{total_tasks - done_tasks - in_progress_tasks - blocked_tasks}</div>
+                <div style="color:#94A3B8; font-size:12px;">Remaining</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Save / Export buttons ──
+    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+    with col_btn1:
+        save_clicked = st.button("💾 Save All Statuses", key="seo_save", use_container_width=True, type="primary")
+    with col_btn2:
+        export_clicked = st.button("📋 Export Report", key="seo_export", use_container_width=True)
+
+    if save_clicked:
+        try:
+            conn = st.session_state.get("db_conn")
+            if conn:
+                cur = conn.cursor()
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS seo_tracker (
+                        task_id TEXT PRIMARY KEY,
+                        status TEXT DEFAULT 'Not Started',
+                        notes TEXT DEFAULT '',
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                for phase in SEO_PHASES:
+                    for task in phase["tasks"]:
+                        tid = task["id"]
+                        status = st.session_state.seo_statuses.get(tid, "Not Started")
+                        notes = st.session_state.seo_notes.get(tid, "")
+                        cur.execute("""
+                            INSERT INTO seo_tracker (task_id, status, notes, updated_at)
+                            VALUES (%s, %s, %s, NOW())
+                            ON CONFLICT (task_id) DO UPDATE SET
+                                status = EXCLUDED.status,
+                                notes = EXCLUDED.notes,
+                                updated_at = NOW()
+                        """, (tid, status, notes))
+                conn.commit()
+                st.success("✅ All SEO statuses saved to database!")
+            else:
+                st.warning("⚠️ No database connection — statuses saved in session only.")
+        except Exception as e:
+            st.error(f"Error saving: {e}")
+
+    if export_clicked:
+        report = "# SEO Roadmap Report — quartercharts.com\n"
+        report += f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+        report += f"Overall Progress: {done_tasks}/{total_tasks} ({pct}%)\n\n"
+        for phase in SEO_PHASES:
+            report += f"\n## {phase['icon']} {phase['phase']} ({phase['timeline']})\n"
+            for task in phase["tasks"]:
+                tid = task["id"]
+                status = st.session_state.seo_statuses.get(tid, "Not Started")
+                icon = STATUS_ICONS.get(status, "⏳")
+                notes = st.session_state.seo_notes.get(tid, "")
+                report += f"- [{icon} {status}] {tid}: {task['name']}"
+                if notes:
+                    report += f" — Note: {notes}"
+                report += "\n"
+        st.download_button("⬇️ Download Report", report, "seo_roadmap_report.md", "text/markdown")
+
+    st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+
+    # ── Phase-by-phase task rendering ──
+    for phase in SEO_PHASES:
+        phase_done = sum(1 for t in phase["tasks"] if st.session_state.seo_statuses.get(t["id"]) == "Done")
+        phase_total = len(phase["tasks"])
+        phase_pct = int((phase_done / phase_total) * 100) if phase_total else 0
+
+        with st.expander(f"{phase['icon']} {phase['phase']}  —  {phase['timeline']}  ({phase_done}/{phase_total})", expanded=False):
+            # Phase progress bar
+            st.markdown(f"""
+            <div style="background:#1E293B;border-radius:6px;height:8px;margin-bottom:16px;overflow:hidden;">
+                <div style="background:{phase['color']};width:{phase_pct}%;height:100%;border-radius:6px;transition:width 0.5s;"></div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            for task in phase["tasks"]:
+                tid = task["id"]
+                current_status = st.session_state.seo_statuses.get(tid, "Not Started")
+                current_notes = st.session_state.seo_notes.get(tid, "")
+                status_color = STATUS_COLORS.get(current_status, "#9CA3AF")
+
+                # Task card
+                st.markdown(f"""
+                <div style="background:#1E293B;border-left:4px solid {status_color};border-radius:8px;padding:14px 18px;margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                        <div>
+                            <span style="color:#64748B;font-size:12px;font-weight:600;">{tid}</span>
+                            <span style="color:{status_color};font-size:12px;margin-left:8px;">{STATUS_ICONS.get(current_status, '⏳')} {current_status}</span>
+                            {"<span style='color:#EF4444;font-size:11px;margin-left:8px;background:#3B1111;padding:2px 6px;border-radius:4px;'>"+task['priority']+"</span>" if task.get('priority') == 'Critical' else "<span style='color:#94A3B8;font-size:11px;margin-left:8px;'>"+task.get('priority','')+"</span>"}
+                        </div>
+                        <span style="color:#64748B;font-size:11px;">{task.get('effort', task.get('target', ''))}</span>
+                    </div>
+                    <div style="color:#E2E8F0;font-size:14px;margin-top:6px;line-height:1.5;">{task['name']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Status selector and notes
+                col1, col2 = st.columns([1, 2])
+                with col1:
+                    idx = STATUS_OPTIONS.index(current_status) if current_status in STATUS_OPTIONS else 0
+                    new_status = st.selectbox(
+                        "Status", STATUS_OPTIONS, index=idx,
+                        key=f"seo_status_{tid}", label_visibility="collapsed"
+                    )
+                    if new_status != current_status:
+                        st.session_state.seo_statuses[tid] = new_status
+                with col2:
+                    new_notes = st.text_input(
+                        "Notes", value=current_notes,
+                        key=f"seo_notes_{tid}", label_visibility="collapsed",
+                        placeholder="Add notes..."
+                    )
+                    if new_notes != current_notes:
+                        st.session_state.seo_notes[tid] = new_notes
+
+    # ── Footer with SEO tips ──
+    st.markdown("""
+    <div style="background:linear-gradient(135deg,#0F172A,#1E293B);border-radius:12px;padding:20px;margin-top:28px;border:1px solid #334155;">
+        <h4 style="color:#F1F5F9;margin:0 0 12px 0;">💡 SEO Quick Tips for 2025-2026</h4>
+        <ul style="color:#94A3B8;font-size:13px;line-height:1.8;margin:0;padding-left:20px;">
+            <li><b style="color:#3B82F6;">GEO is the new SEO</b> — Optimize for AI engines (ChatGPT, Perplexity, Google AI Overviews) not just traditional search</li>
+            <li><b style="color:#10B981;">E-E-A-T matters more than ever</b> — Experience, Expertise, Authoritativeness, Trustworthiness drive rankings</li>
+            <li><b style="color:#F59E0B;">Content depth wins</b> — Comprehensive, well-structured content outranks thin pages</li>
+            <li><b style="color:#EC4899;">Core Web Vitals are ranking factors</b> — Page speed and UX directly impact your position</li>
+            <li><b style="color:#8B5CF6;">llms.txt is emerging</b> — Help AI crawlers understand your site with structured machine-readable files</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 def _render_pricing_admin():
     """💳 Pricing – CRUD pricing plans that auto-update the public pricing page."""
     from database import (get_all_plans, get_plan_by_id, create_plan,
