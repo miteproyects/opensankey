@@ -7,12 +7,13 @@ Data sourced from Yahoo Finance via yfinance library.
 import streamlit as st
 import pandas as pd
 import time
+import traceback
 from datetime import datetime, timedelta, date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ── In-memory cache with TTL ────────────────────────────────────────────
 _EARNINGS_CACHE: dict = {}      # key -> (timestamp, data)
-_CACHE_TTL = 900                # 15 min TTL — earnings dates rarely change intraday
+_CACHE_TTL = 900                # 15 min TTL
 
 
 def _cache_key(d: date) -> str:
@@ -34,9 +35,8 @@ def _set_cached(key: str, data):
 
 # ── Yahoo Finance Earnings Fetcher ──────────────────────────────────────
 # Uses ONLY yfinance Python API (get_earnings_dates) — no web scraping.
-# Scans a broad list of tickers in parallel to find earnings on each date.
 
-# Debug log — visible in UI for diagnostics
+# Debug log — always visible in UI for diagnostics
 _DEBUG_LOG: list[str] = []
 
 
@@ -46,7 +46,6 @@ def _debug(msg: str):
 
 # ── Broad ticker universe for scanning ──
 _SCAN_TICKERS = [
-    # Mega/large caps
     "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "BRK-B",
     "JPM", "V", "JNJ", "WMT", "PG", "UNH", "HD", "MA", "DIS", "PYPL",
     "NFLX", "CRM", "INTC", "AMD", "ORCL", "CSCO", "PEP", "KO", "MRK",
@@ -61,9 +60,8 @@ _SCAN_TICKERS = [
     "AAL", "DAL", "UAL", "LUV", "MAR", "HLT", "WYNN", "MGM",
     "ADBE", "INTU", "PANW", "CRWD", "ZS", "NET", "DDOG", "MDB",
     "COIN", "HOOD", "SOFI", "AFRM", "UPST", "BILL", "HUBS",
-    # Mid-caps & popular earnings movers
     "ROKU", "SNAP", "PINS", "TTD", "RBLX", "U", "DKNG", "PENN",
-    "CHWY", "ETSY", "W", "BKNG", "EXPE", "ABNB", "DASH",
+    "CHWY", "ETSY", "W", "BKNG", "EXPE", "DASH",
     "ZM", "DOCU", "OKTA", "TWLO", "FIVN", "RNG",
     "CLX", "KMB", "SJM", "GIS", "K", "CPB", "HSY", "MKC",
     "TGT", "DG", "DLTR", "ROST", "TJX", "BBY", "LULU",
@@ -75,11 +73,10 @@ _SCAN_TICKERS = [
     "LEN", "DHI", "PHM", "TOL", "KBH", "NVR",
     "ON", "MCHP", "KLAC", "LRCX", "AMAT", "ASML", "SNPS", "CDNS",
     "ENPH", "FSLR", "RUN", "SEDG",
-    "WDAY", "VEEV", "ANSS", "CDNS", "SNPS", "FTNT", "SPLK",
-    "CMG", "YUM", "QSR", "MCD", "SBUX", "DPZ", "WEN", "JACK",
-    "CL", "EL", "CHD", "MNST", "STZ", "BF-B", "DEO", "SAM",
+    "WDAY", "VEEV", "ANSS", "FTNT",
+    "CMG", "YUM", "QSR", "MCD", "DPZ", "WEN", "JACK",
+    "CL", "EL", "CHD", "MNST", "STZ", "DEO", "SAM",
 ]
-# Deduplicate
 _SCAN_TICKERS = list(dict.fromkeys(_SCAN_TICKERS))
 
 
@@ -89,25 +86,19 @@ def _fetch_earnings_for_date(target_date: date) -> list[dict]:
     cached = _get_cached(cache_key)
     if cached is not None:
         return cached
-
     results = _scan_tickers_for_date(target_date)
     _set_cached(cache_key, results)
     return results
 
 
 def _check_ticker_earnings(symbol: str, target_dates: set[str]) -> list[dict]:
-    """
-    Check a single ticker's upcoming earnings dates via yfinance API.
-    Returns list of matching rows for any of the target_dates.
-    """
+    """Check a single ticker's earnings dates via yfinance API."""
     import yfinance as yf
-
     try:
         tk = yf.Ticker(symbol)
         cal = tk.get_earnings_dates(limit=8)
         if cal is None or cal.empty:
             return []
-
         matches = []
         for idx, row in cal.iterrows():
             earn_date = idx.date() if hasattr(idx, 'date') else idx
@@ -116,20 +107,11 @@ def _check_ticker_earnings(symbol: str, target_dates: set[str]) -> list[dict]:
                 eps_est = row.get("EPS Estimate")
                 eps_actual = row.get("Reported EPS")
                 surprise = row.get("Surprise(%)")
-
-                # Get company name from fast_info (faster than .info)
                 company_name = symbol
-                try:
-                    info = tk.fast_info
-                    # fast_info doesn't have shortName, but we can try
-                    company_name = symbol
-                except Exception:
-                    pass
                 try:
                     company_name = tk.info.get("shortName", symbol)
                 except Exception:
                     pass
-
                 matches.append({
                     "ticker": symbol.upper(),
                     "company": company_name,
@@ -141,7 +123,7 @@ def _check_ticker_earnings(symbol: str, target_dates: set[str]) -> list[dict]:
                     "date": earn_str,
                 })
         return matches
-    except Exception:
+    except Exception as e:
         return []
 
 
@@ -150,101 +132,31 @@ def _scan_tickers_for_date(target_date: date) -> list[dict]:
     target_str = target_date.isoformat()
     target_set = {target_str}
     results = []
-
     _debug(f"Scanning {len(_SCAN_TICKERS)} tickers for {target_str}")
     t0 = time.time()
-
-    with ThreadPoolExecutor(max_workers=15) as executor:
-        futures = {
-            executor.submit(_check_ticker_earnings, sym, target_set): sym
-            for sym in _SCAN_TICKERS
-        }
-        for future in as_completed(futures, timeout=30):
-            try:
-                matches = future.result(timeout=8)
-                results.extend(matches)
-            except Exception:
-                continue
-
+    try:
+        with ThreadPoolExecutor(max_workers=15) as executor:
+            futures = {
+                executor.submit(_check_ticker_earnings, sym, target_set): sym
+                for sym in _SCAN_TICKERS
+            }
+            for future in as_completed(futures, timeout=30):
+                try:
+                    matches = future.result(timeout=8)
+                    results.extend(matches)
+                except Exception:
+                    continue
+    except Exception as e:
+        _debug(f"Scan error: {e}")
+        _debug(traceback.format_exc())
     elapsed = time.time() - t0
     _debug(f"Scan done: {len(results)} earnings found in {elapsed:.1f}s")
     return results
 
 
-def _safe_float(val) -> str:
-    if val is None or val == "" or val == "-" or val == "N/A":
-        return "-"
-    try:
-        v = float(str(val).replace(",", ""))
-        return f"{v:.2f}" if v != 0 else "0.00"
-    except (ValueError, TypeError):
-        return str(val)
-
-
-
-def _map_call_time(raw: str) -> str:
-    """Map Yahoo's startdatetimetype to readable call time."""
-    raw = raw.upper().strip()
-    if raw in ("BMO", "BEFORE_MARKET_OPEN", "PREMARKET"):
-        return "BMO"
-    if raw in ("AMC", "AFTER_MARKET_CLOSE", "AFTERMARKET"):
-        return "AMC"
-    if raw in ("TNS", "TIME_NOT_SUPPLIED"):
-        return "TNS"
-    if raw in ("TAS", "DURING_MARKET"):
-        return "TAS"
-    return "-"
-
-
-# ── yfinance fallback for single-ticker search ─────────────────────────
-
-def _fetch_ticker_earnings(symbol: str) -> list[dict]:
-    """Fetch earnings dates for a specific ticker using yfinance."""
-    cache_key = f"ticker_earnings_{symbol.upper()}"
-    cached = _get_cached(cache_key)
-    if cached is not None:
-        return cached
-
-    try:
-        import yfinance as yf
-        tk = yf.Ticker(symbol.upper())
-        cal = tk.get_earnings_dates(limit=12)
-        if cal is None or cal.empty:
-            _set_cached(cache_key, [])
-            return []
-
-        results = []
-        for idx, row in cal.iterrows():
-            d = idx.date() if hasattr(idx, 'date') else idx
-            results.append({
-                "ticker": symbol.upper(),
-                "company": tk.info.get("shortName", symbol.upper()) if hasattr(tk, 'info') else symbol.upper(),
-                "event": "Earnings Announcement",
-                "call_time": "-",
-                "eps_estimate": _safe_float(row.get("EPS Estimate")),
-                "eps_actual": _safe_float(row.get("Reported EPS")),
-                "surprise_pct": _safe_float(row.get("Surprise(%)")),
-                "date": str(d),
-            })
-
-        _set_cached(cache_key, results)
-        return results
-
-    except Exception:
-        _set_cached(cache_key, [])
-        return []
-
-
-# ── Parallel fetch for a week ───────────────────────────────────────────
-
 def _fetch_week_earnings(week_start: date) -> dict[str, list[dict]]:
-    """
-    Fetch earnings for an entire week in a single parallel ticker scan.
-    Much faster than 7 separate scans — checks all 7 days per ticker call.
-    Returns dict mapping date_str -> list of earnings rows.
-    """
+    """Fetch earnings for an entire week in a single parallel ticker scan."""
     days = [week_start + timedelta(days=i) for i in range(7)]
-
     result = {}
     all_cached = True
     for d in days:
@@ -257,40 +169,106 @@ def _fetch_week_earnings(week_start: date) -> dict[str, list[dict]]:
             all_cached = False
 
     if all_cached:
+        _debug("All 7 days served from cache")
         return result
 
-    # Scan all tickers once, checking against all 7 days in the week
     target_dates = {d.isoformat() for d in days}
     _debug(f"Week scan: {week_start.isoformat()} to {days[-1].isoformat()} ({len(_SCAN_TICKERS)} tickers)")
     t0 = time.time()
+    errors = 0
 
-    with ThreadPoolExecutor(max_workers=15) as executor:
-        futures = {
-            executor.submit(_check_ticker_earnings, sym, target_dates): sym
-            for sym in _SCAN_TICKERS
-        }
-        for future in as_completed(futures, timeout=45):
-            try:
-                matches = future.result(timeout=8)
-                for m in matches:
-                    d_str = m["date"]
-                    if d_str in result:
-                        result[d_str].append(m)
-            except Exception:
-                continue
+    try:
+        with ThreadPoolExecutor(max_workers=15) as executor:
+            futures = {
+                executor.submit(_check_ticker_earnings, sym, target_dates): sym
+                for sym in _SCAN_TICKERS
+            }
+            for future in as_completed(futures, timeout=45):
+                try:
+                    matches = future.result(timeout=8)
+                    for m in matches:
+                        d_str = m["date"]
+                        if d_str in result:
+                            result[d_str].append(m)
+                except Exception:
+                    errors += 1
+                    continue
+    except Exception as e:
+        _debug(f"Week scan error: {e}")
+        _debug(traceback.format_exc())
 
     elapsed = time.time() - t0
     total = sum(len(v) for v in result.values())
-    _debug(f"Week scan done: {total} total earnings in {elapsed:.1f}s")
+    _debug(f"Week scan done: {total} earnings, {errors} errors, {elapsed:.1f}s")
 
-    # Cache each day's results
     for d in days:
         _set_cached(_cache_key(d), result[d.isoformat()])
 
     return result
 
 
-# ── Week calculation helpers ────────────────────────────────────────────
+def _safe_float(val) -> str:
+    if val is None or val == "" or val == "-" or val == "N/A":
+        return "-"
+    try:
+        v = float(str(val).replace(",", ""))
+        return f"{v:.2f}" if v != 0 else "0.00"
+    except (ValueError, TypeError):
+        return str(val)
+
+
+def _map_call_time(raw: str) -> str:
+    raw = raw.upper().strip()
+    if raw in ("BMO", "BEFORE_MARKET_OPEN", "PREMARKET"):
+        return "BMO"
+    if raw in ("AMC", "AFTER_MARKET_CLOSE", "AFTERMARKET"):
+        return "AMC"
+    if raw in ("TNS", "TIME_NOT_SUPPLIED"):
+        return "TNS"
+    if raw in ("TAS", "DURING_MARKET"):
+        return "TAS"
+    return "-"
+
+
+def _fetch_ticker_earnings(symbol: str) -> list[dict]:
+    """Fetch earnings dates for a specific ticker using yfinance."""
+    cache_key = f"ticker_earnings_{symbol.upper()}"
+    cached = _get_cached(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        import yfinance as yf
+        tk = yf.Ticker(symbol.upper())
+        cal = tk.get_earnings_dates(limit=12)
+        if cal is None or cal.empty:
+            _set_cached(cache_key, [])
+            return []
+        results = []
+        company = symbol.upper()
+        try:
+            company = tk.info.get("shortName", symbol.upper())
+        except Exception:
+            pass
+        for idx, row in cal.iterrows():
+            d = idx.date() if hasattr(idx, 'date') else idx
+            results.append({
+                "ticker": symbol.upper(),
+                "company": company,
+                "event": "Earnings Announcement",
+                "call_time": "-",
+                "eps_estimate": _safe_float(row.get("EPS Estimate")),
+                "eps_actual": _safe_float(row.get("Reported EPS")),
+                "surprise_pct": _safe_float(row.get("Surprise(%)")),
+                "date": str(d),
+            })
+        _set_cached(cache_key, results)
+        return results
+    except Exception:
+        _set_cached(cache_key, [])
+        return []
+
+
+# ── Week helpers ──────────────────────────────────────────────────────
 
 def _get_week_start(d: date) -> date:
     """Get Sunday of the week containing date d."""
@@ -298,136 +276,151 @@ def _get_week_start(d: date) -> date:
 
 
 def _format_date_range(week_start: date) -> str:
-    """Format 'Mar 29, 2026 - Apr 4, 2026'."""
     week_end = week_start + timedelta(days=6)
     if week_start.month == week_end.month:
-        return f"{week_start.strftime('%b %d')} - {week_end.strftime('%d, %Y')}"
+        return f"{week_start.strftime('%b %d')} – {week_end.strftime('%d, %Y')}"
     elif week_start.year == week_end.year:
-        return f"{week_start.strftime('%b %d')} - {week_end.strftime('%b %d, %Y')}"
+        return f"{week_start.strftime('%b %d')} – {week_end.strftime('%b %d, %Y')}"
     else:
-        return f"{week_start.strftime('%b %d, %Y')} - {week_end.strftime('%b %d, %Y')}"
+        return f"{week_start.strftime('%b %d, %Y')} – {week_end.strftime('%b %d, %Y')}"
 
 
-# ── Page Styles ─────────────────────────────────────────────────────────
+_DAY_MAP = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
+
+
+# ── Styles ─────────────────────────────────────────────────────────────
 
 _STYLES = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
+/* ── Hero ── */
 .ec-hero {
     text-align: center;
-    padding: 32px 20px 16px;
+    padding: 40px 20px 8px;
 }
 .ec-hero h1 {
-    font-size: 2rem;
-    font-weight: 800;
-    color: #f8fafc;
-    margin: 0 0 6px;
+    font-size: 2.6rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #f472b6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0 0 8px;
     font-family: Inter, system-ui, sans-serif;
+    letter-spacing: -0.03em;
 }
 .ec-hero p {
-    font-size: 0.95rem;
-    color: #94a3b8;
+    font-size: 1rem;
+    color: #64748b;
     margin: 0;
     font-family: Inter, system-ui, sans-serif;
+    letter-spacing: 0.01em;
 }
 
-/* Week nav bar */
-.ec-week-nav {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    margin: 20px 0 24px;
-    font-family: Inter, system-ui, sans-serif;
-}
-.ec-week-nav .ec-arrow {
-    width: 36px; height: 36px;
-    border-radius: 8px;
-    border: 1px solid #334155;
-    background: #1e293b;
-    color: #94a3b8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-size: 16px;
-    text-decoration: none;
-}
-.ec-arrow:hover { background: #334155; color: #f1f5f9; }
+/* ── Week nav ── */
 .ec-date-range {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #e2e8f0;
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 10px;
-    padding: 8px 20px;
-    font-family: Inter, system-ui, sans-serif;
-}
-
-/* Day selector cards */
-.ec-days-row {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin-bottom: 24px;
-}
-.ec-day-card {
-    min-width: 140px;
-    padding: 14px 18px;
-    border-radius: 12px;
-    border: 2px solid #334155;
-    background: #1e293b;
-    text-align: left;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    font-family: Inter, system-ui, sans-serif;
-    text-decoration: none;
-    display: block;
-}
-.ec-day-card:hover { border-color: #3b82f6; transform: translateY(-1px); }
-.ec-day-card.active {
-    border-color: #3b82f6;
-    background: #172554;
-    box-shadow: 0 0 20px rgba(59,130,246,0.15);
-}
-.ec-day-label {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #e2e8f0;
-    margin-bottom: 6px;
-}
-.ec-day-count {
-    font-size: 0.78rem;
-    color: #3b82f6;
-    font-weight: 600;
-}
-.ec-day-count::before {
-    content: '';
-    display: inline-block;
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: #3b82f6;
-    margin-right: 6px;
-    vertical-align: middle;
-}
-
-/* Earnings table */
-.ec-table-wrap {
-    border-radius: 12px;
-    border: 1px solid #1e293b;
-    overflow: hidden;
-    margin-bottom: 24px;
-}
-.ec-table-header {
     font-size: 1.05rem;
     font-weight: 700;
-    color: #f1f5f9;
-    padding: 16px 20px 12px;
+    color: #e2e8f0;
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 10px 28px;
     font-family: Inter, system-ui, sans-serif;
+    display: inline-block;
+    letter-spacing: 0.01em;
+}
+
+/* ── Day selector pills ── */
+.ec-day-pill {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 10px 10px;
+    border-radius: 14px;
+    border: 2px solid transparent;
+    background: #0f172a;
+    min-width: 90px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-decoration: none;
+    font-family: Inter, system-ui, sans-serif;
+}
+.ec-day-pill:hover {
+    border-color: #334155;
+    background: #1e293b;
+    transform: translateY(-2px);
+}
+.ec-day-pill.active {
+    border-color: #3b82f6;
+    background: linear-gradient(135deg, #172554, #1e3a5f);
+    box-shadow: 0 4px 24px rgba(59,130,246,0.2), 0 0 0 1px rgba(59,130,246,0.1);
+}
+.ec-day-pill .day-name {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+.ec-day-pill.active .day-name { color: #93c5fd; }
+.ec-day-pill .day-num {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #e2e8f0;
+    line-height: 1.2;
+}
+.ec-day-pill.active .day-num { color: #fff; }
+.ec-day-pill .day-count {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #475569;
+    margin-top: 4px;
+    white-space: nowrap;
+}
+.ec-day-pill.active .day-count { color: #60a5fa; }
+.ec-day-pill .day-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #3b82f6;
+    margin-top: 4px;
+}
+.ec-day-pill .day-dot.empty { background: transparent; }
+
+/* ── Section header ── */
+.ec-section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 28px 0 16px;
+    font-family: Inter, system-ui, sans-serif;
+}
+.ec-section-header h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin: 0;
+}
+.ec-section-header .ec-count-badge {
+    background: linear-gradient(135deg, #1e40af, #3b82f6);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.02em;
+}
+
+/* ── Earnings table ── */
+.ec-table-wrap {
+    border-radius: 16px;
+    border: 1px solid #1e293b;
+    overflow: hidden;
+    margin-bottom: 20px;
+    background: #0f172a;
 }
 .ec-table {
     width: 100%;
@@ -435,117 +428,139 @@ _STYLES = """
     font-family: Inter, system-ui, sans-serif;
 }
 .ec-table thead th {
-    background: #0f172a;
-    color: #94a3b8;
-    font-size: 0.75rem;
-    font-weight: 600;
+    background: linear-gradient(180deg, #1e293b, #0f172a);
+    color: #64748b;
+    font-size: 0.7rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 10px 16px;
+    letter-spacing: 0.08em;
+    padding: 14px 16px;
     text-align: left;
     border-bottom: 1px solid #1e293b;
     position: sticky;
     top: 0;
+    z-index: 1;
 }
 .ec-table tbody tr {
-    border-bottom: 1px solid #1e293b;
-    transition: background 0.1s;
+    border-bottom: 1px solid rgba(30,41,59,0.5);
+    transition: all 0.15s ease;
 }
-.ec-table tbody tr:hover { background: #172554; }
+.ec-table tbody tr:hover {
+    background: linear-gradient(90deg, rgba(59,130,246,0.06), rgba(59,130,246,0.02));
+}
 .ec-table tbody td {
-    padding: 12px 16px;
+    padding: 14px 16px;
     font-size: 0.88rem;
-    color: #cbd5e1;
+    color: #94a3b8;
     vertical-align: middle;
 }
 .ec-ticker {
-    color: #3b82f6;
+    color: #60a5fa;
     font-weight: 700;
     text-decoration: none;
     cursor: pointer;
+    font-size: 0.9rem;
+    letter-spacing: 0.02em;
+    transition: color 0.15s;
 }
-.ec-ticker:hover { color: #60a5fa; text-decoration: underline; }
-.ec-company { color: #e2e8f0; font-weight: 500; }
-.ec-event { color: #94a3b8; font-size: 0.82rem; }
+.ec-ticker:hover { color: #93c5fd; }
+.ec-company {
+    color: #cbd5e1;
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+.ec-event {
+    color: #475569;
+    font-size: 0.78rem;
+    font-style: italic;
+}
+
+/* Call time badges */
 .ec-badge-bmo {
-    background: #1e3a5f;
+    background: rgba(59,130,246,0.12);
     color: #60a5fa;
-    padding: 3px 10px;
-    border-radius: 6px;
-    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.05em;
+    border: 1px solid rgba(59,130,246,0.2);
 }
 .ec-badge-amc {
-    background: #3b1f4a;
+    background: rgba(168,85,247,0.12);
     color: #c084fc;
-    padding: 3px 10px;
-    border-radius: 6px;
-    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.05em;
+    border: 1px solid rgba(168,85,247,0.2);
 }
 .ec-badge-other {
-    background: #1e293b;
+    background: rgba(100,116,139,0.1);
     color: #64748b;
-    padding: 3px 10px;
-    border-radius: 6px;
-    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 0.72rem;
     font-weight: 600;
+    border: 1px solid rgba(100,116,139,0.15);
 }
+
+/* EPS + Surprise */
 .ec-eps-positive { color: #22c55e; font-weight: 600; }
 .ec-eps-negative { color: #ef4444; font-weight: 600; }
-.ec-eps-neutral { color: #94a3b8; }
-.ec-surprise-positive { color: #22c55e; font-weight: 600; font-size: 0.82rem; }
-.ec-surprise-negative { color: #ef4444; font-weight: 600; font-size: 0.82rem; }
+.ec-eps-neutral { color: #475569; }
+.ec-surprise-positive {
+    color: #22c55e;
+    font-weight: 700;
+    font-size: 0.82rem;
+    background: rgba(34,197,94,0.08);
+    padding: 2px 8px;
+    border-radius: 6px;
+}
+.ec-surprise-negative {
+    color: #ef4444;
+    font-weight: 700;
+    font-size: 0.82rem;
+    background: rgba(239,68,68,0.08);
+    padding: 2px 8px;
+    border-radius: 6px;
+}
 
-/* Empty state */
+/* ── Empty state ── */
 .ec-empty {
     text-align: center;
-    padding: 48px 20px;
-    color: #64748b;
+    padding: 64px 20px;
     font-family: Inter, system-ui, sans-serif;
 }
-.ec-empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
-.ec-empty-text { font-size: 1rem; font-weight: 500; }
+.ec-empty-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    opacity: 0.4;
+}
+.ec-empty-text {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #475569;
+}
+.ec-empty-sub {
+    font-size: 0.85rem;
+    color: #334155;
+    margin-top: 6px;
+}
 
-/* Footer notes */
-.ec-footer-notes {
-    margin-top: 32px;
-    padding: 20px 24px;
-    background: #0f172a;
-    border: 1px solid #1e293b;
-    border-radius: 12px;
-    font-family: Inter, system-ui, sans-serif;
-}
-.ec-footer-notes h4 {
-    color: #94a3b8;
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin: 0 0 10px;
-}
-.ec-footer-notes p, .ec-footer-notes li {
-    color: #64748b;
-    font-size: 0.78rem;
-    line-height: 1.6;
-    margin: 0 0 6px;
-}
-.ec-footer-notes ul { padding-left: 16px; margin: 0; }
-
-/* Search result banner */
+/* ── Search banner ── */
 .ec-search-banner {
-    background: linear-gradient(135deg, #172554, #1e3a5f);
-    border: 1px solid #1e40af;
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 20px;
+    background: linear-gradient(135deg, #172554 0%, #1e3a5f 50%, #172554 100%);
+    border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
     font-family: Inter, system-ui, sans-serif;
 }
 .ec-search-banner h3 {
     color: #60a5fa;
-    font-size: 1rem;
+    font-size: 1.1rem;
     font-weight: 700;
     margin: 0 0 4px;
 }
@@ -553,13 +568,56 @@ _STYLES = """
     color: #93c5fd;
     font-size: 0.85rem;
     margin: 0;
+    opacity: 0.8;
 }
 
+/* ── Footer glossary ── */
+.ec-glossary {
+    margin-top: 36px;
+    padding: 24px;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    border: 1px solid #1e293b;
+    border-radius: 16px;
+    font-family: Inter, system-ui, sans-serif;
+}
+.ec-glossary h4 {
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 0 0 16px;
+}
+.ec-glossary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+}
+.ec-glossary-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+.ec-glossary-item .term {
+    color: #94a3b8;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+    min-width: 40px;
+}
+.ec-glossary-item .def {
+    color: #475569;
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+/* ── Responsive ── */
 @media (max-width: 768px) {
-    .ec-hero h1 { font-size: 1.5rem; }
-    .ec-day-card { min-width: 100px; padding: 10px 12px; }
-    .ec-table thead th, .ec-table tbody td { padding: 8px 10px; font-size: 0.8rem; }
-    .ec-days-row { gap: 6px; }
+    .ec-hero h1 { font-size: 1.8rem; }
+    .ec-day-pill { min-width: 70px; padding: 8px 6px; }
+    .ec-day-pill .day-num { font-size: 1rem; }
+    .ec-table thead th, .ec-table tbody td { padding: 10px 10px; font-size: 0.8rem; }
+    .ec-glossary-grid { grid-template-columns: 1fr; }
 }
 </style>
 """
@@ -569,6 +627,8 @@ _STYLES = """
 
 def render_earnings_page():
     """Render the Earnings Calendar page."""
+    global _DEBUG_LOG
+    _DEBUG_LOG = []  # Reset on each render
 
     st.markdown(_STYLES, unsafe_allow_html=True)
 
@@ -581,34 +641,33 @@ def render_earnings_page():
     """, unsafe_allow_html=True)
 
     # ── Search bar ──
-    search_col1, search_col2, search_col3 = st.columns([1, 2, 1])
+    search_col1, search_col2, search_col3 = st.columns([1, 3, 1])
     with search_col2:
         search_query = st.text_input(
-            "Find earnings for symbols",
-            placeholder="Search by ticker (e.g. AAPL, MSFT, NVDA)",
+            "Search",
+            placeholder="Search by ticker symbol (e.g. AAPL, MSFT, NVDA)",
             key="ec_search",
             label_visibility="collapsed",
         )
 
-    # ── Handle ticker search ──
     if search_query and search_query.strip():
         _render_ticker_search(search_query.strip().upper())
-        _render_footer_notes()
+        _render_footer()
+        _render_debug()
         return
 
-    # ── Week navigation state ──
+    # ── Week navigation ──
     today = date.today()
     if "ec_week_offset" not in st.session_state:
         st.session_state.ec_week_offset = 0
 
-    # Navigation buttons
     nav_c1, nav_c2, nav_c3, nav_c4, nav_c5 = st.columns([2, 1, 3, 1, 2])
     with nav_c2:
-        if st.button("‹", key="ec_prev", use_container_width=True):
+        if st.button("◂ Prev", key="ec_prev", use_container_width=True):
             st.session_state.ec_week_offset -= 1
             st.rerun()
     with nav_c4:
-        if st.button("›", key="ec_next", use_container_width=True):
+        if st.button("Next ▸", key="ec_next", use_container_width=True):
             st.session_state.ec_week_offset += 1
             st.rerun()
 
@@ -622,24 +681,27 @@ def render_earnings_page():
             unsafe_allow_html=True,
         )
 
-    # ── Fetch entire week data (parallel) ──
-    with st.spinner("Loading earnings data..."):
-        week_data = _fetch_week_earnings(week_start)
+    # ── Fetch week data ──
+    _debug("Starting data fetch...")
+    try:
+        with st.spinner("Loading earnings data..."):
+            week_data = _fetch_week_earnings(week_start)
+    except Exception as e:
+        _debug(f"FATAL fetch error: {e}")
+        _debug(traceback.format_exc())
+        week_data = {(week_start + timedelta(days=i)).isoformat(): [] for i in range(7)}
 
-    # ── Day selector cards ──
-    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    # ── Day selector pills ──
     days_in_week = []
     for i in range(7):
         d = week_start + timedelta(days=i)
-        d_str = d.isoformat()
-        count = len(week_data.get(d_str, []))
+        count = len(week_data.get(d.isoformat(), []))
         days_in_week.append((d, count))
 
-    # Default to today if in range, otherwise first day with data, else Monday
+    # Determine selected day
     if "ec_selected_day" not in st.session_state:
         st.session_state.ec_selected_day = None
 
-    # Reset selected day when week changes
     selected_day = st.session_state.ec_selected_day
     if selected_day:
         try:
@@ -650,34 +712,45 @@ def render_earnings_page():
             selected_day = None
 
     if not selected_day:
-        # Default: today if in this week, else first day with earnings, else Monday
         if week_start <= today <= week_start + timedelta(days=6):
             selected_day = today.isoformat()
         else:
-            # Pick first day with data
             for d, count in days_in_week:
                 if count > 0:
                     selected_day = d.isoformat()
                     break
             if not selected_day:
-                selected_day = (week_start + timedelta(days=1)).isoformat()  # Monday
+                selected_day = (week_start + timedelta(days=1)).isoformat()
 
-    # Day selector buttons
+    # Render day pill buttons
     day_cols = st.columns(7)
     for i, (d, count) in enumerate(days_in_week):
         with day_cols[i]:
             is_active = d.isoformat() == selected_day
-            label = f"{day_names[d.weekday() + 1] if d.weekday() < 6 else 'Sun'}, {d.strftime('%b %-d')}"
-            # Fix day name mapping: weekday() returns 0=Mon...6=Sun
             wd = d.weekday()
-            day_label_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
-            label = f"{day_label_map[wd]}, {d.strftime('%b')} {d.day}"
+            day_name = _DAY_MAP[wd]
+
+            # Build rich HTML pill content
+            active_cls = "active" if is_active else ""
+            dot_cls = "" if count > 0 else "empty"
+            count_text = f"{count} report{'s' if count != 1 else ''}" if count > 0 else "—"
+
+            pill_html = f"""
+            <div class="ec-day-pill {active_cls}" style="width:100%;text-align:center;">
+                <span class="day-name">{day_name}</span>
+                <span class="day-num">{d.day}</span>
+                <span class="day-count">{count_text}</span>
+                <span class="day-dot {dot_cls}"></span>
+            </div>
+            """
+            st.markdown(pill_html, unsafe_allow_html=True)
 
             if st.button(
-                f"{label}\n{'● ' + str(count) + ' Earnings' if count > 0 else 'No Earnings'}",
+                f"Select {day_name}",
                 key=f"ec_day_{d.isoformat()}",
                 use_container_width=True,
                 type="primary" if is_active else "secondary",
+                label_visibility="collapsed",
             ):
                 st.session_state.ec_selected_day = d.isoformat()
                 st.rerun()
@@ -690,29 +763,46 @@ def render_earnings_page():
 
     day_earnings = week_data.get(selected_day, [])
     wd = sel_date.weekday()
-    day_label_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
-    day_title = f"Earnings On {day_label_map[wd]}, {sel_date.strftime('%b')} {sel_date.day}"
+    day_title = f"Earnings on {_DAY_MAP[wd]}, {sel_date.strftime('%B')} {sel_date.day}"
 
-    st.markdown(f"### {day_title}")
+    count_badge = f'<span class="ec-count-badge">{len(day_earnings)} report{"s" if len(day_earnings) != 1 else ""}</span>' if day_earnings else ''
+    st.markdown(f"""
+    <div class="ec-section-header">
+        <h2>{day_title}</h2>
+        {count_badge}
+    </div>
+    """, unsafe_allow_html=True)
 
     if not day_earnings:
-        st.markdown("""
+        st.markdown(f"""
         <div class="ec-empty">
-            <div class="ec-empty-icon">📅</div>
-            <div class="ec-empty-text">No earnings announcements scheduled for this day</div>
+            <div class="ec-empty-icon">📊</div>
+            <div class="ec-empty-text">No earnings reports scheduled</div>
+            <div class="ec-empty-sub">{_DAY_MAP[wd]}, {sel_date.strftime('%B %d, %Y')}</div>
         </div>
         """, unsafe_allow_html=True)
     else:
         _render_earnings_table(day_earnings, sel_date)
 
-    # ── Debug diagnostics (temporary) ──
-    if _DEBUG_LOG:
-        with st.expander("🔧 Data fetch diagnostics", expanded=False):
-            for line in _DEBUG_LOG:
-                st.text(line)
+    # ── Debug + Footer ──
+    _render_debug()
+    _render_footer()
 
-    # ── Footer ──
-    _render_footer_notes()
+
+def _render_debug():
+    """Always render debug diagnostics so we can see what happens on Railway."""
+    with st.expander("Data fetch diagnostics", expanded=False):
+        if _DEBUG_LOG:
+            for line in _DEBUG_LOG:
+                st.code(line, language=None)
+        else:
+            st.caption("No debug messages logged — fetch may not have run (data may be cached).")
+        # Show yfinance version
+        try:
+            import yfinance as yf
+            st.caption(f"yfinance version: {yf.__version__}")
+        except Exception:
+            st.caption("yfinance not available")
 
 
 def _render_ticker_search(symbol: str):
@@ -732,35 +822,37 @@ def _render_ticker_search(symbol: str):
         st.info(f"No earnings data found for **{symbol}**. Verify the ticker symbol and try again.")
         return
 
-    # Split into upcoming and past
     today_str = date.today().isoformat()
     upcoming = [r for r in results if r["date"] >= today_str]
     past = [r for r in results if r["date"] < today_str]
 
     if upcoming:
-        st.markdown("#### Upcoming Earnings")
+        st.markdown(f"""
+        <div class="ec-section-header">
+            <h2>Upcoming Earnings</h2>
+            <span class="ec-count-badge">{len(upcoming)}</span>
+        </div>
+        """, unsafe_allow_html=True)
         _render_earnings_table(upcoming, None, show_date=True)
 
     if past:
-        st.markdown("#### Past Earnings")
+        st.markdown(f"""
+        <div class="ec-section-header">
+            <h2>Past Earnings</h2>
+            <span class="ec-count-badge">{len(past)}</span>
+        </div>
+        """, unsafe_allow_html=True)
         _render_earnings_table(past, None, show_date=True)
 
 
-def _render_earnings_table(earnings: list[dict], sel_date: date | None, show_date: bool = False):
+def _render_earnings_table(earnings: list[dict], sel_date=None, show_date: bool = False):
     """Render the earnings HTML table."""
-
-    # Get current ticker from query params for linking
-    current_ticker = st.query_params.get("ticker", "AAPL")
     _auth_params = ""
     if st.session_state.get("session_token"):
         _auth_params = f"&_sid={st.session_state.session_token}"
 
-    # Sort: BMO first, then AMC, then others
     order = {"BMO": 0, "AMC": 1, "TAS": 2, "TNS": 3, "-": 4}
     earnings_sorted = sorted(earnings, key=lambda x: (order.get(x.get("call_time", "-"), 4), x.get("ticker", "")))
-
-    # Build table HTML
-    date_col_header = '<th>Date</th>' if show_date else ''
 
     rows_html = ""
     for e in earnings_sorted:
@@ -772,7 +864,6 @@ def _render_earnings_table(earnings: list[dict], sel_date: date | None, show_dat
         eps_actual = e.get("eps_actual", "-")
         surprise = e.get("surprise_pct", "-")
 
-        # Call time badge
         if call_time == "BMO":
             badge = '<span class="ec-badge-bmo">BMO</span>'
         elif call_time == "AMC":
@@ -780,7 +871,6 @@ def _render_earnings_table(earnings: list[dict], sel_date: date | None, show_dat
         else:
             badge = f'<span class="ec-badge-other">{call_time}</span>'
 
-        # EPS styling
         eps_est_html = f'<span class="ec-eps-neutral">{eps_est}</span>'
         if eps_actual != "-":
             try:
@@ -790,9 +880,8 @@ def _render_earnings_table(earnings: list[dict], sel_date: date | None, show_dat
             except (ValueError, TypeError):
                 eps_actual_html = f'<span class="ec-eps-neutral">{eps_actual}</span>'
         else:
-            eps_actual_html = f'<span class="ec-eps-neutral">-</span>'
+            eps_actual_html = '<span class="ec-eps-neutral">–</span>'
 
-        # Surprise styling
         if surprise != "-":
             try:
                 val = float(surprise)
@@ -802,11 +891,9 @@ def _render_earnings_table(earnings: list[dict], sel_date: date | None, show_dat
             except (ValueError, TypeError):
                 surprise_html = f'<span class="ec-eps-neutral">{surprise}</span>'
         else:
-            surprise_html = f'<span class="ec-eps-neutral">-</span>'
+            surprise_html = '<span class="ec-eps-neutral">–</span>'
 
-        # Ticker link — goes to QuarterCharts charts page
         ticker_link = f'/?page=charts&ticker={ticker}{_auth_params}'
-
         date_col = f'<td>{e.get("date", "")}</td>' if show_date else ''
 
         rows_html += f"""
@@ -831,12 +918,12 @@ def _render_earnings_table(earnings: list[dict], sel_date: date | None, show_dat
                 <tr>
                     <th>Symbol</th>
                     <th>Company</th>
-                    <th>Event Name</th>
+                    <th>Event</th>
                     {date_th}
                     <th>Call Time</th>
-                    <th>EPS Estimate</th>
-                    <th>Reported EPS</th>
-                    <th>Surprise %</th>
+                    <th>EPS Est.</th>
+                    <th>Reported</th>
+                    <th>Surprise</th>
                 </tr>
             </thead>
             <tbody>
@@ -846,35 +933,27 @@ def _render_earnings_table(earnings: list[dict], sel_date: date | None, show_dat
     </div>
     """
     st.markdown(table_html, unsafe_allow_html=True)
-    st.caption(f"Showing {len(earnings_sorted)} earnings announcement{'s' if len(earnings_sorted) != 1 else ''}")
 
 
-def _render_footer_notes():
-    """Render data attribution and glossary footer."""
-    st.markdown("---")
-    st.markdown("#### Glossary & Notes")
+def _render_footer():
+    """Render glossary and disclaimer footer."""
     st.markdown("""
-**BMO** — Before Market Open. The company reports earnings before the stock market opens (typically before 9:30 AM ET).
+    <div class="ec-glossary">
+        <h4>Glossary</h4>
+        <div class="ec-glossary-grid">
+            <div class="ec-glossary-item"><span class="term">BMO</span><span class="def">Before Market Open — reported before 9:30 AM ET</span></div>
+            <div class="ec-glossary-item"><span class="term">AMC</span><span class="def">After Market Close — reported after 4:00 PM ET</span></div>
+            <div class="ec-glossary-item"><span class="term">TAS</span><span class="def">Time Already Supplied / During Market Hours</span></div>
+            <div class="ec-glossary-item"><span class="term">TNS</span><span class="def">Time Not Supplied — exact time not announced</span></div>
+            <div class="ec-glossary-item"><span class="term">EPS Est.</span><span class="def">Consensus analyst estimate for Earnings Per Share</span></div>
+            <div class="ec-glossary-item"><span class="term">Reported</span><span class="def">Actual EPS reported by the company</span></div>
+            <div class="ec-glossary-item"><span class="term">Surprise</span><span class="def">% difference between reported and estimated EPS</span></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-**AMC** — After Market Close. The company reports earnings after the market closes (typically after 4:00 PM ET).
-
-**TAS** — Time Already Supplied / During Market Hours.
-
-**TNS** — Time Not Supplied. The exact reporting time has not been announced.
-
-**EPS Estimate** — The consensus Wall Street analyst estimate for Earnings Per Share for the reporting period.
-
-**Reported EPS** — The actual Earnings Per Share reported by the company. Available after the announcement.
-
-**Surprise %** — The percentage difference between Reported EPS and the consensus EPS Estimate. Positive means the company beat expectations.
-""")
-    st.markdown("#### Data Source & Disclaimer")
     st.caption(
-        "Earnings calendar data is sourced from Yahoo Finance. Earnings dates, estimates, and reported figures are provided "
-        "for informational purposes only and may be subject to change. QuarterCharts does not guarantee the accuracy, "
-        "completeness, or timeliness of this data.\n\n"
-        "Consensus EPS estimates are compiled from analyst forecasts and may differ from other sources. Actual earnings "
-        "results are reported by the companies themselves via SEC filings (8-K, 10-Q, 10-K) and press releases.\n\n"
-        "This information does not constitute financial advice. Always verify earnings dates and estimates with official "
-        "company investor relations pages and SEC EDGAR filings before making investment decisions."
+        "Earnings data sourced from Yahoo Finance via yfinance. Dates, estimates, and reported figures are for "
+        "informational purposes only and may change. QuarterCharts does not guarantee accuracy or completeness. "
+        "This is not financial advice — verify with official SEC EDGAR filings and company IR pages."
     )
