@@ -359,7 +359,7 @@ section[data-testid="stSidebar"] {
     letter-spacing: 0.02em;
     transition: all 0.2s ease;
     cursor: pointer;
-    padding: 0 18px;
+    padding: 0 14px;
     height: 60px;
     display: flex;
     align-items: center;
