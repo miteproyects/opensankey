@@ -2111,7 +2111,7 @@ with st.sidebar:
 
     ticker = st.session_state.ticker
 
-    if current_page != "profile":
+    if current_page != "profile" and current_page != "home":
 
         info = get_company_info(ticker)
 
