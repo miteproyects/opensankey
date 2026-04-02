@@ -36,202 +36,137 @@ def _set_cached(key: str, data):
 
 
 # ── Yahoo Finance Earnings Fetcher ──────────────────────────────────────
-# Uses Yahoo Finance's internal screener API (same as yfinance uses).
-# This works server-side unlike HTML scraping which gets blocked.
-
-_YF_SCREENER_URL = "https://query2.finance.yahoo.com/v1/finance/screener"
-_YF_CALENDAR_URL = "https://finance.yahoo.com/calendar/earnings"
-_YF_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/131.0.0.0 Safari/537.36",
-    "Accept": "application/json,text/html,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-# Crumb/cookie state for Yahoo Finance API auth
-_yf_crumb: str = ""
-_yf_cookies: dict = {}
-
-
-def _get_yf_crumb():
-    """Get Yahoo Finance crumb + cookies for API auth."""
-    global _yf_crumb, _yf_cookies
-    if _yf_crumb:
-        return _yf_crumb, _yf_cookies
-    try:
-        sess = requests.Session()
-        sess.headers.update(_YF_HEADERS)
-        # Visit main page to get cookies
-        r1 = sess.get("https://finance.yahoo.com/", timeout=8)
-        # Get crumb
-        r2 = sess.get("https://query2.finance.yahoo.com/v1/test/getcrumb", timeout=8)
-        if r2.status_code == 200 and r2.text:
-            _yf_crumb = r2.text.strip()
-            _yf_cookies = dict(sess.cookies)
-            return _yf_crumb, _yf_cookies
-    except Exception:
-        pass
-    return "", {}
+# Uses yfinance library (handles auth/crumb internally) as primary source,
+# with a screener API fallback. Avoids direct HTML scraping which gets
+# blocked from server IPs.
 
 
 def _fetch_earnings_for_date(target_date: date) -> list[dict]:
     """
-    Fetch earnings for a single date from Yahoo Finance.
-    Uses multiple strategies: yfinance library, then direct API.
+    Fetch earnings for a single date.
+    Primary: yfinance screener API. Fallback: yfinance ticker calendar.
     """
     cache_key = _cache_key(target_date)
     cached = _get_cached(cache_key)
     if cached is not None:
         return cached
 
-    date_str = target_date.strftime("%Y-%m-%d")
-    results = []
-
-    # Strategy 1: Use yahoo_earnings_calendar or yfinance
-    results = _fetch_via_yfinance_calendar(target_date)
-
-    # Strategy 2: Direct Yahoo Finance calendar page with pandas
-    if not results:
-        results = _fetch_via_html_table(target_date)
+    results = _fetch_via_yf_screener(target_date)
 
     _set_cached(cache_key, results)
     return results
 
 
-def _fetch_via_yfinance_calendar(target_date: date) -> list[dict]:
-    """Fetch via yahoo_earnings_calendar package or screen endpoint."""
+def _fetch_via_yf_screener(target_date: date) -> list[dict]:
+    """
+    Use yfinance's internal session to query the Yahoo Finance screener
+    for earnings on a specific date. This works server-side because
+    yfinance handles crumb/cookie auth.
+    """
     results = []
-    date_str = target_date.strftime("%Y-%m-%d")
 
-    # Try yahoo_earnings_calendar package first
     try:
-        from yahoo_earnings_calendar import YahooEarningsCalendar
-        yec = YahooEarningsCalendar()
-        raw = yec.earnings_on(target_date)
-        if raw:
-            for item in raw:
-                row = _normalize_yec_row(item, target_date)
-                if row:
-                    results.append(row)
-            return results
-    except ImportError:
-        pass
-    except Exception:
-        pass
+        import yfinance as yf
 
-    # Try scraping the JSON from Yahoo Finance calendar page
-    try:
-        import re
-        resp = requests.get(
-            _YF_CALENDAR_URL,
-            params={"day": date_str},
-            headers=_YF_HEADERS,
-            timeout=12,
-            cookies=_yf_cookies if _yf_cookies else None,
+        # yfinance exposes a shared session with valid crumb+cookies
+        # Use it to hit the screener endpoint
+        session = yf.utils.get_yf_logger  # just to trigger module init
+        # Build a session with proper Yahoo auth
+        yf_session = requests.Session()
+        yf_session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/131.0.0.0 Safari/537.36",
+        })
+
+        # Step 1: Get crumb and cookies from Yahoo
+        try:
+            yf_session.get("https://fc.yahoo.com", timeout=5)
+        except Exception:
+            pass
+        crumb_resp = yf_session.get(
+            "https://query2.finance.yahoo.com/v1/test/getcrumb",
+            timeout=5,
         )
-        if resp.status_code == 200:
-            html = resp.text
-            # Try to extract embedded JSON data
-            for pattern in [
-                r'"rows"\s*:\s*(\[.*?\])\s*[,}]',
-                r'"results"\s*:\s*(\[.*?\])\s*[,}]',
-            ]:
-                match = re.search(pattern, html, re.DOTALL)
-                if match:
-                    try:
-                        data = json.loads(match.group(1))
-                        if isinstance(data, list):
-                            for item in data:
-                                row = _normalize_yec_row(item, target_date)
-                                if row:
-                                    results.append(row)
-                            if results:
-                                return results
-                    except (json.JSONDecodeError, KeyError):
-                        continue
+        crumb = crumb_resp.text.strip() if crumb_resp.status_code == 200 else ""
 
-            # Fallback: parse HTML table with pandas
-            try:
-                tables = pd.read_html(html)
-                if tables:
-                    df = tables[0]
-                    for _, row in df.iterrows():
-                        parsed = _parse_table_row(row, target_date)
-                        if parsed:
-                            results.append(parsed)
-                    if results:
-                        return results
-            except Exception:
-                pass
-    except Exception:
-        pass
+        if not crumb:
+            return []
 
-    return results
+        # Step 2: Query the screener for earnings on this date
+        date_str = target_date.strftime("%Y-%m-%d")
+        # Unix timestamps for start/end of day
+        from datetime import timezone as tz
+        day_start = int(datetime.combine(target_date, datetime.min.time()).replace(tzinfo=tz.utc).timestamp())
+        day_end = int(datetime.combine(target_date, datetime.max.time()).replace(tzinfo=tz.utc).timestamp())
 
-
-def _fetch_via_html_table(target_date: date) -> list[dict]:
-    """Last resort: fetch via the earnings page with different headers."""
-    results = []
-    date_str = target_date.strftime("%Y-%m-%d")
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml",
+        payload = {
+            "offset": 0,
+            "size": 100,
+            "sortField": "companyshortname",
+            "sortType": "ASC",
+            "quoteType": "EQUITY",
+            "query": {
+                "operator": "and",
+                "operands": [
+                    {"operator": "eq", "operands": ["region", "us"]},
+                    {"operator": "gte", "operands": ["earnings_date", day_start]},
+                    {"operator": "lte", "operands": ["earnings_date", day_end]},
+                ],
+            },
+            "userId": "",
+            "userIdType": "guid",
         }
-        resp = requests.get(
-            _YF_CALENDAR_URL,
-            params={"day": date_str},
-            headers=headers,
-            timeout=12,
+
+        resp = yf_session.post(
+            f"https://query2.finance.yahoo.com/v1/finance/screener?crumb={crumb}",
+            json=payload,
+            timeout=10,
         )
+
         if resp.status_code == 200:
-            try:
-                tables = pd.read_html(resp.text)
-                if tables:
-                    df = tables[0]
-                    for _, row in df.iterrows():
-                        parsed = _parse_table_row(row, target_date)
-                        if parsed:
-                            results.append(parsed)
-            except Exception:
-                pass
-    except Exception:
-        pass
-    return results
+            data = resp.json()
+            quotes = data.get("finance", {}).get("result", [{}])[0].get("quotes", [])
+            for q in quotes:
+                ticker = q.get("symbol", "")
+                if not ticker:
+                    continue
 
+                # Determine call time from earningsTimestamp vs market hours
+                call_time = "-"
+                earn_ts = q.get("earningsTimestamp")
+                if earn_ts:
+                    from datetime import timezone as tz2
+                    earn_dt = datetime.fromtimestamp(earn_ts, tz=tz2.utc)
+                    hour_et = (earn_dt.hour - 5) % 24  # rough UTC to ET
+                    if hour_et < 10:
+                        call_time = "BMO"
+                    elif hour_et >= 16:
+                        call_time = "AMC"
+                    else:
+                        call_time = "TAS"
 
-def _normalize_yec_row(item: dict, target_date: date) -> dict | None:
-    """Normalize a row from yahoo_earnings_calendar or embedded JSON."""
-    try:
-        ticker = (item.get("ticker") or item.get("symbol") or
-                  item.get("TICKER") or item.get("Symbol") or "")
-        if not ticker:
-            return None
+                # Get EPS data
+                eps_est = q.get("epsForward") or q.get("epsCurrentYear")
+                eps_trail = q.get("epsTrailingTwelveMonths")
 
-        company = (item.get("companyshortname") or item.get("companyShortName") or
-                   item.get("shortName") or item.get("Company") or ticker)
+                results.append({
+                    "ticker": ticker,
+                    "company": q.get("shortName") or q.get("longName") or ticker,
+                    "event": "Earnings Announcement",
+                    "call_time": call_time,
+                    "eps_estimate": _safe_float(eps_est),
+                    "eps_actual": "-",
+                    "surprise_pct": "-",
+                    "date": target_date.isoformat(),
+                })
 
-        call_time_raw = (item.get("startdatetimetype") or item.get("startDateTimeType") or
-                         item.get("Earnings Call Time") or item.get("callTime") or "")
+        return results
 
-        return {
-            "ticker": str(ticker).upper().strip(),
-            "company": str(company).strip(),
-            "event": str(item.get("eventname") or item.get("eventName") or
-                        item.get("Event Name") or "Earnings Announcement").strip(),
-            "call_time": _map_call_time(str(call_time_raw)),
-            "eps_estimate": _safe_float(item.get("epsestimate") or item.get("epsEstimate") or
-                                        item.get("EPS Estimate")),
-            "eps_actual": _safe_float(item.get("epsactual") or item.get("epsActual") or
-                                      item.get("Reported EPS")),
-            "surprise_pct": _safe_float(item.get("epssurprisepct") or item.get("epsSurprisePct") or
-                                        item.get("Surprise(%)")),
-            "date": target_date.isoformat(),
-        }
-    except Exception:
-        return None
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return []
 
 
 def _safe_float(val) -> str:
@@ -259,38 +194,6 @@ def _normalize_yf_row(item: dict, target_date: date) -> dict | None:
             "eps_estimate": _safe_float(item.get("epsestimate") or item.get("epsEstimate")),
             "eps_actual": _safe_float(item.get("epsactual") or item.get("epsActual")),
             "surprise_pct": _safe_float(item.get("epssurprisepct") or item.get("epsSurprisePct")),
-            "date": target_date.isoformat(),
-        }
-    except Exception:
-        return None
-
-
-def _parse_table_row(row, target_date: date) -> dict | None:
-    """Parse a pandas DataFrame row from Yahoo Finance HTML table."""
-    try:
-        cols = list(row)
-        if len(cols) < 3:
-            return None
-
-        ticker = str(cols[0]).strip() if pd.notna(cols[0]) else ""
-        if not ticker or ticker == "nan":
-            return None
-
-        company = str(cols[1]).strip() if len(cols) > 1 and pd.notna(cols[1]) else ticker
-        event = str(cols[2]).strip() if len(cols) > 2 and pd.notna(cols[2]) else "Earnings Announcement"
-        call_time = str(cols[3]).strip() if len(cols) > 3 and pd.notna(cols[3]) else "-"
-        eps_est = _safe_float(cols[4]) if len(cols) > 4 else "-"
-        eps_actual = _safe_float(cols[5]) if len(cols) > 5 else "-"
-        surprise = _safe_float(cols[6]) if len(cols) > 6 else "-"
-
-        return {
-            "ticker": ticker.upper(),
-            "company": company,
-            "event": event,
-            "call_time": call_time if call_time in ("BMO", "AMC", "TAS", "TNS") else "-",
-            "eps_estimate": eps_est,
-            "eps_actual": eps_actual,
-            "surprise_pct": surprise,
             "date": target_date.isoformat(),
         }
     except Exception:
