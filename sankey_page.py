@@ -2412,6 +2412,17 @@ def render_sankey_page():
                 font-size: 0.72rem !important;
             }
         }
+        /* ── Metric filter pills glow on hover ── */
+        [data-testid="stPillsButton"] {
+            transition: box-shadow 0.2s ease, border-color 0.2s ease !important;
+        }
+        [data-testid="stPillsButton"]:hover {
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.55), 0 0 20px rgba(99, 102, 241, 0.25) !important;
+            border-color: #6366f1 !important;
+        }
+        [data-testid="stPillsButton"][aria-checked="true"]:hover {
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.75), 0 0 24px rgba(99, 102, 241, 0.35) !important;
+        }
     </style>
     """, unsafe_allow_html=True)
 
