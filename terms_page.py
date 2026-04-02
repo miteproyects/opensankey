@@ -78,6 +78,13 @@ def render_terms_page():
     <p>Data is sourced from SEC EDGAR, Yahoo Finance, and Financial Modeling
     Prep (FMP) and may contain errors or delays. We make no guarantees about
     the accuracy, completeness, or timeliness of the data.</p>
+    <p>The Earnings Calendar feature displays earnings announcement dates,
+    consensus EPS estimates, and reported results sourced from Yahoo Finance.
+    Earnings dates may change without notice. Consensus estimates represent
+    aggregated analyst forecasts and may differ across data providers. Actual
+    earnings are reported by companies via SEC filings (8-K, 10-Q, 10-K) and
+    press releases. QuarterCharts is not affiliated with Yahoo Finance and
+    provides this data under fair use for informational purposes.</p>
 
     <h2>5. Intellectual Property</h2>
     <p>The QuarterCharts name, logo, and original content (including chart

@@ -1,867 +1,902 @@
 """
-# v2 deploy trigger
-Earnings Calendar page for Quarter Charts.
-Shows upcoming earnings reports in a weekly treemap view,
-similar to quarterchart.com/earnings.
+Earnings Calendar page for QuarterCharts.
+Weekly earnings calendar with day-by-day breakdown, matching Yahoo Finance features.
+Data sourced from Yahoo Finance via yfinance library.
 """
 
 import streamlit as st
 import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
 import requests
-import os
-from datetime import datetime, timedelta
-from functools import lru_cache
 import json
-import concurrent.futures
+import time
+import hashlib
+from datetime import datetime, timedelta, date
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# ── In-memory cache with TTL ────────────────────────────────────────────
+_EARNINGS_CACHE: dict = {}      # key -> (timestamp, data)
+_CACHE_TTL = 900                # 15 min TTL — earnings dates rarely change intraday
 
 
-# ── FMP helpers (reuse from data_fetcher) ─────────────────────────────────
-
-_FMP_BASE = "https://financialmodelingprep.com/api/v3"
-
-
-def _fmp_key() -> str:
-    return os.environ.get("FMP_API_KEY", "")
+def _cache_key(d: date) -> str:
+    return f"earnings_{d.isoformat()}"
 
 
-def _fmp_available() -> bool:
-    return bool(_fmp_key())
-
-
-# ── Company name map for nicer display ────────────────────────────────────
-
-_COMPANY_NAMES = {
-    "AAPL": "Apple", "MSFT": "Microsoft", "GOOGL": "Alphabet", "AMZN": "Amazon",
-    "META": "Meta", "NVDA": "NVIDIA", "TSLA": "Tesla", "JPM": "JPMorgan",
-    "V": "Visa", "JNJ": "Johnson & Johnson", "WMT": "Walmart", "PG": "Procter & Gamble",
-    "UNH": "UnitedHealth", "HD": "Home Depot", "MA": "Mastercard", "DIS": "Disney",
-    "PYPL": "PayPal", "ADBE": "Adobe", "NFLX": "Netflix", "CRM": "Salesforce",
-    "INTC": "Intel", "AMD": "AMD", "ORCL": "Oracle", "CSCO": "Cisco",
-    "PEP": "PepsiCo", "KO": "Coca-Cola", "MRK": "Merck", "ABT": "Abbott",
-    "TMO": "Thermo Fisher", "COST": "Costco", "NKE": "Nike", "LLY": "Eli Lilly",
-    "AVGO": "Broadcom", "QCOM": "Qualcomm", "TXN": "Texas Instruments",
-    "HON": "Honeywell", "LOW": "Lowe's", "SBUX": "Starbucks", "MDLZ": "Mondelez",
-    "GS": "Goldman Sachs", "BLK": "BlackRock", "AXP": "American Express",
-    "MS": "Morgan Stanley", "C": "Citigroup", "BAC": "Bank of America",
-    "WFC": "Wells Fargo", "SCHW": "Schwab", "USB": "US Bancorp",
-    "DE": "John Deere", "CAT": "Caterpillar", "BA": "Boeing", "GE": "GE Aerospace",
-    "RTX": "RTX", "LMT": "Lockheed Martin", "UPS": "UPS", "FDX": "FedEx",
-    "MMM": "3M", "IBM": "IBM", "NOW": "ServiceNow", "INTU": "Intuit",
-    "ISRG": "Intuitive Surgical", "PANW": "Palo Alto Networks",
-    "LRCX": "Lam Research", "KLAC": "KLA Corp", "MRVL": "Marvell",
-    "MU": "Micron", "AMAT": "Applied Materials", "SNPS": "Synopsys",
-    "CDNS": "Cadence", "ZS": "Zscaler", "CRWD": "CrowdStrike",
-    "DDOG": "Datadog", "NET": "Cloudflare", "SNOW": "Snowflake",
-    "SQ": "Block", "SHOP": "Shopify", "MELI": "MercadoLibre",
-    "SE": "Sea Limited", "BABA": "Alibaba", "JD": "JD.com", "PDD": "PDD Holdings",
-    "NIO": "NIO", "LI": "Li Auto", "XPEV": "XPeng",
-    "DG": "Dollar General", "DLTR": "Dollar Tree", "TGT": "Target",
-    "ULTA": "Ulta Beauty", "LULU": "Lululemon", "GPS": "Gap",
-    "LEN": "Lennar", "DHI": "D.R. Horton", "PHM": "PulteGroup",
-    "WPM": "Wheaton Precious", "FNV": "Franco-Nevada",
-    "FERG": "Ferguson", "HPE": "HP Enterprise",
-    "DKS": "Dick's Sporting", "CASY": "Casey's General",
-    "FUTU": "Futu Holdings", "BNTX": "BioNTech",
-    "DOCU": "DocuSign", "ZM": "Zoom", "OKTA": "Okta",
-    "VEEV": "Veeva Systems", "WDAY": "Workday", "SPLK": "Splunk",
-    "MDB": "MongoDB", "TEAM": "Atlassian", "U": "Unity",
-    "RBLX": "Roblox", "ABNB": "Airbnb", "DASH": "DoorDash",
-    "RIVN": "Rivian", "LCID": "Lucid", "F": "Ford", "GM": "General Motors",
-    "TM": "Toyota", "HMC": "Honda", "RACE": "Ferrari",
-    "BRK-B": "Berkshire", "KHC": "Kraft Heinz", "GIS": "General Mills",
-    "K": "Kellanova", "SJM": "Smucker's", "CPB": "Campbell's",
-    "CL": "Colgate", "EL": "Estee Lauder", "PFE": "Pfizer",
-    "ABBV": "AbbVie", "BMY": "Bristol-Myers", "GILD": "Gilead",
-    "AMGN": "Amgen", "REGN": "Regeneron", "VRTX": "Vertex",
-    "BIIB": "Biogen", "MRNA": "Moderna",
-}
-
-# ── Expanded ticker list for yfinance fallback ────────────────────────────
-
-_MAJOR_TICKERS = [
-    # Mega-cap tech
-    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
-    # Large-cap tech
-    "ADBE", "NFLX", "CRM", "INTC", "AMD", "ORCL", "CSCO", "AVGO",
-    "QCOM", "TXN", "IBM", "NOW", "INTU", "PANW", "MU", "AMAT",
-    "LRCX", "KLAC", "MRVL", "SNPS", "CDNS",
-    # Cybersecurity / SaaS
-    "ZS", "CRWD", "DDOG", "NET", "SNOW", "DOCU", "ZM", "OKTA",
-    "VEEV", "WDAY", "MDB", "TEAM",
-    # Fintech / E-commerce
-    "PYPL", "SQ", "SHOP", "MELI",
-    # Finance
-    "JPM", "V", "MA", "GS", "BLK", "AXP", "MS", "C", "BAC",
-    "WFC", "SCHW", "USB",
-    # Healthcare
-    "JNJ", "UNH", "MRK", "ABT", "TMO", "LLY", "PFE", "ABBV",
-    "BMY", "GILD", "AMGN", "REGN", "VRTX", "BIIB", "MRNA",
-    "ISRG", "BNTX",
-    # Consumer
-    "WMT", "PG", "HD", "COST", "NKE", "DIS", "SBUX", "PEP", "KO",
-    "MDLZ", "LOW", "TGT", "DG", "DLTR", "ULTA", "LULU", "GPS",
-    "DKS", "CASY",
-    # Industrial
-    "HON", "DE", "CAT", "BA", "GE", "RTX", "LMT", "UPS", "FDX", "MMM",
-    # Homebuilders
-    "LEN", "DHI", "PHM",
-    # Auto
-    "F", "GM", "RIVN", "LCID", "NIO", "LI", "XPEV",
-    # Mining / Resources
-    "WPM", "FNV",
-    # China / Asia ADRs
-    "BABA", "JD", "PDD", "SE", "FUTU",
-    # Other
-    "FERG", "HPE", "BRK-B", "ABNB", "DASH", "RBLX",
-    "KHC", "GIS", "CL", "EL",
-]
-
-
-# ── Data fetching ─────────────────────────────────────────────────────────
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_earnings_calendar(start_date: str, end_date: str) -> pd.DataFrame:
-    """Fetch earnings calendar from FMP for a date range."""
-    if not _fmp_available():
-        return _fetch_earnings_yfinance(start_date, end_date)
-
-    url = (
-        f"{_FMP_BASE}/earning_calendar"
-        f"?from={start_date}&to={end_date}&apikey={_fmp_key()}"
-    )
-    try:
-        resp = requests.get(url, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-        if not data:
-            return pd.DataFrame()
-        df = pd.DataFrame(data)
-        return df
-    except Exception:
-        return _fetch_earnings_yfinance(start_date, end_date)
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_market_caps_batch(symbols: list) -> dict:
-    """Fetch market caps for a batch of symbols via FMP profile."""
-    if not _fmp_available() or not symbols:
-        return {}
-    caps = {}
-    batch_size = 50
-    for i in range(0, len(symbols), batch_size):
-        batch = symbols[i:i + batch_size]
-        syms = ",".join(batch)
-        url = f"{_FMP_BASE}/profile/{syms}?apikey={_fmp_key()}"
-        try:
-            resp = requests.get(url, timeout=15)
-            resp.raise_for_status()
-            for item in resp.json():
-                sym = item.get("symbol", "")
-                mc = item.get("mktCap", 0)
-                caps[sym] = mc
-        except Exception:
-            continue
-    return caps
-
-
-def _detect_exchange_from_suffix(symbol: str) -> str:
-    """Detect exchange from symbol suffix convention (e.g. .T = Tokyo)."""
-    if "." in symbol:
-        suffix = symbol.rsplit(".", 1)[-1].upper()
-        _suffix_map = {
-            "T": "JPX", "TYO": "JPX",
-            "HK": "HKSE",
-            "L": "LSE", "LON": "LSE",
-            "PA": "EURONEXT", "AS": "EURONEXT", "BR": "EURONEXT",
-            "MI": "EURONEXT", "LS": "EURONEXT",
-            "TO": "TSX", "V": "TSXV",
-            "DE": "XETRA", "F": "XETRA",
-            "AX": "ASX", "SI": "SGX", "KS": "KRX", "KQ": "KRX",
-        }
-        return _suffix_map.get(suffix, "Others")
-    return ""
-
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def _fetch_stock_list_exchanges() -> dict:
-    """Fetch exchange info for ALL stocks via FMP /stock/list (cached 24h)."""
-    if not _fmp_available():
-        return {}
-    try:
-        url = f"{_FMP_BASE}/stock/list?apikey={_fmp_key()}"
-        resp = requests.get(url, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        if isinstance(data, list):
-            return {
-                item.get("symbol", ""): item.get("exchangeShortName", "") or item.get("exchange", "")
-                for item in data
-                if item.get("symbol") and (item.get("exchangeShortName") or item.get("exchange"))
-            }
-    except Exception as e:
-        import traceback
-        st.warning(f"stock/list error: {e}")
-    return {}
-
-
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def _fetch_exchanges_yfinance(symbols_tuple: tuple) -> dict:
-    """Fetch exchange info via yfinance fast_info (cached 24h). Used when FMP is unavailable."""
-    try:
-        import yfinance as yf
-    except ImportError:
-        return {}
-
-    _YF_EXCHANGE_TO_CATEGORY = {
-        "NMS": "NASDAQ", "NGM": "NASDAQ", "NCM": "NASDAQ", "NAQ": "NASDAQ",
-        "NYQ": "NYSE", "NYS": "NYSE", "PCX": "NYSE", "ASE": "NYSE", "BTS": "NYSE",
-        "JPX": "JPX", "TYO": "JPX",
-        "HKG": "HKSE",
-        "PAR": "EURONEXT", "AMS": "EURONEXT", "BRU": "EURONEXT", "LIS": "EURONEXT",
-        "LSE": "EURONEXT", "LON": "EURONEXT", "FRA": "EURONEXT", "GER": "EURONEXT",
-        "SIX": "EURONEXT",
-        "TOR": "TSX", "VAN": "TSX", "CNQ": "TSX",
-    }
-
-    result = {}
-
-    def _get_exchange(sym):
-        try:
-            t = yf.Ticker(sym)
-            ex = getattr(t.fast_info, "exchange", "") or ""
-            return sym, _YF_EXCHANGE_TO_CATEGORY.get(ex, ex if ex else "")
-        except Exception:
-            return sym, ""
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(_get_exchange, sym) for sym in symbols_tuple]
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                sym, ex = future.result()
-                if ex:
-                    result[sym] = ex
-            except Exception:
-                pass
-
-    return result
-
-
-def _fetch_exchange_map(symbols: list) -> dict:
-    """Map symbols to exchanges using cached stock list, yfinance fallback, and suffix detection."""
-    if not symbols:
-        return {}
-    all_exchanges = _fetch_stock_list_exchanges()
-    result = {}
-    missing = []
-    for sym in symbols:
-        ex = all_exchanges.get(sym, "")
-        if ex:
-            result[sym] = ex
-        else:
-            detected = _detect_exchange_from_suffix(sym)
-            if detected:
-                result[sym] = detected
-            else:
-                missing.append(sym)
-    # Fallback: use yfinance for symbols not found via FMP or suffix
-    if missing:
-        yf_exchanges = _fetch_exchanges_yfinance(tuple(missing))
-        result.update(yf_exchanges)
-    return result
-def _fetch_single_ticker_earnings(sym, sd_date, ed_date):
-    """Fetch earnings info for a single ticker. Returns dict or None."""
-    try:
-        import yfinance as yf
-        t = yf.Ticker(sym)
-        cal = t.calendar
-        if cal is not None and isinstance(cal, dict):
-            edate = cal.get("Earnings Date", [None])
-            if isinstance(edate, list) and edate:
-                edate = edate[0]
-            if edate is not None:
-                if hasattr(edate, "date"):
-                    edate = edate.date()
-                elif isinstance(edate, str):
-                    edate = datetime.strptime(edate[:10], "%Y-%m-%d").date()
-                if sd_date <= edate <= ed_date:
-                    info = t.fast_info
-                    return {
-                        "date": str(edate),
-                        "symbol": sym,
-                        "eps": None,
-                        "epsEstimated": cal.get("EPS Estimate"),
-                        "revenue": None,
-                        "revenueEstimated": cal.get("Revenue Estimate"),
-                        "time": "",
-                        "marketCap": getattr(info, "market_cap", 0) or 0,
-                    }
-    except Exception:
-        pass
+def _get_cached(key: str):
+    if key in _EARNINGS_CACHE:
+        ts, data = _EARNINGS_CACHE[key]
+        if time.time() - ts < _CACHE_TTL:
+            return data
+        del _EARNINGS_CACHE[key]
     return None
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def _fetch_earnings_yfinance(start_date: str, end_date: str) -> pd.DataFrame:
-    """Fallback: fetch earnings calendar using yfinance with parallel requests."""
+def _set_cached(key: str, data):
+    _EARNINGS_CACHE[key] = (time.time(), data)
+
+
+# ── Yahoo Finance Earnings Fetcher ──────────────────────────────────────
+
+_YF_BASE = "https://finance.yahoo.com/calendar/earnings"
+_YF_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/131.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
+def _fetch_earnings_for_date(target_date: date) -> list[dict]:
+    """
+    Fetch earnings for a single date from Yahoo Finance.
+    Returns list of dicts with normalized keys.
+    """
+    cache_key = _cache_key(target_date)
+    cached = _get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    date_str = target_date.strftime("%Y-%m-%d")
+    results = []
+
+    try:
+        # Yahoo Finance earnings calendar uses day= param
+        resp = requests.get(
+            _YF_BASE,
+            params={"day": date_str},
+            headers=_YF_HEADERS,
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            _set_cached(cache_key, [])
+            return []
+
+        html = resp.text
+
+        # Yahoo embeds JSON data in a script tag — extract from the HTML
+        # Look for the earnings data in the page's embedded JSON
+        rows = _parse_earnings_html(html, target_date)
+        _set_cached(cache_key, rows)
+        return rows
+
+    except Exception:
+        _set_cached(cache_key, [])
+        return []
+
+
+def _parse_earnings_html(html: str, target_date: date) -> list[dict]:
+    """Parse earnings data from Yahoo Finance HTML response."""
+    results = []
+
+    try:
+        # Try to find JSON data embedded in the page
+        # Yahoo Finance stores data in various script tags
+        import re
+
+        # Method 1: Look for the earnings table data in JSON format
+        # Yahoo Finance often embeds data as JSON in script tags
+        json_patterns = [
+            r'"rows":\s*(\[.*?\])\s*[,}]',
+            r'"earningsCalendarData":\s*(\{.*?\})\s*[,}]',
+        ]
+
+        for pattern in json_patterns:
+            match = re.search(pattern, html, re.DOTALL)
+            if match:
+                try:
+                    data = json.loads(match.group(1))
+                    if isinstance(data, list):
+                        for item in data:
+                            row = _normalize_yf_row(item, target_date)
+                            if row:
+                                results.append(row)
+                        if results:
+                            return results
+                except (json.JSONDecodeError, KeyError):
+                    continue
+
+        # Method 2: Parse HTML table directly with pandas
+        try:
+            tables = pd.read_html(html)
+            if tables:
+                df = tables[0]
+                for _, row in df.iterrows():
+                    parsed = _parse_table_row(row, target_date)
+                    if parsed:
+                        results.append(parsed)
+                return results
+        except Exception:
+            pass
+
+        # Method 3: Parse using regex on table rows
+        row_pattern = re.compile(
+            r'<td[^>]*>.*?<a[^>]*href="/quote/([^/"]+)"[^>]*>.*?</a>.*?</td>'
+            r'.*?<td[^>]*>(.*?)</td>'  # company
+            r'.*?<td[^>]*>(.*?)</td>'  # event name
+            r'.*?<td[^>]*>(.*?)</td>'  # call time
+            r'.*?<td[^>]*>(.*?)</td>'  # eps estimate
+            r'.*?<td[^>]*>(.*?)</td>',  # reported eps
+            re.DOTALL
+        )
+        for m in row_pattern.finditer(html):
+            ticker = m.group(1).strip()
+            company = _strip_html(m.group(2)).strip()
+            event = _strip_html(m.group(3)).strip()
+            call_time = _strip_html(m.group(4)).strip()
+            eps_est = _strip_html(m.group(5)).strip()
+            eps_actual = _strip_html(m.group(6)).strip()
+
+            results.append({
+                "ticker": ticker,
+                "company": company,
+                "event": event or f"Earnings Announcement",
+                "call_time": call_time if call_time in ("BMO", "AMC", "TAS", "TNS") else "-",
+                "eps_estimate": _safe_float(eps_est),
+                "eps_actual": _safe_float(eps_actual),
+                "date": target_date.isoformat(),
+            })
+
+    except Exception:
+        pass
+
+    return results
+
+
+def _strip_html(s: str) -> str:
+    import re
+    return re.sub(r'<[^>]+>', '', s)
+
+
+def _safe_float(val) -> str:
+    if val is None or val == "" or val == "-" or val == "N/A":
+        return "-"
+    try:
+        v = float(str(val).replace(",", ""))
+        return f"{v:.2f}" if v != 0 else "0.00"
+    except (ValueError, TypeError):
+        return str(val)
+
+
+def _normalize_yf_row(item: dict, target_date: date) -> dict | None:
+    """Normalize a Yahoo Finance JSON row to our standard format."""
+    try:
+        ticker = item.get("ticker") or item.get("symbol") or ""
+        if not ticker:
+            return None
+
+        return {
+            "ticker": ticker.upper(),
+            "company": item.get("companyshortname") or item.get("companyShortName") or item.get("shortName") or ticker,
+            "event": item.get("eventname") or item.get("eventName") or "Earnings Announcement",
+            "call_time": _map_call_time(item.get("startdatetimetype") or item.get("startDateTimeType") or ""),
+            "eps_estimate": _safe_float(item.get("epsestimate") or item.get("epsEstimate")),
+            "eps_actual": _safe_float(item.get("epsactual") or item.get("epsActual")),
+            "surprise_pct": _safe_float(item.get("epssurprisepct") or item.get("epsSurprisePct")),
+            "date": target_date.isoformat(),
+        }
+    except Exception:
+        return None
+
+
+def _parse_table_row(row, target_date: date) -> dict | None:
+    """Parse a pandas DataFrame row from Yahoo Finance HTML table."""
+    try:
+        cols = list(row)
+        if len(cols) < 3:
+            return None
+
+        ticker = str(cols[0]).strip() if pd.notna(cols[0]) else ""
+        if not ticker or ticker == "nan":
+            return None
+
+        company = str(cols[1]).strip() if len(cols) > 1 and pd.notna(cols[1]) else ticker
+        event = str(cols[2]).strip() if len(cols) > 2 and pd.notna(cols[2]) else "Earnings Announcement"
+        call_time = str(cols[3]).strip() if len(cols) > 3 and pd.notna(cols[3]) else "-"
+        eps_est = _safe_float(cols[4]) if len(cols) > 4 else "-"
+        eps_actual = _safe_float(cols[5]) if len(cols) > 5 else "-"
+        surprise = _safe_float(cols[6]) if len(cols) > 6 else "-"
+
+        return {
+            "ticker": ticker.upper(),
+            "company": company,
+            "event": event,
+            "call_time": call_time if call_time in ("BMO", "AMC", "TAS", "TNS") else "-",
+            "eps_estimate": eps_est,
+            "eps_actual": eps_actual,
+            "surprise_pct": surprise,
+            "date": target_date.isoformat(),
+        }
+    except Exception:
+        return None
+
+
+def _map_call_time(raw: str) -> str:
+    """Map Yahoo's startdatetimetype to readable call time."""
+    raw = raw.upper().strip()
+    if raw in ("BMO", "BEFORE_MARKET_OPEN", "PREMARKET"):
+        return "BMO"
+    if raw in ("AMC", "AFTER_MARKET_CLOSE", "AFTERMARKET"):
+        return "AMC"
+    if raw in ("TNS", "TIME_NOT_SUPPLIED"):
+        return "TNS"
+    if raw in ("TAS", "DURING_MARKET"):
+        return "TAS"
+    return "-"
+
+
+# ── yfinance fallback for single-ticker search ─────────────────────────
+
+def _fetch_ticker_earnings(symbol: str) -> list[dict]:
+    """Fetch earnings dates for a specific ticker using yfinance."""
+    cache_key = f"ticker_earnings_{symbol.upper()}"
+    cached = _get_cached(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         import yfinance as yf
-    except ImportError:
-        return pd.DataFrame()
+        tk = yf.Ticker(symbol.upper())
+        cal = tk.get_earnings_dates(limit=12)
+        if cal is None or cal.empty:
+            _set_cached(cache_key, [])
+            return []
 
-    sd = datetime.strptime(start_date, "%Y-%m-%d").date()
-    ed = datetime.strptime(end_date, "%Y-%m-%d").date()
+        results = []
+        for idx, row in cal.iterrows():
+            d = idx.date() if hasattr(idx, 'date') else idx
+            results.append({
+                "ticker": symbol.upper(),
+                "company": tk.info.get("shortName", symbol.upper()) if hasattr(tk, 'info') else symbol.upper(),
+                "event": "Earnings Announcement",
+                "call_time": "-",
+                "eps_estimate": _safe_float(row.get("EPS Estimate")),
+                "eps_actual": _safe_float(row.get("Reported EPS")),
+                "surprise_pct": _safe_float(row.get("Surprise(%)")),
+                "date": str(d),
+            })
 
-    rows = []
-    # Use ThreadPoolExecutor for parallel fetching
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {
-            executor.submit(_fetch_single_ticker_earnings, sym, sd, ed): sym
-            for sym in _MAJOR_TICKERS
-        }
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            if result:
-                rows.append(result)
+        _set_cached(cache_key, results)
+        return results
 
-    return pd.DataFrame(rows) if rows else pd.DataFrame()
-
-
-# ── Week calculation ──────────────────────────────────────────────────────
-
-def get_week_range(offset: int = 0) -> tuple:
-    """Get Monday–Friday date range for a given week offset from current week."""
-    today = datetime.now()
-    monday = today - timedelta(days=today.weekday()) + timedelta(weeks=offset)
-    friday = monday + timedelta(days=4)
-    return monday, friday
+    except Exception:
+        _set_cached(cache_key, [])
+        return []
 
 
-# ── Treemap chart creation ────────────────────────────────────────────────
+# ── Parallel fetch for a week ───────────────────────────────────────────
 
-# Day color palettes matching quarterchart.com style (light teal/cyan shades)
-_DAY_COLORS = {
-    0: "#7dd3c8",  # Monday — lighter teal
-    1: "#5ec4b6",  # Tuesday — medium-light teal
-    2: "#4db6ac",  # Wednesday — medium teal
-    3: "#3aaa9e",  # Thursday — medium-dark teal
-    4: "#2e9e91",  # Friday — darker teal
-}
-
-_DAY_HEADER_COLORS = {
-    0: "#5faaa1",  # Monday
-    1: "#4e9e94",  # Tuesday
-    2: "#3d9187",  # Wednesday
-    3: "#2d857a",  # Thursday
-    4: "#1d786e",  # Friday
-}
-
-
-def create_earnings_treemap(df: pd.DataFrame, day_label: str, day_idx: int = 0) -> go.Figure:
-    """Create a treemap figure for one day's earnings.
-
-    Args:
-        df: DataFrame with earnings data for this day
-        day_label: Display label for the day
-        day_idx: 0=Monday through 4=Friday, used for color selection
+def _fetch_week_earnings(week_start: date) -> dict[str, list[dict]]:
     """
-    if df.empty:
-        fig = go.Figure()
-        fig.add_annotation(
-            text="No earnings scheduled",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="#999"),
-        )
-        fig.update_layout(
-            height=150,
-            margin=dict(l=0, r=0, t=0, b=0),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-        )
-        return fig
+    Fetch earnings for an entire week (Mon-Fri) using parallel requests.
+    Returns dict mapping date_str -> list of earnings rows.
+    """
+    days = []
+    for i in range(7):  # Sun through Sat
+        d = week_start + timedelta(days=i)
+        days.append(d)
 
-    # Sort by market cap descending
-    df = df.sort_values("marketCap", ascending=False).head(50)
-
-    labels = df["symbol"].tolist()
-    values = df["marketCap"].tolist()
-    values = [max(v, 1e6) if pd.notna(v) else 1e6 for v in values]
-
-    # Build hover text
-    customdata = []
-    for _, row in df.iterrows():
-        sym = row["symbol"]
-        mc = row.get("marketCap", 0)
-        name = _COMPANY_NAMES.get(sym, "")
-        if mc and mc > 0:
-            if mc >= 1e12:
-                mc_str = f"${mc/1e12:.1f}T"
-            elif mc >= 1e9:
-                mc_str = f"${mc/1e9:.0f}B"
-            elif mc >= 1e6:
-                mc_str = f"${mc/1e6:.0f}M"
-            else:
-                mc_str = ""
+    result = {}
+    # Check cache first to minimize network calls
+    uncached_days = []
+    for d in days:
+        ck = _cache_key(d)
+        c = _get_cached(ck)
+        if c is not None:
+            result[d.isoformat()] = c
         else:
-            mc_str = ""
-        customdata.append([mc_str, name])
+            uncached_days.append(d)
 
-    # Uniform teal color for the day with subtle rank-based variation
-    base_color = _DAY_COLORS.get(day_idx, "#4db6ac")
-    n = len(labels)
-    colors = []
-    for i in range(n):
-        rank_frac = i / max(n - 1, 1)
-        r, g, b = _hex_to_rgb(base_color)
-        factor = 1.08 - (rank_frac * 0.15)
-        r2 = min(255, int(r * factor))
-        g2 = min(255, int(g * factor))
-        b2 = min(255, int(b * factor))
-        colors.append(f"rgb({r2},{g2},{b2})")
+    if uncached_days:
+        # Parallel fetch uncached days (max 3 workers to be respectful)
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {executor.submit(_fetch_earnings_for_date, d): d for d in uncached_days}
+            for future in as_completed(futures):
+                d = futures[future]
+                try:
+                    data = future.result()
+                    result[d.isoformat()] = data
+                except Exception:
+                    result[d.isoformat()] = []
 
-    fig = go.Figure(go.Treemap(
-        labels=labels,
-        values=values,
-        parents=[""] * n,
-        textinfo="label",
-        textfont=dict(size=16, color="white", family="Arial, sans-serif"),
-        hovertemplate=(
-            "<b>%{label}</b><br>"
-            "Market Cap: %{customdata[0]}<br>"
-            "%{customdata[1]}"
-            "<extra></extra>"
-        ),
-        customdata=customdata,
-        marker=dict(
-            colors=colors,
-            line=dict(width=2, color="white"),
-        ),
-        tiling=dict(pad=3),
-    ))
+    return result
 
-    num_companies = len(df)
-    if num_companies <= 3:
-        h = 200
-    elif num_companies <= 10:
-        h = 300
-    elif num_companies <= 20:
-        h = 380
+
+# ── Week calculation helpers ────────────────────────────────────────────
+
+def _get_week_start(d: date) -> date:
+    """Get Sunday of the week containing date d."""
+    return d - timedelta(days=d.weekday() + 1) if d.weekday() != 6 else d
+
+
+def _format_date_range(week_start: date) -> str:
+    """Format 'Mar 29, 2026 - Apr 4, 2026'."""
+    week_end = week_start + timedelta(days=6)
+    if week_start.month == week_end.month:
+        return f"{week_start.strftime('%b %d')} - {week_end.strftime('%d, %Y')}"
+    elif week_start.year == week_end.year:
+        return f"{week_start.strftime('%b %d')} - {week_end.strftime('%b %d, %Y')}"
     else:
-        h = 440
-
-    fig.update_layout(
-        height=h,
-        margin=dict(l=2, r=2, t=2, b=2),
-        paper_bgcolor="rgba(0,0,0,0)",
-    )
-
-    return fig
+        return f"{week_start.strftime('%b %d, %Y')} - {week_end.strftime('%b %d, %Y')}"
 
 
-def _hex_to_rgb(hex_color: str) -> tuple:
-    """Convert hex color to RGB tuple."""
-    hex_color = hex_color.lstrip("#")
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+# ── Page Styles ─────────────────────────────────────────────────────────
+
+_STYLES = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+.ec-hero {
+    text-align: center;
+    padding: 32px 20px 16px;
+}
+.ec-hero h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #f8fafc;
+    margin: 0 0 6px;
+    font-family: Inter, system-ui, sans-serif;
+}
+.ec-hero p {
+    font-size: 0.95rem;
+    color: #94a3b8;
+    margin: 0;
+    font-family: Inter, system-ui, sans-serif;
+}
+
+/* Week nav bar */
+.ec-week-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin: 20px 0 24px;
+    font-family: Inter, system-ui, sans-serif;
+}
+.ec-week-nav .ec-arrow {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background: #1e293b;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 16px;
+    text-decoration: none;
+}
+.ec-arrow:hover { background: #334155; color: #f1f5f9; }
+.ec-date-range {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 8px 20px;
+    font-family: Inter, system-ui, sans-serif;
+}
+
+/* Day selector cards */
+.ec-days-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+.ec-day-card {
+    min-width: 140px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    border: 2px solid #334155;
+    background: #1e293b;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: Inter, system-ui, sans-serif;
+    text-decoration: none;
+    display: block;
+}
+.ec-day-card:hover { border-color: #3b82f6; transform: translateY(-1px); }
+.ec-day-card.active {
+    border-color: #3b82f6;
+    background: #172554;
+    box-shadow: 0 0 20px rgba(59,130,246,0.15);
+}
+.ec-day-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-bottom: 6px;
+}
+.ec-day-count {
+    font-size: 0.78rem;
+    color: #3b82f6;
+    font-weight: 600;
+}
+.ec-day-count::before {
+    content: '';
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #3b82f6;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+/* Earnings table */
+.ec-table-wrap {
+    border-radius: 12px;
+    border: 1px solid #1e293b;
+    overflow: hidden;
+    margin-bottom: 24px;
+}
+.ec-table-header {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    padding: 16px 20px 12px;
+    font-family: Inter, system-ui, sans-serif;
+}
+.ec-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: Inter, system-ui, sans-serif;
+}
+.ec-table thead th {
+    background: #0f172a;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 10px 16px;
+    text-align: left;
+    border-bottom: 1px solid #1e293b;
+    position: sticky;
+    top: 0;
+}
+.ec-table tbody tr {
+    border-bottom: 1px solid #1e293b;
+    transition: background 0.1s;
+}
+.ec-table tbody tr:hover { background: #172554; }
+.ec-table tbody td {
+    padding: 12px 16px;
+    font-size: 0.88rem;
+    color: #cbd5e1;
+    vertical-align: middle;
+}
+.ec-ticker {
+    color: #3b82f6;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+.ec-ticker:hover { color: #60a5fa; text-decoration: underline; }
+.ec-company { color: #e2e8f0; font-weight: 500; }
+.ec-event { color: #94a3b8; font-size: 0.82rem; }
+.ec-badge-bmo {
+    background: #1e3a5f;
+    color: #60a5fa;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+.ec-badge-amc {
+    background: #3b1f4a;
+    color: #c084fc;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+.ec-badge-other {
+    background: #1e293b;
+    color: #64748b;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.ec-eps-positive { color: #22c55e; font-weight: 600; }
+.ec-eps-negative { color: #ef4444; font-weight: 600; }
+.ec-eps-neutral { color: #94a3b8; }
+.ec-surprise-positive { color: #22c55e; font-weight: 600; font-size: 0.82rem; }
+.ec-surprise-negative { color: #ef4444; font-weight: 600; font-size: 0.82rem; }
+
+/* Empty state */
+.ec-empty {
+    text-align: center;
+    padding: 48px 20px;
+    color: #64748b;
+    font-family: Inter, system-ui, sans-serif;
+}
+.ec-empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+.ec-empty-text { font-size: 1rem; font-weight: 500; }
+
+/* Footer notes */
+.ec-footer-notes {
+    margin-top: 32px;
+    padding: 20px 24px;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    font-family: Inter, system-ui, sans-serif;
+}
+.ec-footer-notes h4 {
+    color: #94a3b8;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 10px;
+}
+.ec-footer-notes p, .ec-footer-notes li {
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    margin: 0 0 6px;
+}
+.ec-footer-notes ul { padding-left: 16px; margin: 0; }
+
+/* Search result banner */
+.ec-search-banner {
+    background: linear-gradient(135deg, #172554, #1e3a5f);
+    border: 1px solid #1e40af;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    font-family: Inter, system-ui, sans-serif;
+}
+.ec-search-banner h3 {
+    color: #60a5fa;
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 4px;
+}
+.ec-search-banner p {
+    color: #93c5fd;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .ec-hero h1 { font-size: 1.5rem; }
+    .ec-day-card { min-width: 100px; padding: 10px 12px; }
+    .ec-table thead th, .ec-table tbody td { padding: 8px 10px; font-size: 0.8rem; }
+    .ec-days-row { gap: 6px; }
+}
+</style>
+"""
 
 
-# ── Main page renderer ────────────────────────────────────────────────────
+# ── Main Render Function ────────────────────────────────────────────────
 
 def render_earnings_page():
-    """Render the full Earnings Calendar page."""
+    """Render the Earnings Calendar page."""
 
-    # ── Inject page-specific CSS ───────────────────────────────────────────
+    st.markdown(_STYLES, unsafe_allow_html=True)
+
+    # ── Hero ──
     st.markdown("""
-    <style>
-    /* Earnings page specific styles */
-    .earnings-title {
-        text-align: center;
-        font-size: 2.5rem;
-        font-weight: 300;
-        margin-bottom: 0.2rem;
-        color: #212529;
-        font-family: 'Georgia', serif;
-        letter-spacing: -0.5px;
-    }
-    .earnings-nav-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 24px;
-        border: 2px solid #4db6ac;
-        border-radius: 8px;
-        background: white;
-        color: #4db6ac;
-        font-weight: 600;
-        font-size: 0.95rem;
-        cursor: pointer;
-        transition: all 0.2s;
-        text-decoration: none;
-    }
-    .earnings-nav-btn:hover {
-        background: #4db6ac;
-        color: white;
-    }
-    .earnings-date-range {
-        text-align: center;
-        font-size: 1.15rem;
-        padding-top: 8px;
-        color: #333;
-        font-weight: 500;
-    }
-    .day-header {
-        color: white;
-        padding: 10px 16px;
-        border-radius: 10px 10px 0 0;
-        font-weight: 600;
-        font-size: 1rem;
-        margin-top: 14px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .day-header .count {
-        font-weight: 400;
-        opacity: 0.85;
-        font-size: 0.9rem;
-    }
-    .day-empty {
-        background: #f8f9fa;
-        padding: 35px;
-        text-align: center;
-        color: #aaa;
-        border-radius: 0 0 10px 10px;
-        margin-bottom: 8px;
-        border: 1px solid #e8e8e8;
-        border-top: none;
-        font-size: 0.95rem;
-    }
-    .company-count {
-        text-align: center;
-        color: #6c757d;
-        font-size: 0.9rem;
-        margin-bottom: 10px;
-    }
-    .exchange-section {
-        text-align: center;
-        margin-top: 20px;
-        padding: 15px 0;
-    }
-    .exchange-title {
-        font-weight: 600;
-        font-size: 1rem;
-        margin-bottom: 12px;
-        color: #333;
-    }
-    /* -- Earnings Responsive -- */
-    @media (max-width: 768px) {
-        .earnings-title { font-size: 1.8rem !important; }
-        .earnings-nav-btn { padding: 8px 14px !important; font-size: 0.82rem !important; }
-        .earnings-date-range { font-size: 0.95rem !important; }
-        .day-header { padding: 8px 12px !important; font-size: 0.9rem !important; }
-        .day-empty { padding: 20px !important; font-size: 0.85rem !important; }
-    }
-    @media (max-width: 480px) {
-        .earnings-title { font-size: 1.4rem !important; }
-        .earnings-nav-btn { padding: 6px 10px !important; font-size: 0.75rem !important; }
-        .day-header { font-size: 0.82rem !important; }
-    }
-    </style>
+    <div class="ec-hero">
+        <h1>Earnings Calendar</h1>
+        <p>Track upcoming and recent earnings announcements across the market</p>
+    </div>
     """, unsafe_allow_html=True)
 
-    # ── Week navigation state ─────────────────────────────────────────────
-    if "earnings_week_offset" not in st.session_state:
-        st.session_state.earnings_week_offset = 0
+    # ── Search bar ──
+    search_col1, search_col2, search_col3 = st.columns([1, 2, 1])
+    with search_col2:
+        search_query = st.text_input(
+            "Find earnings for symbols",
+            placeholder="Search by ticker (e.g. AAPL, MSFT, NVDA)",
+            key="ec_search",
+            label_visibility="collapsed",
+        )
 
-    monday, friday = get_week_range(st.session_state.earnings_week_offset)
-    start_str = monday.strftime("%Y-%m-%d")
-    end_str = friday.strftime("%Y-%m-%d")
+    # ── Handle ticker search ──
+    if search_query and search_query.strip():
+        _render_ticker_search(search_query.strip().upper())
+        _render_footer_notes()
+        return
 
-    # ── Title ─────────────────────────────────────────────────────────────
-    st.markdown('<h1 class="earnings-title">Earnings Calendar</h1>',
-                unsafe_allow_html=True)
+    # ── Week navigation state ──
+    today = date.today()
+    if "ec_week_offset" not in st.session_state:
+        st.session_state.ec_week_offset = 0
 
-    # ── Navigation row ────────────────────────────────────────────────────
-    nav_left, nav_center, nav_right = st.columns([1, 2, 1])
-
-    with nav_left:
-        if st.button("<  Prev. Week", key="earn_prev", use_container_width=True):
-            st.session_state.earnings_week_offset -= 1
+    # Navigation buttons
+    nav_c1, nav_c2, nav_c3, nav_c4, nav_c5 = st.columns([2, 1, 3, 1, 2])
+    with nav_c2:
+        if st.button("‹", key="ec_prev", use_container_width=True):
+            st.session_state.ec_week_offset -= 1
+            st.rerun()
+    with nav_c4:
+        if st.button("›", key="ec_next", use_container_width=True):
+            st.session_state.ec_week_offset += 1
             st.rerun()
 
-    with nav_center:
+    week_start = _get_week_start(today) + timedelta(weeks=st.session_state.ec_week_offset)
+
+    with nav_c3:
         st.markdown(
-            f'<p class="earnings-date-range">'
-            f'From {monday.strftime("%m/%d")} to {friday.strftime("%m/%d")}</p>',
+            f'<div style="text-align:center;padding:6px 0;">'
+            f'<span class="ec-date-range">{_format_date_range(week_start)}</span>'
+            f'</div>',
             unsafe_allow_html=True,
         )
 
-    with nav_right:
-        if st.button("Next Week  >", key="earn_next", use_container_width=True):
-            st.session_state.earnings_week_offset += 1
-            st.rerun()
+    # ── Fetch entire week data (parallel) ──
+    with st.spinner("Loading earnings data..."):
+        week_data = _fetch_week_earnings(week_start)
 
-    # ── Fetch data ────────────────────────────────────────────────────────
-    with st.spinner("Loading earnings calendar…"):
-        df = fetch_earnings_calendar(start_str, end_str)
+    # ── Day selector cards ──
+    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    days_in_week = []
+    for i in range(7):
+        d = week_start + timedelta(days=i)
+        d_str = d.isoformat()
+        count = len(week_data.get(d_str, []))
+        days_in_week.append((d, count))
 
-    if df.empty:
-        st.info(
-            "No earnings data available for this week. "
-            "This may be because:\n"
-            "- No FMP API key is set (set `FMP_API_KEY` environment variable)\n"
-            "- No companies are reporting earnings this week\n"
-            "- The API is temporarily unavailable"
-        )
-        _render_day_grid_empty(monday)
-        _render_exchange_filters(has_exchange_data=False)
-        return
+    # Default to today if in range, otherwise first day with data, else Monday
+    if "ec_selected_day" not in st.session_state:
+        st.session_state.ec_selected_day = None
 
-    # Ensure date column is string
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+    # Reset selected day when week changes
+    selected_day = st.session_state.ec_selected_day
+    if selected_day:
+        try:
+            sel_date = date.fromisoformat(selected_day)
+            if sel_date < week_start or sel_date > week_start + timedelta(days=6):
+                selected_day = None
+        except Exception:
+            selected_day = None
 
-    # Fetch market caps if not present
-    if "marketCap" not in df.columns:
-        symbols = df["symbol"].unique().tolist()[:200]
-        caps = fetch_market_caps_batch(symbols)
-        df["marketCap"] = df["symbol"].map(lambda s: caps.get(s, 0)).fillna(0)
+    if not selected_day:
+        # Default: today if in this week, else first day with earnings, else Monday
+        if week_start <= today <= week_start + timedelta(days=6):
+            selected_day = today.isoformat()
+        else:
+            # Pick first day with data
+            for d, count in days_in_week:
+                if count > 0:
+                    selected_day = d.isoformat()
+                    break
+            if not selected_day:
+                selected_day = (week_start + timedelta(days=1)).isoformat()  # Monday
+
+    # Day selector buttons
+    day_cols = st.columns(7)
+    for i, (d, count) in enumerate(days_in_week):
+        with day_cols[i]:
+            is_active = d.isoformat() == selected_day
+            label = f"{day_names[d.weekday() + 1] if d.weekday() < 6 else 'Sun'}, {d.strftime('%b %-d')}"
+            # Fix day name mapping: weekday() returns 0=Mon...6=Sun
+            wd = d.weekday()
+            day_label_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
+            label = f"{day_label_map[wd]}, {d.strftime('%b')} {d.day}"
+
+            if st.button(
+                f"{label}\n{'● ' + str(count) + ' Earnings' if count > 0 else 'No Earnings'}",
+                key=f"ec_day_{d.isoformat()}",
+                use_container_width=True,
+                type="primary" if is_active else "secondary",
+            ):
+                st.session_state.ec_selected_day = d.isoformat()
+                st.rerun()
+
+    # ── Selected day table ──
+    try:
+        sel_date = date.fromisoformat(selected_day)
+    except Exception:
+        sel_date = today
+
+    day_earnings = week_data.get(selected_day, [])
+    wd = sel_date.weekday()
+    day_label_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
+    day_title = f"Earnings On {day_label_map[wd]}, {sel_date.strftime('%b')} {sel_date.day}"
+
+    st.markdown(f"### {day_title}")
+
+    if not day_earnings:
+        st.markdown("""
+        <div class="ec-empty">
+            <div class="ec-empty-icon">📅</div>
+            <div class="ec-empty-text">No earnings announcements scheduled for this day</div>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce").fillna(0)
+        _render_earnings_table(day_earnings, sel_date)
 
-    # Fetch exchange data separately (uses /quote endpoint + suffix fallback)
-    if "exchange" not in df.columns:
-        symbols = df["symbol"].unique().tolist()[:200]
-        exchange_map = _fetch_exchange_map(symbols)
-        df["exchange"] = df["symbol"].map(lambda s: exchange_map.get(s, ""))
-    else:
-        df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce").fillna(0)
-        # FMP earnings data has marketCap but no exchange — enrich from profiles
-        if "exchange" not in df.columns:
-            symbols = df["symbol"].unique().tolist()[:200]
-            profiles = fetch_market_caps_batch(symbols)
-            df["exchange"] = df["symbol"].map(
-                lambda s: profiles.get(s, {}).get("exchange", "")
-            )
+    # ── Footer ──
+    _render_footer_notes()
 
 
-    # ── Exchange filters (render first so Streamlit reads state) ──────────
-    has_exchange = "exchange" in df.columns
-    _render_exchange_filters(has_exchange_data=has_exchange)
-
-    # ── Apply exchange filters ──────────────────────────────────────────────────
-    if has_exchange:
-        df = _filter_by_exchange(df)
-
-    # ── Count display ─────────────────────────────────────────────────────────
-    total = len(df)
+def _render_ticker_search(symbol: str):
+    """Render search results for a specific ticker."""
     st.markdown(
-        f'<p class="company-count">{total} companies reporting this week</p>',
-        unsafe_allow_html=True,
-    )
-
-    # ── Render day-by-day treemaps ────────────────────────────────────────────
-    days = []
-    for i in range(5):  # Monday to Friday
-        day_date = monday + timedelta(days=i)
-        day_str = day_date.strftime("%Y-%m-%d")
-        day_name = day_date.strftime("%A %m/%d")
-        day_df = df[df["date"] == day_str].copy()
-        days.append((day_name, day_df, day_str, i))
-
-    # Layout: two columns, left = Mon/Tue, right = Wed/Thu/Fri
-    col_left, col_right = st.columns(2)
-
-    with col_left:
-        for day_name, day_df, _, day_idx in days[:2]:
-            _render_day_section(day_name, day_df, day_idx)
-
-    with col_right:
-        for day_name, day_df, _, day_idx in days[2:]:
-            _render_day_section(day_name, day_df, day_idx)
-
-
-def _render_day_grid_empty(monday):
-    """Render empty day grid when no data is available."""
-    days = []
-    for i in range(5):
-        day_date = monday + timedelta(days=i)
-        day_name = day_date.strftime("%A %m/%d")
-        days.append((day_name, i))
-
-    col_left, col_right = st.columns(2)
-    with col_left:
-        for day_name, day_idx in days[:2]:
-            _render_day_section(day_name, pd.DataFrame(), day_idx)
-    with col_right:
-        for day_name, day_idx in days[2:]:
-            _render_day_section(day_name, pd.DataFrame(), day_idx)
-
-
-def _render_day_section(day_name: str, day_df: pd.DataFrame, day_idx: int = 0):
-    """Render a single day's earnings section with header and treemap."""
-    count = len(day_df)
-    header_bg = _DAY_HEADER_COLORS.get(day_idx, "#4db6ac")
-    # If empty, use a muted gray
-    if count == 0:
-        header_bg = "#90a4ae"
-
-    count_text = f"{count} {'company' if count == 1 else 'companies'}"
-
-    st.markdown(
-        f'<div class="day-header" style="background:{header_bg};">'
-        f'{day_name}'
-        f'<span class="count">{count_text}</span>'
+        f'<div class="ec-search-banner">'
+        f'<h3>Earnings for {symbol}</h3>'
+        f'<p>Showing upcoming and recent earnings dates</p>'
         f'</div>',
         unsafe_allow_html=True,
     )
 
-    if day_df.empty:
-        st.markdown('<div class="day-empty">No earnings scheduled</div>',
-                    unsafe_allow_html=True)
-    else:
-        fig = create_earnings_treemap(day_df, day_name, day_idx)
-        st.plotly_chart(fig, use_container_width=True, key=f"tree_{day_name}")
+    with st.spinner(f"Fetching earnings for {symbol}..."):
+        results = _fetch_ticker_earnings(symbol)
 
-        # Compact list below the treemap
-        top = day_df.nlargest(10, "marketCap")
-        items = []
-        for _, row in top.iterrows():
-            mc = row.get("marketCap", 0)
-            if mc >= 1e12:
-                mc_s = f"${mc/1e12:.1f}T"
-            elif mc >= 1e9:
-                mc_s = f"${mc/1e9:.0f}B"
-            elif mc >= 1e6:
-                mc_s = f"${mc/1e6:.0f}M"
-            else:
-                mc_s = ""
-            time_s = ""
-            t = row.get("time", "")
-            if t == "bmo":
-                time_s = "Before Open"
-            elif t == "amc":
-                time_s = "After Close"
+    if not results:
+        st.info(f"No earnings data found for **{symbol}**. Verify the ticker symbol and try again.")
+        return
 
-            name = _COMPANY_NAMES.get(row["symbol"], "")
-            parts = [f"<b>{row['symbol']}</b>"]
-            if mc_s:
-                parts.append(mc_s)
-            if time_s:
-                parts.append(time_s)
-            items.append(" ".join(parts))
+    # Split into upcoming and past
+    today_str = date.today().isoformat()
+    upcoming = [r for r in results if r["date"] >= today_str]
+    past = [r for r in results if r["date"] < today_str]
 
-        if items:
-            st.markdown(
-                f"<p style='font-size:0.78rem; color:#777; line-height:1.6;'>"
-                f"{' &middot; '.join(items)}</p>",
-                unsafe_allow_html=True,
-            )
+    if upcoming:
+        st.markdown("#### Upcoming Earnings")
+        _render_earnings_table(upcoming, None, show_date=True)
+
+    if past:
+        st.markdown("#### Past Earnings")
+        _render_earnings_table(past, None, show_date=True)
 
 
-# ── Exchange filter mapping ──────────────────────────────────────────────────────────
-# Maps filter checkbox names to actual FMP exchange values
-_EXCHANGE_MAP = {
-    "NYSE": ["NYSE", "New York Stock Exchange", "AMEX", "NYSEArca"],
-    "NASDAQ": ["NASDAQ", "NasdaqGS", "NasdaqGM", "NasdaqCM", "Nasdaq"],
-    "JPX": ["JPX", "TSE", "Tokyo"],
-    "HKSE": ["HKSE", "HKG", "Hong Kong"],
-    "EURONEXT": ["EURONEXT", "Paris", "Amsterdam", "Brussels", "Lisbon",
-                 "LSE", "London", "XETRA", "Frankfurt", "SIX", "Swiss"],
-    "TSX": ["TSX", "TSXV", "Toronto"],
-}
+def _render_earnings_table(earnings: list[dict], sel_date: date | None, show_date: bool = False):
+    """Render the earnings HTML table."""
+
+    # Get current ticker from query params for linking
+    current_ticker = st.query_params.get("ticker", "AAPL")
+    _auth_params = ""
+    if st.session_state.get("session_token"):
+        _auth_params = f"&_sid={st.session_state.session_token}"
+
+    # Sort: BMO first, then AMC, then others
+    order = {"BMO": 0, "AMC": 1, "TAS": 2, "TNS": 3, "-": 4}
+    earnings_sorted = sorted(earnings, key=lambda x: (order.get(x.get("call_time", "-"), 4), x.get("ticker", "")))
+
+    # Build table HTML
+    date_col_header = '<th>Date</th>' if show_date else ''
+
+    rows_html = ""
+    for e in earnings_sorted:
+        ticker = e.get("ticker", "")
+        company = e.get("company", ticker)
+        event = e.get("event", "Earnings Announcement")
+        call_time = e.get("call_time", "-")
+        eps_est = e.get("eps_estimate", "-")
+        eps_actual = e.get("eps_actual", "-")
+        surprise = e.get("surprise_pct", "-")
+
+        # Call time badge
+        if call_time == "BMO":
+            badge = '<span class="ec-badge-bmo">BMO</span>'
+        elif call_time == "AMC":
+            badge = '<span class="ec-badge-amc">AMC</span>'
+        else:
+            badge = f'<span class="ec-badge-other">{call_time}</span>'
+
+        # EPS styling
+        eps_est_html = f'<span class="ec-eps-neutral">{eps_est}</span>'
+        if eps_actual != "-":
+            try:
+                val = float(eps_actual)
+                cls = "ec-eps-positive" if val >= 0 else "ec-eps-negative"
+                eps_actual_html = f'<span class="{cls}">{eps_actual}</span>'
+            except (ValueError, TypeError):
+                eps_actual_html = f'<span class="ec-eps-neutral">{eps_actual}</span>'
+        else:
+            eps_actual_html = f'<span class="ec-eps-neutral">-</span>'
+
+        # Surprise styling
+        if surprise != "-":
+            try:
+                val = float(surprise)
+                cls = "ec-surprise-positive" if val >= 0 else "ec-surprise-negative"
+                sign = "+" if val > 0 else ""
+                surprise_html = f'<span class="{cls}">{sign}{surprise}%</span>'
+            except (ValueError, TypeError):
+                surprise_html = f'<span class="ec-eps-neutral">{surprise}</span>'
+        else:
+            surprise_html = f'<span class="ec-eps-neutral">-</span>'
+
+        # Ticker link — goes to QuarterCharts charts page
+        ticker_link = f'/?page=charts&ticker={ticker}{_auth_params}'
+
+        date_col = f'<td>{e.get("date", "")}</td>' if show_date else ''
+
+        rows_html += f"""
+        <tr>
+            <td><a class="ec-ticker" href="{ticker_link}" target="_self">{ticker}</a></td>
+            <td><span class="ec-company">{company}</span></td>
+            <td><span class="ec-event">{event}</span></td>
+            {date_col}
+            <td>{badge}</td>
+            <td>{eps_est_html}</td>
+            <td>{eps_actual_html}</td>
+            <td>{surprise_html}</td>
+        </tr>
+        """
+
+    date_th = '<th>Date</th>' if show_date else ''
+
+    table_html = f"""
+    <div class="ec-table-wrap">
+        <table class="ec-table">
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Company</th>
+                    <th>Event Name</th>
+                    {date_th}
+                    <th>Call Time</th>
+                    <th>EPS Estimate</th>
+                    <th>Reported EPS</th>
+                    <th>Surprise %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
+    </div>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
+    st.caption(f"Showing {len(earnings_sorted)} earnings announcement{'s' if len(earnings_sorted) != 1 else ''}")
 
 
-def _get_selected_exchanges() -> list:
-    """Return list of selected exchange filter names from session state."""
-    exchanges = ["NYSE", "NASDAQ", "JPX", "HKSE", "EURONEXT", "TSX", "Others"]
-    return [ex for ex in exchanges if st.session_state.get(f"ex_{ex}", True)]
+def _render_footer_notes():
+    """Render data attribution and glossary footer."""
+    st.markdown("""
+    <div class="ec-footer-notes">
+        <h4>Glossary & Notes</h4>
+        <ul>
+            <li><strong>BMO</strong> — Before Market Open. The company reports earnings before the stock market opens (typically before 9:30 AM ET).</li>
+            <li><strong>AMC</strong> — After Market Close. The company reports earnings after the market closes (typically after 4:00 PM ET).</li>
+            <li><strong>TAS</strong> — Time Already Supplied / During Market Hours.</li>
+            <li><strong>TNS</strong> — Time Not Supplied. The exact reporting time has not been announced.</li>
+            <li><strong>EPS Estimate</strong> — The consensus Wall Street analyst estimate for Earnings Per Share for the reporting period.</li>
+            <li><strong>Reported EPS</strong> — The actual Earnings Per Share reported by the company. Available after the announcement.</li>
+            <li><strong>Surprise %</strong> — The percentage difference between Reported EPS and the consensus EPS Estimate. Positive means the company beat expectations.</li>
+        </ul>
 
-
-def _filter_by_exchange(df: pd.DataFrame) -> pd.DataFrame:
-    """Filter DataFrame by selected exchange checkboxes."""
-    if "exchange" not in df.columns:
-        return df
-
-    selected = _get_selected_exchanges()
-    all_exchanges = ["NYSE", "NASDAQ", "JPX", "HKSE", "EURONEXT", "TSX", "Others"]
-
-    if len(selected) == len(all_exchanges):
-        return df
-
-    # Build set of ALL known exchange values (for categorization)
-    all_known = set()
-    for ex_name in _EXCHANGE_MAP:
-        for val in _EXCHANGE_MAP[ex_name]:
-            all_known.add(val.upper())
-
-    # Build set of SELECTED exchange values
-    selected_vals = set()
-    for ex_name in selected:
-        if ex_name in _EXCHANGE_MAP:
-            for val in _EXCHANGE_MAP[ex_name]:
-                selected_vals.add(val.upper())
-
-    include_others = "Others" in selected
-
-    def row_matches(exchange_val):
-        if pd.isna(exchange_val) or str(exchange_val).strip() == "":
-            return include_others
-        ex_upper = str(exchange_val).strip().upper()
-        # Check if it matches a SELECTED exchange
-        if ex_upper in selected_vals:
-            return True
-        # Check partial matches against selected exchanges
-        for ex_name in selected:
-            if ex_name != "Others" and ex_name in _EXCHANGE_MAP:
-                for pattern in _EXCHANGE_MAP[ex_name]:
-                    if pattern.upper() in ex_upper or ex_upper in pattern.upper():
-                        return True
-        # Check if it matches ANY known exchange (even deselected)
-        if ex_upper in all_known:
-            return False  # Known exchange but not selected
-        for ex_name in _EXCHANGE_MAP:
-            for pattern in _EXCHANGE_MAP[ex_name]:
-                if pattern.upper() in ex_upper or ex_upper in pattern.upper():
-                    return False  # Known exchange but not selected
-        # Truly unknown exchange — use "Others" setting
-        return include_others
-
-    mask = df["exchange"].apply(row_matches)
-    return df[mask].copy()
-
-
-def _render_exchange_filters(has_exchange_data: bool = False):
-    """Render exchange filter checkboxes at the bottom."""
-    st.markdown("---")
-    st.markdown(
-        '<div class="exchange-section">'
-        '<p class="exchange-title">Exchange Filters</p>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-
-    exchanges = ["NYSE", "NASDAQ", "JPX", "HKSE", "EURONEXT", "TSX", "Others"]
-    is_disabled = not has_exchange_data
-    # Initialize session state defaults (only once)
-    for ex in exchanges:
-        if f"ex_{ex}" not in st.session_state:
-            st.session_state[f"ex_{ex}"] = True
-    n_cols = min(len(exchanges), 4)
-    for row_start in range(0, len(exchanges), n_cols):
-        row_exs = exchanges[row_start:row_start + n_cols]
-        cols = st.columns(n_cols)
-        for i, ex in enumerate(row_exs):
-            with cols[i]:
-                st.checkbox(
-                    ex, key=f"ex_{ex}",
-                    disabled=is_disabled,
-                )
-
-    if not has_exchange_data:
-        st.caption(
-            "Exchange filtering is available with FMP API key. "
-            "Set the `FMP_API_KEY` environment variable to enable full features."
-        )
+        <h4 style="margin-top: 16px;">Data Source & Disclaimer</h4>
+        <p>Earnings calendar data is sourced from Yahoo Finance. Earnings dates, estimates, and reported figures are provided
+           for informational purposes only and may be subject to change. QuarterCharts does not guarantee the accuracy,
+           completeness, or timeliness of this data.</p>
+        <p>Consensus EPS estimates are compiled from analyst forecasts and may differ from other sources. Actual earnings
+           results are reported by the companies themselves via SEC filings (8-K, 10-Q, 10-K) and press releases.</p>
+        <p>This information does not constitute financial advice. Always verify earnings dates and estimates with official
+           company investor relations pages and SEC EDGAR filings before making investment decisions.</p>
+    </div>
+    """, unsafe_allow_html=True)
