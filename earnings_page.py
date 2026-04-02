@@ -626,40 +626,21 @@ def _render_earnings_table(earnings: list[dict], show_date: bool = False):
         ticker_link = f'/?page=charts&ticker={ticker}{_auth_params}'
         date_col = f'<td>{e.get("date", "")}</td>' if show_date else ''
 
-        rows_html += f"""
-        <tr>
-            <td><a class="ec-ticker" href="{ticker_link}" target="_self">{ticker}</a></td>
-            <td><span class="ec-event">{event}</span></td>
-            {date_col}
-            <td>{badge}</td>
-            <td>{eps_est_html}</td>
-            <td>{eps_actual_html}</td>
-            <td>{surprise_html}</td>
-        </tr>
-        """
+        rows_html += (
+            f'<tr><td><a class="ec-ticker" href="{ticker_link}" target="_self">{ticker}</a></td>'
+            f'<td><span class="ec-event">{event}</span></td>{date_col}'
+            f'<td>{badge}</td><td>{eps_est_html}</td>'
+            f'<td>{eps_actual_html}</td><td>{surprise_html}</td></tr>'
+        )
 
     date_th = '<th>Date</th>' if show_date else ''
 
-    table_html = f"""
-    <div class="ec-table-wrap">
-        <table class="ec-table">
-            <thead>
-                <tr>
-                    <th>Symbol</th>
-                    <th>Event</th>
-                    {date_th}
-                    <th>Call Time</th>
-                    <th>EPS Est.</th>
-                    <th>Reported</th>
-                    <th>Surprise</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rows_html}
-            </tbody>
-        </table>
-    </div>
-    """
+    table_html = (
+        f'<div class="ec-table-wrap"><table class="ec-table"><thead><tr>'
+        f'<th>Symbol</th><th>Event</th>{date_th}'
+        f'<th>Call Time</th><th>EPS Est.</th><th>Reported</th><th>Surprise</th>'
+        f'</tr></thead><tbody>{rows_html}</tbody></table></div>'
+    )
     st.markdown(table_html, unsafe_allow_html=True)
 
 
