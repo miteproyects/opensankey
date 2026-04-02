@@ -2287,6 +2287,7 @@ def render_sankey_page():
             display: flex;
             gap: 0;
             margin-bottom: 1rem;
+            justify-content: center;
         }
         .sankey-tab {
             padding: 11px 32px;
@@ -2391,6 +2392,7 @@ def render_sankey_page():
             }
             .sankey-tab-container {
                 flex-wrap: wrap !important;
+                justify-content: center !important;
             }
             .sankey-tab {
                 padding: 8px 12px !important;
