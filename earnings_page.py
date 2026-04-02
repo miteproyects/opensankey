@@ -330,6 +330,8 @@ def render_earnings_page():
             label_visibility="collapsed",
         )
 
+    st.markdown('<div style="margin-bottom:20px;"></div>', unsafe_allow_html=True)
+
     if search_query and search_query.strip():
         _render_ticker_search(search_query.strip().upper())
         _render_footer()
