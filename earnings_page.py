@@ -231,7 +231,7 @@ _STYLES = """<style>
 
 /* ── Section header ── */
 .ec-section-header { display: flex; align-items: center; gap: 12px; margin: 24px 0 14px; font-family: Inter, system-ui, sans-serif; }
-.ec-section-header h2 { font-size: 1.15rem; font-weight: 800; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; margin: 0; }
+.ec-section-header h2 { font-size: 1.15rem; font-weight: 800; color: #1e293b !important; -webkit-text-fill-color: #1e293b !important; margin: 0; }
 .ec-section-header .ec-count-badge {
   background: linear-gradient(135deg, #1e40af, #3b82f6); color: #fff;
   font-size: 0.7rem; font-weight: 700; padding: 3px 12px; border-radius: 20px;
