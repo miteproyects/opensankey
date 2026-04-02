@@ -1,12 +1,14 @@
 """
 Pricing / Subscription page for QuarterCharts.
 Shows tiered pricing plans with feature comparison.
+Plans are loaded dynamically from the database (managed via NSFE Pricing tab).
 """
+import json
 import streamlit as st
 
 
 def render_pricing_page():
-    """Render the pricing page with subscription tiers."""
+    """Render the pricing page with subscription tiers from database."""
 
     st.markdown("""
     <style>
@@ -27,33 +29,6 @@ def render_pricing_page():
         max-width: 520px;
         margin: 0 auto;
         font-family: Inter, system-ui, sans-serif;
-    }
-    .pricing-toggle-wrap {
-        display: flex;
-        justify-content: center;
-        gap: 0;
-        margin: 28px auto 32px;
-        background: #f1f5f9;
-        border-radius: 12px;
-        padding: 4px;
-        width: fit-content;
-    }
-    .pricing-toggle-btn {
-        padding: 10px 28px;
-        border-radius: 10px;
-        font-size: 0.9rem;
-        font-weight: 600;
-        font-family: Inter, system-ui, sans-serif;
-        cursor: pointer;
-        border: none;
-        transition: all 0.2s ease;
-        background: transparent;
-        color: #64748b;
-    }
-    .pricing-toggle-btn.active {
-        background: #fff;
-        color: #1e293b;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
     .pricing-card {
         background: #fff;
@@ -162,20 +137,20 @@ def render_pricing_page():
         text-decoration: none;
         margin-top: auto;
     }
-    .cta-free {
+    .cta-default {
         background: #f1f5f9;
         color: #475569;
         border: 2px solid #e2e8f0;
     }
-    .cta-free:hover {
+    .cta-default:hover {
         background: #e2e8f0;
     }
-    .cta-pro {
+    .cta-popular {
         background: linear-gradient(135deg, #3b82f6, #2563eb);
         color: #fff;
         border: none;
     }
-    .cta-pro:hover {
+    .cta-popular:hover {
         background: linear-gradient(135deg, #2563eb, #1d4ed8);
         box-shadow: 0 4px 16px rgba(59,130,246,0.35);
     }
@@ -207,6 +182,13 @@ def render_pricing_page():
     </style>
     """, unsafe_allow_html=True)
 
+    # ── Load plans from database ──
+    try:
+        from database import get_all_plans
+        plans = get_all_plans(active_only=True)
+    except Exception:
+        plans = []
+
     # ── Hero section ──
     st.markdown("""
     <div class="pricing-hero">
@@ -236,72 +218,82 @@ def render_pricing_page():
                 st.rerun()
 
     is_annual = st.session_state.billing_cycle == "annual"
-    pro_price = "12" if is_annual else "15"
-    ent_price = "39" if is_annual else "49"
-    period = "/mo" if not is_annual else "/mo"
-    billed_note = "billed annually" if is_annual else "billed monthly"
 
-    # ── Pricing cards ──
-    cols = st.columns(3, gap="medium")
+    # ── Pricing cards (dynamic from DB) ──
+    if not plans:
+        # Fallback if DB is unavailable
+        st.warning("Pricing information is currently unavailable. Please try again later.")
+        return
 
-    with cols[0]:
-        st.markdown(f"""
-        <div class="pricing-card">
-            <div class="pricing-plan-name">Free</div>
-            <div class="pricing-price">$0<span>/mo</span></div>
-            <div class="pricing-desc">Perfect for exploring financial data</div>
-            <ul class="pricing-features">
-                <li>5 ticker lookups per day</li>
-                <li>Income statement Sankey</li>
-                <li>Basic financial charts</li>
-                <li>Company profile page</li>
-                <li>Community support</li>
-            </ul>
-            <a class="pricing-cta cta-free" href="?page=login" target="_self">Get Started Free</a>
-        </div>
-        """, unsafe_allow_html=True)
+    num_plans = len(plans)
+    cols = st.columns(min(num_plans, 4), gap="medium")
 
-    with cols[1]:
-        st.markdown(f"""
-        <div class="pricing-card popular">
-            <div class="popular-badge">MOST POPULAR</div>
-            <div class="pricing-plan-name">Pro</div>
-            <div class="pricing-price">${pro_price}<span>{period}</span></div>
-            <div class="pricing-desc">{billed_note} &middot; for serious investors</div>
-            <ul class="pricing-features">
-                <li>Unlimited ticker lookups</li>
-                <li>Income + Balance Sankey</li>
-                <li>All financial charts</li>
-                <li>Quarterly & Annual data</li>
-                <li>Historical trends (1Y–4Y+MAX)</li>
-                <li>Analyst forecast overlay</li>
-                <li>PDF export</li>
-                <li>Watchlist (unlimited tickers)</li>
-                <li>Priority support</li>
-            </ul>
-            <a class="pricing-cta cta-pro" href="?page=login" target="_self">Start Pro Trial</a>
-        </div>
-        """, unsafe_allow_html=True)
+    for idx, plan in enumerate(plans):
+        with cols[idx % len(cols)]:
+            # Parse features
+            features = plan.get("features", [])
+            if isinstance(features, str):
+                try:
+                    features = json.loads(features)
+                except Exception:
+                    features = []
 
-    with cols[2]:
-        st.markdown(f"""
-        <div class="pricing-card">
-            <div class="pricing-plan-name">Enterprise</div>
-            <div class="pricing-price">${ent_price}<span>{period}</span></div>
-            <div class="pricing-desc">{billed_note} &middot; for teams & firms</div>
-            <ul class="pricing-features">
-                <li>Everything in Pro</li>
-                <li>API access</li>
-                <li>Custom data integrations</li>
-                <li>Team workspaces (up to 25)</li>
-                <li>White-label embedding</li>
-                <li>SSO / SAML authentication</li>
-                <li>Dedicated account manager</li>
-                <li>Custom SLA</li>
-            </ul>
-            <a class="pricing-cta cta-enterprise" href="mailto:hello@quartercharts.com">Contact Sales</a>
-        </div>
-        """, unsafe_allow_html=True)
+            # Price display
+            price_monthly = float(plan.get("price_monthly", 0))
+            price_annual = float(plan.get("price_annual", 0))
+
+            if is_annual and price_annual > 0:
+                display_price = f"{price_annual / 12:.0f}"
+                billed_note = "billed annually"
+            else:
+                display_price = f"{price_monthly:.0f}"
+                billed_note = "billed monthly" if price_monthly > 0 else ""
+
+            is_popular = plan.get("is_popular", False)
+            plan_name = plan.get("name", "Plan")
+            description = plan.get("description", "")
+            cta_text = plan.get("cta_text", "Get Started")
+            cta_url = plan.get("cta_url", "") or "?page=login"
+            slug = plan.get("slug", "")
+
+            # Determine CTA style based on plan characteristics
+            if is_popular:
+                card_class = "pricing-card popular"
+                cta_class = "cta-popular"
+            elif slug == "enterprise" or price_monthly >= 40:
+                card_class = "pricing-card"
+                cta_class = "cta-enterprise"
+            else:
+                card_class = "pricing-card"
+                cta_class = "cta-default"
+
+            # Build features HTML
+            features_html = ""
+            for feat in features:
+                features_html += f"<li>{feat}</li>"
+
+            # Description with billing note
+            if billed_note and price_monthly > 0:
+                desc_html = f"{billed_note} &middot; {description}" if description else billed_note
+            else:
+                desc_html = description
+
+            # Build card HTML
+            popular_badge = '<div class="popular-badge">MOST POPULAR</div>' if is_popular else ""
+
+            card_html = f"""
+            <div class="{card_class}">
+                {popular_badge}
+                <div class="pricing-plan-name">{plan_name}</div>
+                <div class="pricing-price">${display_price}<span>/mo</span></div>
+                <div class="pricing-desc">{desc_html}</div>
+                <ul class="pricing-features">
+                    {features_html}
+                </ul>
+                <a class="pricing-cta {cta_class}" href="{cta_url}" target="_self">{cta_text}</a>
+            </div>
+            """
+            st.markdown(card_html, unsafe_allow_html=True)
 
     # ── FAQ section ──
     st.markdown("---")

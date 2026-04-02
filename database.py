@@ -219,8 +219,47 @@ def initialize_schema():
         created_at      TIMESTAMPTZ DEFAULT NOW()
     );
 
+    -- Pricing plans: admin-managed, drives the public pricing page and Stripe integration
+    CREATE TABLE IF NOT EXISTS pricing_plans (
+        id              SERIAL PRIMARY KEY,
+        slug            VARCHAR(50) UNIQUE NOT NULL,       -- e.g. "free", "pro", "enterprise"
+        name            VARCHAR(100) NOT NULL,             -- Display name: "Free", "Pro", "Enterprise"
+        description     VARCHAR(255) DEFAULT '',           -- Subtitle shown on card
+        price_monthly   NUMERIC(10,2) DEFAULT 0,           -- Monthly price in USD
+        price_annual    NUMERIC(10,2) DEFAULT 0,           -- Annual price per month in USD
+        features        TEXT DEFAULT '[]',                  -- JSON array of feature strings
+        cta_text        VARCHAR(100) DEFAULT 'Get Started', -- Button label
+        cta_url         VARCHAR(255) DEFAULT '',            -- Custom URL (optional override)
+        is_popular      BOOLEAN DEFAULT FALSE,              -- Show "Most Popular" badge
+        is_active       BOOLEAN DEFAULT TRUE,               -- Hide plan without deleting
+        sort_order      INTEGER DEFAULT 0,                  -- Display order (low = left)
+        stripe_product_id   VARCHAR(255) DEFAULT '',        -- Stripe Product ID
+        stripe_price_monthly VARCHAR(255) DEFAULT '',       -- Stripe Price ID (monthly)
+        stripe_price_annual  VARCHAR(255) DEFAULT '',       -- Stripe Price ID (annual)
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Subscriptions: tracks which user is on which plan via Stripe
+    CREATE TABLE IF NOT EXISTS subscriptions (
+        id              SERIAL PRIMARY KEY,
+        user_id         INTEGER REFERENCES users(id) NOT NULL,
+        plan_id         INTEGER REFERENCES pricing_plans(id),
+        stripe_customer_id      VARCHAR(255) DEFAULT '',
+        stripe_subscription_id  VARCHAR(255) DEFAULT '',
+        status          VARCHAR(50) DEFAULT 'active',      -- active, canceled, past_due, trialing
+        billing_cycle   VARCHAR(20) DEFAULT 'monthly',     -- monthly, annual
+        current_period_start TIMESTAMPTZ,
+        current_period_end   TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+
     -- Indexes for performance
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_pricing_plans_slug ON pricing_plans(slug);
+    CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe ON subscriptions(stripe_subscription_id);
     CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
@@ -581,3 +620,161 @@ def log_action(user_id: int, action: str, company_id: int = None,
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (user_id, company_id, action, resource_type, resource_id,
                   ip_address, details))
+
+
+# ─── Pricing Plans CRUD ──────────────────────────────────────────────────────
+
+_PLAN_COLS = ("id, slug, name, description, price_monthly, price_annual, features, "
+              "cta_text, cta_url, is_popular, is_active, sort_order, "
+              "stripe_product_id, stripe_price_monthly, stripe_price_annual, "
+              "created_at, updated_at")
+
+
+def _row_to_plan(row) -> dict:
+    """Convert a pricing_plans row to dict."""
+    import json
+    features_raw = row[6] or "[]"
+    try:
+        features = json.loads(features_raw) if isinstance(features_raw, str) else features_raw
+    except (json.JSONDecodeError, TypeError):
+        features = []
+    return {
+        "id": row[0], "slug": row[1], "name": row[2], "description": row[3],
+        "price_monthly": float(row[4] or 0), "price_annual": float(row[5] or 0),
+        "features": features, "cta_text": row[7] or "Get Started",
+        "cta_url": row[8] or "", "is_popular": row[9], "is_active": row[10],
+        "sort_order": row[11] or 0,
+        "stripe_product_id": row[12] or "", "stripe_price_monthly": row[13] or "",
+        "stripe_price_annual": row[14] or "",
+        "created_at": row[15], "updated_at": row[16],
+    }
+
+
+def get_all_plans(active_only: bool = False) -> list[dict]:
+    """Get all pricing plans, ordered by sort_order."""
+    with get_connection() as conn:
+        if conn is None:
+            return []
+        with conn.cursor() as cur:
+            sql = f"SELECT {_PLAN_COLS} FROM pricing_plans"
+            if active_only:
+                sql += " WHERE is_active = TRUE"
+            sql += " ORDER BY sort_order, id"
+            cur.execute(sql)
+            return [_row_to_plan(r) for r in cur.fetchall()]
+
+
+def get_plan_by_id(plan_id: int) -> dict | None:
+    """Get a single plan by ID."""
+    with get_connection() as conn:
+        if conn is None:
+            return None
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT {_PLAN_COLS} FROM pricing_plans WHERE id = %s", (plan_id,))
+            row = cur.fetchone()
+            return _row_to_plan(row) if row else None
+
+
+def get_plan_by_slug(slug: str) -> dict | None:
+    """Get a single plan by slug."""
+    with get_connection() as conn:
+        if conn is None:
+            return None
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT {_PLAN_COLS} FROM pricing_plans WHERE slug = %s", (slug,))
+            row = cur.fetchone()
+            return _row_to_plan(row) if row else None
+
+
+def create_plan(slug: str, name: str, description: str = "",
+                price_monthly: float = 0, price_annual: float = 0,
+                features: list = None, cta_text: str = "Get Started",
+                cta_url: str = "", is_popular: bool = False,
+                is_active: bool = True, sort_order: int = 0,
+                stripe_product_id: str = "", stripe_price_monthly: str = "",
+                stripe_price_annual: str = "") -> dict | None:
+    """Create a new pricing plan."""
+    import json
+    features_json = json.dumps(features or [])
+    with get_connection() as conn:
+        if conn is None:
+            return None
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                INSERT INTO pricing_plans
+                    (slug, name, description, price_monthly, price_annual, features,
+                     cta_text, cta_url, is_popular, is_active, sort_order,
+                     stripe_product_id, stripe_price_monthly, stripe_price_annual)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING {_PLAN_COLS}
+            """, (slug, name, description, price_monthly, price_annual, features_json,
+                  cta_text, cta_url, is_popular, is_active, sort_order,
+                  stripe_product_id, stripe_price_monthly, stripe_price_annual))
+            row = cur.fetchone()
+            return _row_to_plan(row) if row else None
+
+
+def update_plan(plan_id: int, **kwargs) -> dict | None:
+    """Update a pricing plan. Pass only the fields you want to change."""
+    import json
+    allowed = {"slug", "name", "description", "price_monthly", "price_annual",
+               "features", "cta_text", "cta_url", "is_popular", "is_active",
+               "sort_order", "stripe_product_id", "stripe_price_monthly",
+               "stripe_price_annual"}
+    updates = {k: v for k, v in kwargs.items() if k in allowed}
+    if not updates:
+        return get_plan_by_id(plan_id)
+    if "features" in updates and isinstance(updates["features"], list):
+        updates["features"] = json.dumps(updates["features"])
+    set_parts = [f"{k} = %s" for k in updates]
+    set_parts.append("updated_at = NOW()")
+    values = list(updates.values()) + [plan_id]
+    with get_connection() as conn:
+        if conn is None:
+            return None
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                UPDATE pricing_plans SET {', '.join(set_parts)}
+                WHERE id = %s RETURNING {_PLAN_COLS}
+            """, values)
+            row = cur.fetchone()
+            return _row_to_plan(row) if row else None
+
+
+def delete_plan(plan_id: int) -> bool:
+    """Permanently delete a pricing plan."""
+    with get_connection() as conn:
+        if conn is None:
+            return False
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM pricing_plans WHERE id = %s", (plan_id,))
+            return cur.rowcount > 0
+
+
+def seed_default_plans():
+    """Insert default plans if the table is empty. Safe to call on every startup."""
+    existing = get_all_plans()
+    if existing:
+        return
+    defaults = [
+        {"slug": "free", "name": "Free", "description": "Perfect for exploring financial data",
+         "price_monthly": 0, "price_annual": 0, "sort_order": 1,
+         "features": ["5 ticker lookups per day", "Income statement Sankey",
+                       "Basic financial charts", "Company profile page", "Community support"],
+         "cta_text": "Get Started Free", "is_popular": False},
+        {"slug": "pro", "name": "Pro", "description": "For serious investors & analysts",
+         "price_monthly": 15, "price_annual": 12, "sort_order": 2,
+         "features": ["Unlimited ticker lookups", "Income + Balance Sankey",
+                       "All financial charts", "Quarterly & Annual data",
+                       "Historical trends (1Y\u20134Y+MAX)", "Analyst forecast overlay",
+                       "PDF export", "Watchlist (unlimited tickers)", "Priority support"],
+         "cta_text": "Start Free Trial", "is_popular": True},
+        {"slug": "enterprise", "name": "Enterprise", "description": "For teams & organizations",
+         "price_monthly": 49, "price_annual": 39, "sort_order": 3,
+         "features": ["Everything in Pro", "API access", "Custom data integrations",
+                       "Team workspaces (up to 25)", "White-label embedding",
+                       "SSO / SAML authentication", "Dedicated account manager", "Custom SLA"],
+         "cta_text": "Contact Sales", "is_popular": False},
+    ]
+    for p in defaults:
+        create_plan(**p)
