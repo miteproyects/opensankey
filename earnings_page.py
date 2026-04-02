@@ -335,10 +335,14 @@ def render_earnings_page():
         '</style>',
         unsafe_allow_html=True,
     )
-    # Clear search box if previous search was submitted
-    if st.session_state.get("_ec_clear_search"):
+    # If a search was just submitted, clear the input and rerun so it appears fresh
+    if st.session_state.get("_ec_pending_symbol"):
+        pending = st.session_state.pop("_ec_pending_symbol")
         st.session_state["ec_search"] = ""
-        st.session_state["_ec_clear_search"] = False
+        st.session_state["_ec_show_symbol"] = pending
+
+    # Check if we should show search results (from a previous submit)
+    show_symbol = st.session_state.pop("_ec_show_symbol", None)
 
     sc1, sc2, sc3 = st.columns([1, 4, 1])
     with sc2:
@@ -352,10 +356,12 @@ def render_earnings_page():
     st.markdown('<div style="margin-bottom:20px;"></div>', unsafe_allow_html=True)
 
     if search_query and search_query.strip():
-        symbol = search_query.strip().upper()
-        # Flag to clear search box on next rerun
-        st.session_state["_ec_clear_search"] = True
-        _render_ticker_search(symbol)
+        # Store the symbol and rerun so the input clears
+        st.session_state["_ec_pending_symbol"] = search_query.strip().upper()
+        st.rerun()
+
+    if show_symbol:
+        _render_ticker_search(show_symbol)
         _render_footer()
         _render_debug()
         return
