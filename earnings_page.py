@@ -274,10 +274,9 @@ _STYLES = """<style>
 .ec-surprise-negative { color: #ef4444; font-weight: 700; font-size: 0.8rem; background: rgba(239,68,68,0.08); padding: 2px 8px; border-radius: 6px; }
 
 /* ── Empty state ── */
-.ec-empty { text-align: center; padding: 56px 20px; font-family: Inter, system-ui, sans-serif; }
-.ec-empty-icon { font-size: 2.5rem; margin-bottom: 14px; opacity: 0.4; }
-.ec-empty-text { font-size: 0.95rem; font-weight: 500; color: #475569; }
-.ec-empty-sub { font-size: 0.82rem; color: #334155; margin-top: 4px; }
+.ec-empty { text-align: center; padding: 48px 20px; font-family: Inter, system-ui, sans-serif; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; margin: 12px 0; }
+.ec-empty-icon { font-size: 2rem; margin-bottom: 12px; }
+.ec-empty-text { font-size: 1rem; font-weight: 600; color: #64748b; }
 
 /* ── Search banner ── */
 .ec-search-banner { background: linear-gradient(135deg, #172554 0%, #1e3a5f 50%, #172554 100%); border: 1px solid rgba(59,130,246,0.3); border-radius: 14px; padding: 18px 22px; margin-bottom: 20px; font-family: Inter, system-ui, sans-serif; }
@@ -478,9 +477,8 @@ def render_earnings_page():
     if not day_earnings:
         st.markdown(
             f'<div class="ec-empty">'
-            f'<div class="ec-empty-icon">📊</div>'
-            f'<div class="ec-empty-text">No earnings reports scheduled</div>'
-            f'<div class="ec-empty-sub">{_DAY_MAP[wd]}, {sel_date.strftime("%B %d, %Y")}</div>'
+            f'<div class="ec-empty-icon">\U0001f515</div>'
+            f'<div class="ec-empty-text">No reports scheduled</div>'
             f'</div>',
             unsafe_allow_html=True,
         )
