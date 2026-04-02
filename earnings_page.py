@@ -335,6 +335,11 @@ def render_earnings_page():
         '</style>',
         unsafe_allow_html=True,
     )
+    # Clear search box if previous search was submitted
+    if st.session_state.get("_ec_clear_search"):
+        st.session_state["ec_search"] = ""
+        st.session_state["_ec_clear_search"] = False
+
     sc1, sc2, sc3 = st.columns([1, 4, 1])
     with sc2:
         search_query = st.text_input(
@@ -348,8 +353,8 @@ def render_earnings_page():
 
     if search_query and search_query.strip():
         symbol = search_query.strip().upper()
-        # Clear the search box so it's empty on return
-        st.session_state["ec_search"] = ""
+        # Flag to clear search box on next rerun
+        st.session_state["_ec_clear_search"] = True
         _render_ticker_search(symbol)
         _render_footer()
         _render_debug()
