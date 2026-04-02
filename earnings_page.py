@@ -6,10 +6,7 @@ Data sourced from Yahoo Finance via yfinance library.
 
 import streamlit as st
 import pandas as pd
-import requests
-import json
 import time
-import hashlib
 from datetime import datetime, timedelta, date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -36,193 +33,22 @@ def _set_cached(key: str, data):
 
 
 # ── Yahoo Finance Earnings Fetcher ──────────────────────────────────────
-# Uses yfinance library (handles auth/crumb internally) as primary source,
-# with a screener API fallback. Avoids direct HTML scraping which gets
-# blocked from server IPs.
+# Uses ONLY yfinance Python API (get_earnings_dates) — no web scraping.
+# Scans a broad list of tickers in parallel to find earnings on each date.
+
+# Debug log — visible in UI for diagnostics
+_DEBUG_LOG: list[str] = []
 
 
-def _fetch_earnings_for_date(target_date: date) -> list[dict]:
-    """
-    Fetch earnings for a single date.
-    Primary: yfinance screener API. Fallback: yfinance ticker calendar.
-    """
-    cache_key = _cache_key(target_date)
-    cached = _get_cached(cache_key)
-    if cached is not None:
-        return cached
-
-    results = _fetch_via_yf_screener(target_date)
-
-    _set_cached(cache_key, results)
-    return results
+def _debug(msg: str):
+    _DEBUG_LOG.append(f"[{time.strftime('%H:%M:%S')}] {msg}")
 
 
-def _fetch_via_yf_screener(target_date: date) -> list[dict]:
-    """
-    Multi-strategy earnings fetcher:
-    1. Use yfinance Ticker to init auth, then use its session for calendar page
-    2. Parse HTML table with pandas (the session has valid cookies)
-    3. Fallback: scan a list of popular tickers via yfinance get_earnings_dates
-    """
-    results = []
-
-    # ── Strategy 1: Use yfinance's authenticated session for calendar page ──
-    try:
-        import yfinance as yf
-
-        # Create a Ticker to trigger yfinance's cookie/crumb initialization
-        _init_ticker = yf.Ticker("AAPL")
-        # Access yfinance's internal session
-        yf_session = None
-        try:
-            # yfinance >= 0.2.31 stores session in data module
-            if hasattr(_init_ticker, '_data'):
-                yf_session = _init_ticker._data._session
-            elif hasattr(_init_ticker, 'session'):
-                yf_session = _init_ticker.session
-        except Exception:
-            pass
-
-        if yf_session is None:
-            # Build our own session copying yfinance's approach
-            yf_session = requests.Session()
-            yf_session.headers.update({
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                              "AppleWebKit/537.36 (KHTML, like Gecko) "
-                              "Chrome/131.0.0.0 Safari/537.36",
-            })
-            try:
-                yf_session.get("https://fc.yahoo.com", timeout=5)
-            except Exception:
-                pass
-
-        date_str = target_date.strftime("%Y-%m-%d")
-        resp = yf_session.get(
-            "https://finance.yahoo.com/calendar/earnings",
-            params={"day": date_str},
-            timeout=12,
-        )
-
-        if resp.status_code == 200 and len(resp.text) > 1000:
-            # Parse embedded JSON or HTML table
-            results = _parse_calendar_response(resp.text, target_date)
-            if results:
-                return results
-
-    except Exception:
-        pass
-
-    # ── Strategy 2: Scan popular tickers via yfinance get_earnings_dates ──
-    try:
-        results = _scan_popular_tickers(target_date)
-    except Exception:
-        pass
-
-    return results
-
-
-def _parse_calendar_response(html: str, target_date: date) -> list[dict]:
-    """Parse Yahoo Finance earnings calendar HTML response."""
-    import re
-
-    results = []
-
-    # Method 1: Find JSON data in script tags
-    # Yahoo Finance embeds data in various JSON formats within <script> tags
-    for pattern in [
-        r'"rows"\s*:\s*(\[[\s\S]*?\])\s*[,}]',
-        r'"results"\s*:\s*(\[[\s\S]*?\])\s*,\s*"error"',
-        r'"earningsCalendarData"\s*:\s*\{[^}]*"rows"\s*:\s*(\[[\s\S]*?\])',
-    ]:
-        match = re.search(pattern, html)
-        if match:
-            try:
-                data = json.loads(match.group(1))
-                if isinstance(data, list) and data:
-                    for item in data:
-                        row = _normalize_calendar_row(item, target_date)
-                        if row:
-                            results.append(row)
-                    if results:
-                        return results
-            except (json.JSONDecodeError, KeyError):
-                continue
-
-    # Method 2: Parse HTML table with pandas
-    try:
-        tables = pd.read_html(html)
-        if tables:
-            df = tables[0]
-            cols = list(df.columns)
-            for _, row in df.iterrows():
-                vals = list(row)
-                ticker = str(vals[0]).strip() if len(vals) > 0 and pd.notna(vals[0]) else ""
-                if not ticker or ticker == "nan" or len(ticker) > 6:
-                    continue
-                company = str(vals[1]).strip() if len(vals) > 1 and pd.notna(vals[1]) else ticker
-                event = str(vals[2]).strip() if len(vals) > 2 and pd.notna(vals[2]) else "Earnings Announcement"
-                call_time = str(vals[3]).strip() if len(vals) > 3 and pd.notna(vals[3]) else "-"
-                eps_est = _safe_float(vals[4]) if len(vals) > 4 else "-"
-                eps_actual = _safe_float(vals[5]) if len(vals) > 5 else "-"
-                surprise = _safe_float(vals[6]) if len(vals) > 6 else "-"
-
-                if call_time not in ("BMO", "AMC", "TAS", "TNS"):
-                    call_time = _map_call_time(call_time)
-
-                results.append({
-                    "ticker": ticker.upper(),
-                    "company": company,
-                    "event": event,
-                    "call_time": call_time,
-                    "eps_estimate": eps_est,
-                    "eps_actual": eps_actual,
-                    "surprise_pct": surprise,
-                    "date": target_date.isoformat(),
-                })
-            if results:
-                return results
-    except Exception:
-        pass
-
-    return results
-
-
-def _normalize_calendar_row(item: dict, target_date: date) -> dict | None:
-    """Normalize a JSON row from Yahoo Finance calendar data."""
-    try:
-        ticker = (item.get("ticker") or item.get("symbol") or
-                  item.get("Symbol") or "")
-        if not ticker:
-            return None
-
-        company = (item.get("companyshortname") or item.get("companyShortName") or
-                   item.get("shortName") or item.get("Company") or ticker)
-
-        call_time_raw = (item.get("startdatetimetype") or item.get("startDateTimeType") or
-                         item.get("Earnings Call Time") or "")
-
-        return {
-            "ticker": str(ticker).upper().strip(),
-            "company": str(company).strip(),
-            "event": str(item.get("eventname") or item.get("eventName") or
-                        item.get("Event Name") or "Earnings Announcement").strip(),
-            "call_time": _map_call_time(str(call_time_raw)),
-            "eps_estimate": _safe_float(item.get("epsestimate") or item.get("epsEstimate") or
-                                        item.get("EPS Estimate")),
-            "eps_actual": _safe_float(item.get("epsactual") or item.get("epsActual") or
-                                      item.get("Reported EPS")),
-            "surprise_pct": _safe_float(item.get("epssurprisepct") or item.get("epsSurprisePct") or
-                                        item.get("Surprise(%)")),
-            "date": target_date.isoformat(),
-        }
-    except Exception:
-        return None
-
-
-# ── Popular tickers for fallback scanning ──
-_POPULAR_TICKERS = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "JPM",
-    "V", "JNJ", "WMT", "PG", "UNH", "HD", "MA", "DIS", "PYPL", "ADBE",
+# ── Broad ticker universe for scanning ──
+_SCAN_TICKERS = [
+    # Mega/large caps
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "BRK-B",
+    "JPM", "V", "JNJ", "WMT", "PG", "UNH", "HD", "MA", "DIS", "PYPL",
     "NFLX", "CRM", "INTC", "AMD", "ORCL", "CSCO", "PEP", "KO", "MRK",
     "ABT", "TMO", "COST", "NKE", "LLY", "AVGO", "QCOM", "TXN", "HON",
     "LOW", "SBUX", "MDLZ", "GS", "BLK", "AXP", "MS", "C", "BAC", "WFC",
@@ -230,65 +56,118 @@ _POPULAR_TICKERS = [
     "CMCSA", "TMUS", "CVX", "XOM", "COP", "SLB", "EOG", "MPC", "PSX",
     "PFE", "BMY", "GILD", "AMGN", "REGN", "VRTX", "ISRG", "MDT",
     "DHR", "SYK", "ZTS", "CI", "ELV", "HCA", "MCK", "CVS",
-    "BRK-B", "SCHW", "MMM", "IBM", "ACN", "NOW", "SNOW", "UBER",
+    "SCHW", "MMM", "IBM", "ACN", "NOW", "SNOW", "UBER",
     "ABNB", "SQ", "SHOP", "PLTR", "RIVN", "LCID", "F", "GM",
     "AAL", "DAL", "UAL", "LUV", "MAR", "HLT", "WYNN", "MGM",
+    "ADBE", "INTU", "PANW", "CRWD", "ZS", "NET", "DDOG", "MDB",
+    "COIN", "HOOD", "SOFI", "AFRM", "UPST", "BILL", "HUBS",
+    # Mid-caps & popular earnings movers
+    "ROKU", "SNAP", "PINS", "TTD", "RBLX", "U", "DKNG", "PENN",
+    "CHWY", "ETSY", "W", "BKNG", "EXPE", "ABNB", "DASH",
+    "ZM", "DOCU", "OKTA", "TWLO", "FIVN", "RNG",
+    "CLX", "KMB", "SJM", "GIS", "K", "CPB", "HSY", "MKC",
+    "TGT", "DG", "DLTR", "ROST", "TJX", "BBY", "LULU",
+    "FIS", "FISV", "GPN", "SYF", "DFS", "COF", "AIG",
+    "MET", "PRU", "AFL", "TRV", "CB", "ALL", "PGR",
+    "SO", "DUK", "NEE", "AEP", "D", "SRE", "EXC", "XEL",
+    "AMT", "PLD", "CCI", "EQIX", "SPG", "O", "WELL", "DLR",
+    "USB", "PNC", "TFC", "FITB", "KEY", "RF", "CFG", "HBAN",
+    "LEN", "DHI", "PHM", "TOL", "KBH", "NVR",
+    "ON", "MCHP", "KLAC", "LRCX", "AMAT", "ASML", "SNPS", "CDNS",
+    "ENPH", "FSLR", "RUN", "SEDG",
+    "WDAY", "VEEV", "ANSS", "CDNS", "SNPS", "FTNT", "SPLK",
+    "CMG", "YUM", "QSR", "MCD", "SBUX", "DPZ", "WEN", "JACK",
+    "CL", "EL", "CHD", "MNST", "STZ", "BF-B", "DEO", "SAM",
 ]
+# Deduplicate
+_SCAN_TICKERS = list(dict.fromkeys(_SCAN_TICKERS))
 
 
-def _scan_popular_tickers(target_date: date) -> list[dict]:
+def _fetch_earnings_for_date(target_date: date) -> list[dict]:
+    """Fetch earnings for a single date using yfinance API only."""
+    cache_key = _cache_key(target_date)
+    cached = _get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    results = _scan_tickers_for_date(target_date)
+    _set_cached(cache_key, results)
+    return results
+
+
+def _check_ticker_earnings(symbol: str, target_dates: set[str]) -> list[dict]:
     """
-    Fallback: Check popular tickers' earnings dates via yfinance.
-    Uses ThreadPoolExecutor for speed. Checks ~120 tickers in batches.
+    Check a single ticker's upcoming earnings dates via yfinance API.
+    Returns list of matching rows for any of the target_dates.
     """
     import yfinance as yf
 
+    try:
+        tk = yf.Ticker(symbol)
+        cal = tk.get_earnings_dates(limit=8)
+        if cal is None or cal.empty:
+            return []
+
+        matches = []
+        for idx, row in cal.iterrows():
+            earn_date = idx.date() if hasattr(idx, 'date') else idx
+            earn_str = str(earn_date)
+            if earn_str in target_dates:
+                eps_est = row.get("EPS Estimate")
+                eps_actual = row.get("Reported EPS")
+                surprise = row.get("Surprise(%)")
+
+                # Get company name from fast_info (faster than .info)
+                company_name = symbol
+                try:
+                    info = tk.fast_info
+                    # fast_info doesn't have shortName, but we can try
+                    company_name = symbol
+                except Exception:
+                    pass
+                try:
+                    company_name = tk.info.get("shortName", symbol)
+                except Exception:
+                    pass
+
+                matches.append({
+                    "ticker": symbol.upper(),
+                    "company": company_name,
+                    "event": "Earnings Announcement",
+                    "call_time": "-",
+                    "eps_estimate": _safe_float(eps_est),
+                    "eps_actual": _safe_float(eps_actual),
+                    "surprise_pct": _safe_float(surprise),
+                    "date": earn_str,
+                })
+        return matches
+    except Exception:
+        return []
+
+
+def _scan_tickers_for_date(target_date: date) -> list[dict]:
+    """Scan ticker universe via yfinance API to find earnings on target_date."""
     target_str = target_date.isoformat()
+    target_set = {target_str}
     results = []
 
-    def _check_ticker(symbol):
-        try:
-            tk = yf.Ticker(symbol)
-            cal = tk.get_earnings_dates(limit=4)
-            if cal is None or cal.empty:
-                return None
-            for idx in cal.index:
-                earn_date = idx.date() if hasattr(idx, 'date') else idx
-                if str(earn_date) == target_str:
-                    eps_est = cal.loc[idx].get("EPS Estimate")
-                    eps_actual = cal.loc[idx].get("Reported EPS")
-                    surprise = cal.loc[idx].get("Surprise(%)")
-                    info = tk.fast_info if hasattr(tk, 'fast_info') else {}
-                    company_name = ""
-                    try:
-                        company_name = tk.info.get("shortName", symbol)
-                    except Exception:
-                        company_name = symbol
-                    return {
-                        "ticker": symbol,
-                        "company": company_name,
-                        "event": "Earnings Announcement",
-                        "call_time": "-",
-                        "eps_estimate": _safe_float(eps_est),
-                        "eps_actual": _safe_float(eps_actual),
-                        "surprise_pct": _safe_float(surprise),
-                        "date": target_str,
-                    }
-        except Exception:
-            pass
-        return None
+    _debug(f"Scanning {len(_SCAN_TICKERS)} tickers for {target_str}")
+    t0 = time.time()
 
-    # Parallel check with 10 workers, 6s timeout per ticker
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {executor.submit(_check_ticker, t): t for t in _POPULAR_TICKERS}
-        for future in as_completed(futures, timeout=20):
+    with ThreadPoolExecutor(max_workers=15) as executor:
+        futures = {
+            executor.submit(_check_ticker_earnings, sym, target_set): sym
+            for sym in _SCAN_TICKERS
+        }
+        for future in as_completed(futures, timeout=30):
             try:
-                result = future.result(timeout=5)
-                if result:
-                    results.append(result)
+                matches = future.result(timeout=8)
+                results.extend(matches)
             except Exception:
                 continue
 
+    elapsed = time.time() - t0
+    _debug(f"Scan done: {len(results)} earnings found in {elapsed:.1f}s")
     return results
 
 
@@ -301,26 +180,6 @@ def _safe_float(val) -> str:
     except (ValueError, TypeError):
         return str(val)
 
-
-def _normalize_yf_row(item: dict, target_date: date) -> dict | None:
-    """Normalize a Yahoo Finance JSON row to our standard format."""
-    try:
-        ticker = item.get("ticker") or item.get("symbol") or ""
-        if not ticker:
-            return None
-
-        return {
-            "ticker": ticker.upper(),
-            "company": item.get("companyshortname") or item.get("companyShortName") or item.get("shortName") or ticker,
-            "event": item.get("eventname") or item.get("eventName") or "Earnings Announcement",
-            "call_time": _map_call_time(item.get("startdatetimetype") or item.get("startDateTimeType") or ""),
-            "eps_estimate": _safe_float(item.get("epsestimate") or item.get("epsEstimate")),
-            "eps_actual": _safe_float(item.get("epsactual") or item.get("epsActual")),
-            "surprise_pct": _safe_float(item.get("epssurprisepct") or item.get("epsSurprisePct")),
-            "date": target_date.isoformat(),
-        }
-    except Exception:
-        return None
 
 
 def _map_call_time(raw: str) -> str:
@@ -380,36 +239,53 @@ def _fetch_ticker_earnings(symbol: str) -> list[dict]:
 
 def _fetch_week_earnings(week_start: date) -> dict[str, list[dict]]:
     """
-    Fetch earnings for an entire week (Mon-Fri) using parallel requests.
+    Fetch earnings for an entire week in a single parallel ticker scan.
+    Much faster than 7 separate scans — checks all 7 days per ticker call.
     Returns dict mapping date_str -> list of earnings rows.
     """
-    days = []
-    for i in range(7):  # Sun through Sat
-        d = week_start + timedelta(days=i)
-        days.append(d)
+    days = [week_start + timedelta(days=i) for i in range(7)]
 
     result = {}
-    # Check cache first to minimize network calls
-    uncached_days = []
+    all_cached = True
     for d in days:
         ck = _cache_key(d)
         c = _get_cached(ck)
         if c is not None:
             result[d.isoformat()] = c
         else:
-            uncached_days.append(d)
+            result[d.isoformat()] = []
+            all_cached = False
 
-    if uncached_days:
-        # Parallel fetch uncached days (max 3 workers to be respectful)
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {executor.submit(_fetch_earnings_for_date, d): d for d in uncached_days}
-            for future in as_completed(futures):
-                d = futures[future]
-                try:
-                    data = future.result()
-                    result[d.isoformat()] = data
-                except Exception:
-                    result[d.isoformat()] = []
+    if all_cached:
+        return result
+
+    # Scan all tickers once, checking against all 7 days in the week
+    target_dates = {d.isoformat() for d in days}
+    _debug(f"Week scan: {week_start.isoformat()} to {days[-1].isoformat()} ({len(_SCAN_TICKERS)} tickers)")
+    t0 = time.time()
+
+    with ThreadPoolExecutor(max_workers=15) as executor:
+        futures = {
+            executor.submit(_check_ticker_earnings, sym, target_dates): sym
+            for sym in _SCAN_TICKERS
+        }
+        for future in as_completed(futures, timeout=45):
+            try:
+                matches = future.result(timeout=8)
+                for m in matches:
+                    d_str = m["date"]
+                    if d_str in result:
+                        result[d_str].append(m)
+            except Exception:
+                continue
+
+    elapsed = time.time() - t0
+    total = sum(len(v) for v in result.values())
+    _debug(f"Week scan done: {total} total earnings in {elapsed:.1f}s")
+
+    # Cache each day's results
+    for d in days:
+        _set_cached(_cache_key(d), result[d.isoformat()])
 
     return result
 
@@ -828,6 +704,12 @@ def render_earnings_page():
         """, unsafe_allow_html=True)
     else:
         _render_earnings_table(day_earnings, sel_date)
+
+    # ── Debug diagnostics (temporary) ──
+    if _DEBUG_LOG:
+        with st.expander("🔧 Data fetch diagnostics", expanded=False):
+            for line in _DEBUG_LOG:
+                st.text(line)
 
     # ── Footer ──
     _render_footer_notes()
