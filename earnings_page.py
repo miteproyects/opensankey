@@ -59,114 +59,237 @@ def _fetch_earnings_for_date(target_date: date) -> list[dict]:
 
 def _fetch_via_yf_screener(target_date: date) -> list[dict]:
     """
-    Use yfinance's internal session to query the Yahoo Finance screener
-    for earnings on a specific date. This works server-side because
-    yfinance handles crumb/cookie auth.
+    Multi-strategy earnings fetcher:
+    1. Use yfinance Ticker to init auth, then use its session for calendar page
+    2. Parse HTML table with pandas (the session has valid cookies)
+    3. Fallback: scan a list of popular tickers via yfinance get_earnings_dates
     """
     results = []
 
+    # ── Strategy 1: Use yfinance's authenticated session for calendar page ──
     try:
         import yfinance as yf
 
-        # yfinance exposes a shared session with valid crumb+cookies
-        # Use it to hit the screener endpoint
-        session = yf.utils.get_yf_logger  # just to trigger module init
-        # Build a session with proper Yahoo auth
-        yf_session = requests.Session()
-        yf_session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/131.0.0.0 Safari/537.36",
-        })
-
-        # Step 1: Get crumb and cookies from Yahoo
+        # Create a Ticker to trigger yfinance's cookie/crumb initialization
+        _init_ticker = yf.Ticker("AAPL")
+        # Access yfinance's internal session
+        yf_session = None
         try:
-            yf_session.get("https://fc.yahoo.com", timeout=5)
+            # yfinance >= 0.2.31 stores session in data module
+            if hasattr(_init_ticker, '_data'):
+                yf_session = _init_ticker._data._session
+            elif hasattr(_init_ticker, 'session'):
+                yf_session = _init_ticker.session
         except Exception:
             pass
-        crumb_resp = yf_session.get(
-            "https://query2.finance.yahoo.com/v1/test/getcrumb",
-            timeout=5,
-        )
-        crumb = crumb_resp.text.strip() if crumb_resp.status_code == 200 else ""
 
-        if not crumb:
-            return []
+        if yf_session is None:
+            # Build our own session copying yfinance's approach
+            yf_session = requests.Session()
+            yf_session.headers.update({
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                              "AppleWebKit/537.36 (KHTML, like Gecko) "
+                              "Chrome/131.0.0.0 Safari/537.36",
+            })
+            try:
+                yf_session.get("https://fc.yahoo.com", timeout=5)
+            except Exception:
+                pass
 
-        # Step 2: Query the screener for earnings on this date
         date_str = target_date.strftime("%Y-%m-%d")
-        # Unix timestamps for start/end of day
-        from datetime import timezone as tz
-        day_start = int(datetime.combine(target_date, datetime.min.time()).replace(tzinfo=tz.utc).timestamp())
-        day_end = int(datetime.combine(target_date, datetime.max.time()).replace(tzinfo=tz.utc).timestamp())
-
-        payload = {
-            "offset": 0,
-            "size": 100,
-            "sortField": "companyshortname",
-            "sortType": "ASC",
-            "quoteType": "EQUITY",
-            "query": {
-                "operator": "and",
-                "operands": [
-                    {"operator": "eq", "operands": ["region", "us"]},
-                    {"operator": "gte", "operands": ["earnings_date", day_start]},
-                    {"operator": "lte", "operands": ["earnings_date", day_end]},
-                ],
-            },
-            "userId": "",
-            "userIdType": "guid",
-        }
-
-        resp = yf_session.post(
-            f"https://query2.finance.yahoo.com/v1/finance/screener?crumb={crumb}",
-            json=payload,
-            timeout=10,
+        resp = yf_session.get(
+            "https://finance.yahoo.com/calendar/earnings",
+            params={"day": date_str},
+            timeout=12,
         )
 
-        if resp.status_code == 200:
-            data = resp.json()
-            quotes = data.get("finance", {}).get("result", [{}])[0].get("quotes", [])
-            for q in quotes:
-                ticker = q.get("symbol", "")
-                if not ticker:
+        if resp.status_code == 200 and len(resp.text) > 1000:
+            # Parse embedded JSON or HTML table
+            results = _parse_calendar_response(resp.text, target_date)
+            if results:
+                return results
+
+    except Exception:
+        pass
+
+    # ── Strategy 2: Scan popular tickers via yfinance get_earnings_dates ──
+    try:
+        results = _scan_popular_tickers(target_date)
+    except Exception:
+        pass
+
+    return results
+
+
+def _parse_calendar_response(html: str, target_date: date) -> list[dict]:
+    """Parse Yahoo Finance earnings calendar HTML response."""
+    import re
+
+    results = []
+
+    # Method 1: Find JSON data in script tags
+    # Yahoo Finance embeds data in various JSON formats within <script> tags
+    for pattern in [
+        r'"rows"\s*:\s*(\[[\s\S]*?\])\s*[,}]',
+        r'"results"\s*:\s*(\[[\s\S]*?\])\s*,\s*"error"',
+        r'"earningsCalendarData"\s*:\s*\{[^}]*"rows"\s*:\s*(\[[\s\S]*?\])',
+    ]:
+        match = re.search(pattern, html)
+        if match:
+            try:
+                data = json.loads(match.group(1))
+                if isinstance(data, list) and data:
+                    for item in data:
+                        row = _normalize_calendar_row(item, target_date)
+                        if row:
+                            results.append(row)
+                    if results:
+                        return results
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+    # Method 2: Parse HTML table with pandas
+    try:
+        tables = pd.read_html(html)
+        if tables:
+            df = tables[0]
+            cols = list(df.columns)
+            for _, row in df.iterrows():
+                vals = list(row)
+                ticker = str(vals[0]).strip() if len(vals) > 0 and pd.notna(vals[0]) else ""
+                if not ticker or ticker == "nan" or len(ticker) > 6:
                     continue
+                company = str(vals[1]).strip() if len(vals) > 1 and pd.notna(vals[1]) else ticker
+                event = str(vals[2]).strip() if len(vals) > 2 and pd.notna(vals[2]) else "Earnings Announcement"
+                call_time = str(vals[3]).strip() if len(vals) > 3 and pd.notna(vals[3]) else "-"
+                eps_est = _safe_float(vals[4]) if len(vals) > 4 else "-"
+                eps_actual = _safe_float(vals[5]) if len(vals) > 5 else "-"
+                surprise = _safe_float(vals[6]) if len(vals) > 6 else "-"
 
-                # Determine call time from earningsTimestamp vs market hours
-                call_time = "-"
-                earn_ts = q.get("earningsTimestamp")
-                if earn_ts:
-                    from datetime import timezone as tz2
-                    earn_dt = datetime.fromtimestamp(earn_ts, tz=tz2.utc)
-                    hour_et = (earn_dt.hour - 5) % 24  # rough UTC to ET
-                    if hour_et < 10:
-                        call_time = "BMO"
-                    elif hour_et >= 16:
-                        call_time = "AMC"
-                    else:
-                        call_time = "TAS"
-
-                # Get EPS data
-                eps_est = q.get("epsForward") or q.get("epsCurrentYear")
-                eps_trail = q.get("epsTrailingTwelveMonths")
+                if call_time not in ("BMO", "AMC", "TAS", "TNS"):
+                    call_time = _map_call_time(call_time)
 
                 results.append({
-                    "ticker": ticker,
-                    "company": q.get("shortName") or q.get("longName") or ticker,
-                    "event": "Earnings Announcement",
+                    "ticker": ticker.upper(),
+                    "company": company,
+                    "event": event,
                     "call_time": call_time,
-                    "eps_estimate": _safe_float(eps_est),
-                    "eps_actual": "-",
-                    "surprise_pct": "-",
+                    "eps_estimate": eps_est,
+                    "eps_actual": eps_actual,
+                    "surprise_pct": surprise,
                     "date": target_date.isoformat(),
                 })
+            if results:
+                return results
+    except Exception:
+        pass
 
-        return results
+    return results
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return []
+
+def _normalize_calendar_row(item: dict, target_date: date) -> dict | None:
+    """Normalize a JSON row from Yahoo Finance calendar data."""
+    try:
+        ticker = (item.get("ticker") or item.get("symbol") or
+                  item.get("Symbol") or "")
+        if not ticker:
+            return None
+
+        company = (item.get("companyshortname") or item.get("companyShortName") or
+                   item.get("shortName") or item.get("Company") or ticker)
+
+        call_time_raw = (item.get("startdatetimetype") or item.get("startDateTimeType") or
+                         item.get("Earnings Call Time") or "")
+
+        return {
+            "ticker": str(ticker).upper().strip(),
+            "company": str(company).strip(),
+            "event": str(item.get("eventname") or item.get("eventName") or
+                        item.get("Event Name") or "Earnings Announcement").strip(),
+            "call_time": _map_call_time(str(call_time_raw)),
+            "eps_estimate": _safe_float(item.get("epsestimate") or item.get("epsEstimate") or
+                                        item.get("EPS Estimate")),
+            "eps_actual": _safe_float(item.get("epsactual") or item.get("epsActual") or
+                                      item.get("Reported EPS")),
+            "surprise_pct": _safe_float(item.get("epssurprisepct") or item.get("epsSurprisePct") or
+                                        item.get("Surprise(%)")),
+            "date": target_date.isoformat(),
+        }
+    except Exception:
+        return None
+
+
+# ── Popular tickers for fallback scanning ──
+_POPULAR_TICKERS = [
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "JPM",
+    "V", "JNJ", "WMT", "PG", "UNH", "HD", "MA", "DIS", "PYPL", "ADBE",
+    "NFLX", "CRM", "INTC", "AMD", "ORCL", "CSCO", "PEP", "KO", "MRK",
+    "ABT", "TMO", "COST", "NKE", "LLY", "AVGO", "QCOM", "TXN", "HON",
+    "LOW", "SBUX", "MDLZ", "GS", "BLK", "AXP", "MS", "C", "BAC", "WFC",
+    "DE", "CAT", "BA", "GE", "RTX", "LMT", "UPS", "FDX", "T", "VZ",
+    "CMCSA", "TMUS", "CVX", "XOM", "COP", "SLB", "EOG", "MPC", "PSX",
+    "PFE", "BMY", "GILD", "AMGN", "REGN", "VRTX", "ISRG", "MDT",
+    "DHR", "SYK", "ZTS", "CI", "ELV", "HCA", "MCK", "CVS",
+    "BRK-B", "SCHW", "MMM", "IBM", "ACN", "NOW", "SNOW", "UBER",
+    "ABNB", "SQ", "SHOP", "PLTR", "RIVN", "LCID", "F", "GM",
+    "AAL", "DAL", "UAL", "LUV", "MAR", "HLT", "WYNN", "MGM",
+]
+
+
+def _scan_popular_tickers(target_date: date) -> list[dict]:
+    """
+    Fallback: Check popular tickers' earnings dates via yfinance.
+    Uses ThreadPoolExecutor for speed. Checks ~120 tickers in batches.
+    """
+    import yfinance as yf
+
+    target_str = target_date.isoformat()
+    results = []
+
+    def _check_ticker(symbol):
+        try:
+            tk = yf.Ticker(symbol)
+            cal = tk.get_earnings_dates(limit=4)
+            if cal is None or cal.empty:
+                return None
+            for idx in cal.index:
+                earn_date = idx.date() if hasattr(idx, 'date') else idx
+                if str(earn_date) == target_str:
+                    eps_est = cal.loc[idx].get("EPS Estimate")
+                    eps_actual = cal.loc[idx].get("Reported EPS")
+                    surprise = cal.loc[idx].get("Surprise(%)")
+                    info = tk.fast_info if hasattr(tk, 'fast_info') else {}
+                    company_name = ""
+                    try:
+                        company_name = tk.info.get("shortName", symbol)
+                    except Exception:
+                        company_name = symbol
+                    return {
+                        "ticker": symbol,
+                        "company": company_name,
+                        "event": "Earnings Announcement",
+                        "call_time": "-",
+                        "eps_estimate": _safe_float(eps_est),
+                        "eps_actual": _safe_float(eps_actual),
+                        "surprise_pct": _safe_float(surprise),
+                        "date": target_str,
+                    }
+        except Exception:
+            pass
+        return None
+
+    # Parallel check with 10 workers, 6s timeout per ticker
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(_check_ticker, t): t for t in _POPULAR_TICKERS}
+        for future in as_completed(futures, timeout=20):
+            try:
+                result = future.result(timeout=5)
+                if result:
+                    results.append(result)
+            except Exception:
+                continue
+
+    return results
 
 
 def _safe_float(val) -> str:
