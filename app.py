@@ -535,6 +535,7 @@ section[data-testid="stSidebar"] {
     cursor: pointer !important;
     min-height: 3rem !important;
     margin-top: 33px !important;
+    margin-bottom: 18px !important;
 }
 .section-header-expanded:hover {
     background: #343a40 !important;
@@ -560,6 +561,7 @@ section[data-testid="stSidebar"] {
     cursor: pointer !important;
     min-height: 3rem !important;
     margin-top: 33px !important;
+    margin-bottom: 18px !important;
 }
 .section-header-collapsed:hover {
     background: #f8f9fa !important;
@@ -1891,6 +1893,9 @@ def render_charts(charts: list, section: str, blocked_charts=None):
 
     n_cols = st.session_state.layout_cols
     for i in range(0, len(valid), n_cols):
+        # Add vertical gap between chart rows (not before the first row)
+        if i > 0:
+            st.markdown('<div style="margin-top:28px;"></div>', unsafe_allow_html=True)
         cols = st.columns(n_cols)
         for j in range(n_cols):
             idx = i + j
