@@ -281,18 +281,7 @@ def render_pricing_page():
             # Build card HTML
             popular_badge = '<div class="popular-badge">MOST POPULAR</div>' if is_popular else ""
 
-            card_html = f"""
-            <div class="{card_class}">
-                {popular_badge}
-                <div class="pricing-plan-name">{plan_name}</div>
-                <div class="pricing-price">${display_price}<span>/mo</span></div>
-                <div class="pricing-desc">{desc_html}</div>
-                <ul class="pricing-features">
-                    {features_html}
-                </ul>
-                <a class="pricing-cta {cta_class}" href="{cta_url}" target="_self">{cta_text}</a>
-            </div>
-            """
+            card_html = f'<div class="{card_class}">{popular_badge}<div class="pricing-plan-name">{plan_name}</div><div class="pricing-price">${display_price}<span>/mo</span></div><div class="pricing-desc">{desc_html}</div><ul class="pricing-features">{features_html}</ul><a class="pricing-cta {cta_class}" href="{cta_url}" target="_self">{cta_text}</a></div>'
             st.markdown(card_html, unsafe_allow_html=True)
 
     # ── FAQ section ──
