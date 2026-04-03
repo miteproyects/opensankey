@@ -2175,159 +2175,272 @@ def _render_seo():
 
 
 def _render_pricing_admin():
-    """💳 Pricing – CRUD pricing plans that auto-update the public pricing page."""
+    """💳 Pricing – Spreadsheet-style CRUD for pricing plans."""
     from database import (get_all_plans, get_plan_by_id, create_plan,
                           update_plan, delete_plan, seed_default_plans)
-
-    st.markdown("### 💳 Pricing Plans Manager")
-    st.caption("Changes here auto-update the public pricing page. Stripe integration is ready for keys.")
 
     # Seed defaults if no plans exist
     all_plans = get_all_plans()
     if not all_plans:
         seed_default_plans()
         all_plans = get_all_plans()
-        st.toast("🌱 Default plans seeded!", icon="✅")
 
-    # ── Stripe Status Banner ──
-    _stripe_configured = bool(os.environ.get("STRIPE_SECRET_KEY"))
-    if _stripe_configured:
-        st.success("✅ Stripe is connected. Checkout sessions are live.")
-    else:
-        st.info("ℹ️ Stripe keys not configured yet. Plans are saved to DB and will work with Stripe once keys are added via environment variables (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`).")
+    # ── Styles ──
+    st.markdown("""
+    <style>
+    .price-admin-header {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-radius: 14px;
+        padding: 20px 24px;
+        margin-bottom: 1.25rem;
+        border: 1px solid rgba(255,255,255,0.06);
+    }
+    .price-admin-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin: 0 0 4px;
+    }
+    .price-admin-sub {
+        font-size: 0.82rem;
+        color: #94a3b8;
+        margin: 0;
+    }
+    .price-admin-stats {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+    }
+    .price-admin-stat {
+        background: rgba(255,255,255,0.08);
+        border-radius: 8px;
+        padding: 4px 12px;
+        font-size: 0.75rem;
+        color: #93c5fd;
+        font-weight: 600;
+    }
+    .price-grid-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #64748b;
+        padding: 6px 0;
+        white-space: nowrap;
+    }
+    .price-grid-section {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #3b82f6;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 10px 0 4px;
+        border-top: 1px solid #e2e8f0;
+        margin-top: 4px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    st.divider()
+    active_count = sum(1 for p in all_plans if p.get("is_active"))
+    popular_plan = next((p["name"] for p in all_plans if p.get("is_popular")), "None")
+    stripe_ok = bool(os.environ.get("STRIPE_SECRET_KEY"))
 
-    # ── Add New Plan ──
-    with st.expander("➕ Add New Plan", expanded=False):
-        with st.form("add_plan_form", clear_on_submit=True):
-            st.markdown("**New Pricing Plan**")
-            _c1, _c2 = st.columns(2)
-            with _c1:
-                _new_slug = st.text_input("Slug (unique ID)", placeholder="e.g. pro-plus", key="np_slug")
-                _new_name = st.text_input("Display Name", placeholder="e.g. Pro Plus", key="np_name")
-                _new_desc = st.text_input("Short Description", placeholder="For power users", key="np_desc")
-                _new_price_m = st.number_input("Monthly Price ($)", min_value=0.0, step=1.0, format="%.2f", key="np_pm")
-                _new_price_a = st.number_input("Annual Price ($/yr)", min_value=0.0, step=1.0, format="%.2f", key="np_pa")
-            with _c2:
-                _new_features = st.text_area("Features (one per line)", height=120, key="np_feat",
-                                             placeholder="Feature 1\nFeature 2\nFeature 3")
-                _new_cta = st.text_input("CTA Button Text", value="Get Started", key="np_cta")
-                _new_cta_url = st.text_input("CTA URL (optional)", placeholder="/checkout?plan=pro-plus", key="np_cta_url")
-                _new_sort = st.number_input("Sort Order", min_value=0, value=0, key="np_sort")
-                _new_popular = st.checkbox("⭐ Mark as Popular", key="np_pop")
+    st.markdown(f"""
+    <div class="price-admin-header">
+        <div class="price-admin-title">Pricing Plans Manager</div>
+        <p class="price-admin-sub">Spreadsheet editor — changes auto-update the public pricing page.</p>
+        <div class="price-admin-stats">
+            <span class="price-admin-stat">{len(all_plans)} plans</span>
+            <span class="price-admin-stat">{active_count} active</span>
+            <span class="price-admin-stat">Popular: {popular_plan}</span>
+            <span class="price-admin-stat">Stripe: {'Connected' if stripe_ok else 'Not configured'}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-            _c3, _c4 = st.columns(2)
-            with _c3:
-                _new_stripe_prod = st.text_input("Stripe Product ID", placeholder="prod_xxx (add later)", key="np_sp")
-                _new_stripe_pm = st.text_input("Stripe Monthly Price ID", placeholder="price_xxx", key="np_spm")
-            with _c4:
-                _new_stripe_pa = st.text_input("Stripe Annual Price ID", placeholder="price_xxx", key="np_spa")
+    # ── Add New Plan button ──
+    add_col, _, _ = st.columns([1, 1, 4])
+    with add_col:
+        if st.button("➕ Add New Plan", use_container_width=True, key="price_add_btn"):
+            st.session_state["_price_adding"] = True
 
-            if st.form_submit_button("✅ Create Plan", type="primary"):
-                if not _new_slug or not _new_name:
-                    st.error("Slug and Name are required.")
-                else:
-                    _feat_list = [f.strip() for f in _new_features.strip().split("\n") if f.strip()] if _new_features.strip() else []
-                    _result = create_plan(
-                        slug=_new_slug.strip().lower().replace(" ", "-"),
-                        name=_new_name.strip(),
-                        description=_new_desc.strip(),
-                        price_monthly=_new_price_m,
-                        price_annual=_new_price_a,
-                        features=_feat_list,
-                        cta_text=_new_cta.strip() or "Get Started",
-                        cta_url=_new_cta_url.strip(),
-                        is_popular=_new_popular,
-                        sort_order=_new_sort,
-                        stripe_product_id=_new_stripe_prod.strip(),
-                        stripe_price_monthly=_new_stripe_pm.strip(),
-                        stripe_price_annual=_new_stripe_pa.strip(),
-                    )
-                    if _result:
-                        st.success(f"✅ Plan '{_new_name}' created!")
-                        st.rerun()
-                    else:
-                        st.error("Failed to create plan. Check slug uniqueness.")
-
-    st.divider()
-
-    # ── Existing Plans ──
-    st.markdown(f"**Existing Plans ({len(all_plans)})**")
-
-    for _plan in all_plans:
-        _pid = _plan["id"]
-        _status_icon = "🟢" if _plan.get("is_active") else "🔴"
-        _pop_badge = " ⭐" if _plan.get("is_popular") else ""
-        _price_txt = f"${_plan.get('price_monthly', 0):.0f}/mo · ${_plan.get('price_annual', 0):.0f}/yr"
-
-        with st.expander(f"{_status_icon} {_plan['name']}{_pop_badge} — {_price_txt}", expanded=False):
-            with st.form(f"edit_plan_{_pid}"):
-                _ec1, _ec2 = st.columns(2)
-                with _ec1:
-                    _e_name = st.text_input("Name", value=_plan.get("name", ""), key=f"ep_name_{_pid}")
-                    _e_slug = st.text_input("Slug", value=_plan.get("slug", ""), key=f"ep_slug_{_pid}")
-                    _e_desc = st.text_input("Description", value=_plan.get("description", ""), key=f"ep_desc_{_pid}")
-                    _e_pm = st.number_input("Monthly ($)", value=float(_plan.get("price_monthly", 0)), min_value=0.0, step=1.0, format="%.2f", key=f"ep_pm_{_pid}")
-                    _e_pa = st.number_input("Annual ($/yr)", value=float(_plan.get("price_annual", 0)), min_value=0.0, step=1.0, format="%.2f", key=f"ep_pa_{_pid}")
-                    _e_sort = st.number_input("Sort Order", value=int(_plan.get("sort_order", 0)), min_value=0, key=f"ep_sort_{_pid}")
-                with _ec2:
-                    _existing_feats = _plan.get("features", [])
-                    if isinstance(_existing_feats, str):
-                        try:
-                            _existing_feats = json.loads(_existing_feats)
-                        except Exception:
-                            _existing_feats = []
-                    _e_feat = st.text_area("Features (one per line)",
-                                           value="\n".join(_existing_feats) if isinstance(_existing_feats, list) else "",
-                                           height=120, key=f"ep_feat_{_pid}")
-                    _e_cta = st.text_input("CTA Text", value=_plan.get("cta_text", "Get Started"), key=f"ep_cta_{_pid}")
-                    _e_cta_url = st.text_input("CTA URL", value=_plan.get("cta_url", ""), key=f"ep_cta_url_{_pid}")
-                    _e_popular = st.checkbox("⭐ Popular", value=bool(_plan.get("is_popular")), key=f"ep_pop_{_pid}")
-                    _e_active = st.checkbox("✅ Active", value=bool(_plan.get("is_active", True)), key=f"ep_act_{_pid}")
-
-                _sc1, _sc2 = st.columns(2)
-                with _sc1:
-                    _e_stripe_prod = st.text_input("Stripe Product ID", value=_plan.get("stripe_product_id", ""), key=f"ep_sp_{_pid}")
-                    _e_stripe_pm = st.text_input("Stripe Monthly Price ID", value=_plan.get("stripe_price_monthly", ""), key=f"ep_spm_{_pid}")
-                with _sc2:
-                    _e_stripe_pa = st.text_input("Stripe Annual Price ID", value=_plan.get("stripe_price_annual", ""), key=f"ep_spa_{_pid}")
-
-                _btn_c1, _btn_c2 = st.columns([3, 1])
-                with _btn_c1:
-                    _save = st.form_submit_button("💾 Save Changes", type="primary")
-                with _btn_c2:
-                    _del = st.form_submit_button("🗑️ Delete", type="secondary")
-
-                if _save:
-                    _feat_list = [f.strip() for f in _e_feat.strip().split("\n") if f.strip()] if _e_feat.strip() else []
-                    _updated = update_plan(
-                        _pid,
-                        name=_e_name.strip(),
-                        slug=_e_slug.strip().lower().replace(" ", "-"),
-                        description=_e_desc.strip(),
-                        price_monthly=_e_pm,
-                        price_annual=_e_pa,
-                        features=_feat_list,
-                        cta_text=_e_cta.strip(),
-                        cta_url=_e_cta_url.strip(),
-                        is_popular=_e_popular,
-                        is_active=_e_active,
-                        sort_order=_e_sort,
-                        stripe_product_id=_e_stripe_prod.strip(),
-                        stripe_price_monthly=_e_stripe_pm.strip(),
-                        stripe_price_annual=_e_stripe_pa.strip(),
-                    )
-                    if _updated:
-                        st.success(f"✅ '{_e_name}' updated!")
-                        st.rerun()
-                    else:
-                        st.error("Update failed. Check slug uniqueness.")
-
-                if _del:
-                    delete_plan(_pid)
-                    st.toast(f"🗑️ Plan '{_plan['name']}' deleted.", icon="🗑️")
+    if st.session_state.get("_price_adding"):
+        with st.form("add_plan_quick", clear_on_submit=True):
+            ac1, ac2 = st.columns(2)
+            with ac1:
+                _ns = st.text_input("Slug", placeholder="e.g. pro-plus", key="nq_slug")
+                _nn = st.text_input("Name", placeholder="e.g. Pro Plus", key="nq_name")
+            with ac2:
+                _npm = st.number_input("Monthly ($)", min_value=0.0, step=1.0, value=0.0, key="nq_pm")
+                _nso = st.number_input("Sort Order", min_value=0, value=len(all_plans), key="nq_so")
+            if st.form_submit_button("Create Plan", type="primary"):
+                if _ns and _nn:
+                    create_plan(slug=_ns.strip().lower().replace(" ", "-"),
+                                name=_nn.strip(), price_monthly=_npm, sort_order=_nso)
+                    st.session_state["_price_adding"] = False
+                    st.toast(f"Plan '{_nn}' created!", icon="✅")
                     st.rerun()
+                else:
+                    st.error("Slug and Name are required.")
+
+    # ── Spreadsheet grid ──
+    # Build columns: [Label] + [Plan1] + [Plan2] + ...
+    n = len(all_plans)
+    plan_widths = [1.2] + [1] * n  # label column slightly wider
+
+    with st.form("pricing_grid_form"):
+        # ── SECTION: Identity ──
+        st.markdown('<div class="price-grid-section">Identity</div>', unsafe_allow_html=True)
+
+        # Name row
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Name</div>', unsafe_allow_html=True)
+        _names = {}
+        for i, p in enumerate(all_plans):
+            _names[p["id"]] = cols[i + 1].text_input("n", value=p.get("name", ""), key=f"g_name_{p['id']}", label_visibility="collapsed")
+
+        # Slug row
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Slug</div>', unsafe_allow_html=True)
+        _slugs = {}
+        for i, p in enumerate(all_plans):
+            _slugs[p["id"]] = cols[i + 1].text_input("s", value=p.get("slug", ""), key=f"g_slug_{p['id']}", label_visibility="collapsed")
+
+        # Description row
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Description</div>', unsafe_allow_html=True)
+        _descs = {}
+        for i, p in enumerate(all_plans):
+            _descs[p["id"]] = cols[i + 1].text_input("d", value=p.get("description", ""), key=f"g_desc_{p['id']}", label_visibility="collapsed")
+
+        # ── SECTION: Pricing ──
+        st.markdown('<div class="price-grid-section">Pricing</div>', unsafe_allow_html=True)
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Monthly ($)</div>', unsafe_allow_html=True)
+        _pms = {}
+        for i, p in enumerate(all_plans):
+            _pms[p["id"]] = cols[i + 1].number_input("pm", value=float(p.get("price_monthly", 0)), min_value=0.0, step=1.0, format="%.0f", key=f"g_pm_{p['id']}", label_visibility="collapsed")
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Annual ($/yr)</div>', unsafe_allow_html=True)
+        _pas = {}
+        for i, p in enumerate(all_plans):
+            _pas[p["id"]] = cols[i + 1].number_input("pa", value=float(p.get("price_annual", 0)), min_value=0.0, step=1.0, format="%.0f", key=f"g_pa_{p['id']}", label_visibility="collapsed")
+
+        # ── SECTION: Features ──
+        st.markdown('<div class="price-grid-section">Features (one per line)</div>', unsafe_allow_html=True)
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label"></div>', unsafe_allow_html=True)
+        _feats = {}
+        for i, p in enumerate(all_plans):
+            existing = p.get("features", [])
+            if isinstance(existing, str):
+                try:
+                    existing = json.loads(existing)
+                except Exception:
+                    existing = []
+            _feats[p["id"]] = cols[i + 1].text_area("f", value="\n".join(existing) if isinstance(existing, list) else "", height=160, key=f"g_feat_{p['id']}", label_visibility="collapsed")
+
+        # ── SECTION: CTA ──
+        st.markdown('<div class="price-grid-section">Call to Action</div>', unsafe_allow_html=True)
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">CTA Text</div>', unsafe_allow_html=True)
+        _ctas = {}
+        for i, p in enumerate(all_plans):
+            _ctas[p["id"]] = cols[i + 1].text_input("ct", value=p.get("cta_text", "Get Started"), key=f"g_cta_{p['id']}", label_visibility="collapsed")
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">CTA URL</div>', unsafe_allow_html=True)
+        _cta_urls = {}
+        for i, p in enumerate(all_plans):
+            _cta_urls[p["id"]] = cols[i + 1].text_input("cu", value=p.get("cta_url", ""), key=f"g_cta_url_{p['id']}", label_visibility="collapsed")
+
+        # ── SECTION: Settings ──
+        st.markdown('<div class="price-grid-section">Settings</div>', unsafe_allow_html=True)
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Sort Order</div>', unsafe_allow_html=True)
+        _sorts = {}
+        for i, p in enumerate(all_plans):
+            _sorts[p["id"]] = cols[i + 1].number_input("so", value=int(p.get("sort_order", 0)), min_value=0, key=f"g_sort_{p['id']}", label_visibility="collapsed")
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Popular</div>', unsafe_allow_html=True)
+        _pops = {}
+        for i, p in enumerate(all_plans):
+            _pops[p["id"]] = cols[i + 1].checkbox("pop", value=bool(p.get("is_popular")), key=f"g_pop_{p['id']}", label_visibility="collapsed")
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Active</div>', unsafe_allow_html=True)
+        _acts = {}
+        for i, p in enumerate(all_plans):
+            _acts[p["id"]] = cols[i + 1].checkbox("act", value=bool(p.get("is_active", True)), key=f"g_act_{p['id']}", label_visibility="collapsed")
+
+        # ── SECTION: Stripe ──
+        st.markdown('<div class="price-grid-section">Stripe Integration</div>', unsafe_allow_html=True)
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Product ID</div>', unsafe_allow_html=True)
+        _sps = {}
+        for i, p in enumerate(all_plans):
+            _sps[p["id"]] = cols[i + 1].text_input("sp", value=p.get("stripe_product_id", ""), key=f"g_sp_{p['id']}", label_visibility="collapsed")
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Monthly Price ID</div>', unsafe_allow_html=True)
+        _spms = {}
+        for i, p in enumerate(all_plans):
+            _spms[p["id"]] = cols[i + 1].text_input("spm", value=p.get("stripe_price_monthly", ""), key=f"g_spm_{p['id']}", label_visibility="collapsed")
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Annual Price ID</div>', unsafe_allow_html=True)
+        _spas = {}
+        for i, p in enumerate(all_plans):
+            _spas[p["id"]] = cols[i + 1].text_input("spa", value=p.get("stripe_price_annual", ""), key=f"g_spa_{p['id']}", label_visibility="collapsed")
+
+        # ── Action buttons ──
+        st.markdown("<div style='margin-top:1rem'></div>", unsafe_allow_html=True)
+        btn_cols = st.columns(plan_widths)
+        btn_cols[0].markdown("")
+        _save_all = st.form_submit_button("💾 Save All Changes", type="primary", use_container_width=True)
+
+    if _save_all:
+        _ok = 0
+        for p in all_plans:
+            pid = p["id"]
+            feat_text = _feats.get(pid, "")
+            feat_list = [f.strip() for f in feat_text.strip().split("\n") if f.strip()] if feat_text.strip() else []
+            result = update_plan(
+                pid,
+                name=(_names.get(pid, "") or "").strip(),
+                slug=(_slugs.get(pid, "") or "").strip().lower().replace(" ", "-"),
+                description=(_descs.get(pid, "") or "").strip(),
+                price_monthly=_pms.get(pid, 0),
+                price_annual=_pas.get(pid, 0),
+                features=feat_list,
+                cta_text=(_ctas.get(pid, "") or "").strip(),
+                cta_url=(_cta_urls.get(pid, "") or "").strip(),
+                is_popular=_pops.get(pid, False),
+                is_active=_acts.get(pid, True),
+                sort_order=_sorts.get(pid, 0),
+                stripe_product_id=(_sps.get(pid, "") or "").strip(),
+                stripe_price_monthly=(_spms.get(pid, "") or "").strip(),
+                stripe_price_annual=(_spas.get(pid, "") or "").strip(),
+            )
+            if result:
+                _ok += 1
+        st.toast(f"Saved {_ok}/{len(all_plans)} plans!", icon="💾")
+        st.rerun()
+
+    # ── Delete section ──
+    st.markdown("<div style='margin-top:1rem'></div>", unsafe_allow_html=True)
+    with st.expander("🗑️ Delete a Plan"):
+        del_options = {f"{p['name']} ({p['slug']})": p["id"] for p in all_plans}
+        del_choice = st.selectbox("Select plan to delete", options=list(del_options.keys()), key="price_del_select")
+        if st.button("Delete Plan", type="secondary", key="price_del_btn"):
+            delete_plan(del_options[del_choice])
+            st.toast(f"Deleted '{del_choice}'", icon="🗑️")
+            st.rerun()
 
 
 _CONTEXT_PATH = os.path.join(os.path.dirname(__file__), "CONTEXT.md")
