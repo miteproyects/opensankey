@@ -1927,13 +1927,10 @@ current_page = st.session_state.page
 
 # Nav bar with page switching (using <a> links for reliable navigation)
 # Auth params carry login session across full page reloads caused by <a> tag navigation
-# ── Build timestamp from last git commit ──
-import subprocess as _sp
+# ── Build timestamp: app startup time (updates on each deploy/restart) ──
+from datetime import datetime as _dt, timezone as _tz, timedelta as _td
 try:
-    _build_ts = _sp.check_output(
-        ["git", "log", "-1", "--format=%cd", "--date=format:%H:%M"],
-        cwd=os.path.dirname(__file__), stderr=_sp.DEVNULL
-    ).decode().strip()
+    _build_ts = _dt.now(_tz(_td(hours=-5))).strftime("%H:%M")
 except Exception:
     _build_ts = ""
 
