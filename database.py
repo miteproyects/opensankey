@@ -855,7 +855,13 @@ def get_user_plan_access(user_id: int | None = None) -> dict:
                 "redirect_allowed": "charts", "redirect_blocked": "pricing"}
 
     if user_id is None:
-        plan = get_plan_by_slug("no-login") or get_plan_by_slug("free")
+        # Only consider ACTIVE plans for non-logged-in users
+        _nologin = get_plan_by_slug("no-login")
+        if _nologin and _nologin.get("is_active"):
+            plan = _nologin
+        else:
+            _free = get_plan_by_slug("free")
+            plan = _free if (_free and _free.get("is_active")) else None
     else:
         plan = None
         with get_connection() as conn:
@@ -880,7 +886,8 @@ def get_user_plan_access(user_id: int | None = None) -> dict:
                         return {"allowed_tickers": {t.strip().upper() for t in tickers_str.split(",") if t.strip()},
                                 "redirect_allowed": r_allowed,
                                 "redirect_blocked": r_blocked}
-        plan = get_plan_by_slug("free")
+        _free = get_plan_by_slug("free")
+        plan = _free if (_free and _free.get("is_active")) else None
 
     if plan is None:
         return _default
