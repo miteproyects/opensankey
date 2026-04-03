@@ -2655,9 +2655,9 @@ def render_nsfe_page():
     # ── Main Menu (Streamlit tabs) ──
     _sync_steps()
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "📋 Dashboard", "🛡️ Security", "⚙️ Settings",
-        "🤖 AI Assistant", "🛡️ Certifications", "🏗️ Infrastructure",
+        "🛡️ Certifications", "🏗️ Infrastructure",
         "👥 Team & Admin", "🔍 SEO", "💳 Pricing", "🧠 Memory",
     ])
 
@@ -2667,25 +2667,23 @@ def render_nsfe_page():
         _render_security()
     with tab3:
         _render_settings()
-    with tab4:
-        _render_chat()
 
-    with tab5:
+    with tab4:
         _render_certifications()
 
-    with tab6:
+    with tab5:
         _render_infrastructure()
 
-    with tab7:
+    with tab6:
         _render_team_admin()
 
-    with tab8:
+    with tab7:
         _render_seo()
 
-    with tab9:
+    with tab8:
         _render_pricing_admin()
 
-    with tab10:
+    with tab9:
         _render_memory()
 
     # Footer
