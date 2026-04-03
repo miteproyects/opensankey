@@ -3,6 +3,22 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 
+def _get_allowed_tickers_json():
+    """Return JSON array of allowed tickers for the current user, or null if ALL."""
+    import json
+    try:
+        from database import get_user_plan_access
+        _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
+        access = get_user_plan_access(_uid)
+        allowed = access["allowed_tickers"]
+        redirect = access.get("redirect_blocked", "pricing")
+        if allowed is None:
+            return "null", json.dumps(redirect)
+        return json.dumps(sorted(allowed)), json.dumps(redirect)
+    except Exception:
+        return "null", '"pricing"'
+
+
 def render_home_page():
     """Full-width marketing landing page with ticker search."""
 
@@ -29,7 +45,10 @@ def render_home_page():
     # ── ENTIRE home page as a single components.html block ──
     # This guarantees: no Streamlit style interference, JS works,
     # and the whole page is one seamless visual.
-    components.html("""
+    _allowed_json, _redir_json = _get_allowed_tickers_json()
+    components.html(f"""
+    <script>var __ALLOWED_TICKERS = {_allowed_json}; var __REDIR_PAGE = {_redir_json};</script>"""
+    """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
 
@@ -481,7 +500,12 @@ def render_home_page():
     function goSearch() {
         var v = document.getElementById('ticker').value.trim().toUpperCase();
         if (!v) return;
-        var url = '/?page=charts&ticker=' + encodeURIComponent(v);
+        // Ticker access gating
+        if (__ALLOWED_TICKERS !== null && __ALLOWED_TICKERS.indexOf(v) === -1) {
+            var url = '/?page=' + encodeURIComponent(__REDIR_PAGE) + '&ticker=' + encodeURIComponent(v);
+        } else {
+            var url = '/?page=charts&ticker=' + encodeURIComponent(v);
+        }
         try {
             var a = window.parent.document.createElement('a');
             a.href = url;
