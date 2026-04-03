@@ -2381,18 +2381,25 @@ def _render_pricing_admin():
         # ── SECTION: Ticker Access ──
         st.markdown('<div class="price-grid-section">Ticker Access</div>', unsafe_allow_html=True)
 
-        # Build multiselect options: "All tickers available" + individual tickers
         _pool = st.session_state["_ticker_pool"]
-        _ALL_LABEL = "All tickers available"
-        _multiselect_options = [_ALL_LABEL] + sorted(_pool)
+        _multiselect_options = sorted(_pool)
 
+        # Row 1: "All tickers available" checkbox per plan
         cols = st.columns(plan_widths)
-        cols[0].markdown('<div class="price-grid-label">Allowed Tickers</div>', unsafe_allow_html=True)
+        cols[0].markdown('<div class="price-grid-label">All tickers available</div>', unsafe_allow_html=True)
+        _all_tickers_chk = {}
+        for i, p in enumerate(all_plans):
+            cur_val = (p.get("allowed_tickers", "") or "").strip().upper()
+            _all_tickers_chk[p["id"]] = cols[i + 1].checkbox("alltk", value=(cur_val == "ALL"), key=f"g_alltk_{p['id']}", label_visibility="collapsed")
+
+        # Row 2: Specific tickers multiselect (only matters when checkbox is unchecked)
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Specific Tickers</div>', unsafe_allow_html=True)
         _tickers = {}
         for i, p in enumerate(all_plans):
             cur_val = (p.get("allowed_tickers", "") or "").strip().upper()
             if cur_val == "ALL":
-                _default_sel = [_ALL_LABEL]
+                _default_sel = []
             else:
                 _default_sel = [t.strip() for t in cur_val.split(",") if t.strip() and t.strip() in _pool]
             _tickers[p["id"]] = cols[i + 1].multiselect("tk", options=_multiselect_options, default=_default_sel, key=f"g_tk_{p['id']}", label_visibility="collapsed")
@@ -2486,12 +2493,12 @@ def _render_pricing_admin():
             pid = p["id"]
             feat_text = _feats.get(pid, "")
             feat_list = [f.strip() for f in feat_text.strip().split("\n") if f.strip()] if feat_text.strip() else []
-            # Normalize allowed_tickers from multiselect list
-            sel_tickers = _tickers.get(pid, [])
-            if not sel_tickers or _ALL_LABEL in sel_tickers:
+            # Normalize allowed_tickers: checkbox = ALL, otherwise use multiselect
+            if _all_tickers_chk.get(pid, False):
                 norm_tk = "ALL"
             else:
-                norm_tk = ",".join(sorted(t.upper() for t in sel_tickers if t != _ALL_LABEL))
+                sel_tickers = _tickers.get(pid, [])
+                norm_tk = ",".join(sorted(t.upper() for t in sel_tickers)) if sel_tickers else "ALL"
             result = update_plan(
                 pid,
                 name=(_names.get(pid, "") or "").strip(),
