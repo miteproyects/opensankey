@@ -2378,8 +2378,8 @@ def _render_pricing_admin():
                     existing = []
             _feats[p["id"]] = cols[i + 1].text_area("f", value="\n".join(existing) if isinstance(existing, list) else "", height=160, key=f"g_feat_{p['id']}", label_visibility="collapsed")
 
-        # ── SECTION: Ticker Access ──
-        st.markdown('<div class="price-grid-section">Ticker Access</div>', unsafe_allow_html=True)
+        # ── SECTION: Subscription Access ──
+        st.markdown('<div class="price-grid-section">Subscription Access</div>', unsafe_allow_html=True)
 
         _pool = st.session_state["_ticker_pool"]
         _multiselect_options = sorted(_pool)
