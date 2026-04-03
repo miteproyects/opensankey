@@ -1927,19 +1927,34 @@ current_page = st.session_state.page
 
 # Nav bar with page switching (using <a> links for reliable navigation)
 # Auth params carry login session across full page reloads caused by <a> tag navigation
-# ── Deploy timestamps: commit time (from file) → live time (app startup) ──
+# ── Deploy timestamps: commit time (from file) → live time (first boot) ──
 from datetime import datetime as _dt, timezone as _tz, timedelta as _td
 _ECT = _tz(_td(hours=-5))
+_app_dir = os.path.dirname(__file__)
 # Commit time: written to BUILD_TS by pre-commit hook (MM:SS)
 try:
-    with open(os.path.join(os.path.dirname(__file__), "BUILD_TS"), "r") as _bf:
+    with open(os.path.join(_app_dir, "BUILD_TS"), "r") as _bf:
         _commit_ts = _bf.read().strip()
 except Exception:
     _commit_ts = "--:--"
-# Live time: when Railway started the app after deploy (MM:SS)
-if "_app_live_ts" not in st.session_state:
-    st.session_state["_app_live_ts"] = _dt.now(_ECT).strftime("%M:%S")
-_live_ts = st.session_state["_app_live_ts"]
+# Live time: written once on first app boot after deploy
+# Uses BUILD_TS content as key — only updates when a new deploy arrives
+_live_ts_path = os.path.join(_app_dir, "LIVE_TS")
+try:
+    with open(_live_ts_path, "r") as _lf:
+        _live_data = _lf.read().strip().split("|")
+    # Format: "commit_ts|live_ts" — only valid if commit_ts matches current
+    if len(_live_data) == 2 and _live_data[0] == _commit_ts:
+        _live_ts = _live_data[1]
+    else:
+        raise ValueError("stale")
+except Exception:
+    _live_ts = _dt.now(_ECT).strftime("%M:%S")
+    try:
+        with open(_live_ts_path, "w") as _lf:
+            _lf.write(f"{_commit_ts}|{_live_ts}")
+    except Exception:
+        pass
 _build_ts = f"{_commit_ts} → {_live_ts}"
 
 _auth_params = get_auth_params()

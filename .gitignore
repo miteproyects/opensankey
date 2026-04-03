@@ -12,3 +12,4 @@ build/
 .streamlit/secrets.toml
 
 .DS_Store
+LIVE_TS
