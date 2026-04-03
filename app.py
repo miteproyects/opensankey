@@ -447,6 +447,7 @@ section[data-testid="stSidebar"] {
     gap: 0 !important;
     align-items: center !important;
     margin-top: 33px !important;
+    margin-bottom: 20px !important;
 }
 [data-testid="stHorizontalBlock"]:has([class*="st-key-hdr_show_income"]):not(.section-row-expanded):not(.section-row-collapsed) {
     margin-top: 10px !important;
@@ -535,7 +536,6 @@ section[data-testid="stSidebar"] {
     cursor: pointer !important;
     min-height: 3rem !important;
     margin-top: 33px !important;
-    margin-bottom: 18px !important;
 }
 .section-header-expanded:hover {
     background: #343a40 !important;
@@ -561,7 +561,6 @@ section[data-testid="stSidebar"] {
     cursor: pointer !important;
     min-height: 3rem !important;
     margin-top: 33px !important;
-    margin-bottom: 18px !important;
 }
 .section-header-collapsed:hover {
     background: #f8f9fa !important;
@@ -585,6 +584,7 @@ section[data-testid="stSidebar"] {
     gap: 0 !important;
     align-items: center !important;
     margin-top: 33px !important;
+    margin-bottom: 20px !important;
 }
         [data-testid="stHorizontalBlock"].section-row-expanded:has([class*="st-key-hdr_show_income"]),
         [data-testid="stHorizontalBlock"].section-row-collapsed:has([class*="st-key-hdr_show_income"]) {
@@ -598,6 +598,7 @@ section[data-testid="stSidebar"] {
     gap: 0 !important;
     align-items: center !important;
     margin-top: 33px !important;
+    margin-bottom: 20px !important;
 }
 /* Header button inside row should be transparent (row provides background) */
 .section-row-expanded .section-header-expanded,
@@ -2841,6 +2842,20 @@ if current_page == "terms":
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 # Main content area Ã¢ÂÂ fetch data & render charts (charts page only)
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+
+# ── Final ticker gating: block restricted tickers before rendering charts ──
+try:
+    from database import get_user_plan_access as _final_upa
+    _final_uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
+    _final_access = _final_upa(_final_uid)
+    _final_allowed = _final_access["allowed_tickers"]
+    if _final_allowed is not None and ticker not in _final_allowed:
+        _final_redir = _final_access.get("redirect_blocked", "pricing")
+        st.query_params.update({"page": _final_redir, "ticker": ticker})
+        st.session_state.page = _final_redir
+        st.rerun()
+except Exception:
+    pass
 
 quarterly = st.session_state.quarterly
 
