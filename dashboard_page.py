@@ -94,11 +94,11 @@ def render_dashboard_page():
             if t:
                 # ── Ticker access gating ──
                 try:
-                    from database import get_allowed_tickers_for_user
+                    from database import get_user_plan_access
                     _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
-                    _allowed = get_allowed_tickers_for_user(_uid)
-                    if _allowed is not None and t not in _allowed:
-                        st.query_params.update({"page": "pricing", "ticker": t})
+                    _access = get_user_plan_access(_uid)
+                    if _access["allowed_tickers"] is not None and t not in _access["allowed_tickers"]:
+                        st.query_params.update({"page": _access["redirect_blocked"], "ticker": t})
                         st.rerun()
                 except Exception:
                     pass

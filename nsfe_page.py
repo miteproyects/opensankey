@@ -2397,6 +2397,26 @@ def _render_pricing_admin():
                 _default_sel = [t.strip() for t in cur_val.split(",") if t.strip() and t.strip() in _pool]
             _tickers[p["id"]] = cols[i + 1].multiselect("tk", options=_multiselect_options, default=_default_sel, key=f"g_tk_{p['id']}", label_visibility="collapsed")
 
+        _page_options = ["charts", "sankey", "profile", "pricing", "dashboard", "home"]
+
+        # If Allowed → Go to:
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">If Allowed → Go to</div>', unsafe_allow_html=True)
+        _redir_ok = {}
+        for i, p in enumerate(all_plans):
+            cur_ra = p.get("redirect_allowed", "charts")
+            _idx = _page_options.index(cur_ra) if cur_ra in _page_options else 0
+            _redir_ok[p["id"]] = cols[i + 1].selectbox("ra", options=_page_options, index=_idx, key=f"g_ra_{p['id']}", label_visibility="collapsed")
+
+        # If Not Allowed → Go to:
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">If Not Allowed → Go to</div>', unsafe_allow_html=True)
+        _redir_no = {}
+        for i, p in enumerate(all_plans):
+            cur_rb = p.get("redirect_blocked", "pricing")
+            _idx = _page_options.index(cur_rb) if cur_rb in _page_options else 3
+            _redir_no[p["id"]] = cols[i + 1].selectbox("rb", options=_page_options, index=_idx, key=f"g_rb_{p['id']}", label_visibility="collapsed")
+
         # ── SECTION: CTA ──
         st.markdown('<div class="price-grid-section">Call to Action</div>', unsafe_allow_html=True)
 
@@ -2488,6 +2508,8 @@ def _render_pricing_admin():
                 is_active=_acts.get(pid, True),
                 sort_order=_sorts.get(pid, 0),
                 allowed_tickers=norm_tk,
+                redirect_allowed=_redir_ok.get(pid, "charts"),
+                redirect_blocked=_redir_no.get(pid, "pricing"),
                 stripe_product_id=(_sps.get(pid, "") or "").strip(),
                 stripe_price_monthly=(_spms.get(pid, "") or "").strip(),
                 stripe_price_annual=(_spas.get(pid, "") or "").strip(),
@@ -2506,6 +2528,211 @@ def _render_pricing_admin():
             delete_plan(del_options[del_choice])
             st.toast(f"Deleted '{del_choice}'", icon="🗑️")
             st.rerun()
+
+
+def _render_users_admin():
+    """👥 Users – Admin dashboard for user management and plan assignments."""
+    from database import (get_all_users_admin, get_user_stats, get_all_plans,
+                          assign_user_plan, toggle_user_active)
+
+    # ── Styles ──
+    st.markdown("""
+    <style>
+    .users-admin-header {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-radius: 14px;
+        padding: 20px 24px;
+        margin-bottom: 1.25rem;
+        border: 1px solid rgba(255,255,255,0.06);
+    }
+    .users-admin-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin: 0 0 4px;
+    }
+    .users-admin-sub {
+        font-size: 0.82rem;
+        color: #94a3b8;
+        margin: 0;
+    }
+    .users-stats {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+    }
+    .users-stat {
+        background: rgba(255,255,255,0.08);
+        border-radius: 8px;
+        padding: 4px 12px;
+        font-size: 0.75rem;
+        color: #93c5fd;
+        font-weight: 600;
+    }
+    .user-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 8px;
+        transition: all 0.15s ease;
+    }
+    .user-card:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    }
+    .user-name {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+    }
+    .user-email {
+        font-size: 0.82rem;
+        color: #64748b;
+        margin: 0;
+    }
+    .user-meta {
+        font-size: 0.72rem;
+        color: #94a3b8;
+        margin: 2px 0 0;
+    }
+    .plan-badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .plan-free { background: #f1f5f9; color: #64748b; }
+    .plan-pro { background: #dbeafe; color: #2563eb; }
+    .plan-enterprise { background: #1e293b; color: #f1f5f9; }
+    .plan-admin { background: #dcfce7; color: #16a34a; }
+    .status-active { color: #16a34a; }
+    .status-inactive { color: #ef4444; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ── Header with stats ──
+    stats = get_user_stats()
+    st.markdown(f"""
+    <div class="users-admin-header">
+        <div class="users-admin-title">User Management</div>
+        <p class="users-admin-sub">View all registered users, manage plans, and monitor activity.</p>
+        <div class="users-stats">
+            <span class="users-stat">👤 {stats['total']} total users</span>
+            <span class="users-stat">🟢 {stats['active_today']} active today</span>
+            <span class="users-stat">📅 {stats['active_week']} active this week</span>
+            <span class="users-stat">🔑 {stats['google_users']} Google sign-in</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    users = get_all_users_admin()
+    all_plans = get_all_plans()
+    plan_options = {p["name"]: p["slug"] for p in all_plans}
+
+    if not users:
+        st.info("No users found. Users will appear here after they sign in.")
+        return
+
+    # ── Search / filter ──
+    fc1, fc2, fc3 = st.columns([2, 1, 1])
+    with fc1:
+        search_q = st.text_input("🔍 Search users", placeholder="Name or email...",
+                                  key="users_search", label_visibility="collapsed")
+    with fc2:
+        plan_filter = st.selectbox("Filter by plan", ["All Plans"] + list(plan_options.keys()),
+                                    key="users_plan_filter", label_visibility="collapsed")
+    with fc3:
+        status_filter = st.selectbox("Filter by status", ["All", "Active", "Inactive"],
+                                      key="users_status_filter", label_visibility="collapsed")
+
+    # Apply filters
+    filtered = users
+    if search_q:
+        q = search_q.lower()
+        filtered = [u for u in filtered if q in u["email"].lower() or q in u["display_name"].lower()]
+    if plan_filter != "All Plans":
+        slug = plan_options[plan_filter]
+        filtered = [u for u in filtered if u.get("plan_slug") == slug]
+    if status_filter == "Active":
+        filtered = [u for u in filtered if u.get("is_active")]
+    elif status_filter == "Inactive":
+        filtered = [u for u in filtered if not u.get("is_active")]
+
+    st.markdown(f"<p style='font-size:0.8rem;color:#94a3b8;margin:4px 0 8px;'>"
+                f"Showing {len(filtered)} of {len(users)} users</p>",
+                unsafe_allow_html=True)
+
+    # ── User list ──
+    for u in filtered:
+        _plan_slug = u.get("plan_slug", "free")
+        _plan_class = "plan-enterprise" if _plan_slug == "enterprise" else \
+                      "plan-pro" if _plan_slug == "pro" else \
+                      "plan-admin" if u.get("billing_cycle") == "admin" else "plan-free"
+        _status_class = "status-active" if u.get("is_active") else "status-inactive"
+        _status_text = "Active" if u.get("is_active") else "Disabled"
+        _provider = u.get("auth_provider", "email")
+        _provider_icon = "🔑 Google" if _provider in ("google", "both") else "📧 Email"
+        _created = u["created_at"].strftime("%b %d, %Y") if u.get("created_at") else "N/A"
+        _last_login = u["last_login_at"].strftime("%b %d, %Y %H:%M") if u.get("last_login_at") else "Never"
+        _login_count = u.get("login_count", 0)
+        _plan_name = u.get("plan_name", "Free")
+        _billing = u.get("billing_cycle", "")
+        _billing_badge = " (admin)" if _billing == "admin" else f" ({_billing})" if _billing else ""
+        _avatar = u.get("avatar_url", "")
+        _name = u.get("display_name", "") or u["email"].split("@")[0]
+
+        with st.expander(f"{'🟢' if u.get('is_active') else '🔴'} {_name} — {u['email']} — {_plan_name}{_billing_badge}"):
+            ic1, ic2 = st.columns([2, 1])
+            with ic1:
+                st.markdown(f"""
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+                    {'<img src="' + _avatar + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;" />' if _avatar else '<div style="width:40px;height:40px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;">👤</div>'}
+                    <div>
+                        <div class="user-name">{_name}</div>
+                        <div class="user-email">{u['email']}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown(f"""
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:0.8rem;color:#475569;">
+                    <div>🔑 Auth: {_provider_icon}</div>
+                    <div>📅 Joined: {_created}</div>
+                    <div>🕐 Last login: {_last_login}</div>
+                    <div>🔢 Login count: {_login_count}</div>
+                    <div><span class="{_status_class}">● {_status_text}</span></div>
+                    <div>💳 Plan: <span class="plan-badge {_plan_class}">{_plan_name}{_billing_badge}</span></div>
+                </div>
+                """, unsafe_allow_html=True)
+            with ic2:
+                st.markdown("<p style='font-size:0.78rem;font-weight:600;color:#64748b;margin-bottom:4px;'>Change Plan</p>",
+                            unsafe_allow_html=True)
+                new_plan = st.selectbox("Plan", options=list(plan_options.keys()),
+                                         index=list(plan_options.keys()).index(_plan_name) if _plan_name in plan_options else 0,
+                                         key=f"u_plan_{u['id']}", label_visibility="collapsed")
+                if st.button("Apply Plan", key=f"u_apply_{u['id']}", use_container_width=True, type="primary"):
+                    if assign_user_plan(u["id"], plan_options[new_plan]):
+                        st.toast(f"Assigned {new_plan} to {u['email']}", icon="✅")
+                        st.rerun()
+                    else:
+                        st.error("Failed to assign plan.")
+
+                st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
+                if u.get("is_active"):
+                    if st.button("🚫 Disable Account", key=f"u_dis_{u['id']}", use_container_width=True):
+                        toggle_user_active(u["id"], False)
+                        st.toast(f"Disabled {u['email']}", icon="🚫")
+                        st.rerun()
+                else:
+                    if st.button("✅ Enable Account", key=f"u_en_{u['id']}", use_container_width=True):
+                        toggle_user_active(u["id"], True)
+                        st.toast(f"Enabled {u['email']}", icon="✅")
+                        st.rerun()
 
 
 _CONTEXT_PATH = os.path.join(os.path.dirname(__file__), "CONTEXT.md")
@@ -2833,10 +3060,10 @@ def render_nsfe_page():
     # ── Main Menu (Streamlit tabs) ──
     _sync_steps()
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
         "📋 Dashboard", "🛡️ Security", "⚙️ Settings",
         "🛡️ Certifications", "🏗️ Infrastructure",
-        "👥 Team & Admin", "🔍 SEO", "💳 Pricing", "🧠 Memory",
+        "👥 Team & Admin", "🔍 SEO", "💳 Pricing", "👤 Users", "🧠 Memory",
     ])
 
     with tab1:
@@ -2862,6 +3089,9 @@ def render_nsfe_page():
         _render_pricing_admin()
 
     with tab9:
+        _render_users_admin()
+
+    with tab10:
         _render_memory()
 
     # Footer

@@ -1061,8 +1061,8 @@ if "ticker" not in st.session_state:
     st.session_state.ticker = "NVDA"
 try:
     initialize_schema()
-    from database import ensure_allowed_tickers_column
-    ensure_allowed_tickers_column()
+    from database import ensure_pricing_plan_columns
+    ensure_pricing_plan_columns()
 except Exception:
     pass  # DB may not be available in dev mode
 
@@ -1089,15 +1089,17 @@ if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", 
     st.session_state.page = _qp_page
 
 # ── Ticker access gating on URL navigation ──
-# Redirect to pricing if user navigates to a restricted ticker via URL
+# Redirect based on plan's redirect_allowed / redirect_blocked settings
 if _qp_ticker and _qp_page not in ("pricing", "home", "login", "nsfe", "privacy", "terms", "earnings"):
     try:
-        from database import get_allowed_tickers_for_user
+        from database import get_user_plan_access
         _gate_uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
-        _gate_allowed = get_allowed_tickers_for_user(_gate_uid)
+        _access = get_user_plan_access(_gate_uid)
+        _gate_allowed = _access["allowed_tickers"]
         if _gate_allowed is not None and _qp_ticker not in _gate_allowed:
-            st.session_state.page = "pricing"
-            st.query_params.update({"page": "pricing", "ticker": _qp_ticker})
+            _redir = _access["redirect_blocked"]
+            st.session_state.page = _redir
+            st.query_params.update({"page": _redir, "ticker": _qp_ticker})
             st.rerun()
     except Exception:
         pass
@@ -2119,12 +2121,13 @@ with st.sidebar:
         if validate_ticker(new_ticker):
             # ── Ticker access gating ──
             try:
-                from database import get_allowed_tickers_for_user
+                from database import get_user_plan_access
                 _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
-                _allowed = get_allowed_tickers_for_user(_uid)
+                _access = get_user_plan_access(_uid)
+                _allowed = _access["allowed_tickers"]
                 if _allowed is not None and new_ticker not in _allowed:
-                    # User doesn't have access → redirect to pricing page
-                    st.query_params.update({"page": "pricing", "ticker": new_ticker})
+                    _redir = _access["redirect_blocked"]
+                    st.query_params.update({"page": _redir, "ticker": new_ticker})
                     st.rerun()
             except Exception:
                 pass  # If gating fails, allow access (fail-open)

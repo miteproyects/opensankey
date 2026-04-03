@@ -112,6 +112,7 @@ def initialize_schema():
         auth_provider   VARCHAR(50) DEFAULT 'email', -- email, google, both
         firebase_uid    VARCHAR(128) UNIQUE,          -- legacy, nullable
         is_active       BOOLEAN DEFAULT TRUE,
+        login_count     INTEGER DEFAULT 0,
         created_at      TIMESTAMPTZ DEFAULT NOW(),
         updated_at      TIMESTAMPTZ DEFAULT NOW(),
         last_login_at   TIMESTAMPTZ
@@ -161,6 +162,12 @@ def initialize_schema():
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                        WHERE table_name = 'users' AND column_name = 'updated_at') THEN
             ALTER TABLE users ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
+        END IF;
+
+        -- Add login_count if missing
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'users' AND column_name = 'login_count') THEN
+            ALTER TABLE users ADD COLUMN login_count INTEGER DEFAULT 0;
         END IF;
 
         -- Make firebase_uid nullable (was NOT NULL in old schema)
@@ -237,6 +244,8 @@ def initialize_schema():
         stripe_price_monthly VARCHAR(255) DEFAULT '',       -- Stripe Price ID (monthly)
         stripe_price_annual  VARCHAR(255) DEFAULT '',       -- Stripe Price ID (annual)
         allowed_tickers TEXT DEFAULT 'ALL',                 -- "ALL" or comma-separated tickers e.g. "AAPL,TSLA,NVDA"
+        redirect_allowed  VARCHAR(50) DEFAULT 'charts',   -- page to go when ticker IS allowed
+        redirect_blocked  VARCHAR(50) DEFAULT 'pricing',  -- page to go when ticker NOT allowed
         created_at      TIMESTAMPTZ DEFAULT NOW(),
         updated_at      TIMESTAMPTZ DEFAULT NOW()
     );
@@ -393,7 +402,7 @@ def update_last_login(user_id: int):
         if conn is None:
             return
         with conn.cursor() as cur:
-            cur.execute("UPDATE users SET last_login_at = NOW() WHERE id = %s", (user_id,))
+            cur.execute("UPDATE users SET last_login_at = NOW(), login_count = COALESCE(login_count, 0) + 1 WHERE id = %s", (user_id,))
 
 
 def update_user_display_name(user_id: int, display_name: str) -> bool:
@@ -628,7 +637,8 @@ def log_action(user_id: int, action: str, company_id: int = None,
 _PLAN_COLS = ("id, slug, name, description, price_monthly, price_annual, features, "
               "cta_text, cta_url, is_popular, is_active, sort_order, "
               "stripe_product_id, stripe_price_monthly, stripe_price_annual, "
-              "allowed_tickers, created_at, updated_at")
+              "allowed_tickers, redirect_allowed, redirect_blocked, "
+              "created_at, updated_at")
 
 
 def _row_to_plan(row) -> dict:
@@ -648,7 +658,9 @@ def _row_to_plan(row) -> dict:
         "stripe_product_id": row[12] or "", "stripe_price_monthly": row[13] or "",
         "stripe_price_annual": row[14] or "",
         "allowed_tickers": row[15] or "ALL",
-        "created_at": row[16], "updated_at": row[17],
+        "redirect_allowed": row[16] or "charts",
+        "redirect_blocked": row[17] or "pricing",
+        "created_at": row[18], "updated_at": row[19],
     }
 
 
@@ -695,7 +707,9 @@ def create_plan(slug: str, name: str, description: str = "",
                 is_active: bool = True, sort_order: int = 0,
                 stripe_product_id: str = "", stripe_price_monthly: str = "",
                 stripe_price_annual: str = "",
-                allowed_tickers: str = "ALL") -> dict | None:
+                allowed_tickers: str = "ALL",
+                redirect_allowed: str = "charts",
+                redirect_blocked: str = "pricing") -> dict | None:
     """Create a new pricing plan."""
     import json
     features_json = json.dumps(features or [])
@@ -708,13 +722,13 @@ def create_plan(slug: str, name: str, description: str = "",
                     (slug, name, description, price_monthly, price_annual, features,
                      cta_text, cta_url, is_popular, is_active, sort_order,
                      stripe_product_id, stripe_price_monthly, stripe_price_annual,
-                     allowed_tickers)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     allowed_tickers, redirect_allowed, redirect_blocked)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING {_PLAN_COLS}
             """, (slug, name, description, price_monthly, price_annual, features_json,
                   cta_text, cta_url, is_popular, is_active, sort_order,
                   stripe_product_id, stripe_price_monthly, stripe_price_annual,
-                  allowed_tickers))
+                  allowed_tickers, redirect_allowed, redirect_blocked))
             row = cur.fetchone()
             return _row_to_plan(row) if row else None
 
@@ -725,7 +739,8 @@ def update_plan(plan_id: int, **kwargs) -> dict | None:
     allowed = {"slug", "name", "description", "price_monthly", "price_annual",
                "features", "cta_text", "cta_url", "is_popular", "is_active",
                "sort_order", "stripe_product_id", "stripe_price_monthly",
-               "stripe_price_annual", "allowed_tickers"}
+               "stripe_price_annual", "allowed_tickers",
+               "redirect_allowed", "redirect_blocked"}
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return get_plan_by_id(plan_id)
@@ -808,42 +823,47 @@ def ensure_no_login_plan():
         )
 
 
-def ensure_allowed_tickers_column():
-    """Add allowed_tickers column if it doesn't exist (safe migration)."""
+def ensure_pricing_plan_columns():
+    """Add new columns to pricing_plans if they don't exist (safe migration)."""
+    _cols = [
+        ("allowed_tickers", "TEXT DEFAULT 'ALL'"),
+        ("redirect_allowed", "VARCHAR(50) DEFAULT 'charts'"),
+        ("redirect_blocked", "VARCHAR(50) DEFAULT 'pricing'"),
+    ]
     with get_connection() as conn:
         if conn is None:
             return
         with conn.cursor() as cur:
-            cur.execute("""
-                SELECT column_name FROM information_schema.columns
-                WHERE table_name = 'pricing_plans' AND column_name = 'allowed_tickers'
-            """)
-            if not cur.fetchone():
+            for col_name, col_def in _cols:
                 cur.execute("""
-                    ALTER TABLE pricing_plans
-                    ADD COLUMN allowed_tickers TEXT DEFAULT 'ALL'
-                """)
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'pricing_plans' AND column_name = %s
+                """, (col_name,))
+                if not cur.fetchone():
+                    cur.execute(f"ALTER TABLE pricing_plans ADD COLUMN {col_name} {col_def}")
 
 
-def get_allowed_tickers_for_user(user_id: int | None = None) -> set | None:
-    """Return the set of allowed tickers for a user based on their plan.
+def get_user_plan_access(user_id: int | None = None) -> dict:
+    """Return ticker access info for a user based on their plan.
 
-    Returns None if user has access to ALL tickers (Pro/Enterprise).
-    Returns a set of uppercase ticker strings if restricted.
-    If user_id is None (not logged in), returns tickers from the 'no-login' plan,
-    falling back to the 'free' plan.
+    Returns dict with keys:
+        allowed_tickers: set | None  (None = ALL tickers)
+        redirect_allowed: str  (page slug when ticker IS allowed)
+        redirect_blocked: str  (page slug when ticker NOT allowed)
     """
+    _default = {"allowed_tickers": {"AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"},
+                "redirect_allowed": "charts", "redirect_blocked": "pricing"}
+
     if user_id is None:
-        # Not logged in → use no-login plan, fall back to free
         plan = get_plan_by_slug("no-login") or get_plan_by_slug("free")
     else:
-        # Logged in → check subscription, fall back to free plan
         plan = None
         with get_connection() as conn:
             if conn:
                 with conn.cursor() as cur:
                     cur.execute("""
-                        SELECT pp.allowed_tickers FROM subscriptions s
+                        SELECT pp.allowed_tickers, pp.redirect_allowed, pp.redirect_blocked
+                        FROM subscriptions s
                         JOIN pricing_plans pp ON pp.id = s.plan_id
                         WHERE s.user_id = %s AND s.status IN ('active', 'trialing')
                         ORDER BY pp.sort_order DESC LIMIT 1
@@ -851,16 +871,121 @@ def get_allowed_tickers_for_user(user_id: int | None = None) -> set | None:
                     row = cur.fetchone()
                     if row:
                         tickers_str = row[0] or "ALL"
+                        r_allowed = row[1] or "charts"
+                        r_blocked = row[2] or "pricing"
                         if tickers_str.strip().upper() == "ALL":
-                            return None
-                        return {t.strip().upper() for t in tickers_str.split(",") if t.strip()}
-        # No active subscription → use free plan
+                            return {"allowed_tickers": None,
+                                    "redirect_allowed": r_allowed,
+                                    "redirect_blocked": r_blocked}
+                        return {"allowed_tickers": {t.strip().upper() for t in tickers_str.split(",") if t.strip()},
+                                "redirect_allowed": r_allowed,
+                                "redirect_blocked": r_blocked}
         plan = get_plan_by_slug("free")
 
     if plan is None:
-        return {"AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"}
+        return _default
 
     tickers_str = plan.get("allowed_tickers", "ALL")
+    r_allowed = plan.get("redirect_allowed", "charts")
+    r_blocked = plan.get("redirect_blocked", "pricing")
     if tickers_str.strip().upper() == "ALL":
-        return None
-    return {t.strip().upper() for t in tickers_str.split(",") if t.strip()}
+        return {"allowed_tickers": None, "redirect_allowed": r_allowed, "redirect_blocked": r_blocked}
+    return {"allowed_tickers": {t.strip().upper() for t in tickers_str.split(",") if t.strip()},
+            "redirect_allowed": r_allowed, "redirect_blocked": r_blocked}
+
+
+def get_allowed_tickers_for_user(user_id: int | None = None) -> set | None:
+    """Convenience wrapper: returns just the allowed tickers set (None = ALL)."""
+    return get_user_plan_access(user_id)["allowed_tickers"]
+
+
+# ─── Admin: User management ──────────────────────────────────────────────
+
+def get_all_users_admin() -> list[dict]:
+    """Get all users with their subscription/plan info for the admin dashboard."""
+    with get_connection() as conn:
+        if conn is None:
+            return []
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT u.id, u.email, u.display_name, u.avatar_url,
+                       u.auth_provider, u.is_active, u.login_count,
+                       u.created_at, u.last_login_at,
+                       pp.name AS plan_name, pp.slug AS plan_slug,
+                       s.status AS sub_status, s.billing_cycle,
+                       s.current_period_end
+                FROM users u
+                LEFT JOIN subscriptions s ON s.user_id = u.id
+                    AND s.status IN ('active', 'trialing')
+                LEFT JOIN pricing_plans pp ON pp.id = s.plan_id
+                ORDER BY u.last_login_at DESC NULLS LAST, u.created_at DESC
+            """)
+            rows = cur.fetchall()
+            return [{
+                "id": r[0], "email": r[1], "display_name": r[2] or "",
+                "avatar_url": r[3] or "", "auth_provider": r[4] or "email",
+                "is_active": r[5], "login_count": r[6] or 0,
+                "created_at": r[7], "last_login_at": r[8],
+                "plan_name": r[9] or "Free", "plan_slug": r[10] or "free",
+                "sub_status": r[11] or "none", "billing_cycle": r[12] or "",
+                "period_end": r[13],
+            } for r in rows]
+
+
+def assign_user_plan(user_id: int, plan_slug: str) -> bool:
+    """Assign a plan to a user (admin override). Creates or updates subscription."""
+    plan = get_plan_by_slug(plan_slug)
+    if not plan:
+        return False
+    with get_connection() as conn:
+        if conn is None:
+            return False
+        with conn.cursor() as cur:
+            # Check for existing subscription
+            cur.execute("SELECT id FROM subscriptions WHERE user_id = %s", (user_id,))
+            existing = cur.fetchone()
+            if existing:
+                cur.execute("""
+                    UPDATE subscriptions SET plan_id = %s, status = 'active',
+                        billing_cycle = 'admin', updated_at = NOW(),
+                        current_period_start = NOW(),
+                        current_period_end = NOW() + INTERVAL '100 years'
+                    WHERE user_id = %s
+                """, (plan["id"], user_id))
+            else:
+                cur.execute("""
+                    INSERT INTO subscriptions
+                        (user_id, plan_id, status, billing_cycle,
+                         current_period_start, current_period_end)
+                    VALUES (%s, %s, 'active', 'admin', NOW(), NOW() + INTERVAL '100 years')
+                """, (user_id, plan["id"]))
+            return True
+
+
+def toggle_user_active(user_id: int, is_active: bool) -> bool:
+    """Enable or disable a user account."""
+    with get_connection() as conn:
+        if conn is None:
+            return False
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET is_active = %s, updated_at = NOW() WHERE id = %s",
+                        (is_active, user_id))
+            return cur.rowcount > 0
+
+
+def get_user_stats() -> dict:
+    """Get aggregate user statistics for the dashboard header."""
+    with get_connection() as conn:
+        if conn is None:
+            return {"total": 0, "active_today": 0, "active_week": 0, "google_users": 0}
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    COUNT(*) AS total,
+                    COUNT(*) FILTER (WHERE last_login_at >= NOW() - INTERVAL '1 day') AS active_today,
+                    COUNT(*) FILTER (WHERE last_login_at >= NOW() - INTERVAL '7 days') AS active_week,
+                    COUNT(*) FILTER (WHERE auth_provider IN ('google', 'both')) AS google_users
+                FROM users
+            """)
+            r = cur.fetchone()
+            return {"total": r[0], "active_today": r[1], "active_week": r[2], "google_users": r[3]}
