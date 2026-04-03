@@ -184,8 +184,7 @@ def render_pricing_page():
 
     # ── Load plans from database ──
     try:
-        from database import get_all_plans, ensure_no_login_plan
-        ensure_no_login_plan()
+        from database import get_all_plans
         plans = get_all_plans(active_only=True)
     except Exception:
         plans = []
