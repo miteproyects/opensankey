@@ -1918,14 +1918,9 @@ current_page = st.session_state.page
 from datetime import datetime as _dt, timezone as _tz, timedelta as _td
 _ECT = _tz(_td(hours=-5))
 _app_dir = os.path.dirname(__file__)
-# Commit time: written to BUILD_TS by pre-commit hook (MM:SS)
-try:
-    with open(os.path.join(_app_dir, "BUILD_TS"), "r") as _bf:
-        _commit_ts = _bf.read().strip()
-except Exception:
-    _commit_ts = "--:--"
+# Deploy timestamp: uses file modification time of app.py (set at deploy checkout)
+_commit_ts = _dt.fromtimestamp(os.path.getmtime(__file__), tz=_ECT).strftime("%M:%S")
 # Live time: written once on first app boot after deploy
-# Uses BUILD_TS content as key — only updates when a new deploy arrives
 _live_ts_path = os.path.join(_app_dir, "LIVE_TS")
 try:
     with open(_live_ts_path, "r") as _lf:
@@ -2145,17 +2140,21 @@ with st.sidebar:
     if submitted and new_ticker and new_ticker != st.session_state.ticker:
         if validate_ticker(new_ticker):
             # ── Ticker access gating ──
+            _blocked = False
+            _redir = "pricing"
             try:
                 from database import get_user_plan_access
                 _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
                 _access = get_user_plan_access(_uid)
                 _allowed = _access["allowed_tickers"]
                 if _allowed is not None and new_ticker not in _allowed:
+                    _blocked = True
                     _redir = _access["redirect_blocked"]
-                    st.query_params.update({"page": _redir, "ticker": new_ticker})
-                    st.rerun()
             except Exception:
                 pass  # If gating fails, allow access (fail-open)
+            if _blocked:
+                st.query_params.update({"page": _redir, "ticker": new_ticker})
+                st.rerun()
             st.session_state.ticker = new_ticker
             _ticker_params = {"page": st.session_state.page, "ticker": new_ticker}
             _ticker_sid = st.session_state.get("_server_sid", "")
