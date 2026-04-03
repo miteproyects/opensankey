@@ -1791,15 +1791,61 @@ def _generate_section_pdf(figures: list, section_title: str, ticker: str) -> byt
     return buf.getvalue()
 
 
-def render_charts(charts: list, section: str):
+def _render_blocked_overlay(chart_title: str, key: str):
+    """Render a blur overlay placeholder for a blocked chart with Upgrade button."""
+    _ticker = st.session_state.get("ticker", "STOCK")
+    _upgrade_url = f"/?page=pricing&ticker={_ticker}"
+    st.markdown(f"""
+    <div style="position:relative;background:#0f172a;border-radius:14px;overflow:hidden;
+                min-height:340px;display:flex;align-items:center;justify-content:center;
+                border:1px solid rgba(255,255,255,0.06);margin-bottom:1rem;">
+        <!-- Blurred fake chart background -->
+        <div style="position:absolute;inset:0;opacity:0.15;filter:blur(6px);
+                    background:repeating-linear-gradient(90deg,#334155 0px,#334155 2px,transparent 2px,transparent 18px),
+                    repeating-linear-gradient(0deg,#334155 0px,#334155 1px,transparent 1px,transparent 40px);
+                    background-size:18px 100%,100% 40px;"></div>
+        <!-- Overlay content -->
+        <div style="position:relative;z-index:2;text-align:center;padding:2rem;">
+            <div style="font-size:2rem;margin-bottom:0.75rem;opacity:0.7;">&#128274;</div>
+            <p style="color:#e2e8f0;font-weight:600;font-size:1rem;margin:0 0 0.3rem 0;">
+                {chart_title if chart_title else 'This chart'}
+            </p>
+            <p style="color:#94a3b8;font-size:0.82rem;margin:0 0 1.2rem 0;">
+                Available on Pro &amp; Enterprise plans
+            </p>
+            <a href="{_upgrade_url}" target="_self"
+               style="display:inline-block;padding:10px 32px;border-radius:8px;
+                      background:linear-gradient(135deg,#2563eb 0%,#7c3aed 100%);
+                      color:#fff;font-weight:600;font-size:0.9rem;text-decoration:none;
+                      box-shadow:0 4px 14px rgba(37,99,235,0.4);
+                      transition:transform 0.15s,box-shadow 0.15s;">
+                Upgrade
+            </a>
+            <p style="color:#64748b;font-size:0.72rem;margin:0.9rem 0 0 0;font-style:italic;">
+                Unlock deeper insights with a premium plan
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_charts(charts: list, section: str, blocked_charts=None):
     """Render a list of (figure, name) tuples in the selected column layout.
 
     Skips charts that have no data (empty traces) to avoid blank placeholders
     in the grid layout.  Also stores valid figures in session state for PDF export.
+    Charts whose key appears in blocked_charts render a blur overlay instead.
     """
+    if blocked_charts is None:
+        blocked_charts = set()
+
     # Filter out empty charts (no traces or all traces have empty x)
     valid = []
     for fig, name in charts:
+        # If blocked, keep it in the list (we'll render overlay instead)
+        if name in blocked_charts:
+            valid.append((fig, name))
+            continue
         traces = fig.data if hasattr(fig, "data") else []
         has_data = any(
             (hasattr(t, "x") and t.x is not None and len(t.x) > 0)
@@ -1809,8 +1855,8 @@ def render_charts(charts: list, section: str):
         if has_data:
             valid.append((fig, name))
 
-    # Store for PDF export
-    st.session_state[f"_charts_{section}"] = valid
+    # Store for PDF export (only non-blocked)
+    st.session_state[f"_charts_{section}"] = [(f, n) for f, n in valid if n not in blocked_charts]
 
     # Pre-generate PDF so the download button is immediately ready (single-click)
     _section_title_map = {
@@ -1820,10 +1866,11 @@ def render_charts(charts: list, section: str):
         "keymetrics": "Key Metrics",
     }
     _pdf_state_key = f"_pdf_data_{section}"
-    if valid and not st.session_state.get(_pdf_state_key):
+    _pdf_valid = [(f, n) for f, n in valid if n not in blocked_charts]
+    if _pdf_valid and not st.session_state.get(_pdf_state_key):
         _tk = st.session_state.get("ticker", "STOCK")
         _sec_title = _section_title_map.get(section, section.title())
-        _pdf_bytes = _generate_section_pdf(valid, _sec_title, _tk)
+        _pdf_bytes = _generate_section_pdf(_pdf_valid, _sec_title, _tk)
         if _pdf_bytes:
             st.session_state[_pdf_state_key] = _pdf_bytes
             st.session_state["_need_pdf_rerun"] = True
@@ -1836,7 +1883,15 @@ def render_charts(charts: list, section: str):
             if idx < len(valid):
                 fig, name = valid[idx]
                 with cols[j]:
-                    _render_chart(fig, f"{section}_{name}_{idx}")
+                    if name in blocked_charts:
+                        # Extract chart title from fig metadata
+                        _ct = ""
+                        _meta = getattr(fig.layout, "meta", None) if hasattr(fig, "layout") else None
+                        if isinstance(_meta, str) and _meta:
+                            _ct = _meta
+                        _render_blocked_overlay(_ct, f"{section}_{name}_{idx}")
+                    else:
+                        _render_chart(fig, f"{section}_{name}_{idx}")
 
 
 def _section_header(title: str, emoji: str, state_key: str, cb_key: str = "",
@@ -2920,6 +2975,16 @@ if st.session_state.show_forecast and forecast:
         _render_chart(create_analyst_forecast_chart(forecast), "analyst_chart")
 
 
+# ── Blocked charts gating ──
+_blocked_chart_keys = set()
+try:
+    from database import get_user_plan_access as _get_upa
+    _upa_uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
+    _upa = _get_upa(_upa_uid)
+    _blocked_chart_keys = _upa.get("blocked_charts", set())
+except Exception:
+    pass
+
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 # Income Statement Section Ã¢ÂÂ header ALWAYS visible
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
@@ -2972,7 +3037,7 @@ if st.session_state.show_income:
     if not per_share_df.empty:
         income_charts.append((create_per_share_chart(per_share_df), "per_share"))
 
-    render_charts(income_charts, "income")
+    render_charts(income_charts, "income", _blocked_chart_keys)
 
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
@@ -2986,7 +3051,7 @@ if st.session_state.show_cashflow:
         (create_cash_flow_chart(cashflow_df), "cash_flows"),
         (create_cash_position_chart(balance_df), "cash_pos"),
         (create_capex_chart(cashflow_df), "capex"),
-    ], "cashflow")
+    ], "cashflow", _blocked_chart_keys)
 
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
@@ -3000,7 +3065,7 @@ if st.session_state.show_balance:
         (create_assets_chart(balance_df), "assets"),
         (create_liabilities_chart(balance_df), "liabilities"),
         (create_equity_debt_chart(balance_df), "equity_debt"),
-    ], "balance")
+    ], "balance", _blocked_chart_keys)
 
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
@@ -3022,28 +3087,31 @@ if st.session_state.show_metrics:
             km_charts.append((create_pe_chart(pe_df), "pe_ratio"))
 
     # Metric cards
-    m1 = st.columns(4)
-    with m1[0]:
-        st.metric("Gross Margin", _fmt(info.get("gross_margins"), pct=True))
-    with m1[1]:
-        st.metric("Operating Margin", _fmt(info.get("operating_margins"), pct=True))
-    with m1[2]:
-        st.metric("ROE", _fmt(info.get("return_on_equity"), pct=True))
-    with m1[3]:
-        st.metric("ROA", _fmt(info.get("return_on_assets"), pct=True))
+    if "metric_cards" in _blocked_chart_keys:
+        _render_blocked_overlay("Key Financial Metrics", "km_metric_cards")
+    else:
+        m1 = st.columns(4)
+        with m1[0]:
+            st.metric("Gross Margin", _fmt(info.get("gross_margins"), pct=True))
+        with m1[1]:
+            st.metric("Operating Margin", _fmt(info.get("operating_margins"), pct=True))
+        with m1[2]:
+            st.metric("ROE", _fmt(info.get("return_on_equity"), pct=True))
+        with m1[3]:
+            st.metric("ROA", _fmt(info.get("return_on_assets"), pct=True))
 
-    m2 = st.columns(4)
-    with m2[0]:
-        st.metric("Debt/Equity", _fmt(info.get("debt_to_equity"), ratio=True))
-    with m2[1]:
-        st.metric("Current Ratio", _fmt(info.get("current_ratio"), ratio=True))
-    with m2[2]:
-        st.metric("Quick Ratio", _fmt(info.get("quick_ratio"), ratio=True))
-    with m2[3]:
-        st.metric("Revenue Growth", _fmt(info.get("revenue_growth"), pct=True))
+        m2 = st.columns(4)
+        with m2[0]:
+            st.metric("Debt/Equity", _fmt(info.get("debt_to_equity"), ratio=True))
+        with m2[1]:
+            st.metric("Current Ratio", _fmt(info.get("current_ratio"), ratio=True))
+        with m2[2]:
+            st.metric("Quick Ratio", _fmt(info.get("quick_ratio"), ratio=True))
+        with m2[3]:
+            st.metric("Revenue Growth", _fmt(info.get("revenue_growth"), pct=True))
 
     if km_charts:
-        render_charts(km_charts, "keymetrics")
+        render_charts(km_charts, "keymetrics", _blocked_chart_keys)
 
 
 

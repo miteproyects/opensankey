@@ -2424,6 +2424,65 @@ def _render_pricing_admin():
             _idx = _page_options.index(cur_rb) if cur_rb in _page_options else 3
             _redir_no[p["id"]] = cols[i + 1].selectbox("rb", options=_page_options, index=_idx, key=f"g_rb_{p['id']}", label_visibility="collapsed")
 
+        # ── SECTION: Blocked Charts ──
+        st.markdown('<div class="price-grid-section">Blocked Charts</div>', unsafe_allow_html=True)
+
+        _CHART_CATEGORIES = {
+            "Income Statement": [
+                ("revenue_income", "Revenue & Income"),
+                ("rev_product", "Revenue by Product"),
+                ("rev_geo", "Revenue by Geography"),
+                ("margins", "Profit Margins (%)"),
+                ("eps", "Earnings Per Share (EPS)"),
+                ("yoy", "Revenue YoY Variation"),
+                ("qoq", "QoQ Revenue Variation"),
+                ("opex", "Operating Expenses"),
+                ("ebitda", "EBITDA"),
+                ("tax", "Income Tax Expense"),
+                ("sbc", "Stock Based Compensation"),
+                ("expense_ratios", "Expense Ratios"),
+                ("eff_tax_rate", "Effective Tax Rate"),
+                ("shares", "Shares Outstanding"),
+                ("income_breakdown", "Income Breakdown"),
+                ("per_share", "Per Share Metrics"),
+            ],
+            "Cash Flow": [
+                ("cash_flows", "Cash Flows"),
+                ("cash_pos", "Cash Position"),
+                ("capex", "Capital Expenditures"),
+            ],
+            "Balance Sheet": [
+                ("assets", "Total Assets"),
+                ("liabilities", "Liabilities"),
+                ("equity_debt", "Equity vs Debt"),
+            ],
+            "Key Metrics": [
+                ("pe_ratio", "P/E Ratio"),
+                ("metric_cards", "Metric Cards"),
+            ],
+        }
+
+        _blocked_charts = {}
+        for cat_name, cat_charts in _CHART_CATEGORIES.items():
+            cols = st.columns(plan_widths)
+            cols[0].markdown(f'<div class="price-grid-label">{cat_name}</div>', unsafe_allow_html=True)
+            chart_options = [c[1] for c in cat_charts]
+            chart_keys = [c[0] for c in cat_charts]
+            for i, p in enumerate(all_plans):
+                pid = p["id"]
+                cur_blocked = {c.strip() for c in (p.get("blocked_charts", "") or "").split(",") if c.strip()}
+                default_sel = [chart_options[j] for j, k in enumerate(chart_keys) if k in cur_blocked]
+                sel = cols[i + 1].multiselect(
+                    f"bc_{cat_name}", options=chart_options, default=default_sel,
+                    key=f"g_bc_{cat_name}_{pid}", label_visibility="collapsed",
+                    placeholder="None blocked"
+                )
+                # Map display names back to keys
+                sel_keys = {chart_keys[chart_options.index(s)] for s in sel}
+                if pid not in _blocked_charts:
+                    _blocked_charts[pid] = set()
+                _blocked_charts[pid].update(sel_keys)
+
         # ── SECTION: CTA ──
         st.markdown('<div class="price-grid-section">Call to Action</div>', unsafe_allow_html=True)
 
@@ -2518,6 +2577,7 @@ def _render_pricing_admin():
                 stripe_product_id=(_sps.get(pid, "") or "").strip(),
                 stripe_price_monthly=(_spms.get(pid, "") or "").strip(),
                 stripe_price_annual=(_spas.get(pid, "") or "").strip(),
+                blocked_charts=",".join(sorted(_blocked_charts.get(pid, set()))),
             )
             if result:
                 _ok += 1
