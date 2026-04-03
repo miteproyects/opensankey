@@ -2341,6 +2341,15 @@ def _render_pricing_admin():
                     existing = []
             _feats[p["id"]] = cols[i + 1].text_area("f", value="\n".join(existing) if isinstance(existing, list) else "", height=160, key=f"g_feat_{p['id']}", label_visibility="collapsed")
 
+        # ── SECTION: Ticker Access ──
+        st.markdown('<div class="price-grid-section">Ticker Access</div>', unsafe_allow_html=True)
+
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Allowed Tickers</div>', unsafe_allow_html=True)
+        _tickers = {}
+        for i, p in enumerate(all_plans):
+            _tickers[p["id"]] = cols[i + 1].text_input("tk", value=p.get("allowed_tickers", "ALL"), key=f"g_tk_{p['id']}", label_visibility="collapsed", help='Comma-separated tickers (e.g. AAPL,TSLA,NVDA) or "ALL" for unlimited')
+
         # ── SECTION: CTA ──
         st.markdown('<div class="price-grid-section">Call to Action</div>', unsafe_allow_html=True)
 
@@ -2410,6 +2419,14 @@ def _render_pricing_admin():
             pid = p["id"]
             feat_text = _feats.get(pid, "")
             feat_list = [f.strip() for f in feat_text.strip().split("\n") if f.strip()] if feat_text.strip() else []
+            # Normalize allowed_tickers: uppercase, trim, remove empty
+            raw_tk = (_tickers.get(pid, "") or "ALL").strip()
+            if raw_tk.upper() == "ALL":
+                norm_tk = "ALL"
+            else:
+                norm_tk = ",".join(t.strip().upper() for t in raw_tk.split(",") if t.strip())
+                if not norm_tk:
+                    norm_tk = "ALL"
             result = update_plan(
                 pid,
                 name=(_names.get(pid, "") or "").strip(),
@@ -2423,6 +2440,7 @@ def _render_pricing_admin():
                 is_popular=_pops.get(pid, False),
                 is_active=_acts.get(pid, True),
                 sort_order=_sorts.get(pid, 0),
+                allowed_tickers=norm_tk,
                 stripe_product_id=(_sps.get(pid, "") or "").strip(),
                 stripe_price_monthly=(_spms.get(pid, "") or "").strip(),
                 stripe_price_annual=(_spas.get(pid, "") or "").strip(),

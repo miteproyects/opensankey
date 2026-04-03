@@ -1061,6 +1061,8 @@ if "ticker" not in st.session_state:
     st.session_state.ticker = "NVDA"
 try:
     initialize_schema()
+    from database import ensure_allowed_tickers_column
+    ensure_allowed_tickers_column()
 except Exception:
     pass  # DB may not be available in dev mode
 
@@ -1085,6 +1087,20 @@ if _qp_ticker:
     st.session_state.ticker = _qp_ticker
 if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe", "privacy", "terms", "user", "dashboard"):
     st.session_state.page = _qp_page
+
+# ── Ticker access gating on URL navigation ──
+# Redirect to pricing if user navigates to a restricted ticker via URL
+if _qp_ticker and _qp_page not in ("pricing", "home", "login", "nsfe", "privacy", "terms", "earnings"):
+    try:
+        from database import get_allowed_tickers_for_user
+        _gate_uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
+        _gate_allowed = get_allowed_tickers_for_user(_gate_uid)
+        if _gate_allowed is not None and _qp_ticker not in _gate_allowed:
+            st.session_state.page = "pricing"
+            st.query_params.update({"page": "pricing", "ticker": _qp_ticker})
+            st.rerun()
+    except Exception:
+        pass
 elif "page" not in st.session_state:
     st.session_state.page = "home"
 # Always keep URL in sync so browser refresh preserves the current page.
@@ -2101,6 +2117,17 @@ with st.sidebar:
 
     if submitted and new_ticker and new_ticker != st.session_state.ticker:
         if validate_ticker(new_ticker):
+            # ── Ticker access gating ──
+            try:
+                from database import get_allowed_tickers_for_user
+                _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
+                _allowed = get_allowed_tickers_for_user(_uid)
+                if _allowed is not None and new_ticker not in _allowed:
+                    # User doesn't have access → redirect to pricing page
+                    st.query_params.update({"page": "pricing", "ticker": new_ticker})
+                    st.rerun()
+            except Exception:
+                pass  # If gating fails, allow access (fail-open)
             st.session_state.ticker = new_ticker
             _ticker_params = {"page": st.session_state.page, "ticker": new_ticker}
             _ticker_sid = st.session_state.get("_server_sid", "")

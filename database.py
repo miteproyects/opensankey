@@ -236,6 +236,7 @@ def initialize_schema():
         stripe_product_id   VARCHAR(255) DEFAULT '',        -- Stripe Product ID
         stripe_price_monthly VARCHAR(255) DEFAULT '',       -- Stripe Price ID (monthly)
         stripe_price_annual  VARCHAR(255) DEFAULT '',       -- Stripe Price ID (annual)
+        allowed_tickers TEXT DEFAULT 'ALL',                 -- "ALL" or comma-separated tickers e.g. "AAPL,TSLA,NVDA"
         created_at      TIMESTAMPTZ DEFAULT NOW(),
         updated_at      TIMESTAMPTZ DEFAULT NOW()
     );
@@ -627,7 +628,7 @@ def log_action(user_id: int, action: str, company_id: int = None,
 _PLAN_COLS = ("id, slug, name, description, price_monthly, price_annual, features, "
               "cta_text, cta_url, is_popular, is_active, sort_order, "
               "stripe_product_id, stripe_price_monthly, stripe_price_annual, "
-              "created_at, updated_at")
+              "allowed_tickers, created_at, updated_at")
 
 
 def _row_to_plan(row) -> dict:
@@ -646,7 +647,8 @@ def _row_to_plan(row) -> dict:
         "sort_order": row[11] or 0,
         "stripe_product_id": row[12] or "", "stripe_price_monthly": row[13] or "",
         "stripe_price_annual": row[14] or "",
-        "created_at": row[15], "updated_at": row[16],
+        "allowed_tickers": row[15] or "ALL",
+        "created_at": row[16], "updated_at": row[17],
     }
 
 
@@ -692,7 +694,8 @@ def create_plan(slug: str, name: str, description: str = "",
                 cta_url: str = "", is_popular: bool = False,
                 is_active: bool = True, sort_order: int = 0,
                 stripe_product_id: str = "", stripe_price_monthly: str = "",
-                stripe_price_annual: str = "") -> dict | None:
+                stripe_price_annual: str = "",
+                allowed_tickers: str = "ALL") -> dict | None:
     """Create a new pricing plan."""
     import json
     features_json = json.dumps(features or [])
@@ -704,12 +707,14 @@ def create_plan(slug: str, name: str, description: str = "",
                 INSERT INTO pricing_plans
                     (slug, name, description, price_monthly, price_annual, features,
                      cta_text, cta_url, is_popular, is_active, sort_order,
-                     stripe_product_id, stripe_price_monthly, stripe_price_annual)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     stripe_product_id, stripe_price_monthly, stripe_price_annual,
+                     allowed_tickers)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING {_PLAN_COLS}
             """, (slug, name, description, price_monthly, price_annual, features_json,
                   cta_text, cta_url, is_popular, is_active, sort_order,
-                  stripe_product_id, stripe_price_monthly, stripe_price_annual))
+                  stripe_product_id, stripe_price_monthly, stripe_price_annual,
+                  allowed_tickers))
             row = cur.fetchone()
             return _row_to_plan(row) if row else None
 
@@ -720,7 +725,7 @@ def update_plan(plan_id: int, **kwargs) -> dict | None:
     allowed = {"slug", "name", "description", "price_monthly", "price_annual",
                "features", "cta_text", "cta_url", "is_popular", "is_active",
                "sort_order", "stripe_product_id", "stripe_price_monthly",
-               "stripe_price_annual"}
+               "stripe_price_annual", "allowed_tickers"}
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return get_plan_by_id(plan_id)
@@ -761,25 +766,29 @@ def seed_default_plans():
          "price_monthly": 0, "price_annual": 0, "sort_order": 0,
          "features": ["3 ticker lookups per day", "Income statement Sankey (view only)",
                        "Basic company profile", "Earnings calendar", "Limited chart access"],
-         "cta_text": "Create Free Account", "cta_url": "?page=login", "is_popular": False},
+         "cta_text": "Create Free Account", "cta_url": "?page=login", "is_popular": False,
+         "allowed_tickers": "AAPL,TSLA,NVDA,MSFT,AMZN,GOOG,META"},
         {"slug": "free", "name": "Free", "description": "Perfect for exploring financial data",
          "price_monthly": 0, "price_annual": 0, "sort_order": 1,
          "features": ["5 ticker lookups per day", "Income statement Sankey",
                        "Basic financial charts", "Company profile page", "Community support"],
-         "cta_text": "Get Started Free", "is_popular": False},
+         "cta_text": "Get Started Free", "is_popular": False,
+         "allowed_tickers": "AAPL,TSLA,NVDA,MSFT,AMZN,GOOG,META"},
         {"slug": "pro", "name": "Pro", "description": "For serious investors & analysts",
          "price_monthly": 15, "price_annual": 12, "sort_order": 2,
          "features": ["Unlimited ticker lookups", "Income + Balance Sankey",
                        "All financial charts", "Quarterly & Annual data",
                        "Historical trends (1Y\u20134Y+MAX)", "Analyst forecast overlay",
                        "PDF export", "Watchlist (unlimited tickers)", "Priority support"],
-         "cta_text": "Start Free Trial", "is_popular": True},
+         "cta_text": "Start Free Trial", "is_popular": True,
+         "allowed_tickers": "ALL"},
         {"slug": "enterprise", "name": "Enterprise", "description": "For teams & organizations",
          "price_monthly": 49, "price_annual": 39, "sort_order": 3,
          "features": ["Everything in Pro", "API access", "Custom data integrations",
                        "Team workspaces (up to 25)", "White-label embedding",
                        "SSO / SAML authentication", "Dedicated account manager", "Custom SLA"],
-         "cta_text": "Contact Sales", "is_popular": False},
+         "cta_text": "Contact Sales", "is_popular": False,
+         "allowed_tickers": "ALL"},
     ]
     for p in defaults:
         create_plan(**p)
@@ -795,4 +804,63 @@ def ensure_no_login_plan():
             features=["3 ticker lookups per day", "Income statement Sankey (view only)",
                        "Basic company profile", "Earnings calendar", "Limited chart access"],
             cta_text="Create Free Account", cta_url="?page=login", is_popular=False,
+            allowed_tickers="AAPL,TSLA,NVDA,MSFT,AMZN,GOOG,META",
         )
+
+
+def ensure_allowed_tickers_column():
+    """Add allowed_tickers column if it doesn't exist (safe migration)."""
+    with get_connection() as conn:
+        if conn is None:
+            return
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'pricing_plans' AND column_name = 'allowed_tickers'
+            """)
+            if not cur.fetchone():
+                cur.execute("""
+                    ALTER TABLE pricing_plans
+                    ADD COLUMN allowed_tickers TEXT DEFAULT 'ALL'
+                """)
+
+
+def get_allowed_tickers_for_user(user_id: int | None = None) -> set | None:
+    """Return the set of allowed tickers for a user based on their plan.
+
+    Returns None if user has access to ALL tickers (Pro/Enterprise).
+    Returns a set of uppercase ticker strings if restricted.
+    If user_id is None (not logged in), returns tickers from the 'no-login' plan,
+    falling back to the 'free' plan.
+    """
+    if user_id is None:
+        # Not logged in → use no-login plan, fall back to free
+        plan = get_plan_by_slug("no-login") or get_plan_by_slug("free")
+    else:
+        # Logged in → check subscription, fall back to free plan
+        plan = None
+        with get_connection() as conn:
+            if conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT pp.allowed_tickers FROM subscriptions s
+                        JOIN pricing_plans pp ON pp.id = s.plan_id
+                        WHERE s.user_id = %s AND s.status IN ('active', 'trialing')
+                        ORDER BY pp.sort_order DESC LIMIT 1
+                    """, (user_id,))
+                    row = cur.fetchone()
+                    if row:
+                        tickers_str = row[0] or "ALL"
+                        if tickers_str.strip().upper() == "ALL":
+                            return None
+                        return {t.strip().upper() for t in tickers_str.split(",") if t.strip()}
+        # No active subscription → use free plan
+        plan = get_plan_by_slug("free")
+
+    if plan is None:
+        return {"AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"}
+
+    tickers_str = plan.get("allowed_tickers", "ALL")
+    if tickers_str.strip().upper() == "ALL":
+        return None
+    return {t.strip().upper() for t in tickers_str.split(",") if t.strip()}

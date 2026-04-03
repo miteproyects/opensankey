@@ -92,6 +92,16 @@ def render_dashboard_page():
         if st.button("Explore", use_container_width=True, type="primary", key="dash_go"):
             t = new_ticker.strip().upper()
             if t:
+                # ── Ticker access gating ──
+                try:
+                    from database import get_allowed_tickers_for_user
+                    _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
+                    _allowed = get_allowed_tickers_for_user(_uid)
+                    if _allowed is not None and t not in _allowed:
+                        st.query_params.update({"page": "pricing", "ticker": t})
+                        st.rerun()
+                except Exception:
+                    pass
                 st.query_params["page"] = "charts"
                 st.query_params["ticker"] = t
                 st.rerun()
