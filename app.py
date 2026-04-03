@@ -1927,12 +1927,20 @@ current_page = st.session_state.page
 
 # Nav bar with page switching (using <a> links for reliable navigation)
 # Auth params carry login session across full page reloads caused by <a> tag navigation
-# ── Build timestamp: app startup time (updates on each deploy/restart) ──
+# ── Deploy timestamps: commit time (from file) → live time (app startup) ──
 from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+_ECT = _tz(_td(hours=-5))
+# Commit time: written to BUILD_TS by pre-commit hook (MM:SS)
 try:
-    _build_ts = _dt.now(_tz(_td(hours=-5))).strftime("%H:%M")
+    with open(os.path.join(os.path.dirname(__file__), "BUILD_TS"), "r") as _bf:
+        _commit_ts = _bf.read().strip()
 except Exception:
-    _build_ts = ""
+    _commit_ts = "--:--"
+# Live time: when Railway started the app after deploy (MM:SS)
+if "_app_live_ts" not in st.session_state:
+    st.session_state["_app_live_ts"] = _dt.now(_ECT).strftime("%M:%S")
+_live_ts = st.session_state["_app_live_ts"]
+_build_ts = f"{_commit_ts} → {_live_ts}"
 
 _auth_params = get_auth_params()
 _is_logged_in = st.session_state.get("logged_in", False)
