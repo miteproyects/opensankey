@@ -2381,18 +2381,18 @@ def _render_pricing_admin():
         # ── SECTION: Ticker Access ──
         st.markdown('<div class="price-grid-section">Ticker Access</div>', unsafe_allow_html=True)
 
-        # Build multiselect options from the managed ticker pool
+        # Build multiselect options from the managed ticker pool (no fake "ALL" entry)
         _pool = st.session_state["_ticker_pool"]
-        _multiselect_options = ["ALL"] + sorted(_pool)
+        _multiselect_options = sorted(_pool)
 
         cols = st.columns(plan_widths)
         cols[0].markdown('<div class="price-grid-label">Allowed Tickers</div>', unsafe_allow_html=True)
         _tickers = {}
         for i, p in enumerate(all_plans):
-            # Parse current value into a default list for the multiselect
+            # Parse current value: "ALL" → select every ticker; otherwise only the listed ones
             cur_val = (p.get("allowed_tickers", "") or "").strip().upper()
             if cur_val == "ALL":
-                _default_sel = _multiselect_options[:]  # ALL + every ticker
+                _default_sel = _multiselect_options[:]  # all tickers selected = unlimited
             else:
                 _default_sel = [t.strip() for t in cur_val.split(",") if t.strip() and t.strip() in _pool]
             _tickers[p["id"]] = cols[i + 1].multiselect("tk", options=_multiselect_options, default=_default_sel, key=f"g_tk_{p['id']}", label_visibility="collapsed")
@@ -2467,11 +2467,13 @@ def _render_pricing_admin():
             feat_text = _feats.get(pid, "")
             feat_list = [f.strip() for f in feat_text.strip().split("\n") if f.strip()] if feat_text.strip() else []
             # Normalize allowed_tickers from multiselect list
+            # If user selected every ticker in the pool (via "Select all"), store as "ALL"
             sel_tickers = _tickers.get(pid, [])
-            if "ALL" in sel_tickers or not sel_tickers:
+            _pool_set = set(st.session_state.get("_ticker_pool", []))
+            if not sel_tickers or set(sel_tickers) == _pool_set:
                 norm_tk = "ALL"
             else:
-                norm_tk = ",".join(sorted(t.upper() for t in sel_tickers if t != "ALL"))
+                norm_tk = ",".join(sorted(t.upper() for t in sel_tickers))
             result = update_plan(
                 pid,
                 name=(_names.get(pid, "") or "").strip(),
