@@ -244,7 +244,7 @@ def render_pricing_page():
             price_annual = float(plan.get("price_annual", 0))
 
             if is_annual and price_annual > 0:
-                display_price = f"{price_annual / 12:.0f}"
+                display_price = f"{price_annual:.0f}"
                 billed_note = "billed annually"
             else:
                 display_price = f"{price_monthly:.0f}"
