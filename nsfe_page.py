@@ -2281,6 +2281,43 @@ def _render_pricing_admin():
                 else:
                     st.error("Slug and Name are required.")
 
+    # ── Manage ticker pool (outside the form so it updates instantly) ──
+    _default_pool = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"]
+    if "_ticker_pool" not in st.session_state:
+        st.session_state["_ticker_pool"] = _default_pool
+
+    with st.expander("🎯 Manage Available Tickers"):
+        st.markdown(
+            '<p style="font-size:0.82rem;color:#64748b;margin-bottom:8px;">'
+            'These tickers appear in the <b>Allowed Tickers</b> combobox for each plan. '
+            'Add new ones below (comma-separated) or remove existing ones.</p>',
+            unsafe_allow_html=True)
+        _pool_display = ", ".join(sorted(st.session_state["_ticker_pool"]))
+        st.code(_pool_display, language=None)
+        _tk_add_col, _tk_rm_col = st.columns(2)
+        with _tk_add_col:
+            _new_tickers = st.text_input("Add tickers", placeholder="e.g. NFLX, AMD, DIS",
+                                          key="_tk_pool_add", label_visibility="collapsed")
+            if st.button("➕ Add", key="_tk_pool_add_btn", use_container_width=True):
+                if _new_tickers.strip():
+                    added = []
+                    for t in _new_tickers.split(","):
+                        t = t.strip().upper()
+                        if t and t not in st.session_state["_ticker_pool"]:
+                            st.session_state["_ticker_pool"].append(t)
+                            added.append(t)
+                    if added:
+                        st.toast(f"Added: {', '.join(added)}", icon="✅")
+                    st.rerun()
+        with _tk_rm_col:
+            if st.session_state["_ticker_pool"]:
+                _rm_ticker = st.selectbox("Remove ticker", options=sorted(st.session_state["_ticker_pool"]),
+                                           key="_tk_pool_rm", label_visibility="collapsed")
+                if st.button("🗑️ Remove", key="_tk_pool_rm_btn", use_container_width=True):
+                    st.session_state["_ticker_pool"].remove(_rm_ticker)
+                    st.toast(f"Removed {_rm_ticker}", icon="🗑️")
+                    st.rerun()
+
     # ── Spreadsheet grid ──
     # Build columns: [Label] + [Plan1] + [Plan2] + ...
     n = len(all_plans)
@@ -2344,11 +2381,21 @@ def _render_pricing_admin():
         # ── SECTION: Ticker Access ──
         st.markdown('<div class="price-grid-section">Ticker Access</div>', unsafe_allow_html=True)
 
+        # Build multiselect options from the managed ticker pool
+        _pool = st.session_state["_ticker_pool"]
+        _multiselect_options = ["ALL"] + sorted(_pool)
+
         cols = st.columns(plan_widths)
         cols[0].markdown('<div class="price-grid-label">Allowed Tickers</div>', unsafe_allow_html=True)
         _tickers = {}
         for i, p in enumerate(all_plans):
-            _tickers[p["id"]] = cols[i + 1].text_input("tk", value=p.get("allowed_tickers", "ALL"), key=f"g_tk_{p['id']}", label_visibility="collapsed", help='Comma-separated tickers (e.g. AAPL,TSLA,NVDA) or "ALL" for unlimited')
+            # Parse current value into a default list for the multiselect
+            cur_val = (p.get("allowed_tickers", "") or "").strip().upper()
+            if cur_val == "ALL":
+                _default_sel = _multiselect_options[:]  # ALL + every ticker
+            else:
+                _default_sel = [t.strip() for t in cur_val.split(",") if t.strip() and t.strip() in _pool]
+            _tickers[p["id"]] = cols[i + 1].multiselect("tk", options=_multiselect_options, default=_default_sel, key=f"g_tk_{p['id']}", label_visibility="collapsed")
 
         # ── SECTION: CTA ──
         st.markdown('<div class="price-grid-section">Call to Action</div>', unsafe_allow_html=True)
@@ -2419,14 +2466,12 @@ def _render_pricing_admin():
             pid = p["id"]
             feat_text = _feats.get(pid, "")
             feat_list = [f.strip() for f in feat_text.strip().split("\n") if f.strip()] if feat_text.strip() else []
-            # Normalize allowed_tickers: uppercase, trim, remove empty
-            raw_tk = (_tickers.get(pid, "") or "ALL").strip()
-            if raw_tk.upper() == "ALL":
+            # Normalize allowed_tickers from multiselect list
+            sel_tickers = _tickers.get(pid, [])
+            if "ALL" in sel_tickers or not sel_tickers:
                 norm_tk = "ALL"
             else:
-                norm_tk = ",".join(t.strip().upper() for t in raw_tk.split(",") if t.strip())
-                if not norm_tk:
-                    norm_tk = "ALL"
+                norm_tk = ",".join(sorted(t.upper() for t in sel_tickers if t != "ALL"))
             result = update_plan(
                 pid,
                 name=(_names.get(pid, "") or "").strip(),
