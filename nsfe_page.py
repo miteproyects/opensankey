@@ -2330,6 +2330,302 @@ def _render_pricing_admin():
                     st.rerun()
 
 
+_CONTEXT_PATH = os.path.join(os.path.dirname(__file__), "CONTEXT.md")
+
+# ── Section definitions for the Memory tab ──────────────────────────────
+_MD_SECTIONS = [
+    {"key": "architecture",  "icon": "🏗️", "title": "Architecture",       "heading": "## 1. Architecture"},
+    {"key": "file_map",      "icon": "📁", "title": "File Map",            "heading": "## 2. File Map"},
+    {"key": "design",        "icon": "🎨", "title": "Design System",       "heading": "## 3. Design System"},
+    {"key": "gotchas",       "icon": "⚠️", "title": "Gotchas & Patterns",  "heading": "## 4. Known Gotchas & Patterns"},
+    {"key": "changelog",     "icon": "📝", "title": "Recent Changes",      "heading": "## 5. Recent Changes (Changelog)"},
+    {"key": "pending",       "icon": "🚀", "title": "Pending / Future",    "heading": "## 6. Pending / Future Ideas"},
+]
+
+
+def _read_context():
+    """Read CONTEXT.md and return full text."""
+    try:
+        with open(_CONTEXT_PATH, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return ""
+
+
+def _write_context(text):
+    """Write text back to CONTEXT.md."""
+    with open(_CONTEXT_PATH, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+def _parse_sections(full_text):
+    """Split CONTEXT.md into sections by ## headings. Returns dict {key: content}."""
+    sections = {}
+    for i, sec in enumerate(_MD_SECTIONS):
+        heading = sec["heading"]
+        start = full_text.find(heading)
+        if start == -1:
+            sections[sec["key"]] = ""
+            continue
+        # Content starts after the heading line
+        content_start = full_text.find("\n", start) + 1
+        # Find the next section heading or EOF
+        next_start = len(full_text)
+        for j in range(i + 1, len(_MD_SECTIONS)):
+            ns = full_text.find(_MD_SECTIONS[j]["heading"])
+            if ns != -1:
+                next_start = ns
+                break
+        sections[sec["key"]] = full_text[content_start:next_start].strip()
+    return sections
+
+
+def _rebuild_md(sections, full_text):
+    """Rebuild full CONTEXT.md from edited sections, preserving the header."""
+    # Extract everything before first section (the title/intro)
+    first_heading_pos = full_text.find(_MD_SECTIONS[0]["heading"])
+    header = full_text[:first_heading_pos] if first_heading_pos != -1 else full_text.split("## ")[0]
+    parts = [header.rstrip() + "\n\n"]
+    for sec in _MD_SECTIONS:
+        parts.append(sec["heading"] + "\n\n")
+        content = sections.get(sec["key"], "").strip()
+        if content:
+            parts.append(content + "\n\n")
+        parts.append("---\n\n")
+    return "".join(parts).rstrip() + "\n"
+
+
+def _render_memory():
+    """Render the Memory (CONTEXT.md) editor tab."""
+
+    # ── Styles ──
+    st.markdown("""
+    <style>
+        .mem-header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 14px;
+            padding: 24px 28px;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .mem-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin: 0 0 4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .mem-sub {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            margin: 0;
+        }
+        .mem-stat-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 14px;
+        }
+        .mem-stat {
+            background: rgba(255,255,255,0.08);
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-size: 0.78rem;
+            color: #93c5fd;
+            font-weight: 600;
+        }
+        .mem-section-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+            overflow: hidden;
+        }
+        .mem-section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 18px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            cursor: pointer;
+        }
+        .mem-section-icon {
+            font-size: 1.2rem;
+        }
+        .mem-section-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        .mem-section-lines {
+            font-size: 0.72rem;
+            color: #94a3b8;
+            margin-left: auto;
+            font-weight: 500;
+        }
+        .mem-auto-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+            color: #166534;
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 12px;
+            border: 1px solid #86efac;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ── Load content ──
+    full_text = _read_context()
+    if not full_text:
+        st.warning("CONTEXT.md not found. Creating a new one...")
+        _write_context("# QuarterCharts — Developer Context & Memory\n\n---\n\n## 1. Architecture\n\n\n---\n\n## 2. File Map\n\n\n---\n\n## 3. Design System\n\n\n---\n\n## 4. Known Gotchas & Patterns\n\n\n---\n\n## 5. Recent Changes (Changelog)\n\n\n---\n\n## 6. Pending / Future Ideas\n\n")
+        full_text = _read_context()
+
+    sections = _parse_sections(full_text)
+    total_lines = full_text.count("\n") + 1
+    total_sections = len([s for s in sections.values() if s.strip()])
+    file_size = os.path.getsize(_CONTEXT_PATH) if os.path.exists(_CONTEXT_PATH) else 0
+
+    # ── Modification time ──
+    mod_time = ""
+    if os.path.exists(_CONTEXT_PATH):
+        ts = os.path.getmtime(_CONTEXT_PATH)
+        mod_time = datetime.fromtimestamp(ts).strftime("%b %d, %Y at %I:%M %p")
+
+    # ── Header ──
+    st.markdown(f"""
+    <div class="mem-header">
+        <div class="mem-title">🧠 Developer Memory</div>
+        <p class="mem-sub">Living context file for AI-assisted development sessions. Edit sections below — changes auto-save to <code>CONTEXT.md</code>.</p>
+        <div class="mem-stat-row">
+            <span class="mem-stat">{total_lines} lines</span>
+            <span class="mem-stat">{total_sections}/{len(_MD_SECTIONS)} sections</span>
+            <span class="mem-stat">{file_size / 1024:.1f} KB</span>
+            <span class="mem-stat">Updated: {mod_time}</span>
+            <span class="mem-auto-badge">● Auto-save</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Mode toggle ──
+    mode_col1, mode_col2, mode_col3 = st.columns([1, 1, 4])
+    with mode_col1:
+        section_mode = st.button("📑 Section Editor", use_container_width=True,
+                                  type="primary" if not st.session_state.get("mem_raw_mode") else "secondary")
+    with mode_col2:
+        raw_mode = st.button("📝 Raw Editor", use_container_width=True,
+                              type="primary" if st.session_state.get("mem_raw_mode") else "secondary")
+
+    if section_mode:
+        st.session_state["mem_raw_mode"] = False
+    if raw_mode:
+        st.session_state["mem_raw_mode"] = True
+
+    st.markdown("<div style='margin-top:1rem'></div>", unsafe_allow_html=True)
+
+    # ── RAW EDITOR MODE ──
+    if st.session_state.get("mem_raw_mode"):
+        st.markdown("#### Full Markdown")
+        new_text = st.text_area(
+            "CONTEXT.md",
+            value=full_text,
+            height=600,
+            label_visibility="collapsed",
+            key="mem_raw_editor",
+        )
+        c1, c2, c3 = st.columns([1, 1, 6])
+        with c1:
+            if st.button("💾 Save", type="primary", use_container_width=True, key="mem_raw_save"):
+                _write_context(new_text)
+                st.toast("✅ CONTEXT.md saved!", icon="💾")
+                st.rerun()
+        with c2:
+            if st.button("🔄 Reload", use_container_width=True, key="mem_raw_reload"):
+                st.rerun()
+
+        # Preview
+        with st.expander("👁️ Preview", expanded=False):
+            st.markdown(new_text)
+        return
+
+    # ── SECTION EDITOR MODE ──
+    edited = {}
+    any_changed = False
+
+    for sec in _MD_SECTIONS:
+        content = sections.get(sec["key"], "")
+        line_count = content.count("\n") + 1 if content.strip() else 0
+
+        st.markdown(f"""
+        <div class="mem-section-card">
+            <div class="mem-section-header">
+                <span class="mem-section-icon">{sec['icon']}</span>
+                <span class="mem-section-title">{sec['title']}</span>
+                <span class="mem-section-lines">{line_count} lines</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.expander(f"Edit: {sec['title']}", expanded=False):
+            # Calculate dynamic height based on content
+            n_lines = max(content.count("\n") + 3, 8)
+            calc_height = min(max(n_lines * 22, 180), 500)
+
+            new_content = st.text_area(
+                sec["title"],
+                value=content,
+                height=calc_height,
+                label_visibility="collapsed",
+                key=f"mem_sec_{sec['key']}",
+            )
+            edited[sec["key"]] = new_content
+            if new_content.strip() != content.strip():
+                any_changed = True
+
+            # Section preview
+            if new_content.strip():
+                st.markdown("---")
+                st.markdown(new_content)
+
+    # ── Save bar ──
+    if any_changed:
+        st.markdown("<div style='margin-top:1rem'></div>", unsafe_allow_html=True)
+        save_col1, save_col2, _ = st.columns([1, 1, 6])
+        with save_col1:
+            if st.button("💾 Save All Changes", type="primary", use_container_width=True, key="mem_sec_save"):
+                new_md = _rebuild_md(edited, full_text)
+                _write_context(new_md)
+                st.toast("✅ All sections saved to CONTEXT.md!", icon="💾")
+                st.rerun()
+        with save_col2:
+            if st.button("↩️ Discard", use_container_width=True, key="mem_sec_discard"):
+                st.rerun()
+    else:
+        st.markdown("<div style='text-align:center;color:#94a3b8;font-size:0.82rem;margin-top:1.5rem'>✓ All sections up to date</div>", unsafe_allow_html=True)
+
+    # ── Quick add section ──
+    st.markdown("<div style='margin-top:2rem'></div>", unsafe_allow_html=True)
+    with st.expander("➕ Quick Add to Changelog"):
+        new_entry = st.text_area("New changelog entry", height=80, placeholder="### 2026-04-03\n- Added new feature...", key="mem_quick_add")
+        if st.button("Add to Changelog", key="mem_add_changelog"):
+            if new_entry.strip():
+                changelog = sections.get("changelog", "")
+                updated_changelog = new_entry.strip() + "\n\n" + changelog
+                sections["changelog"] = updated_changelog
+                new_md = _rebuild_md(sections, full_text)
+                _write_context(new_md)
+                st.toast("✅ Changelog updated!", icon="📝")
+                st.rerun()
+
+
 def render_nsfe_page():
     """Render the password-protected NSFE manager control center."""
     st.markdown(_STYLES, unsafe_allow_html=True)
@@ -2359,10 +2655,10 @@ def render_nsfe_page():
     # ── Main Menu (Streamlit tabs) ──
     _sync_steps()
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
         "📋 Dashboard", "🛡️ Security", "⚙️ Settings",
         "🤖 AI Assistant", "🛡️ Certifications", "🏗️ Infrastructure",
-        "👥 Team & Admin", "🔍 SEO", "💳 Pricing",
+        "👥 Team & Admin", "🔍 SEO", "💳 Pricing", "🧠 Memory",
     ])
 
     with tab1:
@@ -2388,6 +2684,9 @@ def render_nsfe_page():
 
     with tab9:
         _render_pricing_admin()
+
+    with tab10:
+        _render_memory()
 
     # Footer
     st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
