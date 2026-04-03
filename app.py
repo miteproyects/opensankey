@@ -1095,21 +1095,8 @@ if _qp_ticker:
 if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe", "privacy", "terms", "user", "dashboard"):
     st.session_state.page = _qp_page
 
-# ── Ticker access gating on URL navigation ──
-# Redirect based on plan's redirect_allowed / redirect_blocked settings
-if _qp_ticker and _qp_page not in ("pricing", "home", "login", "nsfe", "privacy", "terms", "earnings"):
-    try:
-        from database import get_user_plan_access
-        _gate_uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
-        _access = get_user_plan_access(_gate_uid)
-        _gate_allowed = _access["allowed_tickers"]
-        if _gate_allowed is not None and _qp_ticker not in _gate_allowed:
-            _redir = _access["redirect_blocked"]
-            st.session_state.page = _redir
-            st.query_params.update({"page": _redir, "ticker": _qp_ticker})
-            st.rerun()
-    except Exception:
-        pass
+# NOTE: Ticker gating only applies on search form submissions (sidebar, dashboard),
+# not on URL navigation — nav links must always work.
 elif "page" not in st.session_state:
     st.session_state.page = "home"
 # Always keep URL in sync so browser refresh preserves the current page.
