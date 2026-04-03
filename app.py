@@ -1920,6 +1920,16 @@ current_page = st.session_state.page
 
 # Nav bar with page switching (using <a> links for reliable navigation)
 # Auth params carry login session across full page reloads caused by <a> tag navigation
+# ── Build timestamp from last git commit ──
+import subprocess as _sp
+try:
+    _build_ts = _sp.check_output(
+        ["git", "log", "-1", "--format=%cd", "--date=format:%H:%M"],
+        cwd=os.path.dirname(__file__), stderr=_sp.DEVNULL
+    ).decode().strip()
+except Exception:
+    _build_ts = ""
+
 _auth_params = get_auth_params()
 _is_logged_in = st.session_state.get("logged_in", False)
 if _is_logged_in:
@@ -1948,6 +1958,7 @@ st.markdown(f'''
         <a href="/?page=nsfe&ticker={ticker}{_auth_params}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
                     <a href="/?page=pricing&ticker={ticker}{_auth_params}" target="_self" class="nav-link">Pricing</a>
                     {_auth_link}
+        {'<span style="font-size:0.65rem;color:#475569;font-weight:500;margin-left:8px;opacity:0.6;">' + _build_ts + '</span>' if _build_ts else ''}
         <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#9776;</button>
     </div>
 </div>
