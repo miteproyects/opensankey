@@ -322,6 +322,13 @@ section[data-testid="stSidebar"] {
     margin: 0 !important;
     padding: 0 !important;
 }
+.nav-build-ts {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.35);
+    font-weight: 500;
+    margin-left: 8px;
+    user-select: none;
+}
 .nav-expand-btn {
     display: none;
     width: 32px !important;
@@ -1958,7 +1965,7 @@ st.markdown(f'''
         <a href="/?page=nsfe&ticker={ticker}{_auth_params}" target="_self" class="nav-link {'active' if current_page == 'nsfe' else ''}">NSFE</a>
                     <a href="/?page=pricing&ticker={ticker}{_auth_params}" target="_self" class="nav-link">Pricing</a>
                     {_auth_link}
-        {'<span style="font-size:0.65rem;color:#475569;font-weight:500;margin-left:8px;opacity:0.6;">' + _build_ts + '</span>' if _build_ts else ''}
+        <span class="nav-build-ts">{_build_ts}</span>
         <button class="nav-expand-btn" id="navExpandSidebar" title="Open sidebar">&#9776;</button>
     </div>
 </div>
