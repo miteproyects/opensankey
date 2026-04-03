@@ -757,6 +757,11 @@ def seed_default_plans():
     if existing:
         return
     defaults = [
+        {"slug": "no-login", "name": "No Login", "description": "Browse without an account",
+         "price_monthly": 0, "price_annual": 0, "sort_order": 0,
+         "features": ["3 ticker lookups per day", "Income statement Sankey (view only)",
+                       "Basic company profile", "Earnings calendar", "Limited chart access"],
+         "cta_text": "Create Free Account", "cta_url": "?page=login", "is_popular": False},
         {"slug": "free", "name": "Free", "description": "Perfect for exploring financial data",
          "price_monthly": 0, "price_annual": 0, "sort_order": 1,
          "features": ["5 ticker lookups per day", "Income statement Sankey",
@@ -778,3 +783,16 @@ def seed_default_plans():
     ]
     for p in defaults:
         create_plan(**p)
+
+
+def ensure_no_login_plan():
+    """Ensure the 'No Login' plan exists (safe to call on every startup)."""
+    if not get_plan_by_slug("no-login"):
+        create_plan(
+            slug="no-login", name="No Login",
+            description="Browse without an account",
+            price_monthly=0, price_annual=0, sort_order=0,
+            features=["3 ticker lookups per day", "Income statement Sankey (view only)",
+                       "Basic company profile", "Earnings calendar", "Limited chart access"],
+            cta_text="Create Free Account", cta_url="?page=login", is_popular=False,
+        )
