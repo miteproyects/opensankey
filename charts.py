@@ -48,7 +48,7 @@ PALETTE: List[str] = [
 # Shared layout helper
 # ---------------------------------------------------------------------------
 
-def _layout(title: str, height: int = 450, **overrides) -> Dict[str, Any]:
+def _layout(title: str, height: int = 420, **overrides) -> Dict[str, Any]:
     """Return the standard light-theme layout dict for a Plotly figure."""
     # Title is rendered externally via Streamlit markdown (see app.py render_charts).
     # We store the title text in layout.meta as a plain string so the renderer can
@@ -70,7 +70,7 @@ def _layout(title: str, height: int = 450, **overrides) -> Dict[str, Any]:
             linecolor=COLORS["grid"],
             tickfont=dict(size=10),
             tickangle=-45,
-            automargin=False,
+            automargin=True,
         ),
         yaxis=dict(
             showgrid=True,
@@ -81,7 +81,7 @@ def _layout(title: str, height: int = 450, **overrides) -> Dict[str, Any]:
             tickfont=dict(size=10),
             automargin=True,
         ),
-        margin=dict(l=10, r=10, t=10, b=70),
+        margin=dict(l=10, r=10, t=10, b=10),
         legend=dict(
             orientation="h",
             yanchor="top",

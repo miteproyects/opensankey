@@ -1814,7 +1814,7 @@ def _render_blocked_overlay(chart_title: str, key: str):
     _upgrade_url = f"/?page=pricing&ticker={_ticker}"
     st.markdown(f"""
     <div style="position:relative;background:#0f172a;border-radius:14px;overflow:hidden;
-                min-height:450px;height:100%;display:flex;align-items:center;justify-content:center;
+                min-height:420px;height:100%;display:flex;align-items:center;justify-content:center;
                 border:1px solid rgba(255,255,255,0.06);margin-bottom:1rem;">
         <!-- Blurred fake chart background -->
         <div style="position:absolute;inset:0;opacity:0.15;filter:blur(6px);
@@ -2116,7 +2116,35 @@ st.markdown("""<style>
     [data-testid="stStatusWidget"] { display: none !important; }
     .stSpinner { display: none !important; }
     .modebar-container { display: none !important; }
-</style>""", unsafe_allow_html=True)
+</style>
+<script>
+// Force Plotly charts to relayout when their container resizes
+// (fixes legend/label overlap when switching column layouts)
+(function() {
+    if (window._qcResizeObserver) return;
+    window._qcResizeObserver = new ResizeObserver(function(entries) {
+        entries.forEach(function(entry) {
+            var charts = entry.target.querySelectorAll('.js-plotly-plot');
+            charts.forEach(function(chart) {
+                if (chart._fullLayout && window.Plotly) {
+                    window.Plotly.Plots.resize(chart);
+                }
+            });
+        });
+    });
+    function observe() {
+        var main = document.querySelector('[data-testid="stMainBlockContainer"]') ||
+                   document.querySelector('[data-testid="stAppViewContainer"]') ||
+                   document.querySelector('.main');
+        if (main) {
+            window._qcResizeObserver.observe(main);
+        } else {
+            setTimeout(observe, 500);
+        }
+    }
+    observe();
+})();
+</script>""", unsafe_allow_html=True)
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 # Sidebar (Charts page only Ã¢ÂÂ Profile page has no sidebar)
