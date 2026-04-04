@@ -1896,7 +1896,7 @@ def render_charts(charts: list, section: str, blocked_charts=None):
     for i in range(0, len(valid), n_cols):
         # Add vertical gap between chart rows (not before the first row)
         if i > 0:
-            st.markdown('<div style="margin-top:8px;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="margin-top:13px;"></div>', unsafe_allow_html=True)
         cols = st.columns(n_cols)
         for j in range(n_cols):
             idx = i + j
