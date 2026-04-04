@@ -22,4 +22,4 @@ for f in ('robots.txt', 'sitemap.xml', 'llms.txt', 'og-image.png'):
 "
 
 # ── Start Streamlit ──────────────────────────────────────────────────────
-exec streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0
+exec streamlit run app.py --server.port=8501 --server.address=0.0.0.0
