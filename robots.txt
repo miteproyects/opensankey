@@ -1,0 +1,73 @@
+# QuarterCharts.com - robots.txt
+# Last updated: 2026-04-04
+
+# Allow all major search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+User-agent: YandexBot
+Allow: /
+
+# Explicitly allow AI crawlers
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Anthropic-AI
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: claude-web
+Allow: /
+
+# Block admin and private pages
+User-agent: *
+Disallow: /?page=nsfe
+Disallow: /?page=dashboard
+Disallow: /?page=user
+Disallow: /admin/
+Disallow: /api/private/
+
+# Allow everything else
+Allow: /
+
+# Crawl delay (in seconds) - adjust based on server capacity
+Crawl-delay: 1
+
+# Sitemap and additional discovery files
+Sitemap: https://quartercharts.com/sitemap.xml
+Sitemap: https://quartercharts.com/llms.txt

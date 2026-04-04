@@ -6,6 +6,7 @@ Run with:  streamlit run app.py
 
 import os
 import sys
+import json
 
 # ── Patch Streamlit index.html to add Google site verification in <head> ──
 def _patch_streamlit_head():
@@ -33,6 +34,11 @@ def _patch_streamlit_head():
             if 'name="description"' not in html:
                 desc = '<meta name="description" content="QuarterCharts is a financial data visualization platform that turns SEC filings into interactive Sankey diagrams, quarterly income charts, and company profiles." />'
                 html = html.replace("</head>", f"{desc}</head>", 1)
+                changed = True
+            # Add preconnect and dns-prefetch links for performance
+            if 'rel="preconnect" href="https://www.googletagmanager.com"' not in html:
+                links = '<link rel="preconnect" href="https://www.googletagmanager.com"><link rel="preconnect" href="https://www.google-analytics.com"><link rel="dns-prefetch" href="https://financialmodelingprep.com">'
+                html = html.replace("</head>", f"{links}</head>", 1)
                 changed = True
             # Replace noscript with content Google's bot can parse for OAuth verification
             _noscript_content = (
@@ -65,6 +71,24 @@ def _patch_streamlit_head():
         pass
 
 _patch_streamlit_head()
+
+# ── Copy SEO static files (robots.txt, sitemap.xml, llms.txt) into Streamlit's
+#    static directory so they are served at the web root. ──────────────────────
+def _install_seo_static_files():
+    """Copy SEO files into Streamlit's static/ folder for root-level serving."""
+    try:
+        import shutil, streamlit as _st
+        static_dir = os.path.join(os.path.dirname(_st.__file__), "static")
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        for fname in ("robots.txt", "sitemap.xml", "llms.txt"):
+            src = os.path.join(app_dir, fname)
+            dst = os.path.join(static_dir, fname)
+            if os.path.isfile(src):
+                shutil.copy2(src, dst)
+    except Exception:
+        pass
+
+_install_seo_static_files()
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -2130,6 +2154,244 @@ components.html("""<script>
     };
 })();
 </script>""", height=0)
+
+# ── Dynamic SEO Meta Tags & Structured Data ──────────────────────────────────
+# Build SEO metadata dictionary based on current_page and ticker
+_SEO_META = {
+    "home": {
+        "title": "QuarterCharts — Free Stock Charts, Sankey Diagrams & Earnings Calendar",
+        "description": "Visualize any stock's financials with interactive Sankey diagrams, quarterly income charts, and company profiles. Free access to 6,000+ tickers from SEC filings.",
+        "og_image": "https://quartercharts.com/og-image.png"
+    },
+    "charts": {
+        "title": "{ticker} Financial Charts — Revenue, Margins, EPS | QuarterCharts",
+        "description": "Interactive {ticker} income statement charts: revenue trends, profit margins, EPS, cash flow, and 40+ financial metrics from SEC filings.",
+        "og_image": "https://financialmodelingprep.com/image-stock/{ticker}.png"
+    },
+    "sankey": {
+        "title": "{ticker} Sankey Diagram — Income Statement Flow | QuarterCharts",
+        "description": "See how {ticker}'s money flows from revenue to net income with interactive Sankey diagrams. Visualize income statement and balance sheet flows.",
+        "og_image": "https://financialmodelingprep.com/image-stock/{ticker}.png"
+    },
+    "profile": {
+        "title": "{ticker} Company Profile — Fundamentals & Analysis | QuarterCharts",
+        "description": "Complete {ticker} company profile: market cap, P/E ratio, ownership breakdown, insider trading, analyst forecasts, and DCF valuation.",
+        "og_image": "https://financialmodelingprep.com/image-stock/{ticker}.png"
+    },
+    "earnings": {
+        "title": "Earnings Calendar — Upcoming Earnings Dates & Results | QuarterCharts",
+        "description": "Weekly earnings calendar with EPS estimates, actual results, and surprise data. Track upcoming and past earnings announcements for all stocks.",
+        "og_image": "https://quartercharts.com/og-image.png"
+    },
+    "watchlist": {
+        "title": "My Watchlist — Track Your Favorite Stocks | QuarterCharts",
+        "description": "Build and monitor your personal stock watchlist with live market data, price changes, and upcoming earnings dates.",
+        "og_image": "https://quartercharts.com/og-image.png"
+    },
+    "pricing": {
+        "title": "Pricing Plans — QuarterCharts Pro & Enterprise",
+        "description": "Choose the right QuarterCharts plan. Free access to basic charts, Pro for advanced analytics, and Enterprise for team collaboration.",
+        "og_image": "https://quartercharts.com/og-image.png"
+    },
+    "login": {
+        "title": "Sign In — QuarterCharts",
+        "description": "Sign in to your QuarterCharts account with email or Google to access your dashboard, watchlist, and saved charts.",
+        "og_image": "https://quartercharts.com/og-image.png"
+    },
+    "dashboard": {
+        "title": "My Dashboard — QuarterCharts",
+        "description": "Your personalized QuarterCharts dashboard. Quick access to charts, Sankey diagrams, earnings calendar, and your watchlist.",
+        "og_image": "https://quartercharts.com/og-image.png"
+    },
+    "privacy": {
+        "title": "Privacy Policy — QuarterCharts",
+        "description": "QuarterCharts privacy policy. Learn how we collect, use, and protect your data.",
+        "og_image": "https://quartercharts.com/og-image.png"
+    },
+    "terms": {
+        "title": "Terms of Service — QuarterCharts",
+        "description": "QuarterCharts terms of service. Read our usage policies and disclaimers.",
+        "og_image": "https://quartercharts.com/og-image.png"
+    }
+}
+
+# Determine SEO metadata for current page
+_page_meta = _SEO_META.get(current_page, _SEO_META.get("home"))
+_page_title = _page_meta["title"].format(ticker=ticker) if "{ticker}" in _page_meta["title"] else _page_meta["title"]
+_page_desc = _page_meta["description"].format(ticker=ticker) if "{ticker}" in _page_meta["description"] else _page_meta["description"]
+_page_og_image = _page_meta["og_image"].format(ticker=ticker) if "{ticker}" in _page_meta["og_image"] else _page_meta["og_image"]
+_canonical_url = f"https://quartercharts.com/?page={current_page}" + (f"&ticker={ticker}" if ticker and current_page in ["charts", "sankey", "profile"] else "")
+
+# Build breadcrumb list for JSON-LD
+_breadcrumb_items = [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://quartercharts.com/?page=home"}]
+if current_page != "home":
+    if ticker and current_page in ["charts", "sankey", "profile"]:
+        _breadcrumb_items.append({"@type": "ListItem", "position": 2, "name": ticker, "item": f"https://quartercharts.com/?page=charts&ticker={ticker}"})
+        _page_name = {"charts": "Charts", "sankey": "Sankey Diagram", "profile": "Profile"}.get(current_page, "")
+        _breadcrumb_items.append({"@type": "ListItem", "position": 3, "name": _page_name, "item": f"https://quartercharts.com/?page={current_page}&ticker={ticker}"})
+    else:
+        _page_name_map = {
+            "earnings": "Earnings Calendar",
+            "watchlist": "My Watchlist",
+            "dashboard": "My Dashboard",
+            "pricing": "Pricing",
+            "login": "Sign In",
+            "privacy": "Privacy Policy",
+            "terms": "Terms of Service"
+        }
+        _page_name = _page_name_map.get(current_page, current_page.title())
+        _breadcrumb_items.append({"@type": "ListItem", "position": 2, "name": _page_name, "item": f"https://quartercharts.com/?page={current_page}"})
+
+# Inject dynamic SEO meta tags and JSON-LD structured data
+_seo_injection_js = f"""
+(function() {{
+    var par = window.parent;
+    var doc = par && par.document;
+    if (!doc || doc.getElementById('qc-seo-injected')) return;
+
+    // Mark as injected to prevent duplicate processing
+    var marker = doc.createElement('meta');
+    marker.id = 'qc-seo-injected';
+    doc.head.appendChild(marker);
+
+    // Update title
+    doc.title = {json.dumps(_page_title)};
+    var titleTag = doc.querySelector('title');
+    if (titleTag) titleTag.textContent = {json.dumps(_page_title)};
+
+    // Helper to create or update meta tag
+    function setMeta(name, content, isProperty) {{
+        var selector = isProperty ? '[property="' + name + '"]' : '[name="' + name + '"]';
+        var tag = doc.querySelector(selector);
+        if (!tag) {{
+            tag = doc.createElement('meta');
+            if (isProperty) tag.setAttribute('property', name);
+            else tag.setAttribute('name', name);
+            doc.head.appendChild(tag);
+        }}
+        tag.setAttribute('content', content);
+    }}
+
+    // Set meta description
+    setMeta('description', {json.dumps(_page_desc)});
+
+    // Set canonical URL
+    var canonical = doc.querySelector('link[rel="canonical"]');
+    if (!canonical) {{
+        canonical = doc.createElement('link');
+        canonical.rel = 'canonical';
+        doc.head.appendChild(canonical);
+    }}
+    canonical.href = {json.dumps(_canonical_url)};
+
+    // Set Open Graph tags
+    setMeta('og:title', {json.dumps(_page_title)}, true);
+    setMeta('og:description', {json.dumps(_page_desc)}, true);
+    setMeta('og:image', {json.dumps(_page_og_image)}, true);
+    setMeta('og:url', {json.dumps(_canonical_url)}, true);
+    setMeta('og:type', 'website', true);
+    setMeta('og:site_name', 'QuarterCharts', true);
+
+    // Set Twitter Card tags
+    setMeta('twitter:card', 'summary_large_image');
+    setMeta('twitter:title', {json.dumps(_page_title)});
+    setMeta('twitter:description', {json.dumps(_page_desc)});
+    setMeta('twitter:image', {json.dumps(_page_og_image)});
+
+    // Set article tags
+    setMeta('article:author', 'Sebastián Flores');
+    setMeta('article:section', {json.dumps(current_page.title())});
+
+    // Inject JSON-LD structured data
+    var ldScripts = doc.querySelectorAll('script[type="application/ld+json"]');
+    var existingIds = {{}};
+    ldScripts.forEach(function(s) {{
+        try {{
+            var data = JSON.parse(s.textContent);
+            if (data['@type']) existingIds[data['@type']] = s;
+        }} catch(e) {{}}
+    }});
+
+    // Organization schema (on every page)
+    var orgSchema = {{
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://quartercharts.com/#org",
+        "name": "QuarterCharts",
+        "url": "https://quartercharts.com",
+        "description": "Financial data visualization platform that turns SEC filings into interactive charts and Sankey diagrams.",
+        "founder": {{"@type": "Person", "name": "Sebastián Flores"}},
+        "foundingDate": "2024"
+    }};
+
+    // BreadcrumbList schema (on all pages)
+    var breadcrumbSchema = {{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": {json.dumps(_breadcrumb_items)}
+    }};
+
+    // Inject or update schemas
+    function injectLdSchema(schema, typeKey) {{
+        var existing = existingIds[schema['@type']];
+        if (existing) {{
+            existing.textContent = JSON.stringify(schema);
+        }} else {{
+            var script = doc.createElement('script');
+            script.type = 'application/ld+json';
+            script.textContent = JSON.stringify(schema);
+            doc.head.appendChild(script);
+        }}
+    }}
+
+    injectLdSchema(orgSchema, 'Organization');
+    injectLdSchema(breadcrumbSchema, 'BreadcrumbList');
+
+    // WebSite schema with SearchAction (on home page only)
+    if ({json.dumps(current_page)} === 'home') {{
+        var websiteSchema = {{
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "QuarterCharts",
+            "url": "https://quartercharts.com",
+            "potentialAction": {{
+                "@type": "SearchAction",
+                "target": "https://quartercharts.com/?page=charts&ticker={{search_term_string}}",
+                "query-input": "required name=search_term_string"
+            }}
+        }};
+        injectLdSchema(websiteSchema, 'WebSite');
+    }}
+
+    // SoftwareApplication schema (on home and pricing pages)
+    if ({json.dumps(current_page)} === 'home' || {json.dumps(current_page)} === 'pricing') {{
+        var appSchema = {{
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "QuarterCharts",
+            "applicationCategory": "FinanceApplication",
+            "operatingSystem": "Web",
+            "offers": {{"@type": "Offer", "price": "0", "priceCurrency": "USD"}}
+        }};
+        injectLdSchema(appSchema, 'SoftwareApplication');
+    }}
+
+    // Dataset schema (on earnings page only)
+    if ({json.dumps(current_page)} === 'earnings') {{
+        var datasetSchema = {{
+            "@context": "https://schema.org",
+            "@type": "Dataset",
+            "name": "Stock Earnings Calendar",
+            "description": "Weekly earnings announcements with EPS estimates, actuals, and surprise data for publicly traded companies.",
+            "creator": {{"@type": "Organization", "name": "QuarterCharts"}},
+            "url": "https://quartercharts.com/?page=earnings"
+        }};
+        injectLdSchema(datasetSchema, 'Dataset');
+    }}
+}});
+"""
+
+components.html(f"<script>{_seo_injection_js}</script>", height=0)
 
 #Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 # Hide Streamlit's "Running..." status widget on all pages
