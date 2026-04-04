@@ -17,9 +17,16 @@ def _patch_streamlit_head():
     Google, social-media preview bots, and AI crawlers see complete meta data
     without needing to execute JavaScript.
     """
+    import sys as _sys
+    _sys.stderr.write("[SEO PATCH] Function called\n")
+    _sys.stderr.flush()
     try:
         import streamlit as _st
         idx = os.path.join(os.path.dirname(_st.__file__), "static", "index.html")
+        _sys.stderr.write(f"[SEO PATCH] index.html path: {idx}\n")
+        _sys.stderr.write(f"[SEO PATCH] file exists: {os.path.isfile(idx)}\n")
+        _sys.stderr.write(f"[SEO PATCH] writable: {os.access(idx, os.W_OK)}\n")
+        _sys.stderr.flush()
         if not os.path.isfile(idx):
             return
         with open(idx, "r") as f:
@@ -209,13 +216,16 @@ def _patch_streamlit_head():
         if changed:
             with open(idx, "w") as f:
                 f.write(html)
-            print(f"[SEO PATCH] Successfully patched {idx}", flush=True)
+            _sys.stderr.write(f"[SEO PATCH] Successfully patched {idx}\n")
+            _sys.stderr.flush()
         else:
-            print(f"[SEO PATCH] No changes needed for {idx}", flush=True)
+            _sys.stderr.write(f"[SEO PATCH] No changes needed for {idx}\n")
+            _sys.stderr.flush()
     except Exception as e:
         import traceback
-        print(f"[SEO PATCH ERROR] {e}", flush=True)
-        traceback.print_exc()
+        _sys.stderr.write(f"[SEO PATCH ERROR] {e}\n")
+        traceback.print_exc(file=_sys.stderr)
+        _sys.stderr.flush()
 
 _patch_streamlit_head()
 
