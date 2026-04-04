@@ -3096,6 +3096,295 @@ def _render_memory():
                 st.rerun()
 
 
+def _render_analytics():
+    """📊 Analytics – Google Analytics 4 dashboard with live data from GA4 Data API."""
+    import os, json
+    from datetime import datetime, timedelta
+
+    # ── Styles ──
+    st.markdown("""
+    <style>
+    .ga-header {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-radius: 14px;
+        padding: 20px 24px;
+        margin-bottom: 1.25rem;
+        border: 1px solid rgba(255,255,255,0.06);
+    }
+    .ga-title { font-size: 1.2rem; font-weight: 700; color: #f1f5f9; margin: 0 0 4px; }
+    .ga-sub   { font-size: 0.82rem; color: #94a3b8; margin: 0; }
+    .ga-kpi-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 1rem; }
+    .ga-kpi {
+        flex: 1; min-width: 140px;
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+        padding: 16px; text-align: center;
+    }
+    .ga-kpi-val  { font-size: 1.6rem; font-weight: 800; color: #1e293b; margin: 0; }
+    .ga-kpi-label { font-size: 0.72rem; color: #64748b; margin: 4px 0 0; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+    .ga-section-title { font-size: 0.95rem; font-weight: 700; color: #1e293b; margin: 1.25rem 0 0.5rem; }
+    .ga-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .ga-table th { text-align: left; padding: 8px 12px; background: #f8fafc; color: #64748b; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #e2e8f0; }
+    .ga-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+    .ga-table tr:hover td { background: #f8fafc; }
+    .ga-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+    .ga-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .ga-setup-box {
+        background: #fffbeb; border: 1px solid #fbbf24; border-radius: 12px;
+        padding: 20px 24px; margin-top: 0.5rem;
+    }
+    .ga-setup-title { font-size: 1rem; font-weight: 700; color: #92400e; margin: 0 0 8px; }
+    .ga-setup-step  { font-size: 0.85rem; color: #78350f; margin: 4px 0; }
+    .ga-setup-code  { background: #fef3c7; padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 0.78rem; margin: 6px 0; color: #92400e; word-break: break-all; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="ga-header">
+        <div class="ga-title">📊 Google Analytics</div>
+        <p class="ga-sub">Site traffic, user behaviour, and page performance from GA4 Data API.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Check credentials ──
+    property_id = os.environ.get("GA4_PROPERTY_ID", "")
+    creds_json  = os.environ.get("GA4_CREDENTIALS_JSON", "")
+
+    if not property_id or not creds_json:
+        st.markdown("""
+        <div class="ga-setup-box">
+            <div class="ga-setup-title">⚠️ Setup Required</div>
+            <p class="ga-setup-step"><strong>Step 1:</strong> Go to <em>Google Cloud Console → APIs & Services → Enable</em> the <strong>Google Analytics Data API</strong>.</p>
+            <p class="ga-setup-step"><strong>Step 2:</strong> Create a <strong>Service Account</strong> (IAM → Service Accounts → Create) and download the JSON key file.</p>
+            <p class="ga-setup-step"><strong>Step 3:</strong> In <em>Google Analytics → Admin → Property Access Management</em>, add the service account email as a <strong>Viewer</strong>.</p>
+            <p class="ga-setup-step"><strong>Step 4:</strong> Find your GA4 <strong>Property ID</strong> (Admin → Property Settings → Property ID, e.g. <code>123456789</code>).</p>
+            <p class="ga-setup-step"><strong>Step 5:</strong> Add these environment variables to Railway:</p>
+            <div class="ga-setup-code">GA4_PROPERTY_ID=123456789</div>
+            <div class="ga-setup-code">GA4_CREDENTIALS_JSON={"type":"service_account","project_id":"...", ...}</div>
+            <p class="ga-setup-step" style="margin-top:10px"><strong>Step 6:</strong> Redeploy. The analytics dashboard will populate automatically.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+
+    # ── Initialize GA4 client ──
+    try:
+        from google.analytics.data_v1beta import BetaAnalyticsDataClient
+        from google.analytics.data_v1beta.types import (
+            RunReportRequest, DateRange, Metric, Dimension, OrderBy,
+        )
+        from google.oauth2 import service_account
+    except ImportError:
+        st.error("Missing package: `google-analytics-data`. Add it to requirements.txt and redeploy.")
+        return
+
+    @st.cache_data(ttl=300)  # cache 5 minutes
+    def _ga4_report(metrics_list, dimensions_list=None, date_start="30daysAgo",
+                    date_end="today", limit=10, order_desc_metric=None):
+        """Run a single GA4 report and return rows as list of dicts."""
+        try:
+            info = json.loads(creds_json)
+            creds = service_account.Credentials.from_service_account_info(
+                info, scopes=["https://www.googleapis.com/auth/analytics.readonly"],
+            )
+            client = BetaAnalyticsDataClient(credentials=creds)
+            dims = [Dimension(name=d) for d in (dimensions_list or [])]
+            mets = [Metric(name=m) for m in metrics_list]
+            order = []
+            if order_desc_metric:
+                order = [OrderBy(metric=OrderBy.MetricOrderBy(metric_name=order_desc_metric), desc=True)]
+            req = RunReportRequest(
+                property=f"properties/{property_id}",
+                date_ranges=[DateRange(start_date=date_start, end_date=date_end)],
+                metrics=mets,
+                dimensions=dims,
+                order_bys=order,
+                limit=limit,
+            )
+            resp = client.run_report(req)
+            rows = []
+            for row in resp.rows:
+                d = {}
+                for i, dim in enumerate(row.dimension_values):
+                    d[dimensions_list[i] if dimensions_list else f"dim{i}"] = dim.value
+                for i, met in enumerate(row.metric_values):
+                    d[metrics_list[i]] = met.value
+                rows.append(d)
+            return rows
+        except Exception as e:
+            return {"error": str(e)}
+
+    # ── Date range selector ──
+    dr_col1, dr_col2 = st.columns([1, 3])
+    with dr_col1:
+        period = st.selectbox("Period", ["Last 7 days", "Last 30 days", "Last 90 days", "This year"],
+                              index=1, key="ga_period", label_visibility="collapsed")
+    period_map = {
+        "Last 7 days": "7daysAgo",
+        "Last 30 days": "30daysAgo",
+        "Last 90 days": "90daysAgo",
+        "This year": f"{datetime.now().year}-01-01",
+    }
+    date_start = period_map[period]
+
+    # ── KPI cards ──
+    kpi_data = _ga4_report(
+        ["activeUsers", "sessions", "screenPageViews", "bounceRate",
+         "averageSessionDuration", "newUsers"],
+        date_start=date_start,
+    )
+    if isinstance(kpi_data, dict) and "error" in kpi_data:
+        st.error(f"GA4 API error: {kpi_data['error']}")
+        return
+
+    if kpi_data:
+        k = kpi_data[0]
+        active   = int(k.get("activeUsers", 0))
+        sessions = int(k.get("sessions", 0))
+        views    = int(k.get("screenPageViews", 0))
+        bounce   = float(k.get("bounceRate", 0))
+        avg_dur  = float(k.get("averageSessionDuration", 0))
+        new_u    = int(k.get("newUsers", 0))
+        returning = max(0, active - new_u)
+        mins = int(avg_dur) // 60
+        secs = int(avg_dur) % 60
+    else:
+        active = sessions = views = new_u = returning = 0
+        bounce = 0.0; mins = secs = 0
+
+    st.markdown(f"""
+    <div class="ga-kpi-row">
+        <div class="ga-kpi"><p class="ga-kpi-val">{active:,}</p><p class="ga-kpi-label">Active Users</p></div>
+        <div class="ga-kpi"><p class="ga-kpi-val">{sessions:,}</p><p class="ga-kpi-label">Sessions</p></div>
+        <div class="ga-kpi"><p class="ga-kpi-val">{views:,}</p><p class="ga-kpi-label">Page Views</p></div>
+        <div class="ga-kpi"><p class="ga-kpi-val">{bounce:.1%}</p><p class="ga-kpi-label">Bounce Rate</p></div>
+        <div class="ga-kpi"><p class="ga-kpi-val">{mins}m {secs}s</p><p class="ga-kpi-label">Avg Duration</p></div>
+        <div class="ga-kpi"><p class="ga-kpi-val">{new_u:,}</p><p class="ga-kpi-label">New Users</p></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Daily trend (line chart) ──
+    daily = _ga4_report(
+        ["activeUsers", "sessions", "screenPageViews"],
+        dimensions_list=["date"],
+        date_start=date_start, limit=90,
+    )
+    if isinstance(daily, list) and daily:
+        import plotly.graph_objects as go
+        daily_sorted = sorted(daily, key=lambda r: r["date"])
+        dates   = [f"{r['date'][:4]}-{r['date'][4:6]}-{r['date'][6:]}" for r in daily_sorted]
+        users_d = [int(r["activeUsers"]) for r in daily_sorted]
+        sess_d  = [int(r["sessions"]) for r in daily_sorted]
+        views_d = [int(r["screenPageViews"]) for r in daily_sorted]
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=dates, y=users_d, name="Users", line=dict(color="#3b82f6", width=2)))
+        fig.add_trace(go.Scatter(x=dates, y=sess_d, name="Sessions", line=dict(color="#10b981", width=2)))
+        fig.add_trace(go.Scatter(x=dates, y=views_d, name="Page Views", line=dict(color="#f59e0b", width=2)))
+        fig.update_layout(
+            height=280, margin=dict(l=10, r=10, t=10, b=10),
+            legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5, font=dict(size=10)),
+            xaxis=dict(showgrid=False, tickfont=dict(size=9)),
+            yaxis=dict(showgrid=True, gridcolor="#f1f5f9", tickfont=dict(size=9)),
+            plot_bgcolor="#fff", paper_bgcolor="#fff", hovermode="x unified",
+            dragmode=False,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── Breakdown tables ──
+    tc1, tc2 = st.columns(2)
+
+    # -- New vs Returning --
+    with tc1:
+        st.markdown('<div class="ga-section-title">👤 New vs Returning Users</div>', unsafe_allow_html=True)
+        nv = _ga4_report(["activeUsers"], dimensions_list=["newVsReturning"], date_start=date_start)
+        if isinstance(nv, list) and nv:
+            total_nv = sum(int(r["activeUsers"]) for r in nv)
+            rows_html = ""
+            for r in sorted(nv, key=lambda x: int(x["activeUsers"]), reverse=True):
+                label = r["newVsReturning"].replace("new", "New").replace("returning", "Returning")
+                val = int(r["activeUsers"])
+                pct = (val / total_nv * 100) if total_nv else 0
+                rows_html += f'<tr><td>{label}</td><td style="text-align:right;font-weight:600">{val:,}</td><td style="width:40%;"><div class="ga-bar"><div class="ga-bar-fill" style="width:{pct:.0f}%"></div></div></td><td style="text-align:right;color:#64748b">{pct:.1f}%</td></tr>'
+            st.markdown(f'<table class="ga-table"><thead><tr><th>Type</th><th>Users</th><th></th><th>%</th></tr></thead><tbody>{rows_html}</tbody></table>', unsafe_allow_html=True)
+        else:
+            st.caption("No data")
+
+    # -- Device category --
+    with tc2:
+        st.markdown('<div class="ga-section-title">📱 Users by Device</div>', unsafe_allow_html=True)
+        dev = _ga4_report(["activeUsers"], dimensions_list=["deviceCategory"], date_start=date_start)
+        if isinstance(dev, list) and dev:
+            total_dev = sum(int(r["activeUsers"]) for r in dev)
+            rows_html = ""
+            for r in sorted(dev, key=lambda x: int(x["activeUsers"]), reverse=True):
+                label = r["deviceCategory"].capitalize()
+                val = int(r["activeUsers"])
+                pct = (val / total_dev * 100) if total_dev else 0
+                rows_html += f'<tr><td>{label}</td><td style="text-align:right;font-weight:600">{val:,}</td><td style="width:40%"><div class="ga-bar"><div class="ga-bar-fill" style="width:{pct:.0f}%"></div></div></td><td style="text-align:right;color:#64748b">{pct:.1f}%</td></tr>'
+            st.markdown(f'<table class="ga-table"><thead><tr><th>Device</th><th>Users</th><th></th><th>%</th></tr></thead><tbody>{rows_html}</tbody></table>', unsafe_allow_html=True)
+        else:
+            st.caption("No data")
+
+    tc3, tc4 = st.columns(2)
+
+    # -- Country --
+    with tc3:
+        st.markdown('<div class="ga-section-title">🌍 Top Countries</div>', unsafe_allow_html=True)
+        geo = _ga4_report(["activeUsers", "sessions"], dimensions_list=["country"],
+                          date_start=date_start, limit=10, order_desc_metric="activeUsers")
+        if isinstance(geo, list) and geo:
+            total_geo = sum(int(r["activeUsers"]) for r in geo)
+            rows_html = ""
+            for r in geo:
+                val = int(r["activeUsers"])
+                sess = int(r["sessions"])
+                pct = (val / total_geo * 100) if total_geo else 0
+                rows_html += f'<tr><td>{r["country"]}</td><td style="text-align:right;font-weight:600">{val:,}</td><td style="text-align:right">{sess:,}</td><td style="width:30%"><div class="ga-bar"><div class="ga-bar-fill" style="width:{pct:.0f}%"></div></div></td></tr>'
+            st.markdown(f'<table class="ga-table"><thead><tr><th>Country</th><th>Users</th><th>Sessions</th><th></th></tr></thead><tbody>{rows_html}</tbody></table>', unsafe_allow_html=True)
+        else:
+            st.caption("No data")
+
+    # -- Referral / Source --
+    with tc4:
+        st.markdown('<div class="ga-section-title">🔗 Traffic Sources</div>', unsafe_allow_html=True)
+        src = _ga4_report(["activeUsers", "sessions"], dimensions_list=["sessionSource"],
+                          date_start=date_start, limit=10, order_desc_metric="sessions")
+        if isinstance(src, list) and src:
+            total_src = sum(int(r["sessions"]) for r in src)
+            rows_html = ""
+            for r in src:
+                val = int(r["activeUsers"])
+                sess = int(r["sessions"])
+                pct = (sess / total_src * 100) if total_src else 0
+                source = r["sessionSource"] if r["sessionSource"] != "(direct)" else "Direct"
+                rows_html += f'<tr><td>{source}</td><td style="text-align:right;font-weight:600">{val:,}</td><td style="text-align:right">{sess:,}</td><td style="width:30%"><div class="ga-bar"><div class="ga-bar-fill" style="width:{pct:.0f}%"></div></div></td></tr>'
+            st.markdown(f'<table class="ga-table"><thead><tr><th>Source</th><th>Users</th><th>Sessions</th><th></th></tr></thead><tbody>{rows_html}</tbody></table>', unsafe_allow_html=True)
+        else:
+            st.caption("No data")
+
+    # -- Top Pages --
+    st.markdown('<div class="ga-section-title">📄 Top Pages</div>', unsafe_allow_html=True)
+    pages = _ga4_report(
+        ["screenPageViews", "activeUsers", "averageSessionDuration"],
+        dimensions_list=["pagePath"],
+        date_start=date_start, limit=15, order_desc_metric="screenPageViews",
+    )
+    if isinstance(pages, list) and pages:
+        total_pv = sum(int(r["screenPageViews"]) for r in pages)
+        rows_html = ""
+        for r in pages:
+            pv = int(r["screenPageViews"])
+            users = int(r["activeUsers"])
+            dur = float(r["averageSessionDuration"])
+            m, s = int(dur) // 60, int(dur) % 60
+            pct = (pv / total_pv * 100) if total_pv else 0
+            path = r["pagePath"] if len(r["pagePath"]) <= 50 else r["pagePath"][:47] + "..."
+            rows_html += f'<tr><td style="font-family:monospace;font-size:0.78rem">{path}</td><td style="text-align:right;font-weight:600">{pv:,}</td><td style="text-align:right">{users:,}</td><td style="text-align:right">{m}m {s}s</td><td style="width:22%"><div class="ga-bar"><div class="ga-bar-fill" style="width:{pct:.0f}%"></div></div></td></tr>'
+        st.markdown(f'<table class="ga-table"><thead><tr><th>Page</th><th>Views</th><th>Users</th><th>Avg Time</th><th></th></tr></thead><tbody>{rows_html}</tbody></table>', unsafe_allow_html=True)
+    else:
+        st.caption("No data")
+
+    st.caption("Data refreshes every 5 minutes · Powered by GA4 Data API")
+
+
 def render_nsfe_page():
     """Render the password-protected NSFE manager control center."""
     st.markdown(_STYLES, unsafe_allow_html=True)
@@ -3125,10 +3414,10 @@ def render_nsfe_page():
     # ── Main Menu (Streamlit tabs) ──
     _sync_steps()
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
         "📋 Dashboard", "🛡️ Security", "⚙️ Settings",
         "🛡️ Certifications", "🏗️ Infrastructure",
-        "👥 Team & Admin", "🔍 SEO", "💳 Pricing", "👤 Users", "🧠 Memory",
+        "👥 Team & Admin", "🔍 SEO", "💳 Pricing", "👤 Users", "📊 Analytics", "🧠 Memory",
     ])
 
     with tab1:
@@ -3157,6 +3446,9 @@ def render_nsfe_page():
         _render_users_admin()
 
     with tab10:
+        _render_analytics()
+
+    with tab11:
         _render_memory()
 
     # Footer
