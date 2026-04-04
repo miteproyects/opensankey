@@ -191,13 +191,12 @@ def _patch_streamlit_head():
             '<li><a href="/?page=earnings">Earnings Calendar</a></li>'
             '<li><a href="/?page=pricing">Pricing Plans</a></li>'
             '</ul>'
-            '<p>You need to enable JavaScript to run this app.</p>'
             '<p><a href="/?page=privacy">Privacy Policy</a> | '
             '<a href="/?page=terms">Terms of Service</a></p>'
             '</div>'
             '</noscript>'
         )
-        if "Privacy Policy" not in html and "<noscript>" in html:
+        if ("Privacy Policy" not in html or "enable JavaScript" in html) and "<noscript>" in html:
             import re as _re
             html = _re.sub(
                 r'<noscript>.*?</noscript>',
