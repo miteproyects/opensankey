@@ -58,7 +58,7 @@ def patch():
         )
 
     # ── Title ────────────────────────────────────────────────────────────
-    _new_title = "QuarterCharts \u2014 Free Stock Charts, Sankey Diagrams & Earnings Calendar"
+    _new_title = "QuarterCharts.com \u2014 Stock Charts, Sankey Diagrams, Earnings Calendar & More"
     if _new_title not in html:
         html = re.sub(
             r"<title>[^<]*</title>",
@@ -70,7 +70,7 @@ def patch():
     # ── Meta description ─────────────────────────────────────────────────
     _desc = (
         "Visualize any stock's financials with interactive Sankey diagrams, "
-        "quarterly income charts, and company profiles. Free access to "
+        "quarterly income charts, and company profiles.  Access to "
         "6,000+ tickers from SEC filings."
     )
     if 'name="description"' not in html:
