@@ -2118,53 +2118,6 @@ st.markdown("""<style>
     .modebar-container { display: none !important; }
 </style>""", unsafe_allow_html=True)
 
-# Force Plotly charts to recalculate layout when container resizes
-# (fixes legend/label overlap when switching from 3-col to 1/2-col layout).
-# Must use components.html() because st.markdown() strips <script> tags.
-components.html("""<script>
-(function() {
-    var par = window.parent;
-    var doc = par && par.document;
-    if (!doc) return;
-
-    // Disconnect any previous observer before creating a new one
-    if (par._qcResizeObs) {
-        par._qcResizeObs.disconnect();
-    }
-
-    function relayoutAll() {
-        var charts = doc.querySelectorAll('.js-plotly-plot');
-        charts.forEach(function(chart) {
-            if (chart._fullLayout && par.Plotly) {
-                par.Plotly.Plots.resize(chart);
-                par.Plotly.relayout(chart, {autosize: true});
-            }
-        });
-    }
-
-    par._qcResizeObs = new ResizeObserver(function() {
-        // Debounce: wait for layout to settle before relayout
-        clearTimeout(par._qcResizeTimer);
-        par._qcResizeTimer = setTimeout(relayoutAll, 150);
-    });
-
-    function observe() {
-        var main = doc.querySelector('[data-testid="stMainBlockContainer"]') ||
-                   doc.querySelector('[data-testid="stAppViewContainer"]') ||
-                   doc.querySelector('.main');
-        if (main) {
-            par._qcResizeObs.observe(main);
-        } else {
-            setTimeout(observe, 500);
-        }
-    }
-    observe();
-
-    // Force relayout after each Streamlit rerun finishes rendering charts
-    setTimeout(relayoutAll, 500);
-    setTimeout(relayoutAll, 1200);
-})();
-</script>""", height=0)
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 # Sidebar (Charts page only Ã¢ÂÂ Profile page has no sidebar)
