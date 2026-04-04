@@ -188,7 +188,7 @@ def _install_seo_static_files():
         import shutil, streamlit as _st
         static_dir = os.path.join(os.path.dirname(_st.__file__), "static")
         app_dir = os.path.dirname(os.path.abspath(__file__))
-        for fname in ("robots.txt", "sitemap.xml", "llms.txt"):
+        for fname in ("robots.txt", "sitemap.xml", "llms.txt", "og-image.png"):
             src = os.path.join(app_dir, fname)
             dst = os.path.join(static_dir, fname)
             if os.path.isfile(src):
