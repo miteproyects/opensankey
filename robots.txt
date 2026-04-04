@@ -68,6 +68,5 @@ Allow: /
 # Crawl delay (in seconds) - adjust based on server capacity
 Crawl-delay: 1
 
-# Sitemap and additional discovery files
+# Sitemap
 Sitemap: https://quartercharts.com/sitemap.xml
-Sitemap: https://quartercharts.com/llms.txt

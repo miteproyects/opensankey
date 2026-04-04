@@ -32,6 +32,33 @@ def _patch_streamlit_head():
             html = html.replace("<head>", f"<head>{tag}", 1)
             changed = True
 
+        # ── Robots meta ───────────────────────────────────────────────────
+        if 'name="robots"' not in html:
+            html = html.replace(
+                "</head>",
+                '<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />\n</head>',
+                1,
+            )
+            changed = True
+
+        # ── Theme color ───────────────────────────────────────────────────
+        if 'name="theme-color"' not in html:
+            html = html.replace(
+                "</head>",
+                '<meta name="theme-color" content="#0a0a1a" />\n</head>',
+                1,
+            )
+            changed = True
+
+        # ── Apple touch icon ──────────────────────────────────────────────
+        if 'apple-touch-icon' not in html:
+            html = html.replace(
+                "</head>",
+                '<link rel="apple-touch-icon" href="/og-image.png" />\n</head>',
+                1,
+            )
+            changed = True
+
         # ── Title ─────────────────────────────────────────────────────────
         _new_title = "QuarterCharts \u2014 Free Stock Charts, Sankey Diagrams & Earnings Calendar"
         if _new_title not in html:
@@ -103,6 +130,13 @@ def _patch_streamlit_head():
                 "description": "Financial data visualization platform that turns SEC filings into interactive charts and Sankey diagrams.",
                 "founder": {"@type": "Person", "name": "Sebasti\u00e1n Flores"},
                 "foundingDate": "2024",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://quartercharts.com/og-image.png",
+                    "width": 1200,
+                    "height": 630,
+                },
+                "sameAs": [],
             }
             _website_schema = {
                 "@context": "https://schema.org",
@@ -122,6 +156,7 @@ def _patch_streamlit_head():
                 "applicationCategory": "FinanceApplication",
                 "operatingSystem": "Web",
                 "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+                "screenshot": "https://quartercharts.com/og-image.png",
             }
             _ld_block = (
                 f'<script type="application/ld+json">{_json.dumps(_org_schema)}</script>\n'
