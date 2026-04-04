@@ -3145,21 +3145,25 @@ def _render_analytics():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Check credentials ──
-    property_id = os.environ.get("GA4_PROPERTY_ID", "")
-    creds_json  = os.environ.get("GA4_CREDENTIALS_JSON", "")
+    # ── Check credentials (OAuth2 refresh-token flow) ──
+    property_id      = os.environ.get("GA4_PROPERTY_ID", "")
+    ga4_client_id    = os.environ.get("GA4_CLIENT_ID", "")
+    ga4_client_secret = os.environ.get("GA4_CLIENT_SECRET", "")
+    ga4_refresh_token = os.environ.get("GA4_REFRESH_TOKEN", "")
 
-    if not property_id or not creds_json:
+    if not property_id or not ga4_refresh_token:
         st.markdown("""
         <div class="ga-setup-box">
             <div class="ga-setup-title">⚠️ Setup Required</div>
             <p class="ga-setup-step"><strong>Step 1:</strong> Go to <em>Google Cloud Console → APIs & Services → Enable</em> the <strong>Google Analytics Data API</strong>.</p>
-            <p class="ga-setup-step"><strong>Step 2:</strong> Create a <strong>Service Account</strong> (IAM → Service Accounts → Create) and download the JSON key file.</p>
-            <p class="ga-setup-step"><strong>Step 3:</strong> In <em>Google Analytics → Admin → Property Access Management</em>, add the service account email as a <strong>Viewer</strong>.</p>
-            <p class="ga-setup-step"><strong>Step 4:</strong> Find your GA4 <strong>Property ID</strong> (Admin → Property Settings → Property ID, e.g. <code>123456789</code>).</p>
+            <p class="ga-setup-step"><strong>Step 2:</strong> Create an <strong>OAuth 2.0 Client</strong> (Desktop app type) and note the Client ID &amp; Secret.</p>
+            <p class="ga-setup-step"><strong>Step 3:</strong> Run the OAuth consent flow to obtain a <strong>refresh token</strong> with the <code>analytics.readonly</code> scope.</p>
+            <p class="ga-setup-step"><strong>Step 4:</strong> Find your GA4 <strong>Property ID</strong> (Admin → Property Settings → Property ID, e.g. <code>531202360</code>).</p>
             <p class="ga-setup-step"><strong>Step 5:</strong> Add these environment variables to Railway:</p>
-            <div class="ga-setup-code">GA4_PROPERTY_ID=123456789</div>
-            <div class="ga-setup-code">GA4_CREDENTIALS_JSON={"type":"service_account","project_id":"...", ...}</div>
+            <div class="ga-setup-code">GA4_PROPERTY_ID=531202360</div>
+            <div class="ga-setup-code">GA4_CLIENT_ID=your-client-id.apps.googleusercontent.com</div>
+            <div class="ga-setup-code">GA4_CLIENT_SECRET=GOCSPX-...</div>
+            <div class="ga-setup-code">GA4_REFRESH_TOKEN=1//0...</div>
             <p class="ga-setup-step" style="margin-top:10px"><strong>Step 6:</strong> Redeploy. The analytics dashboard will populate automatically.</p>
         </div>
         """, unsafe_allow_html=True)
@@ -3171,7 +3175,7 @@ def _render_analytics():
         from google.analytics.data_v1beta.types import (
             RunReportRequest, DateRange, Metric, Dimension, OrderBy,
         )
-        from google.oauth2 import service_account
+        from google.oauth2.credentials import Credentials as OAuth2Credentials
     except ImportError:
         st.error("Missing package: `google-analytics-data`. Add it to requirements.txt and redeploy.")
         return
@@ -3181,9 +3185,13 @@ def _render_analytics():
                     date_end="today", limit=10, order_desc_metric=None):
         """Run a single GA4 report and return rows as list of dicts."""
         try:
-            info = json.loads(creds_json)
-            creds = service_account.Credentials.from_service_account_info(
-                info, scopes=["https://www.googleapis.com/auth/analytics.readonly"],
+            creds = OAuth2Credentials(
+                token=None,
+                refresh_token=ga4_refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=ga4_client_id,
+                client_secret=ga4_client_secret,
+                scopes=["https://www.googleapis.com/auth/analytics.readonly"],
             )
             client = BetaAnalyticsDataClient(credentials=creds)
             dims = [Dimension(name=d) for d in (dimensions_list or [])]
