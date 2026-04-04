@@ -92,7 +92,7 @@ def _patch_streamlit_head():
             changed = True
 
         # ── JSON-LD structured data ───────────────────────────────────────
-        if '"@context":"https://schema.org"' not in html and "'@context'" not in html:
+        if '"@context": "https://schema.org"' not in html:
             import json as _json
             _org_schema = {
                 "@context": "https://schema.org",
