@@ -209,8 +209,13 @@ def _patch_streamlit_head():
         if changed:
             with open(idx, "w") as f:
                 f.write(html)
-    except Exception:
-        pass
+            print(f"[SEO PATCH] Successfully patched {idx}", flush=True)
+        else:
+            print(f"[SEO PATCH] No changes needed for {idx}", flush=True)
+    except Exception as e:
+        import traceback
+        print(f"[SEO PATCH ERROR] {e}", flush=True)
+        traceback.print_exc()
 
 _patch_streamlit_head()
 
