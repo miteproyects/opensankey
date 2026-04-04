@@ -81,11 +81,11 @@ def _layout(title: str, height: int = 420, **overrides) -> Dict[str, Any]:
             tickfont=dict(size=10),
             automargin=True,
         ),
-        margin=dict(l=10, r=10, t=10, b=60),
+        margin=dict(l=10, r=10, t=10, b=10),
         legend=dict(
             orientation="h",
             yanchor="top",
-            y=-0.26,
+            y=-0.18,
             xanchor="center",
             x=0.5,
             bgcolor="rgba(0,0,0,0)",
