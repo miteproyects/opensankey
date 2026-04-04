@@ -70,7 +70,7 @@ def _layout(title: str, height: int = 420, **overrides) -> Dict[str, Any]:
             linecolor=COLORS["grid"],
             tickfont=dict(size=10),
             tickangle=-45,
-            automargin=False,
+            automargin=True,
         ),
         yaxis=dict(
             showgrid=True,
@@ -81,7 +81,7 @@ def _layout(title: str, height: int = 420, **overrides) -> Dict[str, Any]:
             tickfont=dict(size=10),
             automargin=True,
         ),
-        margin=dict(l=10, r=10, t=10, b=75),
+        margin=dict(l=10, r=10, t=10, b=10),
         legend=dict(
             orientation="h",
             yanchor="top",
