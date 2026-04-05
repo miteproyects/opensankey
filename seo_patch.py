@@ -49,16 +49,18 @@ def patch():
             1,
         )
 
-    # ── Apple touch icon ─────────────────────────────────────────────────
-    if "apple-touch-icon" not in html:
+    # ── Favicon ─────────────────────────────────────────────────────────
+    if 'rel="icon"' not in html:
         html = html.replace(
             "</head>",
-            '<link rel="apple-touch-icon" href="/og-image.png" />\n</head>',
+            '<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />\n'
+            '<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />\n'
+            '<link rel="apple-touch-icon" href="/favicon-192x192.png" />\n</head>',
             1,
         )
 
     # ── Title ────────────────────────────────────────────────────────────
-    _new_title = "QuarterCharts.com \u2014 Stock Charts, Sankey Diagrams, Earnings Calendar & More"
+    _new_title = "QuarterCharts.com \u2014 Stock Charts, Sankey Diagrams & More"
     if _new_title not in html:
         html = re.sub(
             r"<title>[^<]*</title>",
@@ -69,9 +71,9 @@ def patch():
 
     # ── Meta description ─────────────────────────────────────────────────
     _desc = (
-        "Visualize any stock's financials with interactive Sankey diagrams, "
-        "quarterly income charts, and company profiles.  Access to "
-        "6,000+ tickers from SEC filings."
+        "Visualize any stock\u2019s financials with interactive Sankey diagrams, "
+        "quarterly charts and company profiles. "
+        "6,000+ tickers from SEC filings. Free to start."
     )
     if 'name="description"' not in html:
         html = html.replace(
@@ -165,10 +167,29 @@ def patch():
                 "description": _desc,
             }
         )
+        nav_ld = json.dumps(
+            {
+                "@context": "https://schema.org",
+                "@type": "SiteNavigationElement",
+                "name": [
+                    "Stock Charts",
+                    "Sankey Diagrams",
+                    "Earnings Calendar",
+                    "Enterprise",
+                ],
+                "url": [
+                    f"{_url}?page=charts",
+                    f"{_url}?page=sankey",
+                    f"{_url}?page=earnings",
+                    f"{_url}?page=pricing",
+                ],
+            }
+        )
         ld_block = (
             f'<script type="application/ld+json">{org_ld}</script>\n'
             f'<script type="application/ld+json">{website_ld}</script>\n'
             f'<script type="application/ld+json">{app_ld}</script>\n'
+            f'<script type="application/ld+json">{nav_ld}</script>\n'
         )
         html = html.replace("</head>", f"{ld_block}</head>", 1)
 
@@ -196,17 +217,18 @@ def patch():
     _noscript = (
         "<noscript>"
         '<div style="max-width:760px;margin:40px auto;font-family:sans-serif;color:#333">'
-        "<h1>QuarterCharts &mdash; Financial Data Visualization</h1>"
-        "<p>QuarterCharts is a free financial data visualization platform that turns "
-        "SEC filings into interactive Sankey diagrams, quarterly income charts, "
-        "and company profiles &mdash; all from one search. Covering 6,000+ tickers "
-        "for investors who value clarity over clutter.</p>"
-        "<ul>"
-        '<li><a href="/?page=charts&ticker=AAPL">AAPL Financial Charts</a></li>'
-        '<li><a href="/?page=sankey&ticker=AAPL">AAPL Sankey Diagram</a></li>'
-        '<li><a href="/?page=earnings">Earnings Calendar</a></li>'
-        '<li><a href="/?page=pricing">Pricing Plans</a></li>'
-        "</ul>"
+        "<h1>QuarterCharts.com &mdash; Stock Charts, Sankey Diagrams &amp; More</h1>"
+        "<p>Visualize any stock's financials with interactive Sankey diagrams, "
+        "quarterly charts and company profiles. 6,000+ tickers from SEC filings. "
+        "Free to start.</p>"
+        "<h2><a href='/?page=charts'>Stock Charts &mdash; Statements + Key Metrics</a></h2>"
+        "<p>8+ years of quarterly and annual charts.</p>"
+        "<h2><a href='/?page=sankey'>Sankey Diagrams &mdash; Income &amp; Balance Sheet</a></h2>"
+        "<p>Click on Sankey nodes for account history.</p>"
+        "<h2><a href='/?page=earnings'>Earnings Calendar</a></h2>"
+        "<p>Upcoming earnings dates, past results and EPS for thousands of stocks.</p>"
+        "<h2><a href='/?page=pricing'>Enterprise &mdash; Automated Financial Dashboards</a></h2>"
+        "<p>Your accounts, auto-charted. API integration included.</p>"
         '<p><a href="/?page=privacy">Privacy Policy</a> | '
         '<a href="/?page=terms">Terms of Service</a></p>'
         "</div>"

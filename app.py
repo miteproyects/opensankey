@@ -2086,13 +2086,13 @@ components.html("""<script>
 # This lightweight snippet updates only the visible browser tab title to
 # reflect the current page / ticker for a better user experience.
 _PAGE_TITLES = {
-    "home":      "QuarterCharts.com \u2014 Stock Charts, Sankey Diagrams, Earnings Calendar & More",
-    "charts":    "{ticker} Financial Charts \u2014 Revenue, Margins, EPS | QuarterCharts",
-    "sankey":    "{ticker} Sankey Diagram \u2014 Income Statement Flow | QuarterCharts",
+    "home":      "QuarterCharts.com \u2014 Stock Charts, Sankey Diagrams & More",
+    "charts":    "Stock Charts \u2014 Statements + Key Metrics | QuarterCharts",
+    "sankey":    "Sankey Diagrams \u2014 Income & Balance Sheet | QuarterCharts",
     "profile":   "{ticker} Company Profile \u2014 Fundamentals & Analysis | QuarterCharts",
-    "earnings":  "Earnings Calendar \u2014 Upcoming Earnings Dates & Results | QuarterCharts",
+    "earnings":  "Earnings Calendar | QuarterCharts",
     "watchlist":  "My Watchlist \u2014 Track Your Favorite Stocks | QuarterCharts",
-    "pricing":   "Pricing Plans \u2014 QuarterCharts Pro & Enterprise",
+    "pricing":   "Enterprise \u2014 Automated Financial Dashboards | QuarterCharts",
     "login":     "Sign In \u2014 QuarterCharts",
     "dashboard": "My Dashboard \u2014 QuarterCharts",
     "privacy":   "Privacy Policy \u2014 QuarterCharts",

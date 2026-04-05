@@ -14,7 +14,7 @@ python3 -c "
 import os, shutil, streamlit as st
 static = os.path.join(os.path.dirname(st.__file__), 'static')
 app_dir = os.path.dirname(os.path.abspath('app.py'))
-for f in ('robots.txt', 'sitemap.xml', 'llms.txt', 'og-image.png'):
+for f in ('robots.txt', 'sitemap.xml', 'llms.txt', 'og-image.png', 'favicon.ico', 'favicon-48x48.png', 'favicon-192x192.png'):
     src = os.path.join(app_dir, f)
     if os.path.isfile(src):
         shutil.copy2(src, os.path.join(static, f))
