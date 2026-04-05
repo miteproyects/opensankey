@@ -2264,6 +2264,25 @@ with st.sidebar:
         with col_btn:
             submitted = st.form_submit_button("GO")
 
+    # ── "Try for free" ticker showcase ──
+    try:
+        from database import get_ticker_pool as _gtp
+        _demo_tickers = _gtp()
+    except Exception:
+        _demo_tickers = ["GOOG", "META", "NVDA", "TSLA"]
+    _demo_links = " &middot; ".join(
+        f'<a href="/?page=charts&ticker={t}" target="_top" '
+        f'style="color:#3b82f6;font-weight:600;text-decoration:none;"'
+        f' onmouseover="this.style.color=\'#60a5fa\';this.style.textDecoration=\'underline\'"'
+        f' onmouseout="this.style.color=\'#3b82f6\';this.style.textDecoration=\'none\'">{t}</a>'
+        for t in _demo_tickers[:5]
+    )
+    st.markdown(
+        f'<div style="text-align:center;font-size:0.82rem;color:#64748b;margin:-6px 0 10px 0;">'
+        f'<em>Try for free:</em>&nbsp; {_demo_links}</div>',
+        unsafe_allow_html=True,
+    )
+
     if submitted and new_ticker and new_ticker != st.session_state.ticker:
         if validate_ticker(new_ticker):
             # ── Ticker access gating ──
