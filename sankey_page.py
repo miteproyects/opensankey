@@ -1368,6 +1368,160 @@ def _inject_sankey_click_js(metric_map):
     components.html(js, height=0)
 
 
+def _inject_node_hover_js(metric_map, color_map):
+    """Inject JS that highlights the matching pill when hovering a Sankey node.
+
+    Reverse of _inject_pill_hover_js: node hover â pill glow + dimming.
+    """
+    import json as _json
+    colors_js = _json.dumps(color_map)
+    valid_labels = list(metric_map.keys())
+    labels_js = ", ".join(f'"{lbl}"' for lbl in valid_labels)
+
+    js = f"""
+    <script>
+    (function() {{
+        const COLORS = {colors_js};
+        const VALID = new Set([{labels_js}]);
+        const parentDoc = window.parent.document;
+
+        function hexToRgba(hex, alpha) {{
+            var r = parseInt(hex.slice(1,3), 16);
+            var g = parseInt(hex.slice(3,5), 16);
+            var b = parseInt(hex.slice(5,7), 16);
+            return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+        }}
+
+        function findPillByLabel(label) {{
+            var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
+            for (var i = 0; i < btns.length; i++) {{
+                if (btns[i].textContent.trim() === label) return btns[i];
+            }}
+            return null;
+        }}
+
+        function highlightPill(label, color) {{
+            var btn = findPillByLabel(label);
+            if (!btn) return;
+            btn.style.background = hexToRgba(color, 0.15);
+            btn.style.borderColor = color;
+            btn.style.boxShadow = '0 0 0 2px ' + hexToRgba(color, 0.4) + ', 0 0 10px 3px ' + hexToRgba(color, 0.35);
+            btn.style.color = color;
+        }}
+
+        function resetPills() {{
+            var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
+            btns.forEach(function(btn) {{
+                btn.style.background = '';
+                btn.style.borderColor = '';
+                btn.style.boxShadow = '';
+                btn.style.color = '';
+            }});
+        }}
+
+        function highlightSankeyAndPill(nodeIdx, label, color, sankeyEl, plotDiv) {{
+            // Highlight pill
+            highlightPill(label, color);
+
+            // Dim all nodes
+            var nodeRects = sankeyEl.querySelectorAll('.node-rect');
+            var nodeLabels = sankeyEl.querySelectorAll('.node-label');
+            nodeRects.forEach(function(r) {{ r.style.opacity = '0.2'; r.style.transition = 'opacity 0.25s ease'; }});
+            nodeLabels.forEach(function(l) {{ l.style.opacity = '0.2'; l.style.transition = 'opacity 0.25s ease'; }});
+
+            // Dim all links
+            var links = sankeyEl.querySelectorAll('.sankey-link');
+            links.forEach(function(lnk) {{ lnk.style.opacity = '0.08'; lnk.style.transition = 'opacity 0.25s ease'; }});
+
+            // Highlight matched node
+            if (nodeRects[nodeIdx]) {{
+                nodeRects[nodeIdx].style.opacity = '1';
+                nodeRects[nodeIdx].style.filter = 'drop-shadow(0 0 8px ' + color + ')';
+            }}
+            if (nodeLabels[nodeIdx]) {{
+                nodeLabels[nodeIdx].style.opacity = '1';
+                nodeLabels[nodeIdx].style.fontWeight = '700';
+            }}
+
+            // Highlight connected links
+            if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].link) {{
+                var linkData = plotDiv.data[0].link;
+                links.forEach(function(lnk, li) {{
+                    if (linkData.source[li] === nodeIdx || linkData.target[li] === nodeIdx) {{
+                        lnk.style.opacity = '0.7';
+                    }}
+                }});
+            }}
+        }}
+
+        function resetSankey(sankeyEl) {{
+            sankeyEl.querySelectorAll('.node-rect').forEach(function(r) {{
+                r.style.opacity = '';
+                r.style.filter = '';
+            }});
+            sankeyEl.querySelectorAll('.node-label').forEach(function(l) {{
+                l.style.opacity = '';
+                l.style.fontWeight = '';
+            }});
+            sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
+                lnk.style.opacity = '';
+            }});
+        }}
+
+        function attach() {{
+            var plots = parentDoc.querySelectorAll('.js-plotly-plot');
+            if (!plots.length) return false;
+            var attached = false;
+
+            plots.forEach(function(plotDiv) {{
+                var sankeyEl = plotDiv.querySelector('.sankey');
+                if (!sankeyEl) return;
+                if (plotDiv._nodeHoverBound) return;
+
+                var nodeLabels = sankeyEl.querySelectorAll('.node-label');
+                var nodeRects = sankeyEl.querySelectorAll('.node-rect');
+
+                nodeLabels.forEach(function(lbl, idx) {{
+                    var txt = (lbl.textContent || '').split(/\\n/)[0].trim().split(/  /)[0].replace(/\u2605\\s*/g, '').trim();
+                    if (!VALID.has(txt)) return;
+                    var color = COLORS[txt];
+                    if (!color) return;
+
+                    function onEnter() {{
+                        highlightSankeyAndPill(idx, txt, color, sankeyEl, plotDiv);
+                    }}
+                    function onLeave() {{
+                        resetPills();
+                        resetSankey(sankeyEl);
+                    }}
+
+                    lbl.addEventListener('mouseenter', onEnter);
+                    lbl.addEventListener('mouseleave', onLeave);
+                    if (nodeRects[idx]) {{
+                        nodeRects[idx].addEventListener('mouseenter', onEnter);
+                        nodeRects[idx].addEventListener('mouseleave', onLeave);
+                    }}
+                }});
+
+                plotDiv._nodeHoverBound = true;
+                attached = true;
+            }});
+            return attached;
+        }}
+
+        if (!attach()) {{
+            var obs = new MutationObserver(function() {{
+                if (attach()) obs.disconnect();
+            }});
+            obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+            setTimeout(function() {{ attach(); obs.disconnect(); }}, 8000);
+        }}
+    }})();
+    </script>
+    """
+    components.html(js, height=0)
+
+
 def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
     """Generate a professional PDF with actual Sankey flow diagram + KPI cards.
 
@@ -3044,6 +3198,7 @@ def render_sankey_page():
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
             _inject_pill_hover_js(INCOME_NODE_METRICS, INCOME_PILL_COLORS)
+            _inject_node_hover_js(INCOME_NODE_METRICS, INCOME_PILL_COLORS)
         else:
             st.warning(f"No income statement data available for {ticker}.")
 
@@ -3134,6 +3289,7 @@ def render_sankey_page():
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
             _inject_pill_hover_js(BALANCE_NODE_METRICS, BALANCE_PILL_COLORS)
+            _inject_node_hover_js(BALANCE_NODE_METRICS, BALANCE_PILL_COLORS)
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
 
