@@ -565,15 +565,6 @@ INCOME_NODE_METRICS = {
     "Net Income":       "Net Income",
 }
 
-# Column (1-indexed) â pill labels for depth filtering
-INCOME_COL_PILLS = {
-    1: ["Revenue"],
-    2: ["Cost of Revenue", "Gross Profit"],
-    3: ["R&D", "SG&A", "D&A", "Other OpEx", "Operating Income"],
-    4: ["Interest Exp.", "Pretax Income"],
-    5: ["Income Tax", "Net Income"],
-}
-
 BALANCE_NODE_METRICS = {
     "Total Assets":       "Total Assets",
     "Current Assets":     "Current Assets",
@@ -595,14 +586,6 @@ BALANCE_NODE_METRICS = {
     "Long-Term Debt":     "Long Term Debt",
     "Equity":             "Stockholders Equity",
     "Retained Earnings":  "Retained Earnings",
-}
-
-BALANCE_COL_PILLS = {
-    1: ["Total Assets"],
-    2: ["Current Assets", "Non-Current Assets", "Total Liabilities", "Equity"],
-    3: ["Cash", "ST Investments", "Receivables", "Inventory", "PPE", "Goodwill",
-        "Intangibles", "Investments", "Current Liab.", "Non-Current Liab.", "Retained Earnings"],
-    4: ["Accounts Payable", "Short-Term Debt", "Deferred Revenue", "Long-Term Debt"],
 }
 
 
@@ -2002,7 +1985,7 @@ def _fetch_sankey_data(ticker: str, quarterly: bool = False):
 
 
 def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False,
-                         expanded_nodes=None, ticker=None, depth=5):
+                         expanded_nodes=None, ticker=None):
     """Build income statement Sankey with fixed positions and vivid nodes.
 
     Flow: Revenue -> COGS + Gross Profit -> Expenses + Operating Income
@@ -2163,7 +2146,6 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             tax = pretax_income
 
     X1, X2, X3, X4, X5 = 0.02, 0.25, 0.55, 0.78, 0.99
-    _x_to_col = {X1: 1, X2: 2, X3: 3, X4: 4, X5: 5}
     colors = VIVID
     nodes = []
     node_colors = []
@@ -2173,9 +2155,6 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     node_pcts = []
 
     def add(name, val, color_idx, x, y, prev_val=None, expandable=False):
-        col = _x_to_col.get(x, 5)
-        if col > depth:
-            return
         y = round(max(0.01, min(0.99, y)), 4)
         imap[name] = len(nodes)
         star = "\u2605 " if expandable else ""
@@ -2353,7 +2332,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
 
 
 def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_period=False,
-                                expanded_nodes=None, ticker=None, depth=4):
+                                expanded_nodes=None, ticker=None):
     """Build a balance sheet Sankey with fixed positions -- no node crossing.
 
     All flows are reconciled so that parent = sum of children at every level.
@@ -2464,16 +2443,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     imap = {}
     node_pcts = []
 
-    def _x_to_col_bs(xv):
-        if xv <= 0.12: return 1
-        if xv <= 0.35: return 2
-        if xv <= 0.62: return 3
-        return 4
-
     def add(name, val, color, x, y, expandable=False):
-        col = _x_to_col_bs(x)
-        if col > depth:
-            return -1
         y = round(max(0.01, min(0.99, y)), 4)
         x = round(max(0.01, min(0.99, x)), 4)
         imap[name] = len(nodes)
@@ -2906,20 +2876,6 @@ def render_sankey_page():
             font-weight: 500;
             margin-top: 2px;
         }
-        .sankey-depth-toggle {
-            margin-left: auto;
-            display: flex; align-items: center; gap: 2px;
-            font-size: 0.76rem; font-weight: 600; color: #94a3b8;
-            white-space: nowrap; flex-shrink: 0;
-        }
-        .sankey-depth-toggle span { color: #475569; font-size: 0.76rem; }
-        .sankey-depth-btn {
-            color: #94a3b8; text-decoration: none; cursor: pointer;
-            padding: 2px 7px; border-radius: 5px; font-size: 0.76rem;
-            transition: all 0.15s ease;
-        }
-        .sankey-depth-btn:hover { color: #6366f1; background: rgba(99,102,241,0.08); }
-        .sankey-depth-btn.active { color: #6366f1; background: rgba(99,102,241,0.12); font-weight: 700; }
         /* ── Pills card wrapper ── */
         .sankey-pills-card {
             background: #ffffff;
@@ -3083,14 +3039,6 @@ def render_sankey_page():
     view_label = "Income Statement" if sankey_view == "income" else "Balance Sheet"
 
     # ââ Header row: title (HTML) + PDF download button (st.download_button) ââ
-    # Depth control: how many columns to show
-    _max_depth = 5 if sankey_view == "income" else 4
-    _qp_depth = st.query_params.get("depth", "")
-    if _qp_depth.isdigit():
-        _depth_val = max(2, min(int(_qp_depth), _max_depth))
-        st.session_state[f"_sankey_depth_{sankey_view}"] = _depth_val
-    _sankey_depth = st.session_state.get(f"_sankey_depth_{sankey_view}", _max_depth)
-
     hdr_col, pdf_col = st.columns([0.87, 0.13], vertical_alignment="center")
 
     with hdr_col:
@@ -3181,18 +3129,7 @@ def render_sankey_page():
         m4.metric("Net Income", _fmt(net_income), _yoy_delta(net_income, ni_prev, _compare_label))
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
-        # Build depth toggle buttons
-        _depth_btns = ""
-        for d in range(2, 6):
-            _d_cls = "active" if _sankey_depth == d else ""
-            _d_href = f"/?page=sankey&ticker={ticker}&view=income&depth={d}"
-            _depth_btns += f'<a class="sankey-depth-btn {_d_cls}" href="{_d_href}" target="_top">{d}</a>'
-        st.markdown(f'<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div><div class="sankey-depth-toggle"><span>Depth:</span>{_depth_btns}</div></div>', unsafe_allow_html=True)
-        # Filter pills to only show metrics visible at current depth
-        _visible_pills = set()
-        for col in range(1, _sankey_depth + 1):
-            _visible_pills.update(INCOME_COL_PILLS.get(col, []))
-        metric_options = [m for m in metric_options if m in _visible_pills]
+        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill")
         if sel:
@@ -3251,18 +3188,15 @@ def render_sankey_page():
 
         _expanded_inc = st.session_state.get("_expanded_income_nodes", set())
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period,
-                                   expanded_nodes=_expanded_inc, ticker=ticker,
-                                   depth=_sankey_depth)
+                                   expanded_nodes=_expanded_inc, ticker=ticker)
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
             st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
-            _vis_metrics = {k: v for k, v in INCOME_NODE_METRICS.items() if k in _visible_pills}
-            _vis_colors = {k: v for k, v in INCOME_PILL_COLORS.items() if k in _visible_pills}
-            _inject_sankey_click_js(_vis_metrics)
-            _inject_pill_hover_js(_vis_metrics, _vis_colors)
-            _inject_node_hover_js(_vis_metrics, _vis_colors)
+            _inject_sankey_click_js(INCOME_NODE_METRICS)
+            _inject_pill_hover_js(INCOME_NODE_METRICS, INCOME_PILL_COLORS)
+            _inject_node_hover_js(INCOME_NODE_METRICS, INCOME_PILL_COLORS)
         else:
             st.warning(f"No income statement data available for {ticker}.")
 
@@ -3294,16 +3228,7 @@ def render_sankey_page():
         m4.metric("Cash", _fmt(cash_val), _yoy_delta(cash_val, cash_prev, _compare_label))
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
-        _depth_btns_b = ""
-        for d in range(2, 5):
-            _d_cls = "active" if _sankey_depth == d else ""
-            _d_href = f"/?page=sankey&ticker={ticker}&view=balance&depth={d}"
-            _depth_btns_b += f'<a class="sankey-depth-btn {_d_cls}" href="{_d_href}" target="_top">{d}</a>'
-        st.markdown(f'<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div><div class="sankey-depth-toggle"><span>Depth:</span>{_depth_btns_b}</div></div>', unsafe_allow_html=True)
-        _visible_pills_b = set()
-        for col in range(1, _sankey_depth + 1):
-            _visible_pills_b.update(BALANCE_COL_PILLS.get(col, []))
-        metric_options = [m for m in metric_options if m in _visible_pills_b]
+        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="balance_metric_pill")
         if sel:
@@ -3354,18 +3279,15 @@ def render_sankey_page():
 
         _expanded_bal = st.session_state.get("_expanded_balance_nodes", set())
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
-                                          expanded_nodes=_expanded_bal, ticker=ticker,
-                                          depth=_sankey_depth)
+                                          expanded_nodes=_expanded_bal, ticker=ticker)
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
             st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
-            _vis_metrics_b = {k: v for k, v in BALANCE_NODE_METRICS.items() if k in _visible_pills_b}
-            _vis_colors_b = {k: v for k, v in BALANCE_PILL_COLORS.items() if k in _visible_pills_b}
-            _inject_sankey_click_js(_vis_metrics_b)
-            _inject_pill_hover_js(_vis_metrics_b, _vis_colors_b)
-            _inject_node_hover_js(_vis_metrics_b, _vis_colors_b)
+            _inject_sankey_click_js(BALANCE_NODE_METRICS)
+            _inject_pill_hover_js(BALANCE_NODE_METRICS, BALANCE_PILL_COLORS)
+            _inject_node_hover_js(BALANCE_NODE_METRICS, BALANCE_PILL_COLORS)
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
 
