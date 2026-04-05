@@ -644,7 +644,7 @@ _PLAN_COLS = ("id, slug, name, description, price_monthly, price_annual, feature
               "cta_text, cta_url, is_popular, is_active, sort_order, "
               "stripe_product_id, stripe_price_monthly, stripe_price_annual, "
               "allowed_tickers, redirect_allowed, redirect_blocked, "
-              "blocked_charts, "
+              "blocked_charts, search_message, "
               "created_at, updated_at")
 
 
@@ -668,7 +668,8 @@ def _row_to_plan(row) -> dict:
         "redirect_allowed": row[16] or "charts",
         "redirect_blocked": row[17] or "pricing",
         "blocked_charts": row[18] or "",
-        "created_at": row[19], "updated_at": row[20],
+        "search_message": bool(row[19]) if row[19] is not None else False,
+        "created_at": row[20], "updated_at": row[21],
     }
 
 
@@ -748,7 +749,8 @@ def update_plan(plan_id: int, **kwargs) -> dict | None:
                "features", "cta_text", "cta_url", "is_popular", "is_active",
                "sort_order", "stripe_product_id", "stripe_price_monthly",
                "stripe_price_annual", "allowed_tickers",
-               "redirect_allowed", "redirect_blocked", "blocked_charts"}
+               "redirect_allowed", "redirect_blocked", "blocked_charts",
+               "search_message"}
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return get_plan_by_id(plan_id)
@@ -838,6 +840,7 @@ def ensure_pricing_plan_columns():
         ("redirect_allowed", "VARCHAR(50) DEFAULT 'charts'"),
         ("redirect_blocked", "VARCHAR(50) DEFAULT 'pricing'"),
         ("blocked_charts", "TEXT DEFAULT ''"),
+        ("search_message", "BOOLEAN DEFAULT FALSE"),
     ]
     with get_connection() as conn:
         if conn is None:
@@ -867,10 +870,11 @@ def get_user_plan_access(user_id: int | None = None) -> dict:
         redirect_allowed: str  (page slug when ticker IS allowed)
         redirect_blocked: str  (page slug when ticker NOT allowed)
         blocked_charts: set   (set of chart keys that are blocked)
+        search_message: bool  (True = show '+6000 tickers', False = show 'Try for free')
     """
     _default = {"allowed_tickers": {"AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"},
                 "redirect_allowed": "charts", "redirect_blocked": "pricing",
-                "blocked_charts": set()}
+                "blocked_charts": set(), "search_message": False}
 
     if user_id is None:
         # Only consider ACTIVE plans for non-logged-in users
@@ -887,7 +891,7 @@ def get_user_plan_access(user_id: int | None = None) -> dict:
                 with conn.cursor() as cur:
                     cur.execute("""
                         SELECT pp.allowed_tickers, pp.redirect_allowed,
-                               pp.redirect_blocked, pp.blocked_charts
+                               pp.redirect_blocked, pp.blocked_charts, pp.search_message
                         FROM subscriptions s
                         JOIN pricing_plans pp ON pp.id = s.plan_id
                         WHERE s.user_id = %s AND s.status IN ('active', 'trialing')
@@ -899,15 +903,18 @@ def get_user_plan_access(user_id: int | None = None) -> dict:
                         r_allowed = row[1] or "charts"
                         r_blocked = row[2] or "pricing"
                         b_charts = _parse_blocked_charts(row[3] or "")
+                        s_msg = bool(row[4]) if row[4] is not None else False
                         if tickers_str.strip().upper() == "ALL":
                             return {"allowed_tickers": None,
                                     "redirect_allowed": r_allowed,
                                     "redirect_blocked": r_blocked,
-                                    "blocked_charts": b_charts}
+                                    "blocked_charts": b_charts,
+                                    "search_message": s_msg}
                         return {"allowed_tickers": {t.strip().upper() for t in tickers_str.split(",") if t.strip()},
                                 "redirect_allowed": r_allowed,
                                 "redirect_blocked": r_blocked,
-                                "blocked_charts": b_charts}
+                                "blocked_charts": b_charts,
+                                "search_message": s_msg}
         _free = get_plan_by_slug("free")
         plan = _free if (_free and _free.get("is_active")) else None
 
@@ -918,12 +925,14 @@ def get_user_plan_access(user_id: int | None = None) -> dict:
     r_allowed = plan.get("redirect_allowed", "charts")
     r_blocked = plan.get("redirect_blocked", "pricing")
     b_charts = _parse_blocked_charts(plan.get("blocked_charts", ""))
+    s_msg = plan.get("search_message", False)
     if tickers_str.strip().upper() == "ALL":
         return {"allowed_tickers": None, "redirect_allowed": r_allowed,
-                "redirect_blocked": r_blocked, "blocked_charts": b_charts}
+                "redirect_blocked": r_blocked, "blocked_charts": b_charts,
+                "search_message": s_msg}
     return {"allowed_tickers": {t.strip().upper() for t in tickers_str.split(",") if t.strip()},
             "redirect_allowed": r_allowed, "redirect_blocked": r_blocked,
-            "blocked_charts": b_charts}
+            "blocked_charts": b_charts, "search_message": s_msg}
 
 
 def get_allowed_tickers_for_user(user_id: int | None = None) -> set | None:

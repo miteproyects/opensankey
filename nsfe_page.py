@@ -2393,6 +2393,13 @@ def _render_pricing_admin():
 
         _page_options = ["charts", "sankey", "profile", "pricing", "dashboard", "home"]
 
+        # Row: "Search message" checkbox per plan
+        cols = st.columns(plan_widths)
+        cols[0].markdown('<div class="price-grid-label">Search message</div>', unsafe_allow_html=True)
+        _search_msg_chk = {}
+        for i, p in enumerate(all_plans):
+            _search_msg_chk[p["id"]] = cols[i + 1].checkbox("smsg", value=p.get("search_message", False), key=f"g_smsg_{p['id']}", label_visibility="collapsed")
+
         # If Allowed → Go to:
         cols = st.columns(plan_widths)
         cols[0].markdown('<div class="price-grid-label">If Allowed → Go to</div>', unsafe_allow_html=True)
@@ -2565,6 +2572,7 @@ def _render_pricing_admin():
                 stripe_price_monthly=(_spms.get(pid, "") or "").strip(),
                 stripe_price_annual=(_spas.get(pid, "") or "").strip(),
                 blocked_charts=",".join(sorted(_blocked_charts.get(pid, set()))),
+                search_message=_search_msg_chk.get(pid, False),
             )
             if result:
                 _ok += 1

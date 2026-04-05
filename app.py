@@ -2252,27 +2252,42 @@ with st.sidebar:
     </div>
         """, unsafe_allow_html=True)
 
-    # ── Fetch ticker pool for placeholder & "Try for free" strip ──
+    # ── Fetch ticker pool & search_message flag for sidebar strip ──
     try:
-        from database import get_ticker_pool as _gtp
+        from database import get_ticker_pool as _gtp, get_user_plan_access as _gupa
         _demo_tickers = _gtp()
     except Exception:
         _demo_tickers = ["GOOG", "META", "NVDA", "TSLA"]
     _placeholder_tickers = ", ".join(_demo_tickers[:4])
 
+    # Determine search_message flag from user's plan
+    try:
+        _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
+        _access = _gupa(_uid)
+        _search_msg = _access.get("search_message", False)
+    except Exception:
+        _search_msg = False
+
     st.markdown("**Type a Ticker to Explore Data:**", unsafe_allow_html=True)
-    _demo_links = " &middot; ".join(
-        f'<a href="/?page=charts&ticker={t}" target="_top" '
-        f'style="color:#3b82f6;font-weight:600;text-decoration:none;"'
-        f' onmouseover="this.style.color=\'#60a5fa\';this.style.textDecoration=\'underline\'"'
-        f' onmouseout="this.style.color=\'#3b82f6\';this.style.textDecoration=\'none\'">{t}</a>'
-        for t in _demo_tickers[:5]
-    )
-    st.markdown(
-        f'<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-2px 0 6px 0;">'
-        f'<em>Try for free:</em>&nbsp; {_demo_links}</div>',
-        unsafe_allow_html=True,
-    )
+    if _search_msg:
+        st.markdown(
+            '<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-2px 0 6px 0;">'
+            '<em>+6,000 available tickers &mdash; SEC&nbsp; Sync</em></div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        _demo_links = " &middot; ".join(
+            f'<a href="/?page=charts&ticker={t}" target="_top" '
+            f'style="color:#3b82f6;font-weight:600;text-decoration:none;"'
+            f' onmouseover="this.style.color=\'#60a5fa\';this.style.textDecoration=\'underline\'"'
+            f' onmouseout="this.style.color=\'#3b82f6\';this.style.textDecoration=\'none\'">{t}</a>'
+            for t in _demo_tickers[:5]
+        )
+        st.markdown(
+            f'<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-2px 0 6px 0;">'
+            f'<em>Try for free:</em>&nbsp; {_demo_links}</div>',
+            unsafe_allow_html=True,
+        )
     with st.form("ticker_form", clear_on_submit=False, border=False):
         col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
         with col_input:
