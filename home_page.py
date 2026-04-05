@@ -361,7 +361,7 @@ def render_home_page():
         </div>
         <div style="height:0.5px;background:rgba(255,255,255,0.07);max-width:480px;margin:6px auto 0;border-radius:1px;"></div>
         <div class="popular" style="margin-top:4px;">
-            Popular:
+            Try for free:
             <a href="/?page=charts&ticker=AAPL" target="_top">AAPL</a> &#183;
             <a href="/?page=charts&ticker=TSLA" target="_top">TSLA</a> &#183;
             <a href="/?page=charts&ticker=NVDA" target="_top">NVDA</a> &#183;
