@@ -2278,7 +2278,7 @@ with st.sidebar:
         for t in _demo_tickers[:5]
     )
     st.markdown(
-        f'<div style="text-align:center;font-size:0.82rem;color:#64748b;margin:-6px 0 10px 0;">'
+        f'<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-6px 0 10px 0;">'
         f'<em>Try for free:</em>&nbsp; {_demo_links}</div>',
         unsafe_allow_html=True,
     )
