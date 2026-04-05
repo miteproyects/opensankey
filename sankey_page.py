@@ -1927,10 +1927,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     imap = {}
     node_pcts = []
 
-    _raw_y = []
-
     def add(name, val, color_idx, x, y, prev_val=None):
-        _raw_y.append(y)  # store raw, normalize later
+        y = round(max(0.01, min(0.99, y)), 4)
         imap[name] = len(nodes)
         pct = _yoy(val, prev_val)
         pct_suffix = ""
@@ -1948,11 +1946,11 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_y.append(y)
 
     add("Revenue", revenue, 0, X1, 0.45, p_revenue)
-    add("Cost of Revenue", cogs, 1, X2, 0.15, p_cogs)
+    add("Cost of Revenue", cogs, 1, X2, 0.05, p_cogs)
     add("Gross Profit", gross_profit, 2, X2, 0.58, p_gross_profit)
 
-    exp_y = 0.12
-    exp_gap = 0.11
+    exp_y = 0.04
+    exp_gap = 0.13
     n_exp = 0
     if rd_expense > 0:
         add("R&D", rd_expense, 3, X3, exp_y + n_exp * exp_gap, p_rd_expense)
@@ -1976,16 +1974,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     pt_y = oi_y + 0.14
     add("Pretax Income", pretax_income, 8, X4, pt_y, p_pretax_income)
 
-    # Gaps proportional to value relative to revenue so large bars don't overlap
-    _ref = max(revenue, 1)
-    _tax_bar = (tax / _ref) * 0.5 if tax > 0 else 0
-    _pt_bar = (pretax_income / _ref) * 0.5
-    tax_y = pt_y + max(0.08, _pt_bar * 0.6 + 0.04)
-    net_y = pt_y + max(0.18, _pt_bar * 0.6 + _tax_bar * 0.6 + 0.08)
+    tax_y = pt_y + 0.04
+    net_y = pt_y + 0.14
     if tax > 0:
-        add("Income Tax", tax, 9, X5, tax_y, p_tax)
-        net_y = tax_y + max(0.10, _tax_bar * 0.6 + _pt_bar * 0.3 + 0.04)
-    add("Net Income", net_income, 10, X5, net_y, p_net_income)
+        add("Income Tax", tax, 9, X5, min(tax_y, 0.88), p_tax)
+        net_y = tax_y + 0.12
+    add("Net Income", net_income, 10, X5, min(net_y, 0.97), p_net_income)
 
     srcs, tgts, vals, lcolors = [], [], [], []
 
@@ -2018,18 +2012,6 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     if not vals:
         return None
 
-    # ── Normalize y into 0.08–0.92 and scale chart height if nodes exceed range ──
-    _y_min_raw = min(_raw_y)
-    _y_max_raw = max(_raw_y)
-    _span = _y_max_raw - _y_min_raw if _y_max_raw > _y_min_raw else 1.0
-    # Map raw y values into safe 0.08–0.92 range, preserving relative spacing
-    node_y = [round(0.08 + (_y - _y_min_raw) / _span * 0.84, 4) for _y in _raw_y]
-    # Scale annotation y values the same way
-    for p in node_pcts:
-        p["y"] = round(0.08 + (p["y"] - _y_min_raw) / _span * 0.84, 4)
-    # Chart height: 900 base, grows if raw span exceeds 1.0 (nodes needed more space)
-    _dyn_h = max(900, int(900 * (_y_max_raw - _y_min_raw) / 0.84))
-
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
@@ -2049,7 +2031,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    fig.update_layout(height=_dyn_h, margin=dict(l=10, r=10, t=50, b=30),
+    fig.update_layout(height=900, margin=dict(l=10, r=10, t=10, b=20),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
@@ -2164,10 +2146,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     imap = {}
     node_pcts = []
 
-    _raw_y_bs = []
-
     def add(name, val, color, x, y):
-        _raw_y_bs.append(y)  # store raw, normalize later
+        y = round(max(0.01, min(0.99, y)), 4)
         x = round(max(0.01, min(0.99, x)), 4)
         imap[name] = len(nodes)
         pv = prev_map.get(name, 0)
@@ -2319,15 +2299,6 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     if not links_val:
         return None
 
-    # ── Normalize y into 0.08–0.92 and scale chart height if nodes exceed range ──
-    _y_min_raw = min(_raw_y_bs)
-    _y_max_raw = max(_raw_y_bs)
-    _span = _y_max_raw - _y_min_raw if _y_max_raw > _y_min_raw else 1.0
-    node_y = [round(0.08 + (_y - _y_min_raw) / _span * 0.84, 4) for _y in _raw_y_bs]
-    for p in node_pcts:
-        p["y"] = round(0.08 + (p["y"] - _y_min_raw) / _span * 0.84, 4)
-    _dyn_h = max(900, int(900 * (_y_max_raw - _y_min_raw) / 0.84))
-
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
@@ -2347,7 +2318,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    fig.update_layout(height=_dyn_h, margin=dict(l=10, r=10, t=50, b=30),
+    fig.update_layout(height=900, margin=dict(l=10, r=10, t=10, b=20),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
@@ -2840,8 +2811,12 @@ def render_sankey_page():
 
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period)
         if fig:
-
+            # Frame: Sankey built at natural 900px, scaled to fit with padding
+            st.markdown('<div style="height:900px;overflow:hidden;position:relative;">'
+                        '<div style="transform-origin:top left;transform:scale(0.92);padding:20px 0;">',
+                        unsafe_allow_html=True)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
+            st.markdown('</div></div>', unsafe_allow_html=True)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
@@ -2893,8 +2868,12 @@ def render_sankey_page():
 
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period)
         if fig:
-
+            # Frame: Sankey built at natural 900px, scaled to fit with padding
+            st.markdown('<div style="height:900px;overflow:hidden;position:relative;">'
+                        '<div style="transform-origin:top left;transform:scale(0.92);padding:20px 0;">',
+                        unsafe_allow_html=True)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
+            st.markdown('</div></div>', unsafe_allow_html=True)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
