@@ -268,19 +268,21 @@ def render_pricing_page():
                 cta_class = "cta-default"
 
             # Build features HTML
-            # Dynamically replace "Tickers available:" line with current ticker pool
             features_html = ""
+            # Auto-prepend "Tickers available" for plans with limited tickers
+            _allowed_tk = (plan.get("allowed_tickers", "") or "").strip().upper()
+            if _allowed_tk and _allowed_tk != "ALL":
+                try:
+                    from database import get_ticker_pool
+                    _pool = get_ticker_pool()
+                except Exception:
+                    _pool = [t.strip() for t in _allowed_tk.split(",") if t.strip()]
+                if _pool:
+                    _last = _pool[-1]
+                    _rest = ", ".join(_pool[:-1])
+                    _tk_line = f"Tickers available: {_rest} &amp; {_last}" if len(_pool) > 1 else f"Tickers available: {_last}"
+                    features_html += f"<li>{_tk_line}</li>"
             for feat in features:
-                if "Tickers available:" in feat:
-                    try:
-                        from database import get_ticker_pool
-                        _pool = get_ticker_pool()
-                    except Exception:
-                        _pool = []
-                    if _pool:
-                        _last = _pool[-1]
-                        _rest = ", ".join(_pool[:-1])
-                        feat = f"Tickers available: {_rest} &amp; {_last}" if len(_pool) > 1 else f"Tickers available: {_last}"
                 features_html += f"<li>{feat}</li>"
 
             # Description with billing note
