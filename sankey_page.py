@@ -1553,7 +1553,6 @@ def _inject_delta_color_js():
             var did = false;
             labels.forEach(function(label) {
                 if (label._deltaColored) return;
-                // Collect all tspan children
                 var tspans = label.querySelectorAll('tspan');
                 var targets = tspans.length ? tspans : [label];
                 targets.forEach(function(el) {
@@ -1567,17 +1566,11 @@ def _inject_delta_color_js():
                         idx = idxDown; color = RED;
                     }
                     if (idx < 0) return;
-
-                    // Split: keep the part before the arrow, color the rest
                     var before = txt.substring(0, idx);
                     var after = txt.substring(idx);
-
-                    // Skip coloring if change is zero (+0.0% or -0.0% or +$0)
                     if (/[+-]0\.0%/.test(after) || /[+-]\$0[^.]/.test(after) || /[+-]\$0$/.test(after)) {
-                        color = '#64748b';  // neutral slate for zero change
+                        color = '#64748b';
                     }
-
-                    // If this is a tspan inside a text, rebuild it
                     if (el.tagName === 'tspan') {
                         el.textContent = before;
                         var colored = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
@@ -1586,7 +1579,6 @@ def _inject_delta_color_js():
                         colored.setAttribute('font-weight', '700');
                         el.parentNode.insertBefore(colored, el.nextSibling);
                     } else {
-                        // Direct text node in <text>
                         el.textContent = before;
                         var colored = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
                         colored.textContent = after;
@@ -1601,14 +1593,17 @@ def _inject_delta_color_js():
             return did;
         }
 
-        // Retry until chart is rendered
-        if (!colorize()) {
-            var obs = new MutationObserver(function() {
-                if (colorize()) obs.disconnect();
-            });
-            obs.observe(parentDoc.body, {childList: true, subtree: true});
-            setTimeout(function() { colorize(); obs.disconnect(); }, 8000);
-        }
+        /* Persistent observer: re-colorize whenever Plotly rebuilds the SVG
+           (e.g. sidebar collapse/uncollapse triggers Streamlit rerender). */
+        var _debounce = null;
+        var obs = new MutationObserver(function() {
+            clearTimeout(_debounce);
+            _debounce = setTimeout(function() { colorize(); }, 150);
+        });
+        obs.observe(parentDoc.body, {childList: true, subtree: true});
+        colorize();
+        /* Also poll periodically as fallback for edge cases */
+        setInterval(function() { colorize(); }, 3000);
     })();
     </script>
     """
@@ -2256,7 +2251,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             net_income = 0
             tax = pretax_income
 
-    X1, X2, X3, X4, X5 = 0.02, 0.25, 0.55, 0.78, 0.99
+    X1, X2, X3, X4, X5 = 0.02, 0.22, 0.48, 0.70, 0.88
     colors = VIVID
     nodes = []
     node_colors = []
@@ -2433,7 +2428,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         domain=dict(y=[0.04, 0.96]),
     ))
     _h = 460
-    _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=10),
+    _layout = dict(height=_h, margin=dict(l=10, r=120, t=30, b=10),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
@@ -2759,7 +2754,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         domain=dict(y=[0.04, 0.96]),
     ))
     _h = 460
-    _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=10),
+    _layout = dict(height=_h, margin=dict(l=10, r=120, t=30, b=10),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
