@@ -2029,9 +2029,9 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_x.append(x)
         node_y.append(y)
 
-    add("Revenue", revenue, 0, X1, 0.35, p_revenue)
-    add("Cost of Revenue", cogs, 1, X2, 0.15, p_cogs)
-    add("Gross Profit", gross_profit, 2, X2, 0.45, p_gross_profit)
+    add("Revenue", revenue, 0, X1, 0.40, p_revenue)
+    add("Cost of Revenue", cogs, 1, X2, 0.12, p_cogs)
+    add("Gross Profit", gross_profit, 2, X2, 0.58, p_gross_profit)
 
     # --- Fetch sub-breakdown data for expanded nodes ---
     _sub_cache = {}
@@ -2040,8 +2040,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             cfg = EXPANDABLE_INCOME_NODES[exp_name]
             _sub_cache[exp_name] = _fetch_sub_values(ticker, cfg["children"])
 
-    exp_y = 0.12
-    exp_gap = 0.10
+    exp_y = 0.08
+    exp_gap = 0.11
     n_exp = 0
     # Track which expense nodes are expanded (for linking later)
     _expanded_children = {}  # parent_label -> [(child_label, child_val, color_idx)]
@@ -2101,20 +2101,20 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         add("Other OpEx", other_opex, 5, X3, exp_y + n_exp * exp_gap, p_other_opex)
         n_exp += 1
 
-    oi_y = max(exp_y + n_exp * exp_gap + 0.12, 0.48)
+    oi_y = max(exp_y + n_exp * exp_gap + 0.10, 0.52)
     add("Operating Income", operating_inc, 6, X3, oi_y, p_operating_inc)
 
     if interest_exp > 0:
         inter_y = max(oi_y - 0.06, 0.40)
         add("Interest Exp.", interest_exp, 7, X4, inter_y, p_interest_exp)
-    pt_y = oi_y + 0.10
+    pt_y = min(oi_y + 0.10, 0.72)
     add("Pretax Income", pretax_income, 8, X4, pt_y, p_pretax_income)
 
-    tax_y = pt_y + 0.12
-    net_y = pt_y + 0.28
+    tax_y = min(pt_y + 0.10, 0.82)
+    net_y = min(pt_y + 0.22, 0.92)
     if tax > 0:
         add("Income Tax", tax, 9, X5, tax_y, p_tax)
-        net_y = tax_y + 0.18
+        net_y = min(tax_y + 0.14, 0.92)
     add("Net Income", net_income, 10, X5, net_y, p_net_income)
 
     srcs, tgts, vals, lcolors = [], [], [], []
@@ -2185,7 +2185,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         arrangement="fixed",
         orientation=_ori_flag,
         textfont=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
-        node=dict(pad=15, thickness=12, line=dict(color="rgba(0,0,0,0)", width=0),
+        node=dict(pad=22, thickness=12, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors, x=_fx, y=_fy,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
         link=dict(source=srcs, target=tgts, value=vals, color=lcolors,
@@ -2202,7 +2202,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                 borderwidth=0, xanchor="left", yanchor="middle",
                 xshift=_lw, yshift=0,
             )
-    _h = 800 if _vertical else 400
+    _n_nodes = len(nodes)
+    _h = 800 if _vertical else min(600, max(420, 350 + _n_nodes * 18))
     _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
@@ -2536,7 +2537,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         arrangement="fixed",
         orientation=_ori_flag,
         textfont=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
-        node=dict(pad=15, thickness=12, line=dict(color="rgba(0,0,0,0)", width=0),
+        node=dict(pad=22, thickness=12, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors_list, x=_fx, y=_fy,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
         link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
@@ -2553,7 +2554,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                 borderwidth=0, xanchor="left", yanchor="middle",
                 xshift=_lw, yshift=0,
             )
-    _h = 800 if _vertical else 400
+    _n_nodes = len(nodes)
+    _h = 800 if _vertical else min(600, max(420, 350 + _n_nodes * 18))
     _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
