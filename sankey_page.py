@@ -2307,7 +2307,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     ))
     _n_nodes = len(nodes)
     _h = max(460, 350 + _n_nodes * 18)
-    _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
+    _layout = dict(height=_h, margin=dict(l=10, r=10, t=50, b=20),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
@@ -2618,7 +2618,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     ))
     _n_nodes = len(nodes)
     _h = max(460, 350 + _n_nodes * 18)
-    _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
+    _layout = dict(height=_h, margin=dict(l=10, r=10, t=50, b=20),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
@@ -2850,7 +2850,12 @@ def render_sankey_page():
             overflow-y: auto;
             overflow-x: hidden;
             border-radius: 8px;
+            position: relative;
+            z-index: 1;
             contain: paint;
+            clip-path: inset(0 0 0 0);
+            -webkit-clip-path: inset(0 0 0 0);
+            isolation: isolate;
         }
         [class*="st-key-sankey_income_scroll"] [data-testid="stPlotlyChart"],
         [class*="st-key-sankey_balance_scroll"] [data-testid="stPlotlyChart"] {
@@ -2866,6 +2871,18 @@ def render_sankey_page():
         [class*="st-key-sankey_balance_scroll"] [data-testid="stPlotlyChart"] > div {
             overflow: hidden !important;
             margin-top: 0 !important;
+        }
+        [class*="st-key-sankey_income_scroll"] .js-plotly-plot,
+        [class*="st-key-sankey_balance_scroll"] .js-plotly-plot {
+            overflow: hidden !important;
+        }
+        [class*="st-key-sankey_income_scroll"] .plot-container,
+        [class*="st-key-sankey_balance_scroll"] .plot-container {
+            overflow: hidden !important;
+        }
+        [class*="st-key-sankey_income_scroll"] .svg-container,
+        [class*="st-key-sankey_balance_scroll"] .svg-container {
+            overflow: hidden !important;
         }
         [class*="st-key-sankey_income_scroll"]::-webkit-scrollbar,
         [class*="st-key-sankey_balance_scroll"]::-webkit-scrollbar {
@@ -2892,6 +2909,8 @@ def render_sankey_page():
             box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.03);
             padding: 16px 18px;
             margin-bottom: 1.5rem;
+            position: relative;
+            z-index: 10;
         }
         /* ── Sankey chart card ── */
         .sankey-chart-card {
