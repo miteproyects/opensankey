@@ -603,8 +603,8 @@ EXPANDABLE_INCOME_NODES = {
     },
     "D&A": {
         "children": [
-            {"label": "Depreciation", "tags": ["Depreciation", "DepreciationNonproduction", "DepreciationAmortizationAndAccretionNet"], "color_idx": 5},
-            {"label": "Amortization", "tags": ["AmortizationOfIntangibleAssets", "Amortization"], "color_idx": 5},
+            {"label": "Depreciation", "tags": ["Depreciation", "DepreciationNonproduction", "DepreciationPropertyPlantAndEquipment"], "color_idx": 5},
+            {"label": "Amortization", "tags": ["AmortizationOfIntangibleAssets", "Amortization", "AmortizationOfFinancingCosts"], "color_idx": 5},
         ],
         "parent_metric": "Reconciled Depreciation",
     },
@@ -2060,7 +2060,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                     children.append((ch["label"], ch_val, ch["color_idx"]))
             # Reconcile: children sum should equal parent
             ch_sum = sum(v for _, v, _ in children)
-            if ch_sum > 0 and children:
+            if ch_sum > 0 and len(children) >= 2:
                 scale = sga_expense / ch_sum
                 children = [(l, round(v * scale), ci) for l, v, ci in children]
                 _expanded_children["SG&A"] = children
@@ -2068,7 +2068,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                     add(ch_label, ch_val, ch_ci, X3, exp_y + n_exp * exp_gap)
                     n_exp += 1
             else:
-                add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap, p_sga_expense, expandable=True)
+                add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap, p_sga_expense, expandable=False)
                 n_exp += 1
         else:
             add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap, p_sga_expense, expandable=True)
@@ -2083,7 +2083,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                 if ch_val > 0:
                     children.append((ch["label"], ch_val, ch["color_idx"]))
             ch_sum = sum(v for _, v, _ in children)
-            if ch_sum > 0 and children:
+            if ch_sum > 0 and len(children) >= 2:
                 scale = dep_amort / ch_sum
                 children = [(l, round(v * scale), ci) for l, v, ci in children]
                 _expanded_children["D&A"] = children
@@ -2091,7 +2091,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                     add(ch_label, ch_val, ch_ci, X3, exp_y + n_exp * exp_gap)
                     n_exp += 1
             else:
-                add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap, p_dep_amort, expandable=True)
+                # Only 1 or 0 children found — not a useful breakdown, show parent without star
+                add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap, p_dep_amort, expandable=False)
                 n_exp += 1
         else:
             add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap, p_dep_amort, expandable=True)
