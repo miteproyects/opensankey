@@ -1529,6 +1529,84 @@ def _inject_node_hover_js(metric_map, color_map):
     components.html(js, height=0)
 
 
+def _inject_delta_color_js():
+    """Inject JS that colors the YoY delta portion of Sankey node labels.
+
+    Finds arrow characters (\u2191 / \u2193) in each SVG node-label text,
+    then wraps the arrow + percentage + dollar delta in a colored <tspan>:
+      green (#16a34a) for positive (\u2191)
+      red   (#dc2626) for negative (\u2193)
+    """
+    js = """
+    <script>
+    (function() {
+        const UP = '\u2191', DOWN = '\u2193';
+        const GREEN = '#16a34a', RED = '#dc2626';
+        const parentDoc = window.parent.document;
+
+        function colorize() {
+            var labels = parentDoc.querySelectorAll('.sankey .node-label');
+            if (!labels.length) return false;
+            var did = false;
+            labels.forEach(function(label) {
+                if (label._deltaColored) return;
+                // Collect all tspan children
+                var tspans = label.querySelectorAll('tspan');
+                var targets = tspans.length ? tspans : [label];
+                targets.forEach(function(el) {
+                    var txt = el.textContent || '';
+                    var idxUp = txt.indexOf(UP);
+                    var idxDown = txt.indexOf(DOWN);
+                    var idx = -1, color = '';
+                    if (idxUp >= 0 && (idxDown < 0 || idxUp < idxDown)) {
+                        idx = idxUp; color = GREEN;
+                    } else if (idxDown >= 0) {
+                        idx = idxDown; color = RED;
+                    }
+                    if (idx < 0) return;
+
+                    // Split: keep the part before the arrow, color the rest
+                    var before = txt.substring(0, idx);
+                    var after = txt.substring(idx);
+
+                    // If this is a tspan inside a text, rebuild it
+                    if (el.tagName === 'tspan') {
+                        el.textContent = before;
+                        var colored = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                        colored.textContent = after;
+                        colored.setAttribute('fill', color);
+                        colored.setAttribute('font-weight', '700');
+                        el.parentNode.insertBefore(colored, el.nextSibling);
+                    } else {
+                        // Direct text node in <text>
+                        el.textContent = before;
+                        var colored = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                        colored.textContent = after;
+                        colored.setAttribute('fill', color);
+                        colored.setAttribute('font-weight', '700');
+                        el.appendChild(colored);
+                    }
+                });
+                label._deltaColored = true;
+                did = true;
+            });
+            return did;
+        }
+
+        // Retry until chart is rendered
+        if (!colorize()) {
+            var obs = new MutationObserver(function() {
+                if (colorize()) obs.disconnect();
+            });
+            obs.observe(parentDoc.body, {childList: true, subtree: true});
+            setTimeout(function() { colorize(); obs.disconnect(); }, 8000);
+        }
+    })();
+    </script>
+    """
+    components.html(js, height=0)
+
+
 def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
     """Generate a professional PDF with actual Sankey flow diagram + KPI cards.
 
@@ -3237,6 +3315,7 @@ def render_sankey_page():
             _inject_sankey_click_js(INCOME_NODE_METRICS)
             _inject_pill_hover_js(INCOME_NODE_METRICS, INCOME_PILL_COLORS)
             _inject_node_hover_js(INCOME_NODE_METRICS, INCOME_PILL_COLORS)
+            _inject_delta_color_js()
         else:
             st.warning(f"No income statement data available for {ticker}.")
 
@@ -3329,6 +3408,7 @@ def render_sankey_page():
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
             _inject_pill_hover_js(BALANCE_NODE_METRICS, BALANCE_PILL_COLORS)
             _inject_node_hover_js(BALANCE_NODE_METRICS, BALANCE_PILL_COLORS)
+            _inject_delta_color_js()
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
 
