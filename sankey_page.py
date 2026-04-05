@@ -175,10 +175,13 @@ def _yoy(current, previous):
 
 
 def _yoy_delta(current, previous, label="YoY"):
-    """Format YoY as delta string for st.metric."""
+    """Format YoY as delta string for st.metric, including dollar difference."""
     pct = _yoy(current, previous)
     if pct is None:
         return None
+    delta = _fmt_delta(current, previous)
+    if delta:
+        return f"{pct:+.1f}% {label} ({delta})"
     return f"{pct:+.1f}% {label}"
 
 
