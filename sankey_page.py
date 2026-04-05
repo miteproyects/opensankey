@@ -589,6 +589,82 @@ BALANCE_NODE_METRICS = {
 }
 
 
+# ---------- Expandable node definitions ------------------------------------
+# Maps Sankey node label -> list of children with XBRL tags for sub-breakdowns.
+# Used to: (1) mark nodes with star, (2) fetch sub-data, (3) rebuild Sankey.
+
+EXPANDABLE_INCOME_NODES = {
+    "SG&A": {
+        "children": [
+            {"label": "Selling Exp.", "tags": ["SellingExpense", "SellingAndMarketingExpense"], "color_idx": 4},
+            {"label": "G&A Exp.", "tags": ["GeneralAndAdministrativeExpense"], "color_idx": 4},
+        ],
+        "parent_metric": "Selling General And Administration",
+    },
+    "D&A": {
+        "children": [
+            {"label": "Depreciation", "tags": ["Depreciation", "DepreciationNonproduction", "DepreciationAmortizationAndAccretionNet"], "color_idx": 5},
+            {"label": "Amortization", "tags": ["AmortizationOfIntangibleAssets", "Amortization"], "color_idx": 5},
+        ],
+        "parent_metric": "Reconciled Depreciation",
+    },
+}
+
+EXPANDABLE_BALANCE_NODES = {
+    "Equity": {
+        "children": [
+            {"label": "Common Stock + APIC", "tags": ["CommonStocksIncludingAdditionalPaidInCapital", "CommonStockValue"], "color": "#22c55e"},
+            {"label": "Retained Earn.", "tags": ["RetainedEarningsAccumulatedDeficit"], "color": "#14b8a6"},
+            {"label": "AOCI", "tags": ["AccumulatedOtherComprehensiveIncomeLossNetOfTax"], "color": "#64748b"},
+            {"label": "Treasury Stock", "tags": ["TreasuryStockValue"], "color": "#ef4444"},
+        ],
+        "parent_metric": "Stockholders Equity",
+    },
+}
+
+
+def _fetch_sub_values(ticker: str, children_config: list, form_filter: str = "10-K") -> dict:
+    """Fetch sub-breakdown values from EDGAR for a list of children configs.
+
+    Returns dict: {child_label: value} for the most recent filing period.
+    """
+    try:
+        cik = _ticker_to_cik(ticker)
+        if not cik:
+            return {}
+        facts = _fetch_edgar_facts(cik)
+        gaap = facts.get("facts", {}).get("us-gaap", {})
+    except Exception:
+        return {}
+
+    result = {}
+    for child in children_config:
+        label = child["label"]
+        for tag in child["tags"]:
+            concept = gaap.get(tag)
+            if not concept:
+                continue
+            entries = concept.get("units", {}).get("USD", [])
+            if not entries:
+                continue
+            best_val, best_date = None, ""
+            for e in entries:
+                form = e.get("form", "")
+                if form_filter == "10-K" and form != "10-K":
+                    continue
+                if form_filter == "10-Q" and form not in ("10-Q", "10-K"):
+                    continue
+                end = e.get("end", "")
+                val = e.get("val")
+                if val is not None and end > best_date:
+                    best_val = abs(float(val))
+                    best_date = end
+            if best_val is not None and best_val > 0:
+                result[label] = best_val
+                break
+    return result
+
+
 # âââ Node info: "What it means" + "How to read it" for Sankey popups ââââââ
 INCOME_NODE_INFO = {
     "Revenue": {
@@ -1147,7 +1223,7 @@ def _inject_pill_hover_js(metric_map, color_map):
                 // Find matching node index by label text
                 var matchIdx = -1;
                 nodeLabels.forEach(function(l, i) {{
-                    var txt = (l.textContent || '').split(/\\n/)[0].trim().split(/  /)[0].trim();
+                    var txt = (l.textContent || '').split(/\\n/)[0].trim().split(/  /)[0].replace(/\u2605\\s*/g, '').trim();
                     if (txt === pillLabel) {{
                         matchIdx = i;
                         l.style.opacity = '1';
@@ -1243,8 +1319,8 @@ def _inject_sankey_click_js(metric_map):
                     var pt = data.points[0];
                     // Sankey nodes expose label; links expose source/target
                     var raw = pt.label || '';
-                    // Strip value after <br> or double-space
-                    var label = raw.split(/<br>|  /)[0].replace(/\\n/g, '').trim();
+                    // Strip value after <br> or double-space, and remove star icon
+                    var label = raw.split(/<br>|  /)[0].replace(/\\n/g, '').replace(/\u2605\\s*/g, '').trim();
                     if (!label || !VALID.has(label)) return;
                     clickPill(label);
                 }});
@@ -1261,7 +1337,7 @@ def _inject_sankey_click_js(metric_map):
                             var raw = lbl.textContent || '';
                             var name = raw.split(/\\n/)[0].trim();
                             // Also try splitting on double-space for inline values
-                            name = name.split(/  /)[0].trim();
+                            name = name.split(/  /)[0].replace(/\u2605\\s*/g, '').trim();
                             if (name && VALID.has(name)) {{
                                 clickPill(name);
                                 e.stopPropagation();
@@ -1762,14 +1838,19 @@ def _fetch_sankey_data(ticker: str, quarterly: bool = False):
         return pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
 
 
-def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False):
+def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False,
+                         expanded_nodes=None, ticker=None):
     """Build income statement Sankey with fixed positions and vivid nodes.
 
     Flow: Revenue -> COGS + Gross Profit -> Expenses + Operating Income
           -> Interest + Pretax Income -> Tax + Net Income
 
     All flows are reconciled so that parent = sum of children at every level.
+    expanded_nodes: set of node labels currently expanded (e.g. {"SG&A"})
+    ticker: needed to fetch sub-breakdown data from EDGAR when expanding
     """
+    if expanded_nodes is None:
+        expanded_nodes = set()
     # Extract values
     revenue       = _safe(income_df, "Total Revenue")
     cogs          = abs(_safe(income_df, "Cost Of Revenue"))
@@ -1927,9 +2008,11 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     imap = {}
     node_pcts = []
 
-    def add(name, val, color_idx, x, y, prev_val=None):
+    def add(name, val, color_idx, x, y, prev_val=None, expandable=False):
         y = round(max(0.01, min(0.99, y)), 4)
         imap[name] = len(nodes)
+        star = "\u2605 " if expandable else ""
+        display_name = f"{star}{name}"
         pct = _yoy(val, prev_val)
         pct_suffix = ""
         if pct is not None and not same_period:
@@ -1939,8 +2022,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             if x >= 0.65:
                 pct_suffix = f"  {arrow}{pct:+.1f}%"
             else:
-                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg, lw=len(f"{name}  {_fmt(val)}")))
-        nodes.append(f"{name}  {_fmt(val)}{pct_suffix}")
+                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg, lw=len(f"{display_name}  {_fmt(val)}")))
+        nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
         node_colors.append(colors[color_idx])
         node_x.append(x)
         node_y.append(y)
@@ -1949,18 +2032,70 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     add("Cost of Revenue", cogs, 1, X2, 0.15, p_cogs)
     add("Gross Profit", gross_profit, 2, X2, 0.45, p_gross_profit)
 
+    # --- Fetch sub-breakdown data for expanded nodes ---
+    _sub_cache = {}
+    for exp_name in expanded_nodes:
+        if exp_name in EXPANDABLE_INCOME_NODES and ticker:
+            cfg = EXPANDABLE_INCOME_NODES[exp_name]
+            _sub_cache[exp_name] = _fetch_sub_values(ticker, cfg["children"])
+
     exp_y = 0.12
     exp_gap = 0.10
     n_exp = 0
+    # Track which expense nodes are expanded (for linking later)
+    _expanded_children = {}  # parent_label -> [(child_label, child_val, color_idx)]
+
     if rd_expense > 0:
         add("R&D", rd_expense, 3, X3, exp_y + n_exp * exp_gap, p_rd_expense)
         n_exp += 1
+
     if sga_expense > 0:
-        add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap, p_sga_expense)
-        n_exp += 1
+        if "SG&A" in expanded_nodes and "SG&A" in _sub_cache and _sub_cache["SG&A"]:
+            sub = _sub_cache["SG&A"]
+            children = []
+            for ch in EXPANDABLE_INCOME_NODES["SG&A"]["children"]:
+                ch_val = sub.get(ch["label"], 0)
+                if ch_val > 0:
+                    children.append((ch["label"], ch_val, ch["color_idx"]))
+            # Reconcile: children sum should equal parent
+            ch_sum = sum(v for _, v, _ in children)
+            if ch_sum > 0 and children:
+                scale = sga_expense / ch_sum
+                children = [(l, round(v * scale), ci) for l, v, ci in children]
+                _expanded_children["SG&A"] = children
+                for ch_label, ch_val, ch_ci in children:
+                    add(ch_label, ch_val, ch_ci, X3, exp_y + n_exp * exp_gap)
+                    n_exp += 1
+            else:
+                add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap, p_sga_expense, expandable=True)
+                n_exp += 1
+        else:
+            add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap, p_sga_expense, expandable=True)
+            n_exp += 1
+
     if dep_amort > 0:
-        add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap, p_dep_amort)
-        n_exp += 1
+        if "D&A" in expanded_nodes and "D&A" in _sub_cache and _sub_cache["D&A"]:
+            sub = _sub_cache["D&A"]
+            children = []
+            for ch in EXPANDABLE_INCOME_NODES["D&A"]["children"]:
+                ch_val = sub.get(ch["label"], 0)
+                if ch_val > 0:
+                    children.append((ch["label"], ch_val, ch["color_idx"]))
+            ch_sum = sum(v for _, v, _ in children)
+            if ch_sum > 0 and children:
+                scale = dep_amort / ch_sum
+                children = [(l, round(v * scale), ci) for l, v, ci in children]
+                _expanded_children["D&A"] = children
+                for ch_label, ch_val, ch_ci in children:
+                    add(ch_label, ch_val, ch_ci, X3, exp_y + n_exp * exp_gap)
+                    n_exp += 1
+            else:
+                add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap, p_dep_amort, expandable=True)
+                n_exp += 1
+        else:
+            add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap, p_dep_amort, expandable=True)
+            n_exp += 1
+
     if other_opex > 0:
         add("Other OpEx", other_opex, 5, X3, exp_y + n_exp * exp_gap, p_other_opex)
         n_exp += 1
@@ -1996,9 +2131,17 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     if rd_expense > 0:
         link("Gross Profit", "R&D", rd_expense, 3)
     if sga_expense > 0:
-        link("Gross Profit", "SG&A", sga_expense, 4)
+        if "SG&A" in _expanded_children:
+            for ch_label, ch_val, ch_ci in _expanded_children["SG&A"]:
+                link("Gross Profit", ch_label, ch_val, ch_ci)
+        else:
+            link("Gross Profit", "SG&A", sga_expense, 4)
     if dep_amort > 0:
-        link("Gross Profit", "D&A", dep_amort, 5)
+        if "D&A" in _expanded_children:
+            for ch_label, ch_val, ch_ci in _expanded_children["D&A"]:
+                link("Gross Profit", ch_label, ch_val, ch_ci)
+        else:
+            link("Gross Profit", "D&A", dep_amort, 5)
     if other_opex > 0:
         link("Gross Profit", "Other OpEx", other_opex, 5)
     link("Gross Profit", "Operating Income", operating_inc, 6)
@@ -2037,11 +2180,14 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     return fig
 
 
-def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_period=False):
+def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_period=False,
+                                expanded_nodes=None, ticker=None):
     """Build a balance sheet Sankey with fixed positions -- no node crossing.
 
     All flows are reconciled so that parent = sum of children at every level.
     """
+    if expanded_nodes is None:
+        expanded_nodes = set()
     total_assets      = _safe(balance_df, "Total Assets")
     current_assets    = _safe(balance_df, "Current Assets")
     noncurrent_assets = _safe(balance_df, "Total Non Current Assets")
@@ -2146,10 +2292,12 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     imap = {}
     node_pcts = []
 
-    def add(name, val, color, x, y):
+    def add(name, val, color, x, y, expandable=False):
         y = round(max(0.01, min(0.99, y)), 4)
         x = round(max(0.01, min(0.99, x)), 4)
         imap[name] = len(nodes)
+        star = "\u2605 " if expandable else ""
+        display_name = f"{star}{name}"
         pv = prev_map.get(name, 0)
         pct = _yoy(val, pv)
         pct_suffix = ""
@@ -2160,8 +2308,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             if x >= 0.65:
                 pct_suffix = f"  {arrow}{pct:+.1f}%"
             else:
-                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg, lw=len(f"{name}  {_fmt(val)}")))
-        nodes.append(f"{name}  {_fmt(val)}{pct_suffix}")
+                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg, lw=len(f"{display_name}  {_fmt(val)}")))
+        nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
         node_colors_list.append(color)
         node_x.append(x)
         node_y.append(y)
@@ -2208,7 +2356,38 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     eq_items = []
     if equity > 0:
-        if retained and retained > 0:
+        if "Equity" in expanded_nodes and ticker:
+            # Fetch expanded sub-breakdown from EDGAR
+            _eq_sub = _fetch_sub_values(ticker, EXPANDABLE_BALANCE_NODES["Equity"]["children"])
+            if _eq_sub:
+                _eq_children = []
+                for ch in EXPANDABLE_BALANCE_NODES["Equity"]["children"]:
+                    ch_val = _eq_sub.get(ch["label"], 0)
+                    if ch_val > 0:
+                        _eq_children.append((ch["label"], ch_val, ch.get("color", C["equity"])))
+                ch_sum = sum(v for _, v, _ in _eq_children)
+                if ch_sum > 0 and _eq_children:
+                    scale = equity / ch_sum
+                    _eq_children = [(l, round(v * scale), c) for l, v, c in _eq_children]
+                    eq_items = _eq_children
+                else:
+                    # Fallback to default
+                    if retained and retained > 0:
+                        re_show = min(retained, equity)
+                        eq_items.append(("Retained Earnings", re_show, C["retained"]))
+                        other_eq = max(0, equity - re_show)
+                        if other_eq > 0: eq_items.append(("Other Equity", other_eq, C["other"]))
+                    else:
+                        eq_items.append(("Total Equity", equity, C["equity"]))
+            else:
+                if retained and retained > 0:
+                    re_show = min(retained, equity)
+                    eq_items.append(("Retained Earnings", re_show, C["retained"]))
+                    other_eq = max(0, equity - re_show)
+                    if other_eq > 0: eq_items.append(("Other Equity", other_eq, C["other"]))
+                else:
+                    eq_items.append(("Total Equity", equity, C["equity"]))
+        elif retained and retained > 0:
             re_show = min(retained, equity)
             eq_items.append(("Retained Earnings", re_show, C["retained"]))
             other_eq = max(0, equity - re_show)
@@ -2267,7 +2446,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         elif parent_name == "Total Liabilities":
             add("Total Liabilities", total_liab, C["liability"], X2, center)
         elif parent_name == "Equity":
-            add("Equity", equity, C["equity"], X2, center)
+            add("Equity", equity, C["equity"], X2, center, expandable=True)
 
     add("Total Assets", total_assets, C["asset"], X1, 0.45)
 
@@ -2795,7 +2974,7 @@ def render_sankey_page():
         m4.metric("Net Income", _fmt(net_income), _yoy_delta(net_income, ni_prev, _compare_label))
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Explore quarterly performance over time</div></div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill")
         if sel:
@@ -2804,12 +2983,50 @@ def render_sankey_page():
                 st.session_state["popup_active_income"] = sel
                 st.session_state["popup_trigger_income"] = sel
             active_metric = st.session_state["popup_active_income"]
-            @st.dialog(f"{active_metric} — Historical Trend", width="large")
-            def _income_popup():
-                _show_metric_popup(ticker, active_metric, "income")
-            _income_popup()
 
-        fig = _build_income_sankey(income_df, info, _compare_label, _same_period)
+            # Check if this metric is expandable
+            if active_metric in EXPANDABLE_INCOME_NODES:
+                @st.dialog(f"{active_metric}", width="small")
+                def _income_choice():
+                    st.markdown(f"### {active_metric}")
+                    st.caption("Choose an action for this node")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("\U0001F4C8 View History", use_container_width=True, key="expand_hist_income"):
+                            st.session_state["_expand_action_income"] = "history"
+                            st.session_state["_expand_target_income"] = active_metric
+                            st.rerun()
+                    with c2:
+                        if st.button("\U0001F50D Expand", use_container_width=True, key="expand_exp_income"):
+                            expanded = st.session_state.get("_expanded_income_nodes", set())
+                            if active_metric in expanded:
+                                expanded.discard(active_metric)
+                            else:
+                                expanded.add(active_metric)
+                            st.session_state["_expanded_income_nodes"] = expanded
+                            st.rerun()
+                _income_choice()
+            else:
+                @st.dialog(f"{active_metric} — Historical Trend", width="large")
+                def _income_popup():
+                    _show_metric_popup(ticker, active_metric, "income")
+                _income_popup()
+
+        # Handle deferred history action (from choice dialog)
+        if st.session_state.get("_expand_action_income") == "history":
+            _hist_metric = st.session_state.pop("_expand_target_income", None)
+            st.session_state.pop("_expand_action_income", None)
+            if _hist_metric:
+                st.session_state["popup_active_income"] = _hist_metric
+                st.session_state["popup_trigger_income"] = _hist_metric + "_hist"
+                @st.dialog(f"{_hist_metric} — Historical Trend", width="large")
+                def _income_hist_popup():
+                    _show_metric_popup(ticker, _hist_metric, "income")
+                _income_hist_popup()
+
+        _expanded_inc = st.session_state.get("_expanded_income_nodes", set())
+        fig = _build_income_sankey(income_df, info, _compare_label, _same_period,
+                                   expanded_nodes=_expanded_inc, ticker=ticker)
         if fig:
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
 
@@ -2847,7 +3064,7 @@ def render_sankey_page():
         m4.metric("Cash", _fmt(cash_val), _yoy_delta(cash_val, cash_prev, _compare_label))
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Explore quarterly performance over time</div></div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="balance_metric_pill")
         if sel:
@@ -2856,12 +3073,49 @@ def render_sankey_page():
                 st.session_state["popup_active_balance"] = sel
                 st.session_state["popup_trigger_balance"] = sel
             active_metric = st.session_state["popup_active_balance"]
-            @st.dialog(f"{active_metric} — Historical Trend", width="large")
-            def _balance_popup():
-                _show_metric_popup(ticker, active_metric, "balance")
-            _balance_popup()
 
-        fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period)
+            if active_metric in EXPANDABLE_BALANCE_NODES:
+                @st.dialog(f"{active_metric}", width="small")
+                def _balance_choice():
+                    st.markdown(f"### {active_metric}")
+                    st.caption("Choose an action for this node")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("\U0001F4C8 View History", use_container_width=True, key="expand_hist_balance"):
+                            st.session_state["_expand_action_balance"] = "history"
+                            st.session_state["_expand_target_balance"] = active_metric
+                            st.rerun()
+                    with c2:
+                        if st.button("\U0001F50D Expand", use_container_width=True, key="expand_exp_balance"):
+                            expanded = st.session_state.get("_expanded_balance_nodes", set())
+                            if active_metric in expanded:
+                                expanded.discard(active_metric)
+                            else:
+                                expanded.add(active_metric)
+                            st.session_state["_expanded_balance_nodes"] = expanded
+                            st.rerun()
+                _balance_choice()
+            else:
+                @st.dialog(f"{active_metric} — Historical Trend", width="large")
+                def _balance_popup():
+                    _show_metric_popup(ticker, active_metric, "balance")
+                _balance_popup()
+
+        # Handle deferred history action
+        if st.session_state.get("_expand_action_balance") == "history":
+            _hist_metric = st.session_state.pop("_expand_target_balance", None)
+            st.session_state.pop("_expand_action_balance", None)
+            if _hist_metric:
+                st.session_state["popup_active_balance"] = _hist_metric
+                st.session_state["popup_trigger_balance"] = _hist_metric + "_hist"
+                @st.dialog(f"{_hist_metric} — Historical Trend", width="large")
+                def _balance_hist_popup():
+                    _show_metric_popup(ticker, _hist_metric, "balance")
+                _balance_hist_popup()
+
+        _expanded_bal = st.session_state.get("_expanded_balance_nodes", set())
+        fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
+                                          expanded_nodes=_expanded_bal, ticker=ticker)
         if fig:
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
 
