@@ -2000,7 +2000,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             net_income = 0
             tax = pretax_income
 
-    X1, X2, X3, X4, X5 = 0.02, 0.25, 0.55, 0.78, 0.99
+    X1, X2, X3, X4, X5, X6 = 0.02, 0.22, 0.48, 0.72, 0.88, 0.99
     colors = VIVID
     nodes = []
     node_colors = []
@@ -2110,12 +2110,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     pt_y = min(oi_y + 0.10, 0.72)
     add("Pretax Income", pretax_income, 8, X4, pt_y, p_pretax_income)
 
-    tax_y = min(pt_y + 0.10, 0.82)
-    net_y = min(pt_y + 0.22, 0.92)
+    tax_y = min(pt_y + 0.12, 0.78)
+    net_y = min(pt_y + 0.26, 0.92)
     if tax > 0:
         add("Income Tax", tax, 9, X5, tax_y, p_tax)
-        net_y = min(tax_y + 0.14, 0.92)
-    add("Net Income", net_income, 10, X5, net_y, p_net_income)
+        net_y = min(tax_y + 0.18, 0.92)
+    add("Net Income", net_income, 10, X6, net_y, p_net_income)
 
     srcs, tgts, vals, lcolors = [], [], [], []
 
