@@ -360,16 +360,19 @@ def render_home_page():
             <a class="btn-ghost"  href="/?page=pricing" target="_top">View Pricing</a>
         </div>
         <div style="height:0.5px;background:rgba(255,255,255,0.07);max-width:480px;margin:6px auto 0;border-radius:1px;"></div>
-        <div class="popular" style="margin-top:4px;">
-            Try for free:
-            <a href="/?page=charts&ticker=AAPL" target="_top">AAPL</a> &#183;
-            <a href="/?page=charts&ticker=TSLA" target="_top">TSLA</a> &#183;
-            <a href="/?page=charts&ticker=NVDA" target="_top">NVDA</a> &#183;
-            <a href="/?page=charts&ticker=MSFT" target="_top">MSFT</a> &#183;
-            <a href="/?page=charts&ticker=AMZN" target="_top">AMZN</a> &#183;
-            <a href="/?page=charts&ticker=GOOG" target="_top">GOOG</a> &#183;
-            <a href="/?page=charts&ticker=META" target="_top">META</a>
-        </div>
+        <div class="popular" style="margin-top:4px;" id="popular-tickers"></div>
+        <script>
+        (function(){
+            var el = document.getElementById('popular-tickers');
+            var tickers = __TICKER_POOL;
+            var html = 'Try for free: ';
+            for (var i = 0; i < tickers.length; i++) {
+                if (i > 0) html += ' \u00b7 ';
+                html += '<a href="/?page=charts&ticker=' + tickers[i] + '" target="_top">' + tickers[i] + '</a>';
+            }
+            el.innerHTML = html;
+        })();
+        </script>
     </div>
 
     <!-- ═══ METRICS ═══ -->
