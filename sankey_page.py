@@ -2158,7 +2158,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
-        node=dict(pad=80, thickness=24, line=dict(color="rgba(0,0,0,0)", width=0),
+        node=dict(pad=40, thickness=18, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors, x=node_x, y=node_y,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
         link=dict(source=srcs, target=tgts, value=vals, color=lcolors,
@@ -2174,7 +2174,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    fig.update_layout(height=1200, margin=dict(l=10, r=10, t=80, b=40),
+    fig.update_layout(height=800, margin=dict(l=10, r=10, t=60, b=30),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
@@ -2481,7 +2481,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
-        node=dict(pad=80, thickness=24, line=dict(color="rgba(0,0,0,0)", width=0),
+        node=dict(pad=40, thickness=18, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors_list, x=node_x, y=node_y,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
         link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
@@ -2497,7 +2497,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    fig.update_layout(height=1200, margin=dict(l=10, r=10, t=80, b=40),
+    fig.update_layout(height=800, margin=dict(l=10, r=10, t=60, b=30),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
