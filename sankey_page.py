@@ -1840,7 +1840,7 @@ def _fetch_sankey_data(ticker: str, quarterly: bool = False):
 
 
 def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False,
-                         expanded_nodes=None, ticker=None, orientation="horizontal"):
+                         expanded_nodes=None, ticker=None):
     """Build income statement Sankey with fixed positions and vivid nodes.
 
     Flow: Revenue -> COGS + Gross Profit -> Expenses + Operating Income
@@ -2156,65 +2156,37 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     if not vals:
         return None
 
-    _vertical = orientation == "vertical"
-    _ori_flag = "v" if _vertical else "h"
-
-    if _vertical:
-        # Build proper vertical positions: columns become rows (y),
-        # within-column positions become horizontal spread (x).
-        # Group nodes by column, spread each group evenly across x.
-        from collections import defaultdict
-        col_groups = defaultdict(list)
-        for i, xv in enumerate(node_x):
-            col_groups[round(xv, 2)].append(i)
-        _fx = [0.5] * len(node_x)
-        _fy = list(node_x)  # column positions become row positions
-        for _col, indices in col_groups.items():
-            n = len(indices)
-            if n == 1:
-                _fx[indices[0]] = 0.50
-            else:
-                ordered = sorted(indices, key=lambda i: node_y[i])
-                for rank, idx in enumerate(ordered):
-                    _fx[idx] = round(0.08 + 0.84 * rank / (n - 1), 4)
-    else:
-        _fx = node_x
-        _fy = node_y
-
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
-        orientation=_ori_flag,
+        orientation="h",
         textfont=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
         node=dict(pad=22, thickness=12, line=dict(color="rgba(0,0,0,0)", width=0),
-                  label=nodes, color=node_colors, x=_fx, y=_fy,
+                  label=nodes, color=node_colors, x=node_x, y=node_y,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
         link=dict(source=srcs, target=tgts, value=vals, color=lcolors,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
     ))
-    if not _vertical:
-        for p in node_pcts:
-            _lw = p.get("lw", 15) * 7.2 + 18
-            fig.add_annotation(
-                x=p["x"], y=1 - p["y"], xref="paper", yref="paper",
-                text=p["text"], showarrow=False,
-                font=dict(size=9, color=p["clr"], family="Inter, sans-serif"),
-                bgcolor=p["bg"], borderpad=4, bordercolor=p["bg"],
-                borderwidth=0, xanchor="left", yanchor="middle",
-                xshift=_lw, yshift=0,
-            )
+    for p in node_pcts:
+        _lw = p.get("lw", 15) * 7.2 + 18
+        fig.add_annotation(
+            x=p["x"], y=1 - p["y"], xref="paper", yref="paper",
+            text=p["text"], showarrow=False,
+            font=dict(size=9, color=p["clr"], family="Inter, sans-serif"),
+            bgcolor=p["bg"], borderpad=4, bordercolor=p["bg"],
+            borderwidth=0, xanchor="left", yanchor="middle",
+            xshift=_lw, yshift=0,
+        )
     _n_nodes = len(nodes)
-    _h = 800 if _vertical else min(600, max(420, 350 + _n_nodes * 18))
+    _h = min(600, max(420, 350 + _n_nodes * 18))
     _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
-    if _vertical:
-        _layout["width"] = 400
     fig.update_layout(**_layout)
     return fig
 
 
 def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_period=False,
-                                expanded_nodes=None, ticker=None, orientation="horizontal"):
+                                expanded_nodes=None, ticker=None):
     """Build a balance sheet Sankey with fixed positions -- no node crossing.
 
     All flows are reconciled so that parent = sum of children at every level.
@@ -2511,56 +2483,31 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     if not links_val:
         return None
 
-    _vertical = orientation == "vertical"
-    _ori_flag = "v" if _vertical else "h"
-
-    if _vertical:
-        from collections import defaultdict
-        col_groups = defaultdict(list)
-        for i, xv in enumerate(node_x):
-            col_groups[round(xv, 2)].append(i)
-        _fx = [0.5] * len(node_x)
-        _fy = list(node_x)
-        for _col, indices in col_groups.items():
-            n = len(indices)
-            if n == 1:
-                _fx[indices[0]] = 0.50
-            else:
-                ordered = sorted(indices, key=lambda i: node_y[i])
-                for rank, idx in enumerate(ordered):
-                    _fx[idx] = round(0.08 + 0.84 * rank / (n - 1), 4)
-    else:
-        _fx = node_x
-        _fy = node_y
-
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
-        orientation=_ori_flag,
+        orientation="h",
         textfont=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
         node=dict(pad=22, thickness=12, line=dict(color="rgba(0,0,0,0)", width=0),
-                  label=nodes, color=node_colors_list, x=_fx, y=_fy,
+                  label=nodes, color=node_colors_list, x=node_x, y=node_y,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
         link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
     ))
-    if not _vertical:
-        for p in node_pcts:
-            _lw = p.get("lw", 15) * 7.2 + 18
-            fig.add_annotation(
-                x=p["x"], y=1 - p["y"], xref="paper", yref="paper",
-                text=p["text"], showarrow=False,
-                font=dict(size=9, color=p["clr"], family="Inter, sans-serif"),
-                bgcolor=p["bg"], borderpad=4, bordercolor=p["bg"],
-                borderwidth=0, xanchor="left", yanchor="middle",
-                xshift=_lw, yshift=0,
-            )
+    for p in node_pcts:
+        _lw = p.get("lw", 15) * 7.2 + 18
+        fig.add_annotation(
+            x=p["x"], y=1 - p["y"], xref="paper", yref="paper",
+            text=p["text"], showarrow=False,
+            font=dict(size=9, color=p["clr"], family="Inter, sans-serif"),
+            bgcolor=p["bg"], borderpad=4, bordercolor=p["bg"],
+            borderwidth=0, xanchor="left", yanchor="middle",
+            xshift=_lw, yshift=0,
+        )
     _n_nodes = len(nodes)
-    _h = 800 if _vertical else min(600, max(420, 350 + _n_nodes * 18))
+    _h = min(600, max(420, 350 + _n_nodes * 18))
     _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
-    if _vertical:
-        _layout["width"] = 400
     fig.update_layout(**_layout)
     return fig
 
@@ -2783,35 +2730,6 @@ def render_sankey_page():
             font-weight: 500;
             margin-top: 2px;
         }
-        .sankey-ori-toggle {
-            margin-left: auto;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            color: #94a3b8;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-        .sankey-ori-toggle span { color: #475569; }
-        .sankey-ori-link {
-            color: #94a3b8;
-            text-decoration: none;
-            cursor: pointer;
-            padding: 3px 8px;
-            border-radius: 6px;
-            transition: all 0.15s ease;
-        }
-        .sankey-ori-link:hover {
-            color: #6366f1;
-            background: rgba(99,102,241,0.08);
-        }
-        .sankey-ori-link.active {
-            color: #6366f1;
-            background: rgba(99,102,241,0.12);
-            font-weight: 700;
-        }
         /* ── Pills card wrapper ── */
         .sankey-pills-card {
             background: #ffffff;
@@ -2972,12 +2890,6 @@ def render_sankey_page():
         sankey_view = qp_view
         st.session_state.sankey_view = sankey_view
 
-    # Orientation: horizontal (default) or vertical
-    _qp_ori = st.query_params.get("orientation", "").lower()
-    if _qp_ori in ("horizontal", "vertical"):
-        st.session_state["_sankey_orientation"] = _qp_ori
-    _sankey_ori = st.session_state.get("_sankey_orientation", "horizontal")
-
     view_label = "Income Statement" if sankey_view == "income" else "Balance Sheet"
 
     # ââ Header row: title (HTML) + PDF download button (st.download_button) ââ
@@ -3071,12 +2983,7 @@ def render_sankey_page():
         m4.metric("Net Income", _fmt(net_income), _yoy_delta(net_income, ni_prev, _compare_label))
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
-        _ori = st.session_state.get("_sankey_orientation", "horizontal")
-        _h_cls = "active" if _ori == "horizontal" else ""
-        _v_cls = "active" if _ori == "vertical" else ""
-        _h_href = f"/?page=sankey&ticker={ticker}&view=income&orientation=horizontal"
-        _v_href = f"/?page=sankey&ticker={ticker}&view=income&orientation=vertical"
-        st.markdown(f'<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div><div class="sankey-ori-toggle"><span>Sankey:</span> <a class="sankey-ori-link {_h_cls}" href="{_h_href}" target="_top">Horizontal</a> - <a class="sankey-ori-link {_v_cls}" href="{_v_href}" target="_top">Vertical</a></div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill")
         if sel:
@@ -3128,16 +3035,10 @@ def render_sankey_page():
 
         _expanded_inc = st.session_state.get("_expanded_income_nodes", set())
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period,
-                                   expanded_nodes=_expanded_inc, ticker=ticker,
-                                   orientation=_sankey_ori)
+                                   expanded_nodes=_expanded_inc, ticker=ticker)
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
-            if _sankey_ori == "vertical":
-                st.markdown('<div style="display:flex;justify-content:center">', unsafe_allow_html=True)
-                st.plotly_chart(fig, use_container_width=False, config=_chart_cfg)
-                st.markdown('</div>', unsafe_allow_html=True)
-            else:
-                st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
+            st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
@@ -3173,12 +3074,7 @@ def render_sankey_page():
         m4.metric("Cash", _fmt(cash_val), _yoy_delta(cash_val, cash_prev, _compare_label))
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
-        _ori = st.session_state.get("_sankey_orientation", "horizontal")
-        _h_cls = "active" if _ori == "horizontal" else ""
-        _v_cls = "active" if _ori == "vertical" else ""
-        _h_href = f"/?page=sankey&ticker={ticker}&view=balance&orientation=horizontal"
-        _v_href = f"/?page=sankey&ticker={ticker}&view=balance&orientation=vertical"
-        st.markdown(f'<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div><div class="sankey-ori-toggle"><span>Sankey:</span> <a class="sankey-ori-link {_h_cls}" href="{_h_href}" target="_top">Horizontal</a> - <a class="sankey-ori-link {_v_cls}" href="{_v_href}" target="_top">Vertical</a></div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div></div>', unsafe_allow_html=True)
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="balance_metric_pill")
         if sel:
@@ -3229,16 +3125,10 @@ def render_sankey_page():
 
         _expanded_bal = st.session_state.get("_expanded_balance_nodes", set())
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
-                                          expanded_nodes=_expanded_bal, ticker=ticker,
-                                          orientation=_sankey_ori)
+                                          expanded_nodes=_expanded_bal, ticker=ticker)
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
-            if _sankey_ori == "vertical":
-                st.markdown('<div style="display:flex;justify-content:center">', unsafe_allow_html=True)
-                st.plotly_chart(fig, use_container_width=False, config=_chart_cfg)
-                st.markdown('</div>', unsafe_allow_html=True)
-            else:
-                st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
+            st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
