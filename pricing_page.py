@@ -241,20 +241,27 @@ def render_pricing_page():
             # Price display
             price_monthly = float(plan.get("price_monthly", 0))
             price_annual = float(plan.get("price_annual", 0))
+            slug = plan.get("slug", "")
 
-            if is_annual and price_annual > 0:
+            _is_enterprise = slug == "enterprise"
+            if _is_enterprise:
+                display_price = "Custom"
+                billed_note = ""
+                _price_html = '<div class="pricing-price" style="font-size:2.2rem;">Custom</div>'
+            elif is_annual and price_annual > 0:
                 display_price = f"{price_annual:.0f}"
                 billed_note = "billed annually"
+                _price_html = f'<div class="pricing-price">${display_price}<span>/mo</span></div>'
             else:
                 display_price = f"{price_monthly:.0f}"
                 billed_note = "billed monthly" if price_monthly > 0 else ""
+                _price_html = f'<div class="pricing-price">${display_price}<span>/mo</span></div>'
 
             is_popular = plan.get("is_popular", False)
             plan_name = plan.get("name", "Plan")
             description = plan.get("description", "")
             cta_text = plan.get("cta_text", "Get Started")
             cta_url = plan.get("cta_url", "") or "?page=login"
-            slug = plan.get("slug", "")
 
             # Determine CTA style based on plan characteristics
             if is_popular:
@@ -294,7 +301,7 @@ def render_pricing_page():
             # Build card HTML
             popular_badge = '<div class="popular-badge">MOST POPULAR</div>' if is_popular else ""
 
-            card_html = f'<div class="{card_class}">{popular_badge}<div class="pricing-plan-name">{plan_name}</div><div class="pricing-price">${display_price}<span>/mo</span></div><div class="pricing-desc">{desc_html}</div><ul class="pricing-features">{features_html}</ul><a class="pricing-cta {cta_class}" href="{cta_url}" target="_self">{cta_text}</a></div>'
+            card_html = f'<div class="{card_class}">{popular_badge}<div class="pricing-plan-name">{plan_name}</div>{_price_html}<div class="pricing-desc">{desc_html}</div><ul class="pricing-features">{features_html}</ul><a class="pricing-cta {cta_class}" href="{cta_url}" target="_self">{cta_text}</a></div>'
             st.markdown(card_html, unsafe_allow_html=True)
 
     # ── FAQ section ──
