@@ -2260,17 +2260,7 @@ with st.sidebar:
         _demo_tickers = ["GOOG", "META", "NVDA", "TSLA"]
     _placeholder_tickers = ", ".join(_demo_tickers[:4])
 
-    with st.form("ticker_form", clear_on_submit=False, border=False):
-        col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
-        with col_input:
-            st.markdown("<style>.stTextInput label { white-space: nowrap !important; }</style>", unsafe_allow_html=True)
-            new_ticker = st.text_input(
-                "Type a Ticker to Explore Data:",
-                value=st.session_state.ticker,
-                placeholder=f"e.g. {_placeholder_tickers}",
-            ).upper().strip()
-        with col_btn:
-            submitted = st.form_submit_button("GO")
+    st.markdown("**Type a Ticker to Explore Data:**", unsafe_allow_html=True)
     _demo_links = " &middot; ".join(
         f'<a href="/?page=charts&ticker={t}" target="_top" '
         f'style="color:#3b82f6;font-weight:600;text-decoration:none;"'
@@ -2279,10 +2269,22 @@ with st.sidebar:
         for t in _demo_tickers[:5]
     )
     st.markdown(
-        f'<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-6px 0 10px 0;">'
+        f'<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-2px 0 6px 0;">'
         f'<em>Try for free:</em>&nbsp; {_demo_links}</div>',
         unsafe_allow_html=True,
     )
+    with st.form("ticker_form", clear_on_submit=False, border=False):
+        col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
+        with col_input:
+            st.markdown("<style>.stTextInput label { white-space: nowrap !important; }</style>", unsafe_allow_html=True)
+            new_ticker = st.text_input(
+                "Ticker:",
+                value=st.session_state.ticker,
+                placeholder=f"e.g. {_placeholder_tickers}",
+                label_visibility="collapsed",
+            ).upper().strip()
+        with col_btn:
+            submitted = st.form_submit_button("GO")
 
     if submitted and new_ticker and new_ticker != st.session_state.ticker:
         if validate_ticker(new_ticker):
