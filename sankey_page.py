@@ -2811,12 +2811,7 @@ def render_sankey_page():
 
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period)
         if fig:
-            # Frame: Sankey built at natural 900px, scaled to fit with padding
-            st.markdown('<div style="height:900px;overflow:hidden;position:relative;">'
-                        '<div style="transform-origin:top left;transform:scale(0.92);padding:20px 0;">',
-                        unsafe_allow_html=True)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
-            st.markdown('</div></div>', unsafe_allow_html=True)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
@@ -2868,12 +2863,7 @@ def render_sankey_page():
 
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period)
         if fig:
-            # Frame: Sankey built at natural 900px, scaled to fit with padding
-            st.markdown('<div style="height:900px;overflow:hidden;position:relative;">'
-                        '<div style="transform-origin:top left;transform:scale(0.92);padding:20px 0;">',
-                        unsafe_allow_html=True)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
-            st.markdown('</div></div>', unsafe_allow_html=True)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
