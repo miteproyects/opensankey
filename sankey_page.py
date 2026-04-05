@@ -2167,9 +2167,9 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_x.append(x)
         node_y.append(y)
 
-    add("Revenue", revenue, 0, X1, 0.40, p_revenue)
-    add("Cost of Revenue", cogs, 1, X2, 0.12, p_cogs)
-    add("Gross Profit", gross_profit, 2, X2, 0.58, p_gross_profit)
+    add("Revenue", revenue, 0, X1, 0.42, p_revenue)
+    add("Cost of Revenue", cogs, 1, X2, 0.18, p_cogs)
+    add("Gross Profit", gross_profit, 2, X2, 0.56, p_gross_profit)
 
     # --- Fetch sub-breakdown data for ALL expandable nodes (to check if breakdown exists) ---
     _sub_cache = {}
@@ -2186,8 +2186,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         if n_children >= 2:
             _can_expand.add(exp_name)
 
-    exp_y = 0.08
-    exp_gap = 0.11
+    exp_y = 0.15
+    exp_gap = 0.10
     n_exp = 0
     # Track which expense nodes are expanded (for linking later)
     _expanded_children = {}  # parent_label -> [(child_label, child_val, color_idx)]
@@ -2240,20 +2240,20 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         add("Other OpEx", other_opex, 5, X3, exp_y + n_exp * exp_gap, p_other_opex)
         n_exp += 1
 
-    oi_y = max(exp_y + n_exp * exp_gap + 0.10, 0.52)
+    oi_y = max(exp_y + n_exp * exp_gap + 0.08, 0.55)
     add("Operating Income", operating_inc, 6, X3, oi_y, p_operating_inc)
 
     if interest_exp > 0:
-        inter_y = max(oi_y - 0.06, 0.40)
+        inter_y = max(oi_y - 0.06, 0.45)
         add("Interest Exp.", interest_exp, 7, X4, inter_y, p_interest_exp)
-    pt_y = min(oi_y + 0.10, 0.72)
+    pt_y = min(oi_y + 0.10, 0.74)
     add("Pretax Income", pretax_income, 8, X4, pt_y, p_pretax_income)
 
-    tax_y = min(pt_y + 0.10, 0.82)
-    net_y = min(pt_y + 0.22, 0.92)
+    tax_y = min(pt_y + 0.08, 0.80)
+    net_y = min(pt_y + 0.18, 0.88)
     if tax > 0:
         add("Income Tax", tax, 9, X5, tax_y, p_tax)
-        net_y = min(tax_y + 0.14, 0.92)
+        net_y = min(tax_y + 0.10, 0.88)
     add("Net Income", net_income, 10, X5, net_y, p_net_income)
 
     srcs, tgts, vals, lcolors = [], [], [], []
