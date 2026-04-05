@@ -2252,6 +2252,14 @@ with st.sidebar:
     </div>
         """, unsafe_allow_html=True)
 
+    # ── Fetch ticker pool for placeholder & "Try for free" strip ──
+    try:
+        from database import get_ticker_pool as _gtp
+        _demo_tickers = _gtp()
+    except Exception:
+        _demo_tickers = ["GOOG", "META", "NVDA", "TSLA"]
+    _placeholder_tickers = ", ".join(_demo_tickers[:4])
+
     with st.form("ticker_form", clear_on_submit=False, border=False):
         col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
         with col_input:
@@ -2259,17 +2267,10 @@ with st.sidebar:
             new_ticker = st.text_input(
                 "Type a Ticker to Explore Data:",
                 value=st.session_state.ticker,
-                placeholder="e.g. AAPL, MSFT, TSLA",
+                placeholder=f"e.g. {_placeholder_tickers}",
             ).upper().strip()
         with col_btn:
             submitted = st.form_submit_button("GO")
-
-    # ── "Try for free" ticker showcase ──
-    try:
-        from database import get_ticker_pool as _gtp
-        _demo_tickers = _gtp()
-    except Exception:
-        _demo_tickers = ["GOOG", "META", "NVDA", "TSLA"]
     _demo_links = " &middot; ".join(
         f'<a href="/?page=charts&ticker={t}" target="_top" '
         f'style="color:#3b82f6;font-weight:600;text-decoration:none;"'
