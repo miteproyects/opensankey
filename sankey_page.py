@@ -2152,8 +2152,6 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     node_x = []
     node_y = []
     imap = {}
-    node_pcts = []
-
     def add(name, val, color_idx, x, y, prev_val=None, expandable=False):
         y = round(max(0.01, min(0.99, y)), 4)
         imap[name] = len(nodes)
@@ -2163,12 +2161,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         pct_suffix = ""
         if pct is not None and not same_period:
             arrow = "\u2191" if pct >= 0 else "\u2193"
-            clr = "#16a34a" if pct >= 0 else "#dc2626"
-            bg = "rgba(22,163,74,0.13)" if pct >= 0 else "rgba(220,38,38,0.13)"
-            if x >= 0.65:
-                pct_suffix = f"  {arrow}{pct:+.1f}%"
-            else:
-                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg, lw=len(f"{display_name}  {_fmt(val)}")))
+            pct_suffix = f"  {arrow}{pct:+.1f}%"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
         node_colors.append(colors[color_idx])
         node_x.append(x)
@@ -2312,16 +2305,6 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         link=dict(source=srcs, target=tgts, value=vals, color=lcolors,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
     ))
-    for p in node_pcts:
-        _lw = p.get("lw", 15) * 7.2 + 18
-        fig.add_annotation(
-            x=p["x"], y=1 - p["y"], xref="paper", yref="paper",
-            text=p["text"], showarrow=False,
-            font=dict(size=9, color=p["clr"], family="Inter, sans-serif"),
-            bgcolor=p["bg"], borderpad=4, bordercolor=p["bg"],
-            borderwidth=0, xanchor="left", yanchor="middle",
-            xshift=_lw, yshift=0,
-        )
     _n_nodes = len(nodes)
     _h = max(460, 350 + _n_nodes * 18)
     _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
@@ -2441,7 +2424,6 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     nodes, node_colors_list, node_x, node_y = [], [], [], []
     links_src, links_tgt, links_val, links_col = [], [], [], []
     imap = {}
-    node_pcts = []
 
     def add(name, val, color, x, y, expandable=False):
         y = round(max(0.01, min(0.99, y)), 4)
@@ -2454,12 +2436,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         pct_suffix = ""
         if pct is not None and not same_period:
             arrow = "\u2191" if pct >= 0 else "\u2193"
-            clr = "#16a34a" if pct >= 0 else "#dc2626"
-            bg = "rgba(22,163,74,0.13)" if pct >= 0 else "rgba(220,38,38,0.13)"
-            if x >= 0.65:
-                pct_suffix = f"  {arrow}{pct:+.1f}%"
-            else:
-                node_pcts.append(dict(x=x, y=y, text=f"{arrow} {pct:+.1f}% {compare_label}", clr=clr, bg=bg, lw=len(f"{display_name}  {_fmt(val)}")))
+            pct_suffix = f"  {arrow}{pct:+.1f}%"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
         node_colors_list.append(color)
         node_x.append(x)
@@ -2639,16 +2616,6 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
     ))
-    for p in node_pcts:
-        _lw = p.get("lw", 15) * 7.2 + 18
-        fig.add_annotation(
-            x=p["x"], y=1 - p["y"], xref="paper", yref="paper",
-            text=p["text"], showarrow=False,
-            font=dict(size=9, color=p["clr"], family="Inter, sans-serif"),
-            bgcolor=p["bg"], borderpad=4, bordercolor=p["bg"],
-            borderwidth=0, xanchor="left", yanchor="middle",
-            xshift=_lw, yshift=0,
-        )
     _n_nodes = len(nodes)
     _h = max(460, 350 + _n_nodes * 18)
     _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
