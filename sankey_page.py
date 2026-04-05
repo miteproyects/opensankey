@@ -1927,10 +1927,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     imap = {}
     node_pcts = []
 
-    _raw_y = []  # track raw y values before normalization
-
     def add(name, val, color_idx, x, y, prev_val=None):
-        _raw_y.append(y)
+        y = round(max(0.05, min(0.95, y)), 4)
         imap[name] = len(nodes)
         pct = _yoy(val, prev_val)
         pct_suffix = ""
@@ -1948,11 +1946,11 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_y.append(y)
 
     add("Revenue", revenue, 0, X1, 0.45, p_revenue)
-    add("Cost of Revenue", cogs, 1, X2, 0.05, p_cogs)
+    add("Cost of Revenue", cogs, 1, X2, 0.08, p_cogs)
     add("Gross Profit", gross_profit, 2, X2, 0.58, p_gross_profit)
 
-    exp_y = 0.04
-    exp_gap = 0.13
+    exp_y = 0.07
+    exp_gap = 0.12
     n_exp = 0
     if rd_expense > 0:
         add("R&D", rd_expense, 3, X3, exp_y + n_exp * exp_gap, p_rd_expense)
@@ -1976,12 +1974,11 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     pt_y = oi_y + 0.14
     add("Pretax Income", pretax_income, 8, X4, pt_y, p_pretax_income)
 
-    # Ensure minimum spacing between last-column nodes; extend beyond 1.0 if needed
-    tax_y = pt_y + 0.10
-    net_y = pt_y + 0.22
+    tax_y = pt_y + 0.06
+    net_y = pt_y + 0.16
     if tax > 0:
         add("Income Tax", tax, 9, X5, tax_y, p_tax)
-        net_y = tax_y + 0.14
+        net_y = tax_y + 0.10
     add("Net Income", net_income, 10, X5, net_y, p_net_income)
 
     srcs, tgts, vals, lcolors = [], [], [], []
@@ -2015,16 +2012,6 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     if not vals:
         return None
 
-    # ── Normalize y positions: scale raw y values into 0.01–0.99 so nodes never overlap ──
-    _y_max = max(_raw_y) if _raw_y else 1.0
-    if _y_max > 0.99:
-        _scale = 0.98 / _y_max
-        node_y = [round(max(0.01, y * _scale), 4) for y in _raw_y]
-        for p in node_pcts:
-            p["y"] = round(max(0.01, p["y"] * _scale), 4)
-    else:
-        node_y = [round(max(0.01, min(0.99, y)), 4) for y in _raw_y]
-
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
@@ -2044,9 +2031,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    # Dynamic height: scales with vertical extent and node count
-    _dyn_h = max(900, int(900 * max(1.0, _y_max / 0.98)), 600 + len(nodes) * 80)
-    fig.update_layout(height=_dyn_h, margin=dict(l=10, r=10, t=40, b=20),
+    fig.update_layout(height=900, margin=dict(l=10, r=10, t=50, b=30),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
@@ -2161,10 +2146,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     imap = {}
     node_pcts = []
 
-    _raw_y_bs = []  # track raw y values before normalization
-
     def add(name, val, color, x, y):
-        _raw_y_bs.append(y)
+        y = round(max(0.05, min(0.95, y)), 4)
         x = round(max(0.01, min(0.99, x)), 4)
         imap[name] = len(nodes)
         pv = prev_map.get(name, 0)
@@ -2316,16 +2299,6 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     if not links_val:
         return None
 
-    # ── Normalize y positions: scale raw y values into 0.01–0.99 so nodes never overlap ──
-    _y_max_bs = max(_raw_y_bs) if _raw_y_bs else 1.0
-    if _y_max_bs > 0.99:
-        _scale = 0.98 / _y_max_bs
-        node_y = [round(max(0.01, y * _scale), 4) for y in _raw_y_bs]
-        for p in node_pcts:
-            p["y"] = round(max(0.01, p["y"] * _scale), 4)
-    else:
-        node_y = [round(max(0.01, min(0.99, y)), 4) for y in _raw_y_bs]
-
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
@@ -2345,9 +2318,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    # Dynamic height: scales with vertical extent and node count
-    _dyn_h = max(900, int(900 * max(1.0, _y_max_bs / 0.98)), 600 + len(nodes) * 80)
-    fig.update_layout(height=_dyn_h, margin=dict(l=10, r=10, t=40, b=20),
+    fig.update_layout(height=900, margin=dict(l=10, r=10, t=50, b=30),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
