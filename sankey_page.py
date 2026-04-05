@@ -2187,12 +2187,20 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     add("Cost of Revenue", cogs, 1, X2, 0.12, p_cogs)
     add("Gross Profit", gross_profit, 2, X2, 0.58, p_gross_profit)
 
-    # --- Fetch sub-breakdown data for expanded nodes ---
+    # --- Fetch sub-breakdown data for ALL expandable nodes (to check if breakdown exists) ---
     _sub_cache = {}
-    for exp_name in expanded_nodes:
-        if exp_name in EXPANDABLE_INCOME_NODES and ticker:
-            cfg = EXPANDABLE_INCOME_NODES[exp_name]
+    if ticker:
+        for exp_name, cfg in EXPANDABLE_INCOME_NODES.items():
             _sub_cache[exp_name] = _fetch_sub_values(ticker, cfg["children"])
+
+    # Pre-check which nodes actually have 2+ children for a real breakdown
+    _can_expand = set()
+    for exp_name, sub in _sub_cache.items():
+        if exp_name not in EXPANDABLE_INCOME_NODES:
+            continue
+        n_children = sum(1 for ch in EXPANDABLE_INCOME_NODES[exp_name]["children"] if sub.get(ch["label"], 0) > 0)
+        if n_children >= 2:
+            _can_expand.add(exp_name)
 
     exp_y = 0.08
     exp_gap = 0.11
@@ -2205,31 +2213,28 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         n_exp += 1
 
     if sga_expense > 0:
-        if "SG&A" in expanded_nodes and "SG&A" in _sub_cache and _sub_cache["SG&A"]:
+        _sga_expandable = "SG&A" in _can_expand
+        if _sga_expandable and "SG&A" in expanded_nodes:
             sub = _sub_cache["SG&A"]
             children = []
             for ch in EXPANDABLE_INCOME_NODES["SG&A"]["children"]:
                 ch_val = sub.get(ch["label"], 0)
                 if ch_val > 0:
                     children.append((ch["label"], ch_val, ch["color_idx"]))
-            # Reconcile: children sum should equal parent
             ch_sum = sum(v for _, v, _ in children)
-            if ch_sum > 0 and len(children) >= 2:
-                scale = sga_expense / ch_sum
-                children = [(l, round(v * scale), ci) for l, v, ci in children]
-                _expanded_children["SG&A"] = children
-                for ch_label, ch_val, ch_ci in children:
-                    add(ch_label, ch_val, ch_ci, X3, exp_y + n_exp * exp_gap)
-                    n_exp += 1
-            else:
-                add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap, p_sga_expense, expandable=False)
+            scale = sga_expense / ch_sum
+            children = [(l, round(v * scale), ci) for l, v, ci in children]
+            _expanded_children["SG&A"] = children
+            for ch_label, ch_val, ch_ci in children:
+                add(ch_label, ch_val, ch_ci, X3, exp_y + n_exp * exp_gap)
                 n_exp += 1
         else:
-            add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap, p_sga_expense, expandable=True)
+            add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap, p_sga_expense, expandable=_sga_expandable)
             n_exp += 1
 
     if dep_amort > 0:
-        if "D&A" in expanded_nodes and "D&A" in _sub_cache and _sub_cache["D&A"]:
+        _da_expandable = "D&A" in _can_expand
+        if _da_expandable and "D&A" in expanded_nodes:
             sub = _sub_cache["D&A"]
             children = []
             for ch in EXPANDABLE_INCOME_NODES["D&A"]["children"]:
@@ -2237,19 +2242,14 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                 if ch_val > 0:
                     children.append((ch["label"], ch_val, ch["color_idx"]))
             ch_sum = sum(v for _, v, _ in children)
-            if ch_sum > 0 and len(children) >= 2:
-                scale = dep_amort / ch_sum
-                children = [(l, round(v * scale), ci) for l, v, ci in children]
-                _expanded_children["D&A"] = children
-                for ch_label, ch_val, ch_ci in children:
-                    add(ch_label, ch_val, ch_ci, X3, exp_y + n_exp * exp_gap)
-                    n_exp += 1
-            else:
-                # Only 1 or 0 children found — not a useful breakdown, show parent without star
-                add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap, p_dep_amort, expandable=False)
+            scale = dep_amort / ch_sum
+            children = [(l, round(v * scale), ci) for l, v, ci in children]
+            _expanded_children["D&A"] = children
+            for ch_label, ch_val, ch_ci in children:
+                add(ch_label, ch_val, ch_ci, X3, exp_y + n_exp * exp_gap)
                 n_exp += 1
         else:
-            add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap, p_dep_amort, expandable=True)
+            add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap, p_dep_amort, expandable=_da_expandable)
             n_exp += 1
 
     if other_opex > 0:
@@ -3148,8 +3148,15 @@ def render_sankey_page():
                 st.session_state["popup_trigger_income"] = sel
             active_metric = st.session_state["popup_active_income"]
 
-            # Check if this metric is expandable
-            if active_metric in EXPANDABLE_INCOME_NODES:
+            # Check if this metric is expandable (must have 2+ sub-items in EDGAR)
+            _metric_can_expand = False
+            if active_metric in EXPANDABLE_INCOME_NODES and ticker:
+                _cfg = EXPANDABLE_INCOME_NODES[active_metric]
+                _sub_check = _fetch_sub_values(ticker, _cfg["children"])
+                _n_ch = sum(1 for ch in _cfg["children"] if _sub_check.get(ch["label"], 0) > 0)
+                _metric_can_expand = _n_ch >= 2
+
+            if _metric_can_expand:
                 @st.dialog(f"{active_metric}", width="small")
                 def _income_choice():
                     st.markdown(f"### {active_metric}")
