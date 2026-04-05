@@ -1928,7 +1928,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     node_pcts = []
 
     def add(name, val, color_idx, x, y, prev_val=None):
-        y = round(max(0.05, min(0.95, y)), 4)
+        y = round(max(0.10, min(0.92, y)), 4)
         imap[name] = len(nodes)
         pct = _yoy(val, prev_val)
         pct_suffix = ""
@@ -1946,11 +1946,11 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_y.append(y)
 
     add("Revenue", revenue, 0, X1, 0.45, p_revenue)
-    add("Cost of Revenue", cogs, 1, X2, 0.08, p_cogs)
+    add("Cost of Revenue", cogs, 1, X2, 0.15, p_cogs)
     add("Gross Profit", gross_profit, 2, X2, 0.58, p_gross_profit)
 
-    exp_y = 0.07
-    exp_gap = 0.12
+    exp_y = 0.12
+    exp_gap = 0.11
     n_exp = 0
     if rd_expense > 0:
         add("R&D", rd_expense, 3, X3, exp_y + n_exp * exp_gap, p_rd_expense)
@@ -2147,7 +2147,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     node_pcts = []
 
     def add(name, val, color, x, y):
-        y = round(max(0.05, min(0.95, y)), 4)
+        y = round(max(0.10, min(0.92, y)), 4)
         x = round(max(0.01, min(0.99, x)), 4)
         imap[name] = len(nodes)
         pv = prev_map.get(name, 0)
