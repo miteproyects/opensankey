@@ -2031,7 +2031,9 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    fig.update_layout(height=900, margin=dict(l=10, r=10, t=10, b=20),
+    # Dynamic height: base 600 + 80px per node, min 900, scales for 40+ node enterprise Sankeys
+    _dyn_h = max(900, 600 + len(nodes) * 80)
+    fig.update_layout(height=_dyn_h, margin=dict(l=10, r=10, t=40, b=20),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
@@ -2318,7 +2320,9 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    fig.update_layout(height=900, margin=dict(l=10, r=10, t=10, b=20),
+    # Dynamic height: base 600 + 80px per node, min 900, scales for 40+ node enterprise Sankeys
+    _dyn_h = max(900, 600 + len(nodes) * 80)
+    fig.update_layout(height=_dyn_h, margin=dict(l=10, r=10, t=40, b=20),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
