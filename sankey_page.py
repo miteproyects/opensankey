@@ -2305,7 +2305,6 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         orientation="h",
-        domain=dict(x=[0.0, 1.0], y=[0.02, 0.92]),
         textfont=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
         node=dict(pad=22, thickness=18, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors, x=node_x, y=node_y,
@@ -2324,7 +2323,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             xshift=_lw, yshift=0,
         )
     _n_nodes = len(nodes)
-    _h = min(600, max(460, 370 + _n_nodes * 16))
+    _h = max(460, 350 + _n_nodes * 18)
     _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
@@ -2633,7 +2632,6 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         orientation="h",
-        domain=dict(x=[0.0, 1.0], y=[0.02, 0.92]),
         textfont=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
         node=dict(pad=22, thickness=18, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors_list, x=node_x, y=node_y,
@@ -2652,7 +2650,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             xshift=_lw, yshift=0,
         )
     _n_nodes = len(nodes)
-    _h = min(600, max(460, 370 + _n_nodes * 16))
+    _h = max(460, 350 + _n_nodes * 18)
     _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
@@ -2878,19 +2876,30 @@ def render_sankey_page():
             font-weight: 500;
             margin-top: 2px;
         }
-        /* ── Plotly Sankey chart overlap fix ── */
-        [data-testid="stPlotlyChart"] {
-            overflow: hidden !important;
-            position: relative;
-            z-index: 0;
-            margin-top: 1rem !important;
+        /* ── Sankey scrollable container ── */
+        [class*="st-key-sankey_income_scroll"],
+        [class*="st-key-sankey_balance_scroll"] {
+            max-height: 460px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border-radius: 8px;
         }
-        [data-testid="stPlotlyChart"] iframe {
-            overflow: hidden !important;
+        [class*="st-key-sankey_income_scroll"]::-webkit-scrollbar,
+        [class*="st-key-sankey_balance_scroll"]::-webkit-scrollbar {
+            width: 6px;
         }
-        /* Ensure negative Streamlit margins don't cause overlap */
-        [data-testid="stPlotlyChart"] > div {
-            overflow: hidden !important;
+        [class*="st-key-sankey_income_scroll"]::-webkit-scrollbar-track,
+        [class*="st-key-sankey_balance_scroll"]::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        [class*="st-key-sankey_income_scroll"]::-webkit-scrollbar-thumb,
+        [class*="st-key-sankey_balance_scroll"]::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        [class*="st-key-sankey_income_scroll"]::-webkit-scrollbar-thumb:hover,
+        [class*="st-key-sankey_balance_scroll"]::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
         /* ── Pills card wrapper ── */
         .sankey-pills-card {
@@ -3206,9 +3215,9 @@ def render_sankey_page():
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period,
                                    expanded_nodes=_expanded_inc, ticker=ticker)
         if fig:
-            st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
-            st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
+            with st.container(key="sankey_income_scroll"):
+                st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
@@ -3298,9 +3307,9 @@ def render_sankey_page():
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
                                           expanded_nodes=_expanded_bal, ticker=ticker)
         if fig:
-            st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
-            st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
+            with st.container(key="sankey_balance_scroll"):
+                st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
