@@ -1927,8 +1927,10 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     imap = {}
     node_pcts = []
 
+    _raw_y = []
+
     def add(name, val, color_idx, x, y, prev_val=None):
-        y = round(max(0.10, min(0.92, y)), 4)
+        _raw_y.append(y)  # store raw, normalize later
         imap[name] = len(nodes)
         pct = _yoy(val, prev_val)
         pct_suffix = ""
@@ -1974,11 +1976,15 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     pt_y = oi_y + 0.14
     add("Pretax Income", pretax_income, 8, X4, pt_y, p_pretax_income)
 
-    tax_y = pt_y + 0.06
-    net_y = pt_y + 0.16
+    # Gaps proportional to value relative to revenue so large bars don't overlap
+    _ref = max(revenue, 1)
+    _tax_bar = (tax / _ref) * 0.5 if tax > 0 else 0
+    _pt_bar = (pretax_income / _ref) * 0.5
+    tax_y = pt_y + max(0.08, _pt_bar * 0.6 + 0.04)
+    net_y = pt_y + max(0.18, _pt_bar * 0.6 + _tax_bar * 0.6 + 0.08)
     if tax > 0:
         add("Income Tax", tax, 9, X5, tax_y, p_tax)
-        net_y = tax_y + 0.10
+        net_y = tax_y + max(0.10, _tax_bar * 0.6 + _pt_bar * 0.3 + 0.04)
     add("Net Income", net_income, 10, X5, net_y, p_net_income)
 
     srcs, tgts, vals, lcolors = [], [], [], []
@@ -2012,6 +2018,18 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     if not vals:
         return None
 
+    # ── Normalize y into 0.08–0.92 and scale chart height if nodes exceed range ──
+    _y_min_raw = min(_raw_y)
+    _y_max_raw = max(_raw_y)
+    _span = _y_max_raw - _y_min_raw if _y_max_raw > _y_min_raw else 1.0
+    # Map raw y values into safe 0.08–0.92 range, preserving relative spacing
+    node_y = [round(0.08 + (_y - _y_min_raw) / _span * 0.84, 4) for _y in _raw_y]
+    # Scale annotation y values the same way
+    for p in node_pcts:
+        p["y"] = round(0.08 + (p["y"] - _y_min_raw) / _span * 0.84, 4)
+    # Chart height: 900 base, grows if raw span exceeds 1.0 (nodes needed more space)
+    _dyn_h = max(900, int(900 * (_y_max_raw - _y_min_raw) / 0.84))
+
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
@@ -2031,7 +2049,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    fig.update_layout(height=900, margin=dict(l=10, r=10, t=50, b=30),
+    fig.update_layout(height=_dyn_h, margin=dict(l=10, r=10, t=50, b=30),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
@@ -2146,8 +2164,10 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     imap = {}
     node_pcts = []
 
+    _raw_y_bs = []
+
     def add(name, val, color, x, y):
-        y = round(max(0.10, min(0.92, y)), 4)
+        _raw_y_bs.append(y)  # store raw, normalize later
         x = round(max(0.01, min(0.99, x)), 4)
         imap[name] = len(nodes)
         pv = prev_map.get(name, 0)
@@ -2299,6 +2319,15 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     if not links_val:
         return None
 
+    # ── Normalize y into 0.08–0.92 and scale chart height if nodes exceed range ──
+    _y_min_raw = min(_raw_y_bs)
+    _y_max_raw = max(_raw_y_bs)
+    _span = _y_max_raw - _y_min_raw if _y_max_raw > _y_min_raw else 1.0
+    node_y = [round(0.08 + (_y - _y_min_raw) / _span * 0.84, 4) for _y in _raw_y_bs]
+    for p in node_pcts:
+        p["y"] = round(0.08 + (p["y"] - _y_min_raw) / _span * 0.84, 4)
+    _dyn_h = max(900, int(900 * (_y_max_raw - _y_min_raw) / 0.84))
+
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         textfont=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
@@ -2318,7 +2347,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    fig.update_layout(height=900, margin=dict(l=10, r=10, t=50, b=30),
+    fig.update_layout(height=_dyn_h, margin=dict(l=10, r=10, t=50, b=30),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
