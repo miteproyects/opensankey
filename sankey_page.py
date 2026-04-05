@@ -2157,10 +2157,29 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         return None
 
     _vertical = orientation == "vertical"
-    # In vertical mode: swap x<->y so flow goes top-to-bottom
-    _fx = node_y if _vertical else node_x
-    _fy = node_x if _vertical else node_y
     _ori_flag = "v" if _vertical else "h"
+
+    if _vertical:
+        # Build proper vertical positions: columns become rows (y),
+        # within-column positions become horizontal spread (x).
+        # Group nodes by column, spread each group evenly across x.
+        from collections import defaultdict
+        col_groups = defaultdict(list)
+        for i, xv in enumerate(node_x):
+            col_groups[round(xv, 2)].append(i)
+        _fx = [0.5] * len(node_x)
+        _fy = list(node_x)  # column positions become row positions
+        for _col, indices in col_groups.items():
+            n = len(indices)
+            if n == 1:
+                _fx[indices[0]] = 0.50
+            else:
+                ordered = sorted(indices, key=lambda i: node_y[i])
+                for rank, idx in enumerate(ordered):
+                    _fx[idx] = round(0.08 + 0.84 * rank / (n - 1), 4)
+    else:
+        _fx = node_x
+        _fy = node_y
 
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
@@ -2184,9 +2203,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                 xshift=_lw, yshift=0,
             )
     _h = 800 if _vertical else 400
-    fig.update_layout(height=_h, margin=dict(l=10, r=10, t=30, b=20),
-                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
+    _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
+                   paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                   font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
+    if _vertical:
+        _layout["width"] = 400
+    fig.update_layout(**_layout)
     return fig
 
 
@@ -2489,9 +2511,26 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         return None
 
     _vertical = orientation == "vertical"
-    _fx = node_y if _vertical else node_x
-    _fy = node_x if _vertical else node_y
     _ori_flag = "v" if _vertical else "h"
+
+    if _vertical:
+        from collections import defaultdict
+        col_groups = defaultdict(list)
+        for i, xv in enumerate(node_x):
+            col_groups[round(xv, 2)].append(i)
+        _fx = [0.5] * len(node_x)
+        _fy = list(node_x)
+        for _col, indices in col_groups.items():
+            n = len(indices)
+            if n == 1:
+                _fx[indices[0]] = 0.50
+            else:
+                ordered = sorted(indices, key=lambda i: node_y[i])
+                for rank, idx in enumerate(ordered):
+                    _fx[idx] = round(0.08 + 0.84 * rank / (n - 1), 4)
+    else:
+        _fx = node_x
+        _fy = node_y
 
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
@@ -2515,9 +2554,12 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                 xshift=_lw, yshift=0,
             )
     _h = 800 if _vertical else 400
-    fig.update_layout(height=_h, margin=dict(l=10, r=10, t=30, b=20),
-                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
+    _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=20),
+                   paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                   font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
+    if _vertical:
+        _layout["width"] = 400
+    fig.update_layout(**_layout)
     return fig
 
 
@@ -3087,7 +3129,13 @@ def render_sankey_page():
                                    expanded_nodes=_expanded_inc, ticker=ticker,
                                    orientation=_sankey_ori)
         if fig:
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
+            _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
+            if _sankey_ori == "vertical":
+                st.markdown('<div style="display:flex;justify-content:center">', unsafe_allow_html=True)
+                st.plotly_chart(fig, use_container_width=False, config=_chart_cfg)
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS)
@@ -3182,7 +3230,13 @@ def render_sankey_page():
                                           expanded_nodes=_expanded_bal, ticker=ticker,
                                           orientation=_sankey_ori)
         if fig:
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
+            _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
+            if _sankey_ori == "vertical":
+                st.markdown('<div style="display:flex;justify-content:center">', unsafe_allow_html=True)
+                st.plotly_chart(fig, use_container_width=False, config=_chart_cfg)
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS)
