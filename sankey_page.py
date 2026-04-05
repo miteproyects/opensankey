@@ -2295,21 +2295,27 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     if not vals:
         return None
 
+    _n_nodes = len(nodes)
+    # Scale node padding & thickness to fit within fixed 460px height
+    _pad = max(8, min(22, int(320 / max(_n_nodes, 1))))
+    _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
+    _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
+
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         orientation="h",
-        textfont=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
-        node=dict(pad=22, thickness=18, line=dict(color="rgba(0,0,0,0)", width=0),
+        textfont=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
+        node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors, x=node_x, y=node_y,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
         link=dict(source=srcs, target=tgts, value=vals, color=lcolors,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
+        domain=dict(y=[0.04, 0.96]),
     ))
-    _n_nodes = len(nodes)
-    _h = max(460, 350 + _n_nodes * 18)
-    _layout = dict(height=_h, margin=dict(l=10, r=10, t=50, b=20),
+    _h = 460
+    _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=10),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                   font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
+                   font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
     return fig
 
@@ -2606,21 +2612,27 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     if not links_val:
         return None
 
+    _n_nodes = len(nodes)
+    # Scale node padding & thickness to fit within fixed 460px height
+    _pad = max(8, min(22, int(320 / max(_n_nodes, 1))))
+    _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
+    _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
+
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         orientation="h",
-        textfont=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
-        node=dict(pad=22, thickness=18, line=dict(color="rgba(0,0,0,0)", width=0),
+        textfont=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
+        node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors_list, x=node_x, y=node_y,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
         link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
+        domain=dict(y=[0.04, 0.96]),
     ))
-    _n_nodes = len(nodes)
-    _h = max(460, 350 + _n_nodes * 18)
-    _layout = dict(height=_h, margin=dict(l=10, r=10, t=50, b=20),
+    _h = 460
+    _layout = dict(height=_h, margin=dict(l=10, r=10, t=30, b=10),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                   font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
+                   font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
     return fig
 
@@ -2843,12 +2855,10 @@ def render_sankey_page():
             font-weight: 500;
             margin-top: 2px;
         }
-        /* ── Sankey scrollable container ── */
+        /* ── Sankey container: no scroll, clip overflow ── */
         [class*="st-key-sankey_income_scroll"],
         [class*="st-key-sankey_balance_scroll"] {
-            max-height: 460px;
-            overflow-y: auto;
-            overflow-x: hidden;
+            overflow: hidden;
             border-radius: 8px;
             position: relative;
             z-index: 1;
@@ -2884,23 +2894,7 @@ def render_sankey_page():
         [class*="st-key-sankey_balance_scroll"] .svg-container {
             overflow: hidden !important;
         }
-        [class*="st-key-sankey_income_scroll"]::-webkit-scrollbar,
-        [class*="st-key-sankey_balance_scroll"]::-webkit-scrollbar {
-            width: 6px;
-        }
-        [class*="st-key-sankey_income_scroll"]::-webkit-scrollbar-track,
-        [class*="st-key-sankey_balance_scroll"]::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        [class*="st-key-sankey_income_scroll"]::-webkit-scrollbar-thumb,
-        [class*="st-key-sankey_balance_scroll"]::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 3px;
-        }
-        [class*="st-key-sankey_income_scroll"]::-webkit-scrollbar-thumb:hover,
-        [class*="st-key-sankey_balance_scroll"]::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
+
         /* ── Pills card wrapper ── */
         .sankey-pills-card {
             background: #ffffff;
