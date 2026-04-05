@@ -265,6 +265,12 @@ def initialize_schema():
         updated_at      TIMESTAMPTZ DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS app_config (
+        key             VARCHAR(255) PRIMARY KEY,
+        value           TEXT NOT NULL,
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+
     -- Indexes for performance
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     CREATE INDEX IF NOT EXISTS idx_pricing_plans_slug ON pricing_plans(slug);
@@ -1015,3 +1021,46 @@ def get_user_stats() -> dict:
             """)
             r = cur.fetchone()
             return {"total": r[0], "active_today": r[1], "active_week": r[2], "google_users": r[3]}
+
+
+# ── App Config helpers ──────────────────────────────────────────────────
+
+_DEFAULT_TICKER_POOL = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"]
+
+
+def get_config(key: str, default: str = "") -> str:
+    """Read a value from app_config table."""
+    with get_connection() as conn:
+        if conn is None:
+            return default
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM app_config WHERE key = %s", (key,))
+            row = cur.fetchone()
+            return row[0] if row else default
+
+
+def set_config(key: str, value: str) -> bool:
+    """Write a value to app_config table (upsert)."""
+    with get_connection() as conn:
+        if conn is None:
+            return False
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO app_config (key, value, updated_at)
+                VALUES (%s, %s, NOW())
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+            """, (key, value))
+            return True
+
+
+def get_ticker_pool() -> list[str]:
+    """Return the admin-managed ticker pool from DB."""
+    raw = get_config("ticker_pool", "")
+    if not raw.strip():
+        return list(_DEFAULT_TICKER_POOL)
+    return [t.strip().upper() for t in raw.split(",") if t.strip()]
+
+
+def set_ticker_pool(tickers: list[str]) -> bool:
+    """Persist the ticker pool to DB."""
+    return set_config("ticker_pool", ",".join(sorted(t.strip().upper() for t in tickers if t.strip())))

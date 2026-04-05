@@ -2281,10 +2281,10 @@ def _render_pricing_admin():
                 else:
                     st.error("Slug and Name are required.")
 
-    # ── Manage ticker pool (outside the form so it updates instantly) ──
-    _default_pool = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"]
+    # ── Manage ticker pool (persisted to DB) ──
+    from database import get_ticker_pool, set_ticker_pool
     if "_ticker_pool" not in st.session_state:
-        st.session_state["_ticker_pool"] = _default_pool
+        st.session_state["_ticker_pool"] = get_ticker_pool()
 
     with st.expander("🎯 Manage Available Tickers"):
         st.markdown(
@@ -2307,6 +2307,7 @@ def _render_pricing_admin():
                             st.session_state["_ticker_pool"].append(t)
                             added.append(t)
                     if added:
+                        set_ticker_pool(st.session_state["_ticker_pool"])
                         st.toast(f"Added: {', '.join(added)}", icon="✅")
                     st.rerun()
         with _tk_rm_col:
@@ -2315,6 +2316,7 @@ def _render_pricing_admin():
                                            key="_tk_pool_rm", label_visibility="collapsed")
                 if st.button("🗑️ Remove", key="_tk_pool_rm_btn", use_container_width=True):
                     st.session_state["_ticker_pool"].remove(_rm_ticker)
+                    set_ticker_pool(st.session_state["_ticker_pool"])
                     st.toast(f"Removed {_rm_ticker}", icon="🗑️")
                     st.rerun()
 
@@ -2541,7 +2543,7 @@ def _render_pricing_admin():
             if _all_tickers_chk.get(pid, False):
                 norm_tk = "ALL"
             else:
-                pool = st.session_state.get("_ticker_pool", [])
+                pool = get_ticker_pool()
                 norm_tk = ",".join(sorted(t.upper() for t in pool)) if pool else "ALL"
             result = update_plan(
                 pid,

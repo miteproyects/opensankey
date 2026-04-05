@@ -46,8 +46,10 @@ def render_home_page():
     # This guarantees: no Streamlit style interference, JS works,
     # and the whole page is one seamless visual.
     _allowed_json, _redir_json = _get_allowed_tickers_json()
-    # Placeholder tickers = allowed tickers from DB; fall back to a safe default if ALL
-    _ticker_pool = _allowed_json if _allowed_json != "null" else '["AAPL","TSLA","NVDA","MSFT","AMZN","GOOG","META"]'
+    # Placeholder tickers = admin-managed ticker pool from DB
+    import json as _json
+    from database import get_ticker_pool
+    _ticker_pool = _json.dumps(get_ticker_pool())
     components.html(f"""
     <script>var __ALLOWED_TICKERS = {_allowed_json}; var __REDIR_PAGE = {_redir_json}; var __TICKER_POOL = {_ticker_pool};</script>"""
     """
