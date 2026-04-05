@@ -46,8 +46,10 @@ def render_home_page():
     # This guarantees: no Streamlit style interference, JS works,
     # and the whole page is one seamless visual.
     _allowed_json, _redir_json = _get_allowed_tickers_json()
+    import json as _json
+    _ticker_pool = _json.dumps(st.session_state.get("_ticker_pool", ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"]))
     components.html(f"""
-    <script>var __ALLOWED_TICKERS = {_allowed_json}; var __REDIR_PAGE = {_redir_json};</script>"""
+    <script>var __ALLOWED_TICKERS = {_allowed_json}; var __REDIR_PAGE = {_redir_json}; var __TICKER_POOL = {_ticker_pool};</script>"""
     """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
@@ -340,7 +342,7 @@ def render_home_page():
                     </svg>
                 </div>
                 <input id="ticker" type="text"
-                       placeholder="Try AAPL ..."
+                       placeholder="Try AAPL for free ..."
                        autocomplete="off" spellcheck="false" required />
                 <button type="submit">GO</button>
             </form>
@@ -520,13 +522,13 @@ def render_home_page():
 
     /* ── Rotating placeholder ── */
     (function() {
-        var tickers = ['AAPL','TSLA','NVDA','META','AMZN','GOOG','MSFT','NFLX','AMD','DIS'];
+        var tickers = __TICKER_POOL;
         var idx = 0;
         var inp = document.getElementById('ticker');
         function rotatePlaceholder() {
             if (document.activeElement === inp || inp.value.length > 0) return;
             idx = (idx + 1) % tickers.length;
-            inp.placeholder = 'Try ' + tickers[idx] + ' ...';
+            inp.placeholder = 'Try ' + tickers[idx] + ' for free ...';
         }
         setInterval(rotatePlaceholder, 2200);
 
