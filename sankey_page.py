@@ -1945,12 +1945,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_x.append(x)
         node_y.append(y)
 
-    add("Revenue", revenue, 0, X1, 0.45, p_revenue)
-    add("Cost of Revenue", cogs, 1, X2, 0.05, p_cogs)
-    add("Gross Profit", gross_profit, 2, X2, 0.58, p_gross_profit)
+    add("Revenue", revenue, 0, X1, 0.35, p_revenue)
+    add("Cost of Revenue", cogs, 1, X2, 0.15, p_cogs)
+    add("Gross Profit", gross_profit, 2, X2, 0.45, p_gross_profit)
 
-    exp_y = 0.04
-    exp_gap = 0.13
+    exp_y = 0.12
+    exp_gap = 0.10
     n_exp = 0
     if rd_expense > 0:
         add("R&D", rd_expense, 3, X3, exp_y + n_exp * exp_gap, p_rd_expense)
@@ -1965,21 +1965,21 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         add("Other OpEx", other_opex, 5, X3, exp_y + n_exp * exp_gap, p_other_opex)
         n_exp += 1
 
-    oi_y = max(exp_y + n_exp * exp_gap + 0.16, 0.60)
+    oi_y = max(exp_y + n_exp * exp_gap + 0.12, 0.48)
     add("Operating Income", operating_inc, 6, X3, oi_y, p_operating_inc)
 
     if interest_exp > 0:
-        inter_y = max(oi_y - 0.08, 0.50)
+        inter_y = max(oi_y - 0.06, 0.40)
         add("Interest Exp.", interest_exp, 7, X4, inter_y, p_interest_exp)
-    pt_y = oi_y + 0.14
+    pt_y = oi_y + 0.10
     add("Pretax Income", pretax_income, 8, X4, pt_y, p_pretax_income)
 
-    tax_y = pt_y + 0.04
-    net_y = pt_y + 0.14
+    tax_y = pt_y + 0.12
+    net_y = pt_y + 0.28
     if tax > 0:
-        add("Income Tax", tax, 9, X5, min(tax_y, 0.88), p_tax)
-        net_y = tax_y + 0.12
-    add("Net Income", net_income, 10, X5, min(net_y, 0.97), p_net_income)
+        add("Income Tax", tax, 9, X5, tax_y, p_tax)
+        net_y = tax_y + 0.18
+    add("Net Income", net_income, 10, X5, net_y, p_net_income)
 
     srcs, tgts, vals, lcolors = [], [], [], []
 
@@ -2031,7 +2031,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    fig.update_layout(height=1100, margin=dict(l=10, r=10, t=60, b=40),
+    fig.update_layout(height=1200, margin=dict(l=10, r=10, t=80, b=40),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
@@ -2318,7 +2318,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             borderwidth=0, xanchor="left", yanchor="middle",
             xshift=_lw, yshift=0,
         )
-    fig.update_layout(height=1100, margin=dict(l=10, r=10, t=60, b=40),
+    fig.update_layout(height=1200, margin=dict(l=10, r=10, t=80, b=40),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=13, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     return fig
