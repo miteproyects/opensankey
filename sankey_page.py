@@ -2850,6 +2850,22 @@ def render_sankey_page():
             overflow-y: auto;
             overflow-x: hidden;
             border-radius: 8px;
+            contain: paint;
+        }
+        [class*="st-key-sankey_income_scroll"] [data-testid="stPlotlyChart"],
+        [class*="st-key-sankey_balance_scroll"] [data-testid="stPlotlyChart"] {
+            overflow: hidden !important;
+            margin-top: 0 !important;
+        }
+        [class*="st-key-sankey_income_scroll"] iframe,
+        [class*="st-key-sankey_balance_scroll"] iframe {
+            overflow: hidden !important;
+            margin-top: 0 !important;
+        }
+        [class*="st-key-sankey_income_scroll"] [data-testid="stPlotlyChart"] > div,
+        [class*="st-key-sankey_balance_scroll"] [data-testid="stPlotlyChart"] > div {
+            overflow: hidden !important;
+            margin-top: 0 !important;
         }
         [class*="st-key-sankey_income_scroll"]::-webkit-scrollbar,
         [class*="st-key-sankey_balance_scroll"]::-webkit-scrollbar {
