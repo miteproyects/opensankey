@@ -1572,6 +1572,11 @@ def _inject_delta_color_js():
                     var before = txt.substring(0, idx);
                     var after = txt.substring(idx);
 
+                    // Skip coloring if change is zero (+0.0% or -0.0% or +$0)
+                    if (/[+-]0\.0%/.test(after) || /[+-]\$0[^.]/.test(after) || /[+-]\$0$/.test(after)) {
+                        color = '#64748b';  // neutral slate for zero change
+                    }
+
                     // If this is a tspan inside a text, rebuild it
                     if (el.tagName === 'tspan') {
                         el.textContent = before;
@@ -2127,6 +2132,15 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     p_pretax_income = _safe_prev(income_df, "Pretax Income") or _safe_prev(income_df, "Income Before Tax")
     p_tax           = abs(_safe_prev(income_df, "Tax Provision"))
     p_net_income    = _safe_prev(income_df, "Net Income")
+    # Derive missing previous-period residuals
+    if p_other_opex == 0 and p_gross_profit > 0 and p_operating_inc > 0:
+        p_other_opex = max(0, p_gross_profit - p_rd_expense - p_sga_expense - p_dep_amort - p_operating_inc)
+    if p_operating_inc == 0 and p_gross_profit > 0:
+        p_operating_inc = max(0, p_gross_profit - p_rd_expense - p_sga_expense - p_dep_amort - p_other_opex)
+    if p_pretax_income == 0 and p_operating_inc > 0:
+        p_pretax_income = max(0, p_operating_inc - p_interest_exp)
+    if p_net_income == 0 and p_pretax_income > 0:
+        p_net_income = max(0, p_pretax_income - p_tax)
 
     if revenue == 0:
         return None
@@ -2255,11 +2269,19 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         star = "\u2605 " if expandable else ""
         display_name = f"{star}{name}"
         pct = _yoy(val, prev_val)
+        delta_str = _fmt_delta(val, prev_val) if prev_val else None
         pct_suffix = ""
-        if pct is not None and not same_period:
-            arrow = "\u2191" if pct >= 0 else "\u2193"
-            delta_str = _fmt_delta(val, prev_val) or ""
-            pct_suffix = f"  {arrow}{pct:+.1f}% {delta_str}"
+        if not same_period:
+            if pct is not None:
+                diff = val - prev_val if prev_val else 0
+                arrow = "\u2191" if diff >= 0 else "\u2193"
+                pct_suffix = f"  {arrow}{pct:+.1f}%"
+                if delta_str:
+                    pct_suffix += f" {delta_str}"
+            elif delta_str:
+                diff = val - prev_val if prev_val else 0
+                arrow = "\u2191" if diff >= 0 else "\u2193"
+                pct_suffix = f"  {arrow}{delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
         node_colors.append(colors[color_idx])
         node_x.append(x)
@@ -2537,11 +2559,19 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         display_name = f"{star}{name}"
         pv = prev_map.get(name, 0)
         pct = _yoy(val, pv)
+        delta_str = _fmt_delta(val, pv) if pv else None
         pct_suffix = ""
-        if pct is not None and not same_period:
-            arrow = "\u2191" if pct >= 0 else "\u2193"
-            delta_str = _fmt_delta(val, pv) or ""
-            pct_suffix = f"  {arrow}{pct:+.1f}% {delta_str}"
+        if not same_period:
+            if pct is not None:
+                diff = val - pv if pv else 0
+                arrow = "\u2191" if diff >= 0 else "\u2193"
+                pct_suffix = f"  {arrow}{pct:+.1f}%"
+                if delta_str:
+                    pct_suffix += f" {delta_str}"
+            elif delta_str:
+                diff = val - pv if pv else 0
+                arrow = "\u2191" if diff >= 0 else "\u2193"
+                pct_suffix = f"  {arrow}{delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
         node_colors_list.append(color)
         node_x.append(x)
