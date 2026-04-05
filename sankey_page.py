@@ -125,6 +125,22 @@ def _fmt(val):
     return f"${val:,.0f}"
 
 
+def _fmt_delta(current, previous):
+    """Format the dollar difference as +$2.76B or -$2.23B."""
+    if previous is None or previous == 0:
+        return None
+    diff = current - previous
+    sign = "+" if diff >= 0 else "-"
+    av = abs(diff)
+    if av >= 1e12:
+        return f"{sign}${av/1e12:.2f}T"
+    if av >= 1e9:
+        return f"{sign}${av/1e9:.2f}B"
+    if av >= 1e6:
+        return f"{sign}${av/1e6:.0f}M"
+    return f"{sign}${av:,.0f}"
+
+
 def _safe(df, key, default=0):
     """Safely extract a value from a yfinance DataFrame column."""
     if df is None or df.empty:
@@ -2161,7 +2177,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         pct_suffix = ""
         if pct is not None and not same_period:
             arrow = "\u2191" if pct >= 0 else "\u2193"
-            pct_suffix = f"  {arrow}{pct:+.1f}%"
+            delta_str = _fmt_delta(val, prev_val) or ""
+            pct_suffix = f"  {arrow}{pct:+.1f}% {delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
         node_colors.append(colors[color_idx])
         node_x.append(x)
@@ -2442,7 +2459,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         pct_suffix = ""
         if pct is not None and not same_period:
             arrow = "\u2191" if pct >= 0 else "\u2193"
-            pct_suffix = f"  {arrow}{pct:+.1f}%"
+            delta_str = _fmt_delta(val, pv) or ""
+            pct_suffix = f"  {arrow}{pct:+.1f}% {delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
         node_colors_list.append(color)
         node_x.append(x)
