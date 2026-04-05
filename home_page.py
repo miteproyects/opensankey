@@ -365,7 +365,7 @@ def render_home_page():
         (function(){
             var el = document.getElementById('popular-tickers');
             var tickers = __TICKER_POOL;
-            var html = 'Try for free: ';
+            var html = 'Try for free:&nbsp; ';
             for (var i = 0; i < tickers.length; i++) {
                 if (i > 0) html += ' \u00b7 ';
                 html += '<a href="/?page=charts&ticker=' + tickers[i] + '" target="_top">' + tickers[i] + '</a>';
