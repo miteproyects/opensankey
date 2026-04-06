@@ -1254,6 +1254,13 @@ def _inject_pill_hover_js(metric_map, color_map):
                     nodeRects[matchIdx].style.filter = 'drop-shadow(0 0 8px ' + color + ')';
                 }}
 
+                // Bold delta suffixes on hovered node
+                if (matchIdx >= 0 && nodeLabels[matchIdx]) {{
+                    nodeLabels[matchIdx].querySelectorAll('.delta-suffix').forEach(function(ds) {{
+                        ds.setAttribute('font-weight', '700');
+                    }});
+                }}
+
                 // Highlight connected links
                 if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].link) {{
                     var linkData = plotDiv.data[0].link;
@@ -1278,6 +1285,9 @@ def _inject_pill_hover_js(metric_map, color_map):
                 sankeyEl.querySelectorAll('.node-label').forEach(function(l) {{
                     l.style.opacity = '';
                     l.style.fontWeight = '';
+                }});
+                sankeyEl.querySelectorAll('.delta-suffix').forEach(function(ds) {{
+                    ds.setAttribute('font-weight', '400');
                 }});
                 sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
                     lnk.style.opacity = '';
@@ -1450,6 +1460,9 @@ def _inject_node_hover_js(metric_map, color_map):
             if (nodeLabels[nodeIdx]) {{
                 nodeLabels[nodeIdx].style.opacity = '1';
                 nodeLabels[nodeIdx].style.fontWeight = '700';
+                nodeLabels[nodeIdx].querySelectorAll('.delta-suffix').forEach(function(ds) {{
+                    ds.setAttribute('font-weight', '700');
+                }});
             }}
             if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].link) {{
                 var linkData = plotDiv.data[0].link;
@@ -1467,6 +1480,9 @@ def _inject_node_hover_js(metric_map, color_map):
             }});
             sankeyEl.querySelectorAll('.node-label').forEach(function(l) {{
                 l.style.opacity = ''; l.style.fontWeight = '';
+            }});
+            sankeyEl.querySelectorAll('.delta-suffix').forEach(function(ds) {{
+                ds.setAttribute('font-weight', '400');
             }});
             sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
                 lnk.style.opacity = '';
@@ -1576,14 +1592,16 @@ def _inject_delta_color_js():
                         var colored = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
                         colored.textContent = after;
                         colored.setAttribute('fill', color);
-                        colored.setAttribute('font-weight', '700');
+                        colored.setAttribute('font-weight', '400');
+                        colored.classList.add('delta-suffix');
                         el.parentNode.insertBefore(colored, el.nextSibling);
                     } else {
                         el.textContent = before;
                         var colored = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
                         colored.textContent = after;
                         colored.setAttribute('fill', color);
-                        colored.setAttribute('font-weight', '700');
+                        colored.setAttribute('font-weight', '400');
+                        colored.classList.add('delta-suffix');
                         el.appendChild(colored);
                     }
                 });
