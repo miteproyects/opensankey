@@ -1330,11 +1330,21 @@ def _inject_sankey_click_js(metric_map):
         const parentDoc = window.parent.document;
 
         function clickPill(label) {{
-            var btns = parentDoc.querySelectorAll('[role="radiogroup"] button');
-            for (var i = 0; i < btns.length; i++) {{
-                if (btns[i].textContent.trim() === label) {{
-                    btns[i].click();
-                    break;
+            /* Try multiple selectors — Streamlit versions differ */
+            var selectors = [
+                '[data-testid="stBaseButton-pills"]',
+                '[role="radiogroup"] button',
+                '[data-testid="stPills"] button',
+                'button[kind="pills"]'
+            ];
+            for (var s = 0; s < selectors.length; s++) {{
+                var btns = parentDoc.querySelectorAll(selectors[s]);
+                for (var i = 0; i < btns.length; i++) {{
+                    if (btns[i].textContent.trim() === label) {{
+                        /* Use both .click() and native event dispatch for React compat */
+                        btns[i].dispatchEvent(new MouseEvent('click', {{bubbles: true, cancelable: true}}));
+                        return;
+                    }}
                 }}
             }}
         }}
@@ -1387,7 +1397,6 @@ def _inject_sankey_click_js(metric_map):
                                 clickPill(tgtLabel);
                                 return;
                             }}
-                            // Fallback to source
                             var srcIdx = plotDiv.data[0].link.source[linkIdx];
                             var srcLabel = idxToLabel[srcIdx];
                             if (srcLabel) clickPill(srcLabel);
@@ -1397,9 +1406,10 @@ def _inject_sankey_click_js(metric_map):
 
                 // Attach click handlers to SVG text labels and node rects
                 var rects = sankeyEl.querySelectorAll('.node-rect');
-                rects.forEach(function(r) {{ r.style.cursor = 'pointer'; }});
+                rects.forEach(function(r) {{ r.style.cursor = 'pointer'; r.style.pointerEvents = 'all'; }});
                 nodeLabels.forEach(function(lbl) {{
                     lbl.style.cursor = 'pointer';
+                    lbl.style.pointerEvents = 'all';
                     lbl.addEventListener('click', function(e) {{
                         var name = extractLabel(lbl.textContent);
                         if (name && VALID.has(name)) {{
@@ -1410,9 +1420,11 @@ def _inject_sankey_click_js(metric_map):
                 }});
 
                 // Attach click handlers to link SVG paths
+                // Force pointer-events so clicks register (Plotly may set pointer-events:none)
                 var links = sankeyEl.querySelectorAll('.sankey-link');
                 links.forEach(function(lnk, li) {{
                     lnk.style.cursor = 'pointer';
+                    lnk.style.pointerEvents = 'all';
                     lnk.addEventListener('click', function(e) {{
                         if (!plotDiv.data || !plotDiv.data[0] || !plotDiv.data[0].link) return;
                         var tgtIdx = plotDiv.data[0].link.target[li];
@@ -1990,6 +2002,7 @@ def _inject_link_hover_js(color_map):
                 var links = sankeyEl.querySelectorAll('.sankey-link');
                 links.forEach(function(lnk, li) {{
                     lnk.style.cursor = 'pointer';
+                    lnk.style.pointerEvents = 'all';
                     lnk.addEventListener('mouseenter', function() {{
                         var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
                         highlightLink(li, currentSankey, plotDiv);
