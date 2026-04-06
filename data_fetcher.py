@@ -1830,3 +1830,104 @@ def validate_ticker(ticker: str) -> bool:
         return bool(info and ("regularMarketPrice" in info or "currentPrice" in info))
     except Exception:
         return False
+
+
+# ---------------------------------------------------------------------------
+# Fiscal Calendar helper
+# ---------------------------------------------------------------------------
+
+_MONTH_NAMES = [
+    "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def get_fiscal_calendar(ticker: str) -> dict:
+    """
+    Return fiscal-year calendar info derived from FMP quarterly income data.
+
+    Returns a dict with keys:
+        fy_end_month  : int (1-12) – last month of fiscal Q4
+        quarters      : list of dicts, each with:
+            quarter       : str  ("Q1", "Q2", "Q3", "Q4")
+            months        : str  (e.g. "Feb – Apr")
+            period_end    : str  (e.g. "2025-04-27")
+            filing_date   : str  (e.g. "2025-05-28")
+            label         : str  (e.g. "Q1 FY2026")
+            calendar_year : str
+        fy_end_label  : str  (e.g. "January")
+    Falls back to calendar-year (Dec) if data is unavailable.
+    """
+    result = {
+        "fy_end_month": 12,
+        "fy_end_label": "December",
+        "quarters": [],
+    }
+
+    # Try FMP first (has explicit period, calendarYear, fillingDate fields)
+    if _fmp_available():
+        try:
+            raw = _fetch_fmp_statement(ticker, "income-statement", limit=8, quarterly=True)
+            if isinstance(raw, list) and raw:
+                # Sort by date descending (most recent first)
+                raw = sorted(raw, key=lambda x: x.get("date", ""), reverse=True)
+
+                # Determine FY end month from Q4 record
+                for item in raw:
+                    if item.get("period") == "Q4":
+                        q4_date = item.get("date", "")
+                        if q4_date:
+                            try:
+                                fy_end_month = pd.Timestamp(q4_date).month
+                                result["fy_end_month"] = fy_end_month
+                                result["fy_end_label"] = _MONTH_NAMES[fy_end_month]
+                            except Exception:
+                                pass
+                        break
+
+                # Build quarter month ranges from FY end month
+                fy_end = result["fy_end_month"]
+                q_starts = []
+                for qi in range(4):
+                    # Q1 starts the month after FY end, Q2 three months later, etc.
+                    start_m = (fy_end % 12) + 1 + qi * 3
+                    if start_m > 12:
+                        start_m -= 12
+                    end_m = start_m + 2
+                    if end_m > 12:
+                        end_m -= 12
+                    q_starts.append((start_m, end_m))
+
+                # Build recent quarters list
+                for item in raw[:8]:
+                    period = item.get("period", "")
+                    if not period or not period.startswith("Q"):
+                        continue
+                    cal_year = item.get("calendarYear", "")
+                    date_str = item.get("date", "")
+                    filling = item.get("fillingDate", "") or item.get("acceptedDate", "")
+                    qi = int(period[1]) - 1  # 0-based
+                    start_m, end_m = q_starts[qi] if qi < len(q_starts) else (0, 0)
+                    months_str = f"{_MONTH_NAMES[start_m]} – {_MONTH_NAMES[end_m]}" if start_m else ""
+
+                    result["quarters"].append({
+                        "quarter": period,
+                        "months": months_str,
+                        "period_end": date_str,
+                        "filing_date": filling,
+                        "label": f"{period} FY{cal_year}" if cal_year else period,
+                        "calendar_year": cal_year,
+                    })
+                return result
+        except Exception as exc:
+            print(f"[FiscalCal] FMP fallback error for {ticker}: {exc}")
+
+    # Fallback: use yfinance for FY end month (no quarter details)
+    try:
+        fy_m = _get_fy_end_month(ticker)
+        result["fy_end_month"] = fy_m
+        result["fy_end_label"] = _MONTH_NAMES[fy_m]
+    except Exception:
+        pass
+    return result

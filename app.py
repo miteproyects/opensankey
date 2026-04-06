@@ -2865,6 +2865,160 @@ with st.sidebar:
                 )
                 st.session_state.sankey_compare_quarterly = True
 
+        # ---- Fiscal Calendar widget (charts + sankey) ----
+        st.markdown("---")
+        try:
+            from data_fetcher import get_fiscal_calendar
+            _fc = get_fiscal_calendar(ticker)
+            _fc_quarters = _fc.get("quarters", [])
+            _fy_label = _fc.get("fy_end_label", "December")
+            _fy_month = _fc.get("fy_end_month", 12)
+
+            # Determine currently viewed period label to highlight
+            # Sankey uses calendar-quarter labels like "Q4 2025",
+            # fiscal calendar uses "Q4 FY2025". Match by period_end date.
+            _fc_active = ""
+            if current_page == "sankey":
+                _sk_period = st.session_state.get("sankey_period_a", "")
+                # Try to match calendar quarter to a fiscal quarter
+                if _sk_period and _fc_quarters:
+                    for _fq in _fc_quarters:
+                        # Convert fiscal quarter's period_end to calendar quarter label
+                        try:
+                            _pe_dt = pd.Timestamp(_fq["period_end"])
+                            from data_fetcher import _quarter_label
+                            _cal_label = _quarter_label(_pe_dt)
+                            if _cal_label == _sk_period:
+                                _fc_active = _fq.get("label", "")
+                                break
+                        except Exception:
+                            pass
+                if not _fc_active:
+                    _fc_active = _sk_period  # fallback: direct match
+            else:
+                # Charts page: highlight most recent quarter
+                if st.session_state.get("quarterly", True) and _fc_quarters:
+                    _fc_active = _fc_quarters[0].get("label", "")
+
+            if _fc_quarters:
+                # Build Q1-Q4 month range reference (from first 4 unique quarters)
+                _seen_q = {}
+                for _fq in _fc_quarters:
+                    qn = _fq["quarter"]
+                    if qn not in _seen_q:
+                        _seen_q[qn] = _fq["months"]
+                    if len(_seen_q) >= 4:
+                        break
+
+                # Build the quarter rows HTML
+                _q_rows = ""
+                for qi in range(1, 5):
+                    qk = f"Q{qi}"
+                    months = _seen_q.get(qk, "")
+                    # Find if any recent quarter matches
+                    _match = None
+                    for _fq in _fc_quarters:
+                        if _fq["quarter"] == qk:
+                            _match = _fq
+                            break
+                    is_active = _match and _fc_active and _match.get("label", "") == _fc_active
+                    _arrow = "&#9654;" if is_active else ""
+                    _active_bg = "rgba(59,130,246,0.12)" if is_active else "transparent"
+                    _active_border = "rgba(59,130,246,0.3)" if is_active else "transparent"
+                    _active_color = "#60a5fa" if is_active else "#94a3b8"
+                    _q_rows += f'''<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;
+                        border-radius:6px;background:{_active_bg};border:1px solid {_active_border};
+                        margin-bottom:3px;transition:all 0.2s;">
+                        <span style="color:#3b82f6;font-size:0.65rem;width:12px;text-align:center;">{_arrow}</span>
+                        <span style="color:{_active_color};font-weight:600;font-size:0.82rem;min-width:24px;">{qk}</span>
+                        <span style="color:#64748b;font-size:0.78rem;">{months}</span>
+                    </div>'''
+
+                # Currently viewing details
+                _viewing_html = ""
+                if _fc_active:
+                    _active_match = None
+                    for _fq in _fc_quarters:
+                        if _fq.get("label", "") == _fc_active:
+                            _active_match = _fq
+                            break
+                    if _active_match:
+                        _p_end = _active_match.get("period_end", "—")
+                        _f_date = _active_match.get("filing_date", "—")
+                        # Format dates nicely
+                        try:
+                            _p_dt = pd.Timestamp(_p_end)
+                            _p_end = _p_dt.strftime("%b %d, %Y")
+                        except Exception:
+                            pass
+                        try:
+                            _f_dt = pd.Timestamp(_f_date)
+                            _f_date = _f_dt.strftime("%b %d, %Y")
+                        except Exception:
+                            pass
+                        _viewing_html = f'''
+                        <div style="margin-top:10px;padding:8px 10px;border-radius:8px;
+                            background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.12);">
+                            <div style="font-size:0.72rem;color:#64748b;text-transform:uppercase;
+                                letter-spacing:1px;margin-bottom:5px;">Showing</div>
+                            <div style="font-size:0.88rem;font-weight:700;color:#e2e8f0;margin-bottom:6px;">
+                                {_fc_active}</div>
+                            <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                                <span style="font-size:0.75rem;color:#64748b;">Period ends</span>
+                                <span style="font-size:0.75rem;color:#94a3b8;font-weight:600;">{_p_end}</span>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;">
+                                <span style="font-size:0.75rem;color:#64748b;">Filed with SEC</span>
+                                <span style="font-size:0.75rem;color:#94a3b8;font-weight:600;">{_f_date}</span>
+                            </div>
+                        </div>'''
+
+                _is_non_dec = _fy_month != 12
+                _fy_note = f' <span style="color:#f59e0b;font-size:0.68rem;">(non-standard)</span>' if _is_non_dec else ""
+
+                st.markdown(f'''
+                <div style="border-radius:10px;background:rgba(255,255,255,0.03);
+                    border:1px solid rgba(255,255,255,0.07);padding:14px 14px 10px;margin-top:4px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        <span style="font-size:0.88rem;font-weight:700;color:#e2e8f0;">
+                            Fiscal Calendar</span>
+                    </div>
+                    <div style="font-size:0.75rem;color:#64748b;margin-bottom:8px;">
+                        FY ends: <strong style="color:#94a3b8;">{_fy_label}</strong>{_fy_note}
+                    </div>
+                    {_q_rows}
+                    {_viewing_html}
+                </div>
+                ''', unsafe_allow_html=True)
+            else:
+                st.markdown('''
+                <div style="border-radius:10px;background:rgba(255,255,255,0.03);
+                    border:1px solid rgba(255,255,255,0.07);padding:14px;margin-top:4px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        <span style="font-size:0.88rem;font-weight:700;color:#e2e8f0;">
+                            Fiscal Calendar</span>
+                    </div>
+                    <div style="font-size:0.78rem;color:#64748b;">
+                        Calendar year (Dec FY end)</div>
+                </div>
+                ''', unsafe_allow_html=True)
+        except Exception as _fc_err:
+            print(f"[Sidebar] Fiscal Calendar error: {_fc_err}")
+
         # ---- Status ----
         st.markdown(
             '<span class="status-dot"></span> '
