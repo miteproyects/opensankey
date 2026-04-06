@@ -2891,7 +2891,8 @@ def _render_footer():
                 <a href="/?page=earnings">Earnings Calendar</a><br>
                 <a href="/?page=watchlist">Watchlist</a><br>
                 <a href="/?page=privacy">Privacy Policy</a><br>
-                <a href="/?page=terms">Terms of Service</a>
+                <a href="/?page=terms">Terms of Service</a><br>
+                <a href="/sitemap.xml" target="_blank">Sitemap</a>
             </p>
         </div>
         <div>
