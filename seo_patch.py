@@ -167,29 +167,52 @@ def patch():
                 "description": _desc,
             }
         )
-        nav_ld = json.dumps(
+        nav_items = [
             {
                 "@context": "https://schema.org",
                 "@type": "SiteNavigationElement",
-                "name": [
-                    "Stock Charts",
-                    "Sankey Diagrams",
-                    "Earnings Calendar",
-                    "Enterprise",
-                ],
-                "url": [
-                    f"{_url}?page=charts",
-                    f"{_url}?page=sankey",
-                    f"{_url}?page=earnings",
-                    f"{_url}?page=pricing",
-                ],
-            }
+                "name": "Stock Charts \u2014 Statements + Key Metrics",
+                "description": "8+ years of quarterly and annual charts.",
+                "url": f"{_url}?page=charts",
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "SiteNavigationElement",
+                "name": "Sankey Diagrams \u2014 Income & Balance Sheet",
+                "description": "Click on Sankey nodes for account history.",
+                "url": f"{_url}?page=sankey",
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "SiteNavigationElement",
+                "name": "Enterprise \u2014 Automated Financial Dashboards",
+                "description": "Your accounts, auto-charted. API integration included.",
+                "url": f"{_url}?page=pricing",
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "SiteNavigationElement",
+                "name": "Company Profile \u2014 Financials & Key Metrics",
+                "description": "Explore company financials, valuation ratios, and key data points for any ticker.",
+                "url": f"{_url}?page=profile",
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "SiteNavigationElement",
+                "name": "Watchlist \u2014 Track Your Favorite Stocks",
+                "description": "Save your favorite tickers and track them across charts, Sankeys, and earnings. Free to use.",
+                "url": f"{_url}?page=watchlist",
+            },
+        ]
+        nav_ld = "\n".join(
+            f'<script type="application/ld+json">{json.dumps(item)}</script>'
+            for item in nav_items
         )
         ld_block = (
             f'<script type="application/ld+json">{org_ld}</script>\n'
             f'<script type="application/ld+json">{website_ld}</script>\n'
             f'<script type="application/ld+json">{app_ld}</script>\n'
-            f'<script type="application/ld+json">{nav_ld}</script>\n'
+            f'{nav_ld}\n'
         )
         html = html.replace("</head>", f"{ld_block}</head>", 1)
 
@@ -222,13 +245,17 @@ def patch():
         "quarterly charts and company profiles. 6,000+ tickers from SEC filings. "
         "Free to start.</p>"
         "<h2><a href='/?page=charts'>Stock Charts &mdash; Statements + Key Metrics</a></h2>"
-        "<p>8+ years of quarterly and annual charts.</p>"
+        "<p>8+ years of quarterly and annual charts. Visualize income statements, balance sheets, and key financial metrics.</p>"
         "<h2><a href='/?page=sankey'>Sankey Diagrams &mdash; Income &amp; Balance Sheet</a></h2>"
-        "<p>Click on Sankey nodes for account history.</p>"
-        "<h2><a href='/?page=earnings'>Earnings Calendar</a></h2>"
-        "<p>Upcoming earnings dates, past results and EPS for thousands of stocks.</p>"
+        "<p>Interactive Sankey diagrams for income statements and balance sheets. Click on nodes for account history.</p>"
         "<h2><a href='/?page=pricing'>Enterprise &mdash; Automated Financial Dashboards</a></h2>"
         "<p>Your accounts, auto-charted. API integration included.</p>"
+        "<h2><a href='/?page=profile'>Company Profile &mdash; Financials &amp; Key Metrics</a></h2>"
+        "<p>Explore company financials, valuation ratios, and key data points for any ticker.</p>"
+        "<h2><a href='/?page=watchlist'>Watchlist &mdash; Track Your Favorite Stocks</a></h2>"
+        "<p>Save your favorite tickers and track them across charts, Sankeys, and earnings. Free to use.</p>"
+        "<h2><a href='/?page=earnings'>Earnings Calendar</a></h2>"
+        "<p>Upcoming earnings dates, past results, and EPS surprises for thousands of stocks.</p>"
         '<p><a href="/?page=privacy">Privacy Policy</a> | '
         '<a href="/?page=terms">Terms of Service</a></p>'
         "</div>"
