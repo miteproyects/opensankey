@@ -1964,6 +1964,10 @@ def _inject_page_seo(page: str, tkr: str):
             "title": "Enterprise — Automated Financial Dashboards | QuarterCharts",
             "desc": "Your accounts, auto-charted. API integration included. Automated financial dashboards for teams.",
         },
+        "sitemap": {
+            "title": "Sitemap — QuarterCharts",
+            "desc": "Browse all pages on QuarterCharts.com. Stock charts, Sankey diagrams, company profiles, and more for 6,000+ tickers.",
+        },
         "home": {
             "title": "QuarterCharts.com — Stock Charts, Sankey Diagrams & More",
             "desc": "Visualize any stock\u2019s financials with interactive Sankey diagrams, quarterly charts and company profiles. 6,000+ tickers from SEC filings. Free to start.",
@@ -2892,7 +2896,7 @@ def _render_footer():
                 <a href="/?page=watchlist">Watchlist</a><br>
                 <a href="/?page=privacy">Privacy Policy</a><br>
                 <a href="/?page=terms">Terms of Service</a><br>
-                <a href="/sitemap.xml" target="_blank">Sitemap</a>
+                <a href="/?page=sitemap">Sitemap</a>
             </p>
         </div>
         <div>
@@ -2986,6 +2990,12 @@ if current_page == "privacy":
 if current_page == "terms":
     from terms_page import render_terms_page
     render_terms_page()
+    _render_footer()
+    st.stop()
+
+if current_page == "sitemap":
+    from sitemap_page import render_sitemap_page
+    render_sitemap_page()
     _render_footer()
     st.stop()
 
