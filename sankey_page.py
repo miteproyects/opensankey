@@ -1295,13 +1295,16 @@ def _inject_pill_hover_js(metric_map, color_map):
             }});
         }}
 
-        if (!setupPillHovers()) {{
-            var obs = new MutationObserver(function() {{
-                if (setupPillHovers()) obs.disconnect();
-            }});
-            obs.observe(parentDoc.body, {{childList: true, subtree: true}});
-            setTimeout(function() {{ setupPillHovers(); obs.disconnect(); }}, 8000);
-        }}
+        /* Persistent: re-bind pill hovers whenever Streamlit recreates buttons
+           (e.g. sidebar collapse/uncollapse triggers rerun). */
+        var _deb = null;
+        var obs = new MutationObserver(function() {{
+            clearTimeout(_deb);
+            _deb = setTimeout(function() {{ setupPillHovers(); }}, 200);
+        }});
+        obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+        setupPillHovers();
+        setInterval(function() {{ setupPillHovers(); }}, 3000);
     }})();
     </script>
     """
@@ -1343,38 +1346,41 @@ def _inject_sankey_click_js(metric_map):
 
             let attached = false;
             plots.forEach(function(plotDiv) {{
+                var sankeyEl = plotDiv.querySelector('.sankey');
+                if (!sankeyEl) return;
+
+                // Detect SVG rebuild
+                if (plotDiv._clickBoundSankeyRef !== sankeyEl) {{
+                    plotDiv._sankey_click_bound = false;
+                    plotDiv._clickBoundSankeyRef = sankeyEl;
+                }}
                 if (plotDiv._sankey_click_bound) return;
+
                 plotDiv.on('plotly_click', function(data) {{
                     if (!data || !data.points || !data.points[0]) return;
                     var pt = data.points[0];
-                    // Sankey nodes expose label; links expose source/target
                     var raw = pt.label || '';
-                    // Strip value after <br> or double-space, and remove star icon
                     var label = raw.split(/<br>|  /)[0].replace(/\\n/g, '').replace(/\u2605\\s*/g, '').trim();
                     if (!label || !VALID.has(label)) return;
                     clickPill(label);
                 }});
 
-                // Also attach click handlers to SVG text labels and node rects
-                var sankeyEl = plotDiv.querySelector('.sankey');
-                if (sankeyEl) {{
-                    var labels = sankeyEl.querySelectorAll('.node-label');
-                    var rects = sankeyEl.querySelectorAll('.node-rect');
-                    rects.forEach(function(r) {{ r.style.cursor = 'pointer'; }});
-                    labels.forEach(function(lbl) {{
-                        lbl.style.cursor = 'pointer';
-                        lbl.addEventListener('click', function(e) {{
-                            var raw = lbl.textContent || '';
-                            var name = raw.split(/\\n/)[0].trim();
-                            // Also try splitting on double-space for inline values
-                            name = name.split(/  /)[0].replace(/\u2605\\s*/g, '').trim();
-                            if (name && VALID.has(name)) {{
-                                clickPill(name);
-                                e.stopPropagation();
-                            }}
-                        }});
+                // Attach click handlers to SVG text labels and node rects
+                var labels = sankeyEl.querySelectorAll('.node-label');
+                var rects = sankeyEl.querySelectorAll('.node-rect');
+                rects.forEach(function(r) {{ r.style.cursor = 'pointer'; }});
+                labels.forEach(function(lbl) {{
+                    lbl.style.cursor = 'pointer';
+                    lbl.addEventListener('click', function(e) {{
+                        var raw = lbl.textContent || '';
+                        var name = raw.split(/\\n/)[0].trim();
+                        name = name.split(/  /)[0].replace(/\u2605\\s*/g, '').trim();
+                        if (name && VALID.has(name)) {{
+                            clickPill(name);
+                            e.stopPropagation();
+                        }}
                     }});
-                }}
+                }});
 
                 plotDiv._sankey_click_bound = true;
                 attached = true;
@@ -1382,13 +1388,15 @@ def _inject_sankey_click_js(metric_map):
             return attached;
         }}
 
-        // Retry until chart is rendered
-        if (!attach()) {{
-            var obs = new MutationObserver(function() {{
-                if (attach()) obs.disconnect();
-            }});
-            obs.observe(parentDoc.body, {{childList: true, subtree: true}});
-            setTimeout(function() {{ attach(); obs.disconnect(); }}, 8000);
+        /* Persistent: re-attach after sidebar toggle rebuilds the chart */
+        var _deb = null;
+        var obs = new MutationObserver(function() {{
+            clearTimeout(_deb);
+            _deb = setTimeout(function() {{ attach(); }}, 200);
+        }});
+        obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+        attach();
+        setInterval(function() {{ attach(); }}, 3000);
         }}
     }})();
     </script>
@@ -1501,6 +1509,12 @@ def _inject_node_hover_js(metric_map, color_map):
             plots.forEach(function(plotDiv) {{
                 var sankeyEl = plotDiv.querySelector('.sankey');
                 if (!sankeyEl) return;
+
+                // Detect SVG rebuild: if the .sankey element changed, rebind
+                if (plotDiv._boundSankeyRef !== sankeyEl) {{
+                    plotDiv._nodeHoverBound2 = false;
+                    plotDiv._boundSankeyRef = sankeyEl;
+                }}
                 if (plotDiv._nodeHoverBound2) return;
 
                 // Build label-to-index map from SVG text
@@ -1521,12 +1535,15 @@ def _inject_node_hover_js(metric_map, color_map):
                     if (!label || !color) return;
                     var idx = (typeof pt.pointNumber === 'number') ? pt.pointNumber : labelMap[label];
                     if (idx === undefined) return;
-                    highlightSankeyAndPill(idx, label, color, sankeyEl, plotDiv);
+                    // Re-query sankeyEl in case SVG was rebuilt
+                    var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
+                    highlightSankeyAndPill(idx, label, color, currentSankey, plotDiv);
                 }});
 
                 plotDiv.on('plotly_unhover', function() {{
                     resetPills();
-                    resetSankey(sankeyEl);
+                    var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
+                    resetSankey(currentSankey);
                 }});
 
                 plotDiv._nodeHoverBound2 = true;
@@ -1535,13 +1552,15 @@ def _inject_node_hover_js(metric_map, color_map):
             return attached;
         }}
 
-        if (!attach()) {{
-            var obs = new MutationObserver(function() {{
-                if (attach()) obs.disconnect();
-            }});
-            obs.observe(parentDoc.body, {{childList: true, subtree: true}});
-            setTimeout(function() {{ attach(); obs.disconnect(); }}, 8000);
-        }}
+        /* Persistent: re-attach after sidebar toggle rebuilds the chart */
+        var _deb = null;
+        var obs = new MutationObserver(function() {{
+            clearTimeout(_deb);
+            _deb = setTimeout(function() {{ attach(); }}, 200);
+        }});
+        obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+        attach();
+        setInterval(function() {{ attach(); }}, 3000);
     }})();
     </script>
     """
