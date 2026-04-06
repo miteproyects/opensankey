@@ -1582,12 +1582,30 @@ def _inject_delta_color_js():
         const GREEN = '#16a34a', RED = '#dc2626';
         const parentDoc = window.parent.document;
 
+        function needsColorize(label) {
+            /* Check if this label has unprocessed arrow chars in its raw tspans.
+               Plotly can rebuild label text in-place, overwriting our colored
+               tspans while keeping the same DOM node. Detect this by looking
+               for arrow chars in tspans that are NOT .delta-suffix. */
+            var tspans = label.querySelectorAll('tspan');
+            var targets = tspans.length ? tspans : [label];
+            for (var i = 0; i < targets.length; i++) {
+                if (targets[i].classList && targets[i].classList.contains('delta-suffix')) continue;
+                var txt = targets[i].textContent || '';
+                if (txt.indexOf(UP) >= 0 || txt.indexOf(DOWN) >= 0) return true;
+            }
+            return false;
+        }
+
         function colorize() {
             var labels = parentDoc.querySelectorAll('.sankey .node-label');
             if (!labels.length) return false;
             var did = false;
             labels.forEach(function(label) {
-                if (label._deltaColored) return;
+                if (!needsColorize(label)) return;
+                /* Remove any stale .delta-suffix tspans from a previous run
+                   (Plotly may have partially rebuilt the label). */
+                label.querySelectorAll('.delta-suffix').forEach(function(ds) { ds.remove(); });
                 var tspans = label.querySelectorAll('tspan');
                 var targets = tspans.length ? tspans : [label];
                 targets.forEach(function(el) {
@@ -1624,7 +1642,6 @@ def _inject_delta_color_js():
                         el.appendChild(colored);
                     }
                 });
-                label._deltaColored = true;
                 did = true;
             });
             return did;
@@ -1635,12 +1652,12 @@ def _inject_delta_color_js():
         var _debounce = null;
         var obs = new MutationObserver(function() {
             clearTimeout(_debounce);
-            _debounce = setTimeout(function() { colorize(); }, 150);
+            _debounce = setTimeout(function() { colorize(); }, 200);
         });
         obs.observe(parentDoc.body, {childList: true, subtree: true});
         colorize();
-        /* Also poll periodically as fallback for edge cases */
-        setInterval(function() { colorize(); }, 3000);
+        /* Poll frequently as fallback — catches in-place Plotly updates */
+        setInterval(function() { colorize(); }, 1500);
     })();
     </script>
     """
