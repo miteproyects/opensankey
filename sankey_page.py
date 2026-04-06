@@ -1339,8 +1339,11 @@ def _inject_sankey_click_js(metric_map):
             }}
         }}
 
+        function extractLabel(raw) {{
+            return (raw || '').split(/<br>|  /)[0].replace(/\\n/g, '').replace(/\u2605\\s*/g, '').trim();
+        }}
+
         function attach() {{
-            // Find all Plotly charts in parent
             const plots = parentDoc.querySelectorAll('.js-plotly-plot');
             if (!plots.length) return false;
 
@@ -1356,27 +1359,73 @@ def _inject_sankey_click_js(metric_map):
                 }}
                 if (plotDiv._sankey_click_bound) return;
 
+                // Build index-to-label map from SVG node labels
+                var nodeLabels = sankeyEl.querySelectorAll('.node-label');
+                var idxToLabel = {{}};
+                nodeLabels.forEach(function(lbl, idx) {{
+                    var txt = extractLabel(lbl.textContent);
+                    if (txt && VALID.has(txt)) idxToLabel[idx] = txt;
+                }});
+
                 plotDiv.on('plotly_click', function(data) {{
                     if (!data || !data.points || !data.points[0]) return;
                     var pt = data.points[0];
+                    // Node click: pt.label is set
                     var raw = pt.label || '';
-                    var label = raw.split(/<br>|  /)[0].replace(/\\n/g, '').replace(/\u2605\\s*/g, '').trim();
-                    if (!label || !VALID.has(label)) return;
-                    clickPill(label);
+                    var label = extractLabel(raw);
+                    if (label && VALID.has(label)) {{
+                        clickPill(label);
+                        return;
+                    }}
+                    // Link click: use target node label
+                    if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].link) {{
+                        var linkIdx = pt.pointNumber;
+                        if (linkIdx !== undefined && linkIdx !== null) {{
+                            var tgtIdx = plotDiv.data[0].link.target[linkIdx];
+                            var tgtLabel = idxToLabel[tgtIdx];
+                            if (tgtLabel) {{
+                                clickPill(tgtLabel);
+                                return;
+                            }}
+                            // Fallback to source
+                            var srcIdx = plotDiv.data[0].link.source[linkIdx];
+                            var srcLabel = idxToLabel[srcIdx];
+                            if (srcLabel) clickPill(srcLabel);
+                        }}
+                    }}
                 }});
 
                 // Attach click handlers to SVG text labels and node rects
-                var labels = sankeyEl.querySelectorAll('.node-label');
                 var rects = sankeyEl.querySelectorAll('.node-rect');
                 rects.forEach(function(r) {{ r.style.cursor = 'pointer'; }});
-                labels.forEach(function(lbl) {{
+                nodeLabels.forEach(function(lbl) {{
                     lbl.style.cursor = 'pointer';
                     lbl.addEventListener('click', function(e) {{
-                        var raw = lbl.textContent || '';
-                        var name = raw.split(/\\n/)[0].trim();
-                        name = name.split(/  /)[0].replace(/\u2605\\s*/g, '').trim();
+                        var name = extractLabel(lbl.textContent);
                         if (name && VALID.has(name)) {{
                             clickPill(name);
+                            e.stopPropagation();
+                        }}
+                    }});
+                }});
+
+                // Attach click handlers to link SVG paths
+                var links = sankeyEl.querySelectorAll('.sankey-link');
+                links.forEach(function(lnk, li) {{
+                    lnk.style.cursor = 'pointer';
+                    lnk.addEventListener('click', function(e) {{
+                        if (!plotDiv.data || !plotDiv.data[0] || !plotDiv.data[0].link) return;
+                        var tgtIdx = plotDiv.data[0].link.target[li];
+                        var tgtLabel = idxToLabel[tgtIdx];
+                        if (tgtLabel) {{
+                            clickPill(tgtLabel);
+                            e.stopPropagation();
+                            return;
+                        }}
+                        var srcIdx = plotDiv.data[0].link.source[li];
+                        var srcLabel = idxToLabel[srcIdx];
+                        if (srcLabel) {{
+                            clickPill(srcLabel);
                             e.stopPropagation();
                         }}
                     }});
