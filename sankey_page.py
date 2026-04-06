@@ -1223,23 +1223,42 @@ def _inject_pill_hover_js(metric_map, color_map):
             return bound;
         }}
 
+        function highlightKpi(label, color) {{
+            var metrics = parentDoc.querySelectorAll('[data-testid="stMetric"]');
+            metrics.forEach(function(card) {{
+                var lbl = card.querySelector('[data-testid="stMetricLabel"]');
+                if (!lbl) return;
+                if (lbl.textContent.trim() === label) {{
+                    card.style.boxShadow = '0 0 0 2px ' + hexToRgba(color, 0.5) + ', 0 0 16px 4px ' + hexToRgba(color, 0.3);
+                    card.style.transform = 'translateY(-2px)';
+                    card.style.transition = 'box-shadow 0.25s ease, transform 0.2s ease';
+                    card.style.borderRadius = '8px';
+                }}
+            }});
+        }}
+
+        function resetKpis() {{
+            var metrics = parentDoc.querySelectorAll('[data-testid="stMetric"]');
+            metrics.forEach(function(card) {{
+                card.style.boxShadow = '';
+                card.style.transform = '';
+            }});
+        }}
+
         function highlightSankey(pillLabel, color) {{
             var plots = parentDoc.querySelectorAll('.js-plotly-plot');
             plots.forEach(function(plotDiv) {{
                 var sankeyEl = plotDiv.querySelector('.sankey');
                 if (!sankeyEl) return;
 
-                // Dim all nodes
                 var nodeRects = sankeyEl.querySelectorAll('.node-rect');
                 var nodeLabels = sankeyEl.querySelectorAll('.node-label');
                 nodeRects.forEach(function(r) {{ r.style.opacity = '0.2'; r.style.transition = 'opacity 0.25s ease'; }});
                 nodeLabels.forEach(function(l) {{ l.style.opacity = '0.2'; l.style.transition = 'opacity 0.25s ease'; }});
 
-                // Dim all links
                 var links = sankeyEl.querySelectorAll('.sankey-link');
                 links.forEach(function(lnk) {{ lnk.style.opacity = '0.08'; lnk.style.transition = 'opacity 0.25s ease'; }});
 
-                // Find matching node index by label text
                 var matchIdx = -1;
                 nodeLabels.forEach(function(l, i) {{
                     var txt = (l.textContent || '').split(/\\n/)[0].trim().split(/  /)[0].replace(/\u2605\\s*/g, '').trim();
@@ -1254,14 +1273,12 @@ def _inject_pill_hover_js(metric_map, color_map):
                     nodeRects[matchIdx].style.filter = 'drop-shadow(0 0 8px ' + color + ')';
                 }}
 
-                // Bold delta suffixes on hovered node
                 if (matchIdx >= 0 && nodeLabels[matchIdx]) {{
                     nodeLabels[matchIdx].querySelectorAll('.delta-suffix').forEach(function(ds) {{
                         ds.setAttribute('font-weight', '700');
                     }});
                 }}
 
-                // Highlight connected links
                 if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].link) {{
                     var linkData = plotDiv.data[0].link;
                     links.forEach(function(lnk, li) {{
@@ -1271,6 +1288,7 @@ def _inject_pill_hover_js(metric_map, color_map):
                     }});
                 }}
             }});
+            highlightKpi(pillLabel, color);
         }}
 
         function resetSankey() {{
@@ -1293,6 +1311,7 @@ def _inject_pill_hover_js(metric_map, color_map):
                     lnk.style.opacity = '';
                 }});
             }});
+            resetKpis();
         }}
 
         /* Persistent: re-bind pill hovers whenever Streamlit recreates buttons
@@ -1514,8 +1533,31 @@ def _inject_node_hover_js(metric_map, color_map):
             }});
         }}
 
+        function highlightKpi(label, color) {{
+            var metrics = parentDoc.querySelectorAll('[data-testid="stMetric"]');
+            metrics.forEach(function(card) {{
+                var lbl = card.querySelector('[data-testid="stMetricLabel"]');
+                if (!lbl) return;
+                if (lbl.textContent.trim() === label) {{
+                    card.style.boxShadow = '0 0 0 2px ' + hexToRgba(color, 0.5) + ', 0 0 16px 4px ' + hexToRgba(color, 0.3);
+                    card.style.transform = 'translateY(-2px)';
+                    card.style.transition = 'box-shadow 0.25s ease, transform 0.2s ease';
+                    card.style.borderRadius = '8px';
+                }}
+            }});
+        }}
+
+        function resetKpis() {{
+            var metrics = parentDoc.querySelectorAll('[data-testid="stMetric"]');
+            metrics.forEach(function(card) {{
+                card.style.boxShadow = '';
+                card.style.transform = '';
+            }});
+        }}
+
         function highlightSankeyAndPill(nodeIdx, label, color, sankeyEl, plotDiv) {{
             highlightPill(label, color);
+            highlightKpi(label, color);
             var nodeRects = sankeyEl.querySelectorAll('.node-rect');
             var nodeLabels = sankeyEl.querySelectorAll('.node-label');
             nodeRects.forEach(function(r) {{ r.style.opacity = '0.2'; r.style.transition = 'opacity 0.25s ease'; }});
@@ -1556,6 +1598,7 @@ def _inject_node_hover_js(metric_map, color_map):
             sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
                 lnk.style.opacity = '';
             }});
+            resetKpis();
         }}
 
         function extractLabel(raw) {{
@@ -1946,8 +1989,9 @@ def _inject_link_hover_js(color_map):
             /* Keep hovered link brightest */
             if (links[linkIdx]) links[linkIdx].style.opacity = '0.85';
 
-            /* Highlight matching pills */
+            /* Highlight matching pills and KPI cards */
             var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
+            var kpiCards = parentDoc.querySelectorAll('[data-testid="stMetric"]');
             [srcIdx, tgtIdx].forEach(function(nIdx) {{
                 if (nIdx === undefined || nIdx === null || !nodeLabels[nIdx]) return;
                 var txt = extractLabel(nodeLabels[nIdx].textContent);
@@ -1959,6 +2003,15 @@ def _inject_link_hover_js(color_map):
                         btn.style.borderColor = color;
                         btn.style.boxShadow = '0 0 0 2px ' + hexToRgba(color, 0.4) + ', 0 0 10px 3px ' + hexToRgba(color, 0.35);
                         btn.style.color = color;
+                    }}
+                }});
+                kpiCards.forEach(function(card) {{
+                    var lbl = card.querySelector('[data-testid="stMetricLabel"]');
+                    if (lbl && lbl.textContent.trim() === txt) {{
+                        card.style.boxShadow = '0 0 0 2px ' + hexToRgba(color, 0.5) + ', 0 0 16px 4px ' + hexToRgba(color, 0.3);
+                        card.style.transform = 'translateY(-2px)';
+                        card.style.transition = 'box-shadow 0.25s ease, transform 0.2s ease';
+                        card.style.borderRadius = '8px';
                     }}
                 }});
             }});
@@ -1983,6 +2036,11 @@ def _inject_link_hover_js(color_map):
                 btn.style.borderColor = '';
                 btn.style.boxShadow = '';
                 btn.style.color = '';
+            }});
+            var kpiCards = parentDoc.querySelectorAll('[data-testid="stMetric"]');
+            kpiCards.forEach(function(card) {{
+                card.style.boxShadow = '';
+                card.style.transform = '';
             }});
         }}
 
