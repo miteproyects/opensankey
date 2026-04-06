@@ -1044,7 +1044,7 @@ _qp_page = st.query_params.get("page", "").lower()
 _qp_ticker = st.query_params.get("ticker", "").upper().strip()
 if _qp_ticker:
     st.session_state.ticker = _qp_ticker
-if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe", "privacy", "terms", "user", "dashboard"):
+if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", "login", "pricing", "nsfe", "privacy", "terms", "user", "dashboard", "sitemap"):
     st.session_state.page = _qp_page
 
 # ── Ticker access gating on page load ──
