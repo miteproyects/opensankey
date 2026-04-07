@@ -185,6 +185,76 @@ def _yoy_delta(current, previous, label="YoY"):
     return f"{pct:+.1f}% {label}"
 
 
+def _fq_end_month_s(q, fy_end):
+    """Return calendar month (1-12) when fiscal quarter q ends."""
+    m = fy_end - 3 * (4 - q)
+    while m <= 0:
+        m += 12
+    return m
+
+
+def _fq_end_year_s(q, fy, fy_end):
+    """Return calendar year when fiscal quarter q of FY fy ends."""
+    end_cal_month = fy_end - 3 * (4 - q)
+    end_cal_year = fy
+    while end_cal_month <= 0:
+        end_cal_month += 12
+        end_cal_year -= 1
+    return end_cal_year
+
+
+def _aggregate_partial_year(qtr_df, fy, n_quarters, fy_end, is_balance_sheet=False):
+    """Aggregate Q1-Q(n_quarters) of fiscal year `fy` into a single Series.
+
+    Income items: summed across quarters.
+    Balance sheet items: latest quarter's snapshot.
+    Returns (Series, label_timestamp) or (None, None) if no matching columns.
+    """
+    if qtr_df is None or qtr_df.empty:
+        return None, None
+
+    col_dates = []
+    for c in qtr_df.columns:
+        try:
+            col_dates.append((c, pd.Timestamp(c)))
+        except Exception:
+            col_dates.append((c, None))
+
+    matched_cols = []
+    for q in range(1, n_quarters + 1):
+        end_m = _fq_end_month_s(q, fy_end)
+        end_y = _fq_end_year_s(q, fy, fy_end)
+        for col_name, ts in col_dates:
+            if ts and ts.month == end_m and ts.year == end_y:
+                matched_cols.append(col_name)
+                break
+
+    if not matched_cols:
+        return None, None
+
+    if is_balance_sheet:
+        return qtr_df[matched_cols[-1]], matched_cols[-1]
+    else:
+        return qtr_df[matched_cols].sum(axis=1), matched_cols[-1]
+
+
+def _build_partial_year_df(qtr_df, fy_a, fy_b, n_quarters, fy_end, is_balance_sheet=False):
+    """Build a 2-column DataFrame aggregating Q1-Qn for two fiscal years.
+
+    Column 0 = Period A (fy_a), Column 1 = Period B (fy_b).
+    """
+    ser_a, ts_a = _aggregate_partial_year(qtr_df, fy_a, n_quarters, fy_end, is_balance_sheet)
+    ser_b, ts_b = _aggregate_partial_year(qtr_df, fy_b, n_quarters, fy_end, is_balance_sheet)
+    if ser_a is None and ser_b is None:
+        return qtr_df  # fallback to raw quarterly data
+    result = pd.DataFrame()
+    if ser_a is not None:
+        result[ts_a] = ser_a
+    if ser_b is not None:
+        result[ts_b] = ser_b
+    return result
+
+
 def _reorder_df_for_comparison(df, period_a, period_b, quarterly=False):
     """Reorder DataFrame columns so period_a is col 0, period_b is col 1.
 
@@ -3654,10 +3724,21 @@ def render_sankey_page():
 
     # Fetch data
     using_demo = False
+    _match_q = st.session_state.get("_sankey_annual_match_q", 4)
+    _sq = st.session_state.get("sankey_compare_quarterly", False)
+    _pa = st.session_state.get("sankey_period_a", None)
+    _pb = st.session_state.get("sankey_period_b", None)
+
+    # When Annual mode has an incomplete year, fetch quarterly data and aggregate
+    _partial_year = (not _sq) and (_match_q < 4) and _pa and _pb
+
     with st.spinner(f"Loading {ticker} financial data..."):
         try:
-            _sq = st.session_state.get("sankey_compare_quarterly", False)
-            income_df, balance_df, info = _fetch_sankey_data(ticker, quarterly=_sq)
+            if _partial_year:
+                # Fetch quarterly data to aggregate Q1-Qn for both years
+                income_df, balance_df, info = _fetch_sankey_data(ticker, quarterly=True)
+            else:
+                income_df, balance_df, info = _fetch_sankey_data(ticker, quarterly=_sq)
         except Exception:
             income_df, balance_df, info = pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
 
@@ -3667,12 +3748,29 @@ def render_sankey_page():
         using_demo = True
         st.info(f"\ud83d\udcc8 Showing sample data for **{ticker.upper()}** \u2013 SEC EDGAR data is temporarily unavailable. Refresh in a minute for live data.")
 
+    # --- Partial-year aggregation (Annual mode with incomplete FY) ---
+    if _partial_year and not using_demo:
+        _fy_end = st.session_state.get("_fy_end_month", 12)
+        try:
+            _fy_a = int(_pa)
+            _fy_b = int(_pb)
+            income_df = _build_partial_year_df(
+                income_df, _fy_a, _fy_b, _match_q, _fy_end, is_balance_sheet=False
+            )
+            balance_df = _build_partial_year_df(
+                balance_df, _fy_a, _fy_b, _match_q, _fy_end, is_balance_sheet=True
+            )
+        except Exception:
+            pass  # fall back to raw data if aggregation fails
+
     # --- Period comparison (from sidebar selectors) ---
-    _pa = st.session_state.get("sankey_period_a", None)
-    _pb = st.session_state.get("sankey_period_b", None)
     _sq2 = st.session_state.get("sankey_compare_quarterly", False)
     _same_period = False
-    if _pa and _pb and _pa != _pb:
+    if _partial_year:
+        # Already aggregated — col 0 = Period A, col 1 = Period B
+        _compare_label = f"vs {_pb}"
+        _compare_note = f"Comparing {_pa} (Q1-Q{_match_q}) vs {_pb} (Q1-Q{_match_q})"
+    elif _pa and _pb and _pa != _pb:
         income_df = _reorder_df_for_comparison(income_df, _pa, _pb, _sq2)
         balance_df = _reorder_df_for_comparison(balance_df, _pa, _pb, _sq2)
         _compare_label = f"vs {_pb}"

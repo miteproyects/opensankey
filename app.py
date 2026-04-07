@@ -2900,25 +2900,48 @@ with st.sidebar:
             if _compare_mode == "Annual":
                 # Build year list, annotating incomplete FYs with "(Qn included)"
                 _years = []
-                _year_labels = {}
+                _year_labels_a = {}   # Period A labels
+                _year_qs = {}         # completed quarter count per year
                 for _y in range(_cur_fy, _cur_fy - 11, -1):
                     _cq = _completed_qs_in_fy(_y, _fy_m_sk)
                     if _cq == 0:
                         continue  # skip years with no completed quarters
                     _ys = str(_y)
                     _years.append(_ys)
+                    _year_qs[_ys] = _cq
                     if _cq < 4:
-                        _year_labels[_ys] = f"{_y} (Q{_cq} included)"
+                        _year_labels_a[_ys] = f"{_y} (Q{_cq} included)"
                     else:
-                        _year_labels[_ys] = str(_y)
+                        _year_labels_a[_ys] = str(_y)
 
                 st.session_state.sankey_period_a = st.selectbox(
                     "Period A (show in Sankey)", _years, index=0, key="sk_pa",
-                    format_func=lambda y: _year_labels.get(y, y),
+                    format_func=lambda y: _year_labels_a.get(y, y),
                 )
+
+                # Determine how many Qs Period A covers — Period B matches
+                _sel_a = st.session_state.sankey_period_a
+                _match_q = _year_qs.get(_sel_a, 4)
+                st.session_state["_sankey_annual_match_q"] = _match_q
+
+                # Period B labels: annotate with "(Qn)" when Period A is incomplete
+                _year_labels_b = {}
+                for _ys in _years:
+                    _cq_b = _year_qs.get(_ys, 4)
+                    if _match_q < 4:
+                        # Cap at the match count (can't compare more Qs than A has)
+                        _show_q = min(_cq_b, _match_q)
+                        _year_labels_b[_ys] = f"{_ys} (Q{_show_q})"
+                    else:
+                        # Period A is a full year — show normal labels
+                        if _cq_b < 4:
+                            _year_labels_b[_ys] = f"{_ys} (Q{_cq_b} included)"
+                        else:
+                            _year_labels_b[_ys] = _ys
+
                 st.session_state.sankey_period_b = st.selectbox(
                     "Period B (compare to)", _years, index=min(1, len(_years) - 1), key="sk_pb",
-                    format_func=lambda y: _year_labels.get(y, y),
+                    format_func=lambda y: _year_labels_b.get(y, y),
                 )
                 st.session_state.sankey_compare_quarterly = False
             else:
