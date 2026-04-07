@@ -124,7 +124,7 @@ def _x(df: pd.DataFrame) -> list:
 # ---------------------------------------------------------------------------
 
 def create_income_chart(df: pd.DataFrame) -> go.Figure:
-    """Grouped bar – Revenue, Gross Profit, Operating Income, Net Income."""
+    """Grouped bar – auto-adapts title & legend based on available columns."""
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -135,15 +135,25 @@ def create_income_chart(df: pd.DataFrame) -> go.Figure:
         ("Net Income", COLORS["green"]),
     ]
     fig = go.Figure()
+    present = []
     for col, color in traces:
-        if col in df.columns:
+        if col in df.columns and df[col].notna().any() and (df[col] != 0).any():
             fig.add_trace(go.Bar(x=x, y=df[col], name=col, marker_color=color))
-    fig.update_layout(**_layout("Revenue, Gross Profit, Operating and Net Income", barmode="group"))
+            present.append(col)
+    # Build adaptive title from actually-present series
+    if present:
+        if len(present) <= 3:
+            title = ", ".join(present)
+        else:
+            title = ", ".join(present[:-1]) + " and " + present[-1]
+    else:
+        title = "Income Statement"
+    fig.update_layout(**_layout(title, barmode="group"))
     return fig
 
 
 def create_margins_chart(df: pd.DataFrame) -> go.Figure:
-    """Line chart – Gross / Operating / Net margin %."""
+    """Line chart – auto-adapts title & legend based on available margin columns."""
     if df.empty:
         return _empty_fig()
     x = _x(df)
@@ -153,15 +163,33 @@ def create_margins_chart(df: pd.DataFrame) -> go.Figure:
         ("Net Margin %", COLORS["red"]),
     ]
     fig = go.Figure()
+    present = []
     for col, color in traces:
-        if col in df.columns:
+        if col in df.columns and df[col].notna().any() and (df[col] != 0).any():
             fig.add_trace(go.Scatter(
                 x=x, y=df[col], name=col, mode="lines+markers",
                 line=dict(width=2.5, color=color),
                 marker=dict(size=7, color=color),
             ))
-    fig.update_layout(**_layout("Gross, Operating and Net Profit Margin (%)"))
+            present.append(col.replace(" %", ""))
+    # Build adaptive title
+    if present:
+        title = ", ".join(present) + " (%)"
+    else:
+        title = "Profit Margin (%)"
+    fig.update_layout(**_layout(title))
     fig.update_yaxes(ticksuffix="%")
+    # Cap y-axis when margins are extreme (e.g. -100,000% distorts the chart)
+    _all_vals = []
+    for col, _ in traces:
+        if col in df.columns:
+            _all_vals.extend(df[col].dropna().tolist())
+    if _all_vals:
+        _mn, _mx = min(_all_vals), max(_all_vals)
+        if _mn < -500 or _mx > 500:
+            _capped_min = max(_mn, -500)
+            _capped_max = min(_mx, 500)
+            fig.update_yaxes(range=[_capped_min - 20, _capped_max + 20])
     return fig
 
 

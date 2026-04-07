@@ -1779,8 +1779,14 @@ def compute_expense_ratios(income_df: pd.DataFrame, cf_df: pd.DataFrame) -> pd.D
         out["R&D to Revenue"] = (income_df["R&D Expenses"] / rev).round(4)
     # Align cash-flow data with income index (strip whitespace for safety)
     cf_aligned = cf_df.copy()
-    cf_aligned.index = cf_aligned.index.str.strip()
-    inc_idx_stripped = income_df.index.str.strip()
+    if cf_aligned.index.dtype == "object":
+        cf_aligned.index = cf_aligned.index.str.strip()
+    else:
+        cf_aligned.index = cf_aligned.index.astype(str).str.strip()
+    if income_df.index.dtype == "object":
+        inc_idx_stripped = income_df.index.str.strip()
+    else:
+        inc_idx_stripped = income_df.index.astype(str).str.strip()
     # Capex to Revenue (from cash flow statement)
     if "CapEx" in cf_aligned.columns:
         capex_series = cf_aligned["CapEx"].abs()
@@ -1812,8 +1818,14 @@ def compute_ebitda(income_df: pd.DataFrame, cf_df: pd.DataFrame) -> pd.DataFrame
         return pd.DataFrame()
     # Align D&A from cash flow to income index
     cf_aligned = cf_df.copy()
-    cf_aligned.index = cf_aligned.index.str.strip()
-    inc_idx_stripped = income_df.index.str.strip()
+    if cf_aligned.index.dtype == "object":
+        cf_aligned.index = cf_aligned.index.str.strip()
+    else:
+        cf_aligned.index = cf_aligned.index.astype(str).str.strip()
+    if income_df.index.dtype == "object":
+        inc_idx_stripped = income_df.index.str.strip()
+    else:
+        inc_idx_stripped = income_df.index.astype(str).str.strip()
     da_series = cf_aligned["D&A"].abs()
     da_mapped = pd.Series(
         [da_series.get(lbl, np.nan) for lbl in inc_idx_stripped],

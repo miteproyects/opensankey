@@ -2405,10 +2405,17 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                          ha="center", va="top", fontsize=20, fontweight="bold",
                          color="#0f172a")
 
-                _draw_kpi_row(fig, [
-                    ("Revenue", revenue), ("Gross Profit", gross_profit),
-                    ("Operating Income", op_income), ("Net Income", net_income),
-                ])
+                # Adaptive KPI row — only include metrics with data
+                _pdf_kpis = []
+                if revenue != 0:
+                    _pdf_kpis.append(("Revenue", revenue))
+                if gross_profit != 0:
+                    _pdf_kpis.append(("Gross Profit", gross_profit))
+                if op_income != 0 or not _pdf_kpis:
+                    _pdf_kpis.append(("Operating Income", op_income))
+                if net_income != 0 or len(_pdf_kpis) < 2:
+                    _pdf_kpis.append(("Net Income", net_income))
+                _draw_kpi_row(fig, _pdf_kpis)
 
                 ax = fig.add_axes([0.06, 0.05, 0.88, 0.78])
                 _draw_sankey(ax, nodes, links, revenue)
@@ -3746,7 +3753,6 @@ def render_sankey_page():
 
     if sankey_view == "income":
         # ââ Historical trend selector (popup) ââ
-        metric_options = list(INCOME_NODE_METRICS.keys())
         st.markdown(f'<div class="sankey-compare-card">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
         # ââ KPI Metric Cards ââ
@@ -3773,14 +3779,41 @@ def render_sankey_page():
             oi_prev = op_income
             ni_prev = net_income
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Revenue", _fmt(revenue), _yoy_delta(revenue, rev_prev, _compare_label))
-        m2.metric("Gross Profit", _fmt(gross_profit), _yoy_delta(gross_profit, gp_prev, _compare_label))
-        m3.metric("Operating Income", _fmt(op_income), _yoy_delta(op_income, oi_prev, _compare_label))
-        m4.metric("Net Income", _fmt(net_income), _yoy_delta(net_income, ni_prev, _compare_label))
+        # Build adaptive KPI cards — only show metrics that have data
+        _kpi_items = []
+        if revenue != 0:
+            _kpi_items.append(("Revenue", revenue, rev_prev))
+        if gross_profit != 0:
+            _kpi_items.append(("Gross Profit", gross_profit, gp_prev))
+        if op_income != 0 or (revenue == 0 and net_income != 0):
+            _kpi_items.append(("Operating Income", op_income, oi_prev))
+        if net_income != 0 or op_income != 0:
+            _kpi_items.append(("Net Income", net_income, ni_prev))
+        # Fallback: always show at least Operating Income + Net Income
+        if not _kpi_items:
+            _kpi_items = [
+                ("Operating Income", op_income, oi_prev),
+                ("Net Income", net_income, ni_prev),
+            ]
+        _kpi_cols = st.columns(len(_kpi_items))
+        for _ki, (_kl, _kv, _kp) in enumerate(_kpi_items):
+            _kpi_cols[_ki].metric(_kl, _fmt(_kv), _yoy_delta(_kv, _kp, _compare_label))
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
         st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div></div>', unsafe_allow_html=True)
+        # Build adaptive pill tags — filter out metrics without data
+        _has_rev = revenue != 0
+        _has_gp = gross_profit != 0
+        _has_cogs = cogs_kpi != 0
+        _skip_pills = set()
+        if not _has_rev:
+            _skip_pills.add("Revenue")
+        if not _has_cogs:
+            _skip_pills.add("Cost of Revenue")
+        if not _has_gp:
+            _skip_pills.add("Gross Profit")
+        metric_options = [k for k in INCOME_NODE_METRICS.keys() if k not in _skip_pills]
+
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill")
         if sel:

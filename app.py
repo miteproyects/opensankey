@@ -1548,7 +1548,18 @@ def _render_chart(fig, key: str):
                 unsafe_allow_html=True,
             )
         with _tc2:
-            info_data = CHART_INFO.get(chart_title, {})
+            # Exact match first, then fuzzy: find CHART_INFO key whose
+            # significant keywords appear in the dynamic title.
+            info_data = CHART_INFO.get(chart_title, None)
+            if info_data is None:
+                for _ci_key, _ci_val in CHART_INFO.items():
+                    # Match if the chart title contains any 2+ keywords from the key
+                    _kw = [w for w in _ci_key.split() if len(w) > 3]
+                    if sum(1 for w in _kw if w in chart_title) >= min(2, len(_kw)):
+                        info_data = _ci_val
+                        break
+                if info_data is None:
+                    info_data = {}
             with st.popover("i"):
                 st.markdown(f"### {chart_title}")
                 # Section 1: What it means
