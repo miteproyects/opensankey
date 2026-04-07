@@ -3889,7 +3889,10 @@ def render_sankey_page():
             _inject_link_hover_js(INCOME_PILL_COLORS)
             _inject_delta_color_js()
         else:
-            st.warning(f"No income statement data available for {ticker}.")
+            if revenue == 0 and (op_income != 0 or net_income != 0):
+                st.info(f"Sankey diagram requires revenue data. {ticker} is a pre-revenue company — use the pill tags above to explore individual metrics.")
+            else:
+                st.warning(f"No income statement data available for {ticker}.")
 
         st.caption(f"QuarterCharts \u00b7 SEC EDGAR data \u00b7 {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
 
