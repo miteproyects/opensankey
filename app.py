@@ -2865,13 +2865,12 @@ with st.sidebar:
                 )
                 st.session_state.sankey_compare_quarterly = True
 
-        # ---- Fiscal Calendar widget (charts + sankey) — Option A compact ----
+        # ---- Unified fiscal info widget (charts + sankey) ----
         st.markdown("---")
         try:
             from data_fetcher import get_fiscal_calendar, get_next_earnings, _MONTH_NAMES as _MN
             _fc = get_fiscal_calendar(ticker)
             _fc_quarters = _fc.get("quarters", [])
-            _fy_label = _fc.get("fy_end_label", "December")
             _fy_month = _fc.get("fy_end_month", 12)
 
             # ── Compute Q1-Q4 month ranges from FY end month ──
@@ -2885,145 +2884,27 @@ with st.sidebar:
                     _em -= 12
                 _q_month_ranges[f"Q{_qi+1}"] = f"{_MN[_sm]}–{_MN[_em]}"
 
-            # ── Find MOST RECENT COMPLETED quarter ──
-            _today_str = pd.Timestamp.now().normalize().isoformat()[:10]
-            _viewing_q = None
-            for _fq in _fc_quarters:
-                _pe = _fq.get("period_end", "")
-                _fd = _fq.get("filing_date", "")
-                if _pe and _pe <= _today_str:
-                    _viewing_q = _fq
-                    break
-                if _fd and _fd <= _today_str:
-                    _viewing_q = _fq
-                    break
-
-            # Fallback: no period_end data (e.g. Finnhub source) — compute
-            # which quarter is completed based on today and FY end month.
-            if not _viewing_q and _fc_quarters:
-                from datetime import date as _dt
-                _td = _dt.today()
-                _cur_m = _td.month
-                # Q1 starts in month after FY end. Determine which quarter
-                # the current month falls into, then pick the PREVIOUS one.
-                _q1_start = (_fy_month % 12) + 1  # first month of Q1
-                _months_in = (_cur_m - _q1_start) % 12  # 0-based offset
-                _cur_qn = _months_in // 3 + 1  # current in-progress Q (1-4)
-                _prev_qn = ((_cur_qn - 2) % 4) + 1  # previous completed Q
-
-                # Compute FY year for the previous completed quarter
-                _prev_qk = f"Q{_prev_qn}"
-                # Previous Q's last month
-                _pq_end_m = (_q1_start + _prev_qn * 3 - 1)
-                while _pq_end_m > 12:
-                    _pq_end_m -= 12
-                # Determine the calendar year of that end month
-                if _pq_end_m <= _cur_m:
-                    _pq_cal_yr = _td.year
-                else:
-                    _pq_cal_yr = _td.year - 1
-                # FY year: for non-Dec FY, FY year = calendar year of FY end
-                if _fy_month == 12:
-                    _pq_fy_yr = _pq_cal_yr
-                else:
-                    # FY year is the year the FY ends in
-                    # e.g. NVDA FY ends Jan, Q4 Nov-Jan → if Jan 2026, FY2026
-                    _fy_end_of_prev = _pq_end_m
-                    if _fy_end_of_prev > _fy_month:
-                        _pq_fy_yr = _pq_cal_yr + 1
-                    else:
-                        _pq_fy_yr = _pq_cal_yr
-
-                _prev_label = f"{_prev_qk} FY{_pq_fy_yr}"
-                # Try to match in existing quarters list
-                for _fq in _fc_quarters:
-                    if _fq.get("label", "") == _prev_label:
-                        _viewing_q = _fq
-                        break
-                # If not found, build a synthetic entry
-                if not _viewing_q:
-                    _months_str = _q_month_ranges.get(_prev_qk, "")
-                    _viewing_q = {
-                        "quarter": _prev_qk,
-                        "months": _months_str,
-                        "period_end": "",
-                        "filing_date": "",
-                        "earnings_date": "",
-                        "label": _prev_label,
-                        "calendar_year": str(_pq_cal_yr),
-                    }
-
-            # Use the actual chart period label (stored in session_state after
-            # chart data loads) so the widget matches the chart x-axis exactly.
-            # Falls back to fiscal calendar label on first render.
+            # ── Determine "Latest" label from chart data ──
             _chart_last = st.session_state.get("_last_chart_period", "")
             if _chart_last:
-                _viewing_label = _chart_last
-                # Extract quarter number from chart label e.g. "Q4 2025" → "Q4"
-                _viewing_qnum = _chart_last.split()[0] if _chart_last.startswith("Q") else ""
-            elif _viewing_q:
-                _viewing_label = _viewing_q.get("label", "")
-                _viewing_qnum = _viewing_q.get("quarter", "")
+                _latest_label = _chart_last
+                _latest_qnum = _chart_last.split()[0] if _chart_last.startswith("Q") else ""
             else:
-                _viewing_label = ""
-                _viewing_qnum = ""
+                # Fallback: compute from FY end month and today
+                from datetime import date as _dt
+                _td = _dt.today()
+                _q1_start = (_fy_month % 12) + 1
+                _months_in = (_td.month - _q1_start) % 12
+                _cur_qn = _months_in // 3 + 1
+                _prev_qn = ((_cur_qn - 2) % 4) + 1
+                _latest_qnum = f"Q{_prev_qn}"
+                _latest_label = _latest_qnum
 
-            # ── Build quarter row (single compact line) ──
-            _q_items = ""
-            for _qi in range(1, 5):
-                _qk = f"Q{_qi}"
-                _months = _q_month_ranges.get(_qk, "")
-                _is_act = (_qk == _viewing_qnum)
-                if _is_act:
-                    _q_items += (
-                        f'<span style="color:#60a5fa;font-weight:700;">&#9654;&nbsp;{_qk}</span>'
-                        f'<span style="color:#94a3b8;font-size:0.78rem;">{_months}</span>'
-                    )
-                else:
-                    _q_items += (
-                        f'<span style="color:#64748b;font-weight:600;">{_qk}</span>'
-                        f'<span style="color:#475569;font-size:0.78rem;">{_months}</span>'
-                    )
-                if _qi < 4:
-                    _q_items += '<span style="color:#334155;margin:0 2px;">&#183;</span>'
+            # Month range for the latest quarter
+            _latest_months = _q_month_ranges.get(_latest_qnum, "")
 
-            # ── Viewing line ──
-            _viewing_line = ""
-            if _viewing_q:
-                _pe = _viewing_q.get("period_end", "")
-                _pe_fmt = ""
-                if _pe:
-                    try:
-                        _pe_fmt = pd.Timestamp(_pe).strftime("%b %d, %Y")
-                    except Exception:
-                        _pe_fmt = _pe
-                _period_info = f" &middot; ended {_pe_fmt}" if _pe_fmt else ""
-                _viewing_line = (
-                    f'<div style="font-size:0.78rem;color:#94a3b8;margin-top:8px;">'
-                    f'Viewing: <strong style="color:#e2e8f0;">{_viewing_label}</strong>'
-                    f'{_period_info}</div>'
-                )
-
-            # ── Render main card ──
-            st.markdown(
-                f'<div style="border-radius:10px;background:rgba(255,255,255,0.03);'
-                f'border:1px solid rgba(255,255,255,0.07);padding:12px 14px;margin-top:4px;">'
-                f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
-                f'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" '
-                f'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-                f'<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>'
-                f'<line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>'
-                f'<line x1="3" y1="10" x2="21" y2="10"/></svg>'
-                f'<span style="font-size:0.85rem;font-weight:700;color:#e2e8f0;">Fiscal Calendar</span>'
-                f'<span style="font-size:0.72rem;color:#64748b;margin-left:auto;">'
-                f'FY ends {_fy_label}</span></div>'
-                f'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;'
-                f'font-size:0.8rem;line-height:1.6;">{_q_items}</div>'
-                f'{_viewing_line}</div>',
-                unsafe_allow_html=True,
-            )
-
-            # ── Next Earnings (Finnhub — same source as Earnings Calendar page) ──
+            # ── Next Earnings data ──
+            _ne_line = ""
             try:
                 _ne = get_next_earnings(ticker)
                 if _ne and _ne.get("date"):
@@ -3035,50 +2916,67 @@ with st.sidebar:
                         _nef = _nedt.strftime("%b %d, %Y")
                         _du = (_nedt - pd.Timestamp.now().normalize()).days
                         if _du == 0:
-                            _ds = "Today"
+                            _ds = "today"
                         elif _du == 1:
-                            _ds = "Tomorrow"
+                            _ds = "tomorrow"
                         elif _du > 0:
                             _ds = f"in {_du}d"
                     except Exception:
                         pass
-                    # Convert fiscal-year event label to match chart convention
-                    # Finnhub uses "Q1 FY2027 Earnings"; charts use "Q1 2026"
-                    _nev_raw = _ne.get("event", "Earnings")
-                    _ne_yr = _ne.get("year", "")
                     _ne_qn = _ne.get("quarter", "")
+                    _ne_yr = _ne.get("year", "")
                     if _ne_qn and _ne_yr:
                         try:
                             _cy = int(_ne_yr) - (0 if _fy_month == 12 else 1)
-                            _nev = f"{_ne_qn} {_cy} Earnings"
+                            _ne_qlabel = f"{_ne_qn} {_cy}"
                         except (ValueError, TypeError):
-                            _nev = _nev_raw
+                            _ne_qlabel = ""
                     else:
-                        _nev = _nev_raw
-                    _net = _ne.get("call_time", "")
-                    _net_h = f' ({_net})' if _net and _net != "TBD" else ""
-                    _ds_b = (
-                        f'<span style="background:rgba(34,197,94,0.12);color:#22c55e;'
-                        f'font-size:0.68rem;font-weight:600;padding:1px 6px;border-radius:4px;'
-                        f'margin-left:6px;">{_ds}</span>' if _ds else ""
+                        _ne_qlabel = ""
+                    _ne_ql_part = f' ({_ne_qlabel})' if _ne_qlabel else ""
+                    _ds_part = f' &mdash; {_ds}' if _ds else ""
+                    _ne_line = (
+                        f'<div style="font-size:0.78rem;color:#94a3b8;margin-top:4px;">'
+                        f'Next Earnings{_ne_ql_part}: '
+                        f'<strong style="color:#fbbf24;">{_nef}</strong>'
+                        f'{_ds_part}</div>'
                     )
-                    st.markdown(
-                        f'<div style="padding:8px 12px;border-radius:8px;margin-top:6px;'
-                        f'background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.12);">'
-                        f'<div style="display:flex;align-items:center;gap:6px;">'
-                        f'<span style="font-size:0.78rem;color:#fbbf24;font-weight:600;">'
-                        f'Next Earnings:</span>'
-                        f'<span style="font-size:0.78rem;color:#e2e8f0;font-weight:600;">'
-                        f'{_nef}{_net_h}</span>{_ds_b}</div>'
-                        f'<div style="font-size:0.72rem;color:#64748b;margin-top:2px;">{_nev}</div>'
-                        f'</div>',
-                        unsafe_allow_html=True,
-                    )
-            except Exception as _ne_err:
-                print(f"[Sidebar] Next earnings error: {_ne_err}")
+            except Exception:
+                pass
+
+            # ── Build fiscal calendar row: Q1 (Mon–Mon) · Q2 (...) ──
+            _fc_items = ""
+            for _qi in range(1, 5):
+                _qk = f"Q{_qi}"
+                _months = _q_month_ranges.get(_qk, "")
+                _fc_items += f'<span style="color:#64748b;">{_qk}</span>'
+                _fc_items += f'<span style="color:#475569;font-size:0.76rem;">({_months})</span>'
+                if _qi < 4:
+                    _fc_items += '<span style="color:#334155;margin:0 2px;">&#183;</span>'
+
+            # ── Render single unified card ──
+            st.markdown(
+                f'<div style="border-radius:10px;background:rgba(255,255,255,0.03);'
+                f'border:1px solid rgba(255,255,255,0.07);padding:12px 14px;margin-top:4px;">'
+                # Line 1: Latest from TICKER: Q4 2025 (Nov–Jan)
+                f'<div style="font-size:0.82rem;color:#94a3b8;">'
+                f'Latest from <strong style="color:#e2e8f0;">{ticker}</strong>: '
+                f'<strong style="color:#60a5fa;">{_latest_label}</strong>'
+                f' <span style="color:#475569;font-size:0.76rem;">({_latest_months})</span>'
+                f'</div>'
+                # Line 2: Next Earnings (Q1 2026): May 20, 2026 — in 43d
+                f'{_ne_line}'
+                # Line 3: Fiscal calendar row
+                f'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;'
+                f'font-size:0.78rem;line-height:1.6;margin-top:6px;color:#64748b;">'
+                f'<span style="color:#94a3b8;font-weight:600;">{ticker} Fiscal Calendar:</span> '
+                f'{_fc_items}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
         except Exception as _fc_err:
-            print(f"[Sidebar] Fiscal Calendar error: {_fc_err}")
+            print(f"[Sidebar] Fiscal widget error: {_fc_err}")
 
         # ---- Status ----
         st.markdown(
