@@ -2953,8 +2953,20 @@ with st.sidebar:
                         "calendar_year": str(_pq_cal_yr),
                     }
 
-            _viewing_label = _viewing_q.get("label", "") if _viewing_q else ""
-            _viewing_qnum = _viewing_q.get("quarter", "") if _viewing_q else ""
+            # Use the actual chart period label (stored in session_state after
+            # chart data loads) so the widget matches the chart x-axis exactly.
+            # Falls back to fiscal calendar label on first render.
+            _chart_last = st.session_state.get("_last_chart_period", "")
+            if _chart_last:
+                _viewing_label = _chart_last
+                # Extract quarter number from chart label e.g. "Q4 2025" → "Q4"
+                _viewing_qnum = _chart_last.split()[0] if _chart_last.startswith("Q") else ""
+            elif _viewing_q:
+                _viewing_label = _viewing_q.get("label", "")
+                _viewing_qnum = _viewing_q.get("quarter", "")
+            else:
+                _viewing_label = ""
+                _viewing_qnum = ""
 
             # ── Build quarter row (single compact line) ──
             _q_items = ""
@@ -3030,7 +3042,19 @@ with st.sidebar:
                             _ds = f"in {_du}d"
                     except Exception:
                         pass
-                    _nev = _ne.get("event", "Earnings")
+                    # Convert fiscal-year event label to match chart convention
+                    # Finnhub uses "Q1 FY2027 Earnings"; charts use "Q1 2026"
+                    _nev_raw = _ne.get("event", "Earnings")
+                    _ne_yr = _ne.get("year", "")
+                    _ne_qn = _ne.get("quarter", "")
+                    if _ne_qn and _ne_yr:
+                        try:
+                            _cy = int(_ne_yr) - (0 if _fy_month == 12 else 1)
+                            _nev = f"{_ne_qn} {_cy} Earnings"
+                        except (ValueError, TypeError):
+                            _nev = _nev_raw
+                    else:
+                        _nev = _nev_raw
                     _net = _ne.get("call_time", "")
                     _net_h = f' ({_net})' if _net and _net != "TBD" else ""
                     _ds_b = (
@@ -3246,6 +3270,10 @@ forecast = _forecast_future  # already fetched in parallel above
 income_df = _trim_timeframe(income_df)
 balance_df = _trim_timeframe(balance_df)
 cashflow_df = _trim_timeframe(cashflow_df)
+
+# Store last chart period label so the sidebar Viewing widget matches chart x-axis
+if not income_df.empty:
+    st.session_state["_last_chart_period"] = income_df.index[-1]
 
 # Compute derived data
 margins_df = compute_margins(income_df)
