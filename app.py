@@ -2877,15 +2877,54 @@ with st.sidebar:
                     _cur_fy = _cur_year + 1
                 else:
                     _cur_fy = _cur_year
+
+                # Determine latest COMPLETED fiscal quarter.
+                # Q_n end month = (FY_end_month - 3*(4-n)) mod 12
+                # e.g. ORCL FY end=5: Q4 ends May(5), Q3 ends Feb(2),
+                #      Q2 ends Nov(11), Q1 ends Aug(8)
+                def _fq_end_month(q, fy_end):
+                    """Return calendar month (1-12) when fiscal quarter q ends."""
+                    m = fy_end - 3 * (4 - q)
+                    while m <= 0:
+                        m += 12
+                    return m
+
+                def _fq_end_year(q, fy, fy_end):
+                    """Return calendar year when fiscal quarter q of FY fy ends."""
+                    end_m = _fq_end_month(q, fy_end)
+                    # FY label = calendar year of Q4 end.  Work backwards.
+                    # Months from Q_n end to Q4 end (FY end):
+                    months_to_fy_end = 3 * (4 - q)
+                    # Calendar month of FY end in this FY
+                    fy_end_cal_year = fy  # FY 2026 Q4 ends May 2026
+                    # Go back months_to_fy_end from (fy_end_cal_year, fy_end)
+                    end_cal_month = fy_end - months_to_fy_end
+                    end_cal_year = fy_end_cal_year
+                    while end_cal_month <= 0:
+                        end_cal_month += 12
+                        end_cal_year -= 1
+                    return end_cal_year
+
                 _quarters = []
                 for _fy in range(_cur_fy, _cur_fy - 6, -1):
                     for _fq in range(4, 0, -1):
-                        _quarters.append(f"Q{_fq} {_fy}")
+                        # Check if this quarter has ended
+                        _end_m = _fq_end_month(_fq, _fy_m_sk)
+                        _end_y = _fq_end_year(_fq, _fy, _fy_m_sk)
+                        # Quarter is complete if its end month/year is in the past
+                        if (_end_y < _cur_year) or (_end_y == _cur_year and _end_m < _cur_month):
+                            _quarters.append(f"Q{_fq} {_fy}")
+                if not _quarters:
+                    # Fallback: show at least some quarters
+                    for _fy in range(_cur_fy - 1, _cur_fy - 6, -1):
+                        for _fq in range(4, 0, -1):
+                            _quarters.append(f"Q{_fq} {_fy}")
                 st.session_state.sankey_period_a = st.selectbox(
                     "Period A (show in Sankey)", _quarters, index=0, key="sk_qa"
                 )
+                _pb_idx = min(4, len(_quarters) - 1)
                 st.session_state.sankey_period_b = st.selectbox(
-                    "Period B (compare to)", _quarters, index=4, key="sk_qb"
+                    "Period B (compare to)", _quarters, index=_pb_idx, key="sk_qb"
                 )
                 st.session_state.sankey_compare_quarterly = True
 
