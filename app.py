@@ -2947,17 +2947,23 @@ with st.sidebar:
             except Exception:
                 pass
 
-            # ── Build fiscal calendar pills: Q1 (Mon–Mon) · Q2 (...) ──
-            _fc_items = ""
-            for _qi in range(1, 5):
-                _qk = f"Q{_qi}"
-                _months = _q_month_ranges.get(_qk, "")
-                _fc_items += (
-                    f'<span style="font-weight:600;color:#cbd5e1;">{_qk}</span>'
-                    f'<span style="color:#64748b;"> ({_months})</span>'
+            # ── Build fiscal calendar 2x2 grid ──
+            _fc_grid = ""
+            _pairs = [(1, 3), (2, 4)]  # rows: Q1·Q3, Q2·Q4
+            for _left, _right in _pairs:
+                _lk = f"Q{_left}"
+                _rk = f"Q{_right}"
+                _lm = _q_month_ranges.get(_lk, "")
+                _rm = _q_month_ranges.get(_rk, "")
+                _fc_grid += (
+                    f'<div style="display:flex;align-items:center;gap:0;line-height:1.8;">'
+                    f'<span style="flex:1;"><span style="font-weight:600;color:#cbd5e1;">{_lk}</span>'
+                    f' <span style="color:#64748b;">({_lm})</span></span>'
+                    f'<span style="color:#334155;margin:0 8px;">·</span>'
+                    f'<span style="flex:1;"><span style="font-weight:600;color:#cbd5e1;">{_rk}</span>'
+                    f' <span style="color:#64748b;">({_rm})</span></span>'
+                    f'</div>'
                 )
-                if _qi < 4:
-                    _fc_items += '<span style="color:#334155;margin:0 3px;">·</span>'
 
             # ── Shared box style ──
             _box = (
@@ -2987,11 +2993,11 @@ with st.sidebar:
                     f'</div>'
                 )
 
-            # ── Box 3: Fiscal Calendar ──
+            # ── Box 3: Fiscal Calendar (2×2 grid) ──
             _box3 = (
                 f'<div style="{_box}margin-top:6px;">'
                 f'<div style="{_title}margin-bottom:4px;">{ticker} Fiscal Calendar</div>'
-                f'<div style="{_val}line-height:1.7;">{_fc_items}</div>'
+                f'<div style="{_val}">{_fc_grid}</div>'
                 f'</div>'
             )
 
