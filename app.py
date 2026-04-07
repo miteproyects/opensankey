@@ -2868,251 +2868,162 @@ with st.sidebar:
         # ---- Fiscal Calendar widget (charts + sankey) ----
         st.markdown("---")
         try:
-            from data_fetcher import get_fiscal_calendar
+            from data_fetcher import get_fiscal_calendar, get_next_earnings, _MONTH_NAMES as _MN
             _fc = get_fiscal_calendar(ticker)
             _fc_quarters = _fc.get("quarters", [])
             _fy_label = _fc.get("fy_end_label", "December")
             _fy_month = _fc.get("fy_end_month", 12)
+            _is_non_dec = _fy_month != 12
+            _fy_note = ' <span style="color:#f59e0b;font-size:0.68rem;">(non-standard)</span>' if _is_non_dec else ""
 
-            # Determine currently viewed period label to highlight
-            # Sankey uses calendar-quarter labels like "Q4 2025",
-            # fiscal calendar uses "Q4 FY2025". Match by period_end date.
+            # ── Compute Q1-Q4 month ranges directly from FY end month ──
+            _q_month_ranges = {}
+            for _qi in range(4):
+                _sm = (_fy_month % 12) + 1 + _qi * 3
+                while _sm > 12:
+                    _sm -= 12
+                _em = _sm + 2
+                while _em > 12:
+                    _em -= 12
+                _q_month_ranges[f"Q{_qi+1}"] = f"{_MN[_sm]} – {_MN[_em]}"
+
+            # ── Determine currently viewed period to highlight ──
             _fc_active = ""
             if current_page == "sankey":
                 _sk_period = st.session_state.get("sankey_period_a", "")
-                # Try to match calendar quarter to a fiscal quarter
                 if _sk_period and _fc_quarters:
                     for _fq in _fc_quarters:
-                        # Convert fiscal quarter's period_end to calendar quarter label
                         try:
                             _pe_dt = pd.Timestamp(_fq["period_end"])
                             from data_fetcher import _quarter_label
-                            _cal_label = _quarter_label(_pe_dt)
-                            if _cal_label == _sk_period:
+                            if _quarter_label(_pe_dt) == _sk_period:
                                 _fc_active = _fq.get("label", "")
                                 break
                         except Exception:
                             pass
                 if not _fc_active:
-                    _fc_active = _sk_period  # fallback: direct match
+                    _fc_active = _sk_period
             else:
-                # Charts page: highlight most recent quarter
                 if st.session_state.get("quarterly", True) and _fc_quarters:
                     _fc_active = _fc_quarters[0].get("label", "")
 
-            if _fc_quarters:
-                # Build Q1-Q4 month range reference (from first 4 unique quarters)
-                _seen_q = {}
+            # ── Build quarter rows HTML ──
+            _q_rows = ""
+            for _qi in range(1, 5):
+                _qk = f"Q{_qi}"
+                _months = _q_month_ranges.get(_qk, "")
+                _match = None
                 for _fq in _fc_quarters:
-                    qn = _fq["quarter"]
-                    if qn not in _seen_q:
-                        _seen_q[qn] = _fq["months"]
-                    if len(_seen_q) >= 4:
+                    if _fq["quarter"] == _qk:
+                        _match = _fq
                         break
+                _is_act = _match and _fc_active and _match.get("label", "") == _fc_active
+                _arr = "&#9654;" if _is_act else ""
+                _abg = "rgba(59,130,246,0.12)" if _is_act else "transparent"
+                _abd = "rgba(59,130,246,0.3)" if _is_act else "transparent"
+                _acl = "#60a5fa" if _is_act else "#94a3b8"
+                _q_rows += (
+                    f'<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;'
+                    f'border-radius:6px;background:{_abg};border:1px solid {_abd};margin-bottom:3px;">'
+                    f'<span style="color:#3b82f6;font-size:0.65rem;width:12px;text-align:center;">{_arr}</span>'
+                    f'<span style="color:{_acl};font-weight:600;font-size:0.82rem;min-width:24px;">{_qk}</span>'
+                    f'<span style="color:#64748b;font-size:0.78rem;">{_months}</span>'
+                    f'</div>'
+                )
 
-                # Build the quarter rows HTML
-                _q_rows = ""
-                for qi in range(1, 5):
-                    qk = f"Q{qi}"
-                    months = _seen_q.get(qk, "")
-                    # Find if any recent quarter matches
-                    _match = None
-                    for _fq in _fc_quarters:
-                        if _fq["quarter"] == qk:
-                            _match = _fq
-                            break
-                    is_active = _match and _fc_active and _match.get("label", "") == _fc_active
-                    _arrow = "&#9654;" if is_active else ""
-                    _active_bg = "rgba(59,130,246,0.12)" if is_active else "transparent"
-                    _active_border = "rgba(59,130,246,0.3)" if is_active else "transparent"
-                    _active_color = "#60a5fa" if is_active else "#94a3b8"
-                    _q_rows += f'''<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;
-                        border-radius:6px;background:{_active_bg};border:1px solid {_active_border};
-                        margin-bottom:3px;transition:all 0.2s;">
-                        <span style="color:#3b82f6;font-size:0.65rem;width:12px;text-align:center;">{_arrow}</span>
-                        <span style="color:{_active_color};font-weight:600;font-size:0.82rem;min-width:24px;">{qk}</span>
-                        <span style="color:#64748b;font-size:0.78rem;">{months}</span>
-                    </div>'''
+            # ── Render header + FY end + quarter rows (one st.markdown) ──
+            st.markdown(
+                f'<div style="border-radius:10px;background:rgba(255,255,255,0.03);'
+                f'border:1px solid rgba(255,255,255,0.07);padding:14px 14px 10px;margin-top:4px;">'
+                f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
+                f'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" '
+                f'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+                f'<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>'
+                f'<line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>'
+                f'<line x1="3" y1="10" x2="21" y2="10"/></svg>'
+                f'<span style="font-size:0.88rem;font-weight:700;color:#e2e8f0;">Fiscal Calendar</span></div>'
+                f'<div style="font-size:0.75rem;color:#64748b;margin-bottom:8px;">'
+                f'FY ends: <strong style="color:#94a3b8;">{_fy_label}</strong>{_fy_note}</div>'
+                f'{_q_rows}</div>',
+                unsafe_allow_html=True,
+            )
 
-                # Currently viewing details
-                _viewing_html = ""
-                if _fc_active:
-                    _active_match = None
-                    for _fq in _fc_quarters:
-                        if _fq.get("label", "") == _fc_active:
-                            _active_match = _fq
-                            break
-                    if _active_match:
-                        _p_end = _active_match.get("period_end", "—")
-                        _f_date = _active_match.get("filing_date", "—")
-                        # Format dates nicely
-                        try:
-                            _p_dt = pd.Timestamp(_p_end)
-                            _p_end = _p_dt.strftime("%b %d, %Y")
-                        except Exception:
-                            pass
-                        try:
-                            _f_dt = pd.Timestamp(_f_date)
-                            _f_date = _f_dt.strftime("%b %d, %Y")
-                        except Exception:
-                            pass
-                        _viewing_html = f'''
-                        <div style="margin-top:10px;padding:8px 10px;border-radius:8px;
-                            background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.12);">
-                            <div style="font-size:0.72rem;color:#64748b;text-transform:uppercase;
-                                letter-spacing:1px;margin-bottom:5px;">Showing</div>
-                            <div style="font-size:0.88rem;font-weight:700;color:#e2e8f0;margin-bottom:6px;">
-                                {_fc_active}</div>
-                            <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-                                <span style="font-size:0.75rem;color:#64748b;">Period ends</span>
-                                <span style="font-size:0.75rem;color:#94a3b8;font-weight:600;">{_p_end}</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;">
-                                <span style="font-size:0.75rem;color:#64748b;">Filed with SEC</span>
-                                <span style="font-size:0.75rem;color:#94a3b8;font-weight:600;">{_f_date}</span>
-                            </div>
-                        </div>'''
+            # ── Showing: currently viewed quarter details (separate markdown) ──
+            if _fc_active and _fc_quarters:
+                _am = None
+                for _fq in _fc_quarters:
+                    if _fq.get("label", "") == _fc_active:
+                        _am = _fq
+                        break
+                if _am:
+                    _pe = _am.get("period_end", "")
+                    _fd = _am.get("filing_date", "")
+                    try:
+                        _pe = pd.Timestamp(_pe).strftime("%b %d, %Y")
+                    except Exception:
+                        pass
+                    try:
+                        _fd = pd.Timestamp(_fd).strftime("%b %d, %Y") if _fd else ""
+                    except Exception:
+                        pass
+                    _fd_row = ""
+                    if _fd:
+                        _fd_row = (
+                            f'<div style="display:flex;justify-content:space-between;">'
+                            f'<span style="font-size:0.75rem;color:#64748b;">Filed with SEC</span>'
+                            f'<span style="font-size:0.75rem;color:#94a3b8;font-weight:600;">{_fd}</span></div>'
+                        )
+                    st.markdown(
+                        f'<div style="padding:8px 10px;border-radius:8px;margin-top:-6px;'
+                        f'background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.12);">'
+                        f'<div style="font-size:0.72rem;color:#64748b;text-transform:uppercase;'
+                        f'letter-spacing:1px;margin-bottom:5px;">Showing</div>'
+                        f'<div style="font-size:0.88rem;font-weight:700;color:#e2e8f0;margin-bottom:6px;">'
+                        f'{_fc_active}</div>'
+                        f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
+                        f'<span style="font-size:0.75rem;color:#64748b;">Period ends</span>'
+                        f'<span style="font-size:0.75rem;color:#94a3b8;font-weight:600;">{_pe}</span></div>'
+                        f'{_fd_row}</div>',
+                        unsafe_allow_html=True,
+                    )
 
-                _is_non_dec = _fy_month != 12
-                _fy_note = f' <span style="color:#f59e0b;font-size:0.68rem;">(non-standard)</span>' if _is_non_dec else ""
+            # ── Next Earnings (Finnhub — same source as Earnings Calendar page) ──
+            try:
+                _ne = get_next_earnings(ticker)
+                if _ne and _ne.get("date"):
+                    _ned = _ne["date"]
+                    _nef = _ned
+                    _ds = ""
+                    try:
+                        _nedt = pd.Timestamp(_ned)
+                        _nef = _nedt.strftime("%b %d, %Y")
+                        _du = (_nedt - pd.Timestamp.now().normalize()).days
+                        if _du == 0:
+                            _ds = "Today"
+                        elif _du == 1:
+                            _ds = "Tomorrow"
+                        elif _du > 0:
+                            _ds = f"in {_du} days"
+                    except Exception:
+                        pass
+                    _nev = _ne.get("event", "Earnings")
+                    _net = _ne.get("call_time", "")
+                    _net_h = f' <span style="color:#64748b;font-size:0.68rem;">({_net})</span>' if _net and _net != "TBD" else ""
+                    _ds_b = f'<span style="display:inline-block;background:rgba(34,197,94,0.12);color:#22c55e;font-size:0.68rem;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:6px;">{_ds}</span>' if _ds else ""
+                    st.markdown(
+                        f'<div style="padding:8px 10px;border-radius:8px;margin-top:4px;'
+                        f'background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);">'
+                        f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">'
+                        f'<span style="font-size:0.72rem;color:#fbbf24;font-weight:700;text-transform:uppercase;'
+                        f'letter-spacing:0.5px;">&#128339; Next Earnings</span>{_ds_b}</div>'
+                        f'<div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;margin-bottom:3px;">'
+                        f'{_nev}{_net_h}</div>'
+                        f'<div style="font-size:0.75rem;color:#94a3b8;">{_nef}</div></div>',
+                        unsafe_allow_html=True,
+                    )
+            except Exception as _ne_err:
+                print(f"[Sidebar] Next earnings error: {_ne_err}")
 
-                # ── Next Earnings (Finnhub — same source as Earnings Calendar page) ──
-                _ne_html = ""
-                try:
-                    from data_fetcher import get_next_earnings
-                    _ne = get_next_earnings(ticker)
-                    if _ne and _ne.get("date"):
-                        _ne_date = _ne["date"]
-                        try:
-                            _ne_dt = pd.Timestamp(_ne_date)
-                            _ne_date_fmt = _ne_dt.strftime("%b %d, %Y")
-                            # Days until earnings
-                            _days_until = (_ne_dt - pd.Timestamp.now().normalize()).days
-                            if _days_until == 0:
-                                _days_str = "Today"
-                            elif _days_until == 1:
-                                _days_str = "Tomorrow"
-                            elif _days_until > 0:
-                                _days_str = f"in {_days_until} days"
-                            else:
-                                _days_str = ""
-                        except Exception:
-                            _ne_date_fmt = _ne_date
-                            _days_str = ""
-                        _ne_event = _ne.get("event", "Earnings")
-                        _ne_time = _ne.get("call_time", "")
-                        _ne_time_html = f' <span style="color:#64748b;font-size:0.68rem;">({_ne_time})</span>' if _ne_time and _ne_time != "TBD" else ""
-                        _days_badge = f'<span style="display:inline-block;background:rgba(34,197,94,0.12);color:#22c55e;font-size:0.68rem;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:6px;">{_days_str}</span>' if _days_str else ""
-                        _ne_html = f'''
-                        <div style="margin-top:10px;padding:8px 10px;border-radius:8px;
-                            background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);">
-                            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fbbf24"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                                </svg>
-                                <span style="font-size:0.72rem;color:#fbbf24;font-weight:700;text-transform:uppercase;
-                                    letter-spacing:0.5px;">Next Earnings</span>
-                                {_days_badge}
-                            </div>
-                            <div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;margin-bottom:3px;">
-                                {_ne_event}{_ne_time_html}</div>
-                            <div style="font-size:0.75rem;color:#94a3b8;">{_ne_date_fmt}</div>
-                        </div>'''
-                except Exception as _ne_err:
-                    print(f"[Sidebar] Next earnings error: {_ne_err}")
-
-                st.markdown(f'''
-                <div style="border-radius:10px;background:rgba(255,255,255,0.03);
-                    border:1px solid rgba(255,255,255,0.07);padding:14px 14px 10px;margin-top:4px;">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                            <line x1="16" y1="2" x2="16" y2="6"/>
-                            <line x1="8" y1="2" x2="8" y2="6"/>
-                            <line x1="3" y1="10" x2="21" y2="10"/>
-                        </svg>
-                        <span style="font-size:0.88rem;font-weight:700;color:#e2e8f0;">
-                            Fiscal Calendar</span>
-                    </div>
-                    <div style="font-size:0.75rem;color:#64748b;margin-bottom:8px;">
-                        FY ends: <strong style="color:#94a3b8;">{_fy_label}</strong>{_fy_note}
-                    </div>
-                    {_q_rows}
-                    {_viewing_html}
-                    {_ne_html}
-                </div>
-                ''', unsafe_allow_html=True)
-            else:
-                _is_non_dec2 = _fy_month != 12
-                _fy_note2 = f' <span style="color:#f59e0b;font-size:0.68rem;">(non-standard)</span>' if _is_non_dec2 else ""
-
-                # ── Next Earnings for fallback widget too ──
-                _ne_html2 = ""
-                try:
-                    from data_fetcher import get_next_earnings
-                    _ne2 = get_next_earnings(ticker)
-                    if _ne2 and _ne2.get("date"):
-                        _ne2_date = _ne2["date"]
-                        try:
-                            _ne2_dt = pd.Timestamp(_ne2_date)
-                            _ne2_date_fmt = _ne2_dt.strftime("%b %d, %Y")
-                            _days2 = (_ne2_dt - pd.Timestamp.now().normalize()).days
-                            if _days2 == 0:
-                                _days2_str = "Today"
-                            elif _days2 == 1:
-                                _days2_str = "Tomorrow"
-                            elif _days2 > 0:
-                                _days2_str = f"in {_days2} days"
-                            else:
-                                _days2_str = ""
-                        except Exception:
-                            _ne2_date_fmt = _ne2_date
-                            _days2_str = ""
-                        _ne2_event = _ne2.get("event", "Earnings")
-                        _ne2_time = _ne2.get("call_time", "")
-                        _ne2_time_html = f' <span style="color:#64748b;font-size:0.68rem;">({_ne2_time})</span>' if _ne2_time and _ne2_time != "TBD" else ""
-                        _days2_badge = f'<span style="display:inline-block;background:rgba(34,197,94,0.12);color:#22c55e;font-size:0.68rem;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:6px;">{_days2_str}</span>' if _days2_str else ""
-                        _ne_html2 = f'''
-                        <div style="margin-top:10px;padding:8px 10px;border-radius:8px;
-                            background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);">
-                            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fbbf24"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                                </svg>
-                                <span style="font-size:0.72rem;color:#fbbf24;font-weight:700;text-transform:uppercase;
-                                    letter-spacing:0.5px;">Next Earnings</span>
-                                {_days2_badge}
-                            </div>
-                            <div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;margin-bottom:3px;">
-                                {_ne2_event}{_ne2_time_html}</div>
-                            <div style="font-size:0.75rem;color:#94a3b8;">{_ne2_date_fmt}</div>
-                        </div>'''
-                except Exception:
-                    pass
-
-                st.markdown(f'''
-                <div style="border-radius:10px;background:rgba(255,255,255,0.03);
-                    border:1px solid rgba(255,255,255,0.07);padding:14px;margin-top:4px;">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                            <line x1="16" y1="2" x2="16" y2="6"/>
-                            <line x1="8" y1="2" x2="8" y2="6"/>
-                            <line x1="3" y1="10" x2="21" y2="10"/>
-                        </svg>
-                        <span style="font-size:0.88rem;font-weight:700;color:#e2e8f0;">
-                            Fiscal Calendar</span>
-                    </div>
-                    <div style="font-size:0.75rem;color:#64748b;">
-                        FY ends: <strong style="color:#94a3b8;">{_fy_label}</strong>{_fy_note2}
-                    </div>
-                    {_ne_html2}
-                </div>
-                ''', unsafe_allow_html=True)
         except Exception as _fc_err:
             print(f"[Sidebar] Fiscal Calendar error: {_fc_err}")
 
