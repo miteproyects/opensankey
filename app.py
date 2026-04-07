@@ -2887,25 +2887,59 @@ with st.sidebar:
             else:
                 _cur_fy = _cur_year
 
-            # Latest completed quarter for the current FY (caps the selector)
-            _max_q = _completed_qs_in_fy(_cur_fy, _fy_m_sk)
+            # ── Build quarter selector with month-range labels ──
+            _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-            # ── Quarter selector: user picks which quarter to compare up to ──
-            _q_options = [f"Q{q}" for q in range(1, _max_q + 1)] + (["Full Year"] if _max_q == 4 else [])
-            # Default: latest available (last option)
-            _default_q_idx = len(_q_options) - 1
-            _selected_q_label = st.radio(
+            def _q_month_range(q, fy_end):
+                """Return '(Mon-Mon)' label for fiscal quarter q."""
+                end_m = _fq_end_month(q, fy_end)
+                start_m = end_m - 2
+                if start_m <= 0:
+                    start_m += 12
+                return f"({_MON[start_m]}-{_MON[end_m]})"
+
+            def _q_is_completed(q, fy, fy_end):
+                """Check if fiscal quarter q of FY fy has ended."""
+                em = _fq_end_month(q, fy_end)
+                ey = _fq_end_year(q, fy, fy_end)
+                return (ey < _cur_year) or (ey == _cur_year and em < _cur_month)
+
+            # Order Q1-Q4 chronologically by most recent completion date
+            # (oldest on the left, most recent on the right)
+            _q_sort = []
+            for q in range(1, 5):
+                # Most recent completion: current FY if done, else previous FY
+                if _q_is_completed(q, _cur_fy, _fy_m_sk):
+                    _comp_y = _fq_end_year(q, _cur_fy, _fy_m_sk)
+                    _comp_m = _fq_end_month(q, _fy_m_sk)
+                else:
+                    _comp_y = _fq_end_year(q, _cur_fy - 1, _fy_m_sk)
+                    _comp_m = _fq_end_month(q, _fy_m_sk)
+                _q_sort.append((q, _comp_y, _comp_m))
+            _q_sort.sort(key=lambda x: (x[1], x[2]))  # oldest first
+
+            # Build labels: "Q4 (Mar-May)" etc, in chronological order
+            _q_values = [str(t[0]) for t in _q_sort]           # ["4","1","2","3"]
+            _q_labels = {str(t[0]): f"Q{t[0]} {_q_month_range(t[0], _fy_m_sk)}"
+                         for t in _q_sort}
+            # Default = rightmost (most recent)
+            _default_q_idx = len(_q_values) - 1
+
+            # Handle session_state key: if existing value is no longer valid, reset
+            _prev_sel = st.session_state.get("sankey_q_selector", None)
+            if _prev_sel not in _q_values:
+                st.session_state["sankey_q_selector"] = _q_values[_default_q_idx]
+
+            _selected_q_val = st.radio(
                 "Compare up to",
-                _q_options,
+                _q_values,
                 index=_default_q_idx,
                 key="sankey_q_selector",
                 horizontal=True,
+                format_func=lambda v: _q_labels.get(v, v),
             )
-            # Parse selected quarter number (4 means full year)
-            if _selected_q_label == "Full Year":
-                _sel_q = 4
-            else:
-                _sel_q = int(_selected_q_label[1])
+            _sel_q = int(_selected_q_val)
             st.session_state["_sankey_annual_match_q"] = _sel_q
 
             st.markdown('<p style="font-size:1.26rem;font-weight:600;color:#495057;margin:0 0 6px;">Compare Periods By:</p>', unsafe_allow_html=True)
@@ -2919,22 +2953,21 @@ with st.sidebar:
             )
 
             if _compare_mode == "Annual":
-                # Build year list — only years with at least _sel_q completed quarters
+                # Build year list — only years where Q_sel_q is completed
                 _years = []
-                _year_qs = {}
                 for _y in range(_cur_fy, _cur_fy - 11, -1):
                     _cq = _completed_qs_in_fy(_y, _fy_m_sk)
                     if _cq < _sel_q:
-                        continue  # skip years that don't have enough quarters
-                    _ys = str(_y)
-                    _years.append(_ys)
-                    _year_qs[_ys] = _cq
+                        continue  # this year doesn't have Q_sel_q done yet
+                    _years.append(str(_y))
 
-                # Labels: "YYYY (Qn)" when partial, plain "YYYY" when full year
+                # Labels: "YYYY (Qn)" always — Q4 = full year, still labelled
                 def _yr_label(y):
-                    if _sel_q < 4:
-                        return f"{y} (Q{_sel_q})"
-                    return y
+                    return f"{y} (Q{_sel_q})"
+
+                # Guard against empty years list
+                if not _years:
+                    _years = [str(_cur_fy - 1)]
 
                 st.session_state.sankey_period_a = st.selectbox(
                     "Period A (show in Sankey)", _years, index=0, key="sk_pa",
