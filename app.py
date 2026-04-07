@@ -2332,7 +2332,6 @@ with st.sidebar:
     except Exception:
         _search_msg = False
 
-    st.markdown("**Type a Ticker to Explore Data:**", unsafe_allow_html=True)
     if _search_msg:
         st.markdown(
             '<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-2px 0 6px 0;">'
@@ -2352,6 +2351,7 @@ with st.sidebar:
             f'<em>Try for free:</em>&nbsp; {_demo_links}</div>',
             unsafe_allow_html=True,
         )
+    st.markdown("**Type a Ticker to Explore Data:**", unsafe_allow_html=True)
     with st.form("ticker_form", clear_on_submit=False, border=False):
         col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
         with col_input:
