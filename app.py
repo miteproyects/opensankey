@@ -2976,6 +2976,52 @@ with st.sidebar:
                 _is_non_dec = _fy_month != 12
                 _fy_note = f' <span style="color:#f59e0b;font-size:0.68rem;">(non-standard)</span>' if _is_non_dec else ""
 
+                # ── Next Earnings (Finnhub — same source as Earnings Calendar page) ──
+                _ne_html = ""
+                try:
+                    from data_fetcher import get_next_earnings
+                    _ne = get_next_earnings(ticker)
+                    if _ne and _ne.get("date"):
+                        _ne_date = _ne["date"]
+                        try:
+                            _ne_dt = pd.Timestamp(_ne_date)
+                            _ne_date_fmt = _ne_dt.strftime("%b %d, %Y")
+                            # Days until earnings
+                            _days_until = (_ne_dt - pd.Timestamp.now().normalize()).days
+                            if _days_until == 0:
+                                _days_str = "Today"
+                            elif _days_until == 1:
+                                _days_str = "Tomorrow"
+                            elif _days_until > 0:
+                                _days_str = f"in {_days_until} days"
+                            else:
+                                _days_str = ""
+                        except Exception:
+                            _ne_date_fmt = _ne_date
+                            _days_str = ""
+                        _ne_event = _ne.get("event", "Earnings")
+                        _ne_time = _ne.get("call_time", "")
+                        _ne_time_html = f' <span style="color:#64748b;font-size:0.68rem;">({_ne_time})</span>' if _ne_time and _ne_time != "TBD" else ""
+                        _days_badge = f'<span style="display:inline-block;background:rgba(34,197,94,0.12);color:#22c55e;font-size:0.68rem;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:6px;">{_days_str}</span>' if _days_str else ""
+                        _ne_html = f'''
+                        <div style="margin-top:10px;padding:8px 10px;border-radius:8px;
+                            background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);">
+                            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fbbf24"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                                <span style="font-size:0.72rem;color:#fbbf24;font-weight:700;text-transform:uppercase;
+                                    letter-spacing:0.5px;">Next Earnings</span>
+                                {_days_badge}
+                            </div>
+                            <div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;margin-bottom:3px;">
+                                {_ne_event}{_ne_time_html}</div>
+                            <div style="font-size:0.75rem;color:#94a3b8;">{_ne_date_fmt}</div>
+                        </div>'''
+                except Exception as _ne_err:
+                    print(f"[Sidebar] Next earnings error: {_ne_err}")
+
                 st.markdown(f'''
                 <div style="border-radius:10px;background:rgba(255,255,255,0.03);
                     border:1px solid rgba(255,255,255,0.07);padding:14px 14px 10px;margin-top:4px;">
@@ -2995,11 +3041,58 @@ with st.sidebar:
                     </div>
                     {_q_rows}
                     {_viewing_html}
+                    {_ne_html}
                 </div>
                 ''', unsafe_allow_html=True)
             else:
                 _is_non_dec2 = _fy_month != 12
                 _fy_note2 = f' <span style="color:#f59e0b;font-size:0.68rem;">(non-standard)</span>' if _is_non_dec2 else ""
+
+                # ── Next Earnings for fallback widget too ──
+                _ne_html2 = ""
+                try:
+                    from data_fetcher import get_next_earnings
+                    _ne2 = get_next_earnings(ticker)
+                    if _ne2 and _ne2.get("date"):
+                        _ne2_date = _ne2["date"]
+                        try:
+                            _ne2_dt = pd.Timestamp(_ne2_date)
+                            _ne2_date_fmt = _ne2_dt.strftime("%b %d, %Y")
+                            _days2 = (_ne2_dt - pd.Timestamp.now().normalize()).days
+                            if _days2 == 0:
+                                _days2_str = "Today"
+                            elif _days2 == 1:
+                                _days2_str = "Tomorrow"
+                            elif _days2 > 0:
+                                _days2_str = f"in {_days2} days"
+                            else:
+                                _days2_str = ""
+                        except Exception:
+                            _ne2_date_fmt = _ne2_date
+                            _days2_str = ""
+                        _ne2_event = _ne2.get("event", "Earnings")
+                        _ne2_time = _ne2.get("call_time", "")
+                        _ne2_time_html = f' <span style="color:#64748b;font-size:0.68rem;">({_ne2_time})</span>' if _ne2_time and _ne2_time != "TBD" else ""
+                        _days2_badge = f'<span style="display:inline-block;background:rgba(34,197,94,0.12);color:#22c55e;font-size:0.68rem;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:6px;">{_days2_str}</span>' if _days2_str else ""
+                        _ne_html2 = f'''
+                        <div style="margin-top:10px;padding:8px 10px;border-radius:8px;
+                            background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);">
+                            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fbbf24"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                                <span style="font-size:0.72rem;color:#fbbf24;font-weight:700;text-transform:uppercase;
+                                    letter-spacing:0.5px;">Next Earnings</span>
+                                {_days2_badge}
+                            </div>
+                            <div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;margin-bottom:3px;">
+                                {_ne2_event}{_ne2_time_html}</div>
+                            <div style="font-size:0.75rem;color:#94a3b8;">{_ne2_date_fmt}</div>
+                        </div>'''
+                except Exception:
+                    pass
+
                 st.markdown(f'''
                 <div style="border-radius:10px;background:rgba(255,255,255,0.03);
                     border:1px solid rgba(255,255,255,0.07);padding:14px;margin-top:4px;">
@@ -3017,6 +3110,7 @@ with st.sidebar:
                     <div style="font-size:0.75rem;color:#64748b;">
                         FY ends: <strong style="color:#94a3b8;">{_fy_label}</strong>{_fy_note2}
                     </div>
+                    {_ne_html2}
                 </div>
                 ''', unsafe_allow_html=True)
         except Exception as _fc_err:

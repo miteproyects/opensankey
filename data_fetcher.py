@@ -1984,3 +1984,78 @@ def get_fiscal_calendar(ticker: str) -> dict:
             })
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Next Earnings Date (Finnhub — same source as Earnings Calendar page)
+# ---------------------------------------------------------------------------
+_FINNHUB_BASE = "https://finnhub.io/api/v1"
+
+
+def _finnhub_key() -> str:
+    return _os.environ.get(
+        "FINNHUB_API_KEY",
+        "d77c5b1r01qp6afl34h0d77c5b1r01qp6afl34hg",
+    )
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_next_earnings(ticker: str) -> dict:
+    """
+    Fetch the next upcoming earnings date for a ticker from Finnhub.
+
+    Same data source as the Earnings Calendar page.
+
+    Returns dict with:
+        date       : str  ("2026-05-28")
+        quarter    : str  ("Q1")
+        year       : str  ("2026")  — fiscal year
+        event      : str  ("Q1 FY2026 Earnings")
+        call_time  : str  ("AMC" / "BMO" / "TAS" / "TNS")
+        eps_estimate: str
+    Returns empty dict if no upcoming earnings found.
+    """
+    from datetime import date as _date, timedelta as _td
+
+    today = _date.today()
+    from_str = today.isoformat()
+    to_str = (today + _td(days=120)).isoformat()
+
+    try:
+        resp = _requests.get(
+            f"{_FINNHUB_BASE}/calendar/earnings",
+            params={
+                "symbol": ticker.upper(),
+                "from": from_str,
+                "to": to_str,
+                "token": _finnhub_key(),
+            },
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            items = data.get("earningsCalendar", [])
+            # Sort by date ascending, pick the first future one
+            future = [
+                it for it in items
+                if it.get("date", "") >= from_str
+            ]
+            future.sort(key=lambda x: x.get("date", ""))
+            if future:
+                it = future[0]
+                q = it.get("quarter", "?")
+                yr = it.get("year", "")
+                hour = (it.get("hour", "") or "").lower().strip()
+                call_map = {"bmo": "BMO", "amc": "AMC", "dmh": "TAS"}
+                return {
+                    "date": it.get("date", ""),
+                    "quarter": f"Q{q}" if q != "?" else "",
+                    "year": str(yr),
+                    "event": f"Q{q} FY{yr} Earnings" if q != "?" else "Earnings",
+                    "call_time": call_map.get(hour, "TBD"),
+                    "eps_estimate": it.get("epsEstimate"),
+                }
+    except Exception as exc:
+        print(f"[NextEarnings] {ticker}: {exc}")
+
+    return {}
