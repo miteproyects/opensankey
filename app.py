@@ -2982,27 +2982,35 @@ with st.sidebar:
                 f'</div>'
             )
 
-            # ── Box 2: Next Earnings ──
-            _box2 = ""
+            # ── Next Earnings column ──
+            _ne_col = ""
             if _ne_line:
-                _box2 = (
-                    f'<div style="{_box}margin-top:6px;">'
-                    f'<span style="{_title}">Next Earnings ({_ne_qlabel}):</span> '
-                    f'<span style="{_val}">{_nef}</span>'
-                    f'<span style="font-size:0.7rem;color:#64748b;margin-left:4px;">{_ds_part.replace(" &mdash; ", "· ") if _ds_part else ""}</span>'
+                _ds_clean = _ds_part.replace(" &mdash; ", "· ") if _ds_part else ""
+                _ne_col = (
+                    f'<div>'
+                    f'<div style="{_title}">Next Earnings</div>'
+                    f'<div style="{_val}">{_ne_qlabel}</div>'
+                    f'<div style="{_val}margin-top:4px;">{_nef}</div>'
+                    f'<div style="{_val}">{_ds_clean}</div>'
                     f'</div>'
                 )
 
-            # ── Box 3: Fiscal Calendar (2×2 grid) ──
-            _box3 = (
-                f'<div style="{_box}margin-top:6px;">'
-                f'<div style="{_title}margin-bottom:4px;">{ticker} Fiscal Calendar</div>'
+            # ── Render: Box 1 (Latest) then 2-col row (Fiscal Cal | Next Earnings) ──
+            _row2 = (
+                f'<div style="display:flex;gap:10px;margin-top:6px;">'
+                # Left: Fiscal Calendar
+                f'<div style="{_box}flex:1;">'
+                f'<div style="{_title}margin-bottom:4px;">{ticker}<br>Fiscal Calendar</div>'
                 f'<div style="{_val}">{_fc_grid}</div>'
+                f'</div>'
+                # Right: Next Earnings
+                f'<div style="{_box}flex:0 0 auto;">'
+                f'{_ne_col}'
+                f'</div>'
                 f'</div>'
             )
 
-            # ── Render: Latest → Fiscal Calendar → Next Earnings ──
-            st.markdown(f'{_box1}{_box3}{_box2}', unsafe_allow_html=True)
+            st.markdown(f'{_box1}{_row2}', unsafe_allow_html=True)
 
         except Exception as _fc_err:
             print(f"[Sidebar] Fiscal widget error: {_fc_err}")
