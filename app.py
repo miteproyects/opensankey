@@ -3001,8 +3001,8 @@ with st.sidebar:
                 f'</div>'
             )
 
-            # ── Render ──
-            st.markdown(f'{_box1}{_box2}{_box3}', unsafe_allow_html=True)
+            # ── Render: Latest → Fiscal Calendar → Next Earnings ──
+            st.markdown(f'{_box1}{_box3}{_box2}', unsafe_allow_html=True)
 
         except Exception as _fc_err:
             print(f"[Sidebar] Fiscal widget error: {_fc_err}")
