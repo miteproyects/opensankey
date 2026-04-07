@@ -1934,20 +1934,60 @@ def get_fiscal_calendar(ticker: str) -> dict:
         except Exception as exc:
             print(f"[FiscalCal] FMP error for {ticker}: {exc}")
 
-    # ── Step 4: Fallback — build quarters from yfinance quarterly data ──
+    # ── Step 4: Fallback — Finnhub earnings calendar (same source as Earnings page) ──
+    if not fmp_ok:
+        try:
+            from datetime import date as _date, timedelta as _td
+            _today = _date.today()
+            _from = (_today - _td(days=730)).isoformat()
+            _to = (_today + _td(days=180)).isoformat()
+            _fh_resp = _requests.get(
+                f"{_FINNHUB_BASE}/calendar/earnings",
+                params={"symbol": ticker.upper(), "from": _from, "to": _to, "token": _finnhub_key()},
+                timeout=10,
+            )
+            if _fh_resp.status_code == 200:
+                _fh_data = _fh_resp.json().get("earningsCalendar", [])
+                # Sort newest first
+                _fh_data.sort(key=lambda x: x.get("date", ""), reverse=True)
+                _seen_labels = set()
+                for it in _fh_data[:12]:
+                    q = it.get("quarter")
+                    yr = it.get("year")
+                    dt_str = it.get("date", "")
+                    if q is None or yr is None or not dt_str:
+                        continue
+                    label = f"Q{q} FY{yr}"
+                    if label in _seen_labels:
+                        continue
+                    _seen_labels.add(label)
+                    qi = int(q) - 1
+                    start_m, end_m = q_ranges[qi] if qi < len(q_ranges) else (0, 0)
+                    months_str = f"{_MONTH_NAMES[start_m]} – {_MONTH_NAMES[end_m]}" if start_m else ""
+                    result["quarters"].append({
+                        "quarter": f"Q{q}",
+                        "months": months_str,
+                        "period_end": dt_str,
+                        "filing_date": "",
+                        "label": label,
+                        "calendar_year": str(yr),
+                    })
+                if result["quarters"]:
+                    fmp_ok = True  # skip further fallbacks
+        except Exception as exc:
+            print(f"[FiscalCal] Finnhub fallback error for {ticker}: {exc}")
+
+    # ── Step 5: Fallback — build quarters from yfinance quarterly data ──
     if not fmp_ok:
         try:
             stock = yf.Ticker(ticker)
             qf = getattr(stock, "quarterly_income_stmt", None)
             if qf is not None and not qf.empty:
-                # Columns are period-end Timestamps, sorted newest first
                 dates = sorted(qf.columns, reverse=True)[:8]
                 for dt in dates:
                     ts = pd.Timestamp(dt)
-                    # Determine fiscal quarter from period-end month and FY end
                     month_offset = (ts.month - fy_end - 1) % 12
-                    fq = month_offset // 3 + 1  # 1-based fiscal quarter
-                    # Estimate fiscal year: Q4 end = FY end month → that calendar year
+                    fq = month_offset // 3 + 1
                     fy_year = ts.year if ts.month <= fy_end or fy_end == 12 else ts.year + 1
                     if fy_end != 12 and fq <= (12 - fy_end) // 3:
                         fy_year = ts.year
