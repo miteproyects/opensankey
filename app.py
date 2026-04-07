@@ -2547,8 +2547,11 @@ with st.sidebar:
             _avail_q_periods = []  # quarterly labels like "Q1 2024"
             _avail_a_periods = []  # annual labels like "2024"
             try:
+                from data_fetcher import relabel_df_to_fiscal as _rdf, _get_fy_end_month as _gfym
+                _fy_m_side = _gfym(ticker)
                 _avail_q_df = get_income_statement(ticker, quarterly=True)
                 if not _avail_q_df.empty:
+                    _avail_q_df = _rdf(_avail_q_df, _fy_m_side)
                     _avail_q_periods = list(_avail_q_df.index)
                 _avail_a_df = get_income_statement(ticker, quarterly=False)
                 if not _avail_a_df.empty:
@@ -2843,6 +2846,10 @@ with st.sidebar:
             )
 
             _cur_year = _dt.now().year
+            # Store FY end month so sankey_page can use it for fiscal matching
+            from data_fetcher import _get_fy_end_month as _fy_m_fn
+            _fy_m_sk = _fy_m_fn(ticker)
+            st.session_state["_fy_end_month"] = _fy_m_sk
             if _compare_mode == "Annual":
                 _years = [str(y) for y in range(_cur_year, _cur_year - 11, -1)]
                 st.session_state.sankey_period_a = st.selectbox(
@@ -2853,10 +2860,16 @@ with st.sidebar:
                 )
                 st.session_state.sankey_compare_quarterly = False
             else:
+                # Determine current fiscal year
+                _cur_month = _dt.now().month
+                if _cur_month > _fy_m_sk:
+                    _cur_fy = _cur_year + 1
+                else:
+                    _cur_fy = _cur_year
                 _quarters = []
-                for _y in range(_cur_year, _cur_year - 5, -1):
-                    for _q in range(4, 0, -1):
-                        _quarters.append(f"Q{_q} {_y}")
+                for _fy in range(_cur_fy, _cur_fy - 6, -1):
+                    for _fq in range(4, 0, -1):
+                        _quarters.append(f"Q{_fq} {_fy}")
                 st.session_state.sankey_period_a = st.selectbox(
                     "Period A (show in Sankey)", _quarters, index=0, key="sk_qa"
                 )
@@ -2884,7 +2897,7 @@ with st.sidebar:
                     _em -= 12
                 _q_month_ranges[f"Q{_qi+1}"] = f"{_MN[_sm]}–{_MN[_em]}"
 
-            # ── Determine "Latest" label from chart data ──
+            # ── Determine "Latest" label from chart data (now fiscal labels) ──
             _chart_last = st.session_state.get("_last_chart_period", "")
             if _chart_last:
                 _latest_label = _chart_last
@@ -2900,8 +2913,8 @@ with st.sidebar:
                 _latest_qnum = f"Q{_prev_qn}"
                 _latest_label = _latest_qnum
 
-            # Month range for the latest quarter
-            _latest_months = _q_month_ranges.get(_latest_qnum, "")
+            # Month range for the latest quarter (fiscal Q-number now matches)
+            _latest_months = _q_month_ranges.get(_latest_qnum, "") if _latest_qnum else ""
 
             # ── Next Earnings data ──
             _ne_line = ""
@@ -2926,16 +2939,10 @@ with st.sidebar:
                             _ds = f"in {_du}d"
                     except Exception:
                         pass
+                    # Finnhub returns fiscal quarter/year — use directly
                     _ne_qn = _ne.get("quarter", "")
                     _ne_yr = _ne.get("year", "")
-                    if _ne_qn and _ne_yr:
-                        try:
-                            _cy = int(_ne_yr) - (0 if _fy_month == 12 else 1)
-                            _ne_qlabel = f"{_ne_qn} {_cy}"
-                        except (ValueError, TypeError):
-                            _ne_qlabel = ""
-                    else:
-                        _ne_qlabel = ""
+                    _ne_qlabel = f"{_ne_qn} {_ne_yr}" if _ne_qn and _ne_yr else ""
                     _ne_ql_part = f' ({_ne_qlabel})' if _ne_qlabel else ""
                     _ds_part = f' &mdash; {_ds}' if _ds else ""
                     _ne_line = (
@@ -2974,11 +2981,12 @@ with st.sidebar:
             _title = 'font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:0.75rem;font-weight:600;color:#cbd5e1;'
             _val = 'font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:0.75rem;font-weight:400;color:#94a3b8;'
 
-            # ── Box 1: Latest from NVDA ──
+            # ── Box 1: Latest from TICKER ──
+            _months_part = f' ({_latest_months})' if _latest_months else ""
             _box1 = (
                 f'<div style="{_box}">'
                 f'<span style="{_title}">Latest from {ticker}:</span> '
-                f'<span style="{_val}">{_latest_label} ({_latest_months})</span>'
+                f'<span style="{_val}">{_latest_label}{_months_part}</span>'
                 f'</div>'
             )
 
@@ -3198,21 +3206,31 @@ income_df = _trim_timeframe(income_df)
 balance_df = _trim_timeframe(balance_df)
 cashflow_df = _trim_timeframe(cashflow_df)
 
-# Store last chart period label so the sidebar Viewing widget matches chart x-axis
+# Relabel SEC calendar-quarter labels → fiscal-quarter labels so charts,
+# sidebar, and earnings calendar all use the same convention.
+from data_fetcher import relabel_df_to_fiscal, _get_fy_end_month
+_fy_m = _get_fy_end_month(ticker)
+income_df = relabel_df_to_fiscal(income_df, _fy_m)
+balance_df = relabel_df_to_fiscal(balance_df, _fy_m)
+cashflow_df = relabel_df_to_fiscal(cashflow_df, _fy_m)
+
+# Store last chart period label so the sidebar widget matches chart x-axis
 if not income_df.empty:
     st.session_state["_last_chart_period"] = income_df.index[-1]
 
 # Compute derived data
 margins_df = compute_margins(income_df)
 eps_df = compute_eps(income_df, info)
-# Use full data for YoY (needs history), then trim
-yoy_df = _trim_timeframe(
-    compute_revenue_yoy(get_income_statement(ticker, quarterly=quarterly))
+# Use full data for YoY (needs history), then trim and relabel
+yoy_df = relabel_df_to_fiscal(
+    _trim_timeframe(compute_revenue_yoy(get_income_statement(ticker, quarterly=quarterly))),
+    _fy_m,
 )
 shares = info.get("shares_outstanding")
 per_share_df = compute_per_share(income_df, cashflow_df, shares)
-qoq_df = _trim_timeframe(
-    compute_qoq_revenue(get_income_statement(ticker, quarterly=quarterly))
+qoq_df = relabel_df_to_fiscal(
+    _trim_timeframe(compute_qoq_revenue(get_income_statement(ticker, quarterly=quarterly))),
+    _fy_m,
 )
 expense_ratios_df = compute_expense_ratios(income_df, cashflow_df)
 ebitda_df = compute_ebitda(income_df, cashflow_df)

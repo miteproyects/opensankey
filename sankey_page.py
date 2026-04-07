@@ -186,7 +186,11 @@ def _yoy_delta(current, previous, label="YoY"):
 
 
 def _reorder_df_for_comparison(df, period_a, period_b, quarterly=False):
-    """Reorder DataFrame columns so period_a is col 0, period_b is col 1."""
+    """Reorder DataFrame columns so period_a is col 0, period_b is col 1.
+
+    When quarterly=True, period labels are fiscal quarters (e.g. "Q3 2026").
+    Uses FY end month from session_state to map fiscal quarter → calendar date.
+    """
     if df is None or df.empty or df.shape[1] < 2:
         return df
     cols = list(df.columns)
@@ -197,13 +201,31 @@ def _reorder_df_for_comparison(df, period_a, period_b, quarterly=False):
         except Exception:
             col_dates.append(None)
 
+    # Get FY end month for fiscal→calendar conversion
+    _fy_end = st.session_state.get("_fy_end_month", 12)
+
+    def _fiscal_q_to_end_month_year(fq, fy):
+        """Convert fiscal quarter/year to (end_month, calendar_year)."""
+        end_m = (_fy_end + fq * 3) % 12
+        if end_m == 0:
+            end_m = 12
+        # Calendar year: if end_m <= fy_end_month → same as fiscal year
+        # otherwise → fiscal year - 1
+        if end_m <= _fy_end:
+            cal_yr = fy
+        else:
+            cal_yr = fy - 1
+        return end_m, cal_yr
+
     def _find(period_str):
         if quarterly:
             parts = period_str.split()
-            q_num = int(parts[0][1])
-            yr = int(parts[1])
+            fq = int(parts[0][1])
+            fy = int(parts[1])
+            end_m, cal_yr = _fiscal_q_to_end_month_year(fq, fy)
+            cq = (end_m - 1) // 3 + 1  # calendar quarter of end month
             for i, d in enumerate(col_dates):
-                if d and d.year == yr and ((d.month - 1) // 3 + 1) == q_num:
+                if d and d.year == cal_yr and ((d.month - 1) // 3 + 1) == cq:
                     return i
         else:
             yr = int(period_str)
@@ -2553,8 +2575,12 @@ def _fetch_sankey_data(ticker: str, quarterly: bool = False):
             return pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
         facts = _fetch_edgar_facts(cik)
         entity_name = facts.get("entityName", ticker.upper())
-        income = _edgar_build_df(facts, _XBRL_INCOME_TAGS, form_filter="10-K")
-        balance = _edgar_build_df(facts, _XBRL_BALANCE_TAGS, form_filter="10-K")
+        if quarterly:
+            income = _edgar_build_df(facts, _XBRL_INCOME_TAGS, form_filter="10-Q", quarterly_income=True)
+            balance = _edgar_build_df(facts, _XBRL_BALANCE_TAGS, form_filter="10-Q", quarterly_income=False)
+        else:
+            income = _edgar_build_df(facts, _XBRL_INCOME_TAGS, form_filter="10-K")
+            balance = _edgar_build_df(facts, _XBRL_BALANCE_TAGS, form_filter="10-K")
         info = {"shortName": entity_name, "longName": entity_name}
         return income, balance, info
     except Exception:

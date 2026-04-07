@@ -470,6 +470,73 @@ def _fiscal_to_calendar_label(fiscal_label: str, fy_end_month: int) -> str:
     return f"Q{cal_quarter} {cal_year}"
 
 
+def sec_to_fiscal_label(sec_label: str, fy_end_month: int) -> str:
+    """Convert an SEC calendar-quarter label to a fiscal-quarter label.
+
+    SEC EDGAR uses frames like CY2026Q1 → "Q1 2026" (calendar convention).
+    This function converts to fiscal convention: "Q3 2026" for ORCL (FY May).
+
+    For December FY companies, labels are returned unchanged.
+
+    Parameters
+    ----------
+    sec_label : str   e.g. "Q1 2026" or "2025" (annual)
+    fy_end_month : int  1-12
+
+    Returns
+    -------
+    str   e.g. "Q3 2026"
+    """
+    if fy_end_month == 12:
+        return sec_label  # Standard calendar year — no conversion
+
+    parts = sec_label.split()
+
+    # Annual label: "2025" → stays the same (or convert to FY)
+    if len(parts) == 1 and parts[0].isdigit():
+        return sec_label
+
+    if len(parts) != 2 or not parts[0].startswith("Q"):
+        return sec_label
+
+    cq = int(parts[0][1])   # calendar quarter 1-4
+    cy = int(parts[1])      # calendar year
+
+    # Build map: calendar quarter → fiscal quarter
+    # Fiscal Qn ends at month (fy_end_month + n*3) mod 12
+    cq_to_fq = {}
+    for fq in range(1, 5):
+        end_m = (fy_end_month + fq * 3) % 12
+        if end_m == 0:
+            end_m = 12
+        cq_num = (end_m - 1) // 3 + 1  # which calendar quarter this month falls in
+        cq_to_fq[cq_num] = fq
+
+    fq = cq_to_fq.get(cq, cq)
+
+    # Fiscal year: if the period end month <= fy_end_month → same year;
+    # otherwise → next year (because FY spans two calendar years)
+    end_m = (fy_end_month + fq * 3) % 12
+    if end_m == 0:
+        end_m = 12
+    if end_m <= fy_end_month:
+        fy_year = cy
+    else:
+        fy_year = cy + 1
+
+    return f"Q{fq} {fy_year}"
+
+
+def relabel_df_to_fiscal(df: pd.DataFrame, fy_end_month: int) -> pd.DataFrame:
+    """Relabel a DataFrame index from SEC labels to fiscal labels."""
+    if fy_end_month == 12 or df.empty:
+        return df
+    new_index = [sec_to_fiscal_label(lbl, fy_end_month) for lbl in df.index]
+    df = df.copy()
+    df.index = new_index
+    return df
+
+
 def _opensankey_get_segments(
     ticker: str, chart_index: int, quarterly: bool = True
 ) -> pd.DataFrame:
