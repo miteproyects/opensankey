@@ -2857,54 +2857,71 @@ with st.sidebar:
             )
 
             _cur_year = _dt.now().year
+            _cur_month = _dt.now().month
             # Store FY end month so sankey_page can use it for fiscal matching
             from data_fetcher import _get_fy_end_month as _fy_m_fn
             _fy_m_sk = _fy_m_fn(ticker)
             st.session_state["_fy_end_month"] = _fy_m_sk
+
+            # ── Helpers: fiscal quarter calendar end dates ──
+            def _fq_end_month(q, fy_end):
+                """Return calendar month (1-12) when fiscal quarter q ends."""
+                m = fy_end - 3 * (4 - q)
+                while m <= 0:
+                    m += 12
+                return m
+
+            def _fq_end_year(q, fy, fy_end):
+                """Return calendar year when fiscal quarter q of FY fy ends."""
+                months_to_fy_end = 3 * (4 - q)
+                end_cal_month = fy_end - months_to_fy_end
+                end_cal_year = fy
+                while end_cal_month <= 0:
+                    end_cal_month += 12
+                    end_cal_year -= 1
+                return end_cal_year
+
+            def _completed_qs_in_fy(fy, fy_end):
+                """Return the number of completed fiscal quarters for a given FY."""
+                count = 0
+                for q in range(1, 5):
+                    em = _fq_end_month(q, fy_end)
+                    ey = _fq_end_year(q, fy, fy_end)
+                    if (ey < _cur_year) or (ey == _cur_year and em < _cur_month):
+                        count += 1
+                return count
+
+            # Determine current fiscal year
+            if _cur_month > _fy_m_sk:
+                _cur_fy = _cur_year + 1
+            else:
+                _cur_fy = _cur_year
+
             if _compare_mode == "Annual":
-                _years = [str(y) for y in range(_cur_year, _cur_year - 11, -1)]
+                # Build year list, annotating incomplete FYs with "(Qn included)"
+                _years = []
+                _year_labels = {}
+                for _y in range(_cur_fy, _cur_fy - 11, -1):
+                    _cq = _completed_qs_in_fy(_y, _fy_m_sk)
+                    if _cq == 0:
+                        continue  # skip years with no completed quarters
+                    _ys = str(_y)
+                    _years.append(_ys)
+                    if _cq < 4:
+                        _year_labels[_ys] = f"{_y} (Q{_cq} included)"
+                    else:
+                        _year_labels[_ys] = str(_y)
+
                 st.session_state.sankey_period_a = st.selectbox(
-                    "Period A (show in Sankey)", _years, index=0, key="sk_pa"
+                    "Period A (show in Sankey)", _years, index=0, key="sk_pa",
+                    format_func=lambda y: _year_labels.get(y, y),
                 )
                 st.session_state.sankey_period_b = st.selectbox(
-                    "Period B (compare to)", _years, index=1, key="sk_pb"
+                    "Period B (compare to)", _years, index=min(1, len(_years) - 1), key="sk_pb",
+                    format_func=lambda y: _year_labels.get(y, y),
                 )
                 st.session_state.sankey_compare_quarterly = False
             else:
-                # Determine current fiscal year
-                _cur_month = _dt.now().month
-                if _cur_month > _fy_m_sk:
-                    _cur_fy = _cur_year + 1
-                else:
-                    _cur_fy = _cur_year
-
-                # Determine latest COMPLETED fiscal quarter.
-                # Q_n end month = (FY_end_month - 3*(4-n)) mod 12
-                # e.g. ORCL FY end=5: Q4 ends May(5), Q3 ends Feb(2),
-                #      Q2 ends Nov(11), Q1 ends Aug(8)
-                def _fq_end_month(q, fy_end):
-                    """Return calendar month (1-12) when fiscal quarter q ends."""
-                    m = fy_end - 3 * (4 - q)
-                    while m <= 0:
-                        m += 12
-                    return m
-
-                def _fq_end_year(q, fy, fy_end):
-                    """Return calendar year when fiscal quarter q of FY fy ends."""
-                    end_m = _fq_end_month(q, fy_end)
-                    # FY label = calendar year of Q4 end.  Work backwards.
-                    # Months from Q_n end to Q4 end (FY end):
-                    months_to_fy_end = 3 * (4 - q)
-                    # Calendar month of FY end in this FY
-                    fy_end_cal_year = fy  # FY 2026 Q4 ends May 2026
-                    # Go back months_to_fy_end from (fy_end_cal_year, fy_end)
-                    end_cal_month = fy_end - months_to_fy_end
-                    end_cal_year = fy_end_cal_year
-                    while end_cal_month <= 0:
-                        end_cal_month += 12
-                        end_cal_year -= 1
-                    return end_cal_year
-
                 _quarters = []
                 for _fy in range(_cur_fy, _cur_fy - 6, -1):
                     for _fq in range(4, 0, -1):
