@@ -2885,24 +2885,73 @@ with st.sidebar:
                     _em -= 12
                 _q_month_ranges[f"Q{_qi+1}"] = f"{_MN[_sm]}–{_MN[_em]}"
 
-            # ── Find MOST RECENT COMPLETED quarter (has filing_date or period_end in the past) ──
+            # ── Find MOST RECENT COMPLETED quarter ──
             _today_str = pd.Timestamp.now().normalize().isoformat()[:10]
             _viewing_q = None
             for _fq in _fc_quarters:
                 _pe = _fq.get("period_end", "")
                 _fd = _fq.get("filing_date", "")
-                # If we have a period_end that's in the past → completed quarter
                 if _pe and _pe <= _today_str:
                     _viewing_q = _fq
                     break
-                # If we have a filing_date → it's been reported
                 if _fd and _fd <= _today_str:
                     _viewing_q = _fq
                     break
-            # Fallback: if no period_end data, use first quarter in list
-            # (data is sorted newest first, skip future ones)
+
+            # Fallback: no period_end data (e.g. Finnhub source) — compute
+            # which quarter is completed based on today and FY end month.
             if not _viewing_q and _fc_quarters:
-                _viewing_q = _fc_quarters[0]
+                from datetime import date as _dt
+                _td = _dt.today()
+                _cur_m = _td.month
+                # Q1 starts in month after FY end. Determine which quarter
+                # the current month falls into, then pick the PREVIOUS one.
+                _q1_start = (_fy_month % 12) + 1  # first month of Q1
+                _months_in = (_cur_m - _q1_start) % 12  # 0-based offset
+                _cur_qn = _months_in // 3 + 1  # current in-progress Q (1-4)
+                _prev_qn = ((_cur_qn - 2) % 4) + 1  # previous completed Q
+
+                # Compute FY year for the previous completed quarter
+                _prev_qk = f"Q{_prev_qn}"
+                # Previous Q's last month
+                _pq_end_m = (_q1_start + _prev_qn * 3 - 1)
+                while _pq_end_m > 12:
+                    _pq_end_m -= 12
+                # Determine the calendar year of that end month
+                if _pq_end_m <= _cur_m:
+                    _pq_cal_yr = _td.year
+                else:
+                    _pq_cal_yr = _td.year - 1
+                # FY year: for non-Dec FY, FY year = calendar year of FY end
+                if _fy_month == 12:
+                    _pq_fy_yr = _pq_cal_yr
+                else:
+                    # FY year is the year the FY ends in
+                    # e.g. NVDA FY ends Jan, Q4 Nov-Jan → if Jan 2026, FY2026
+                    _fy_end_of_prev = _pq_end_m
+                    if _fy_end_of_prev > _fy_month:
+                        _pq_fy_yr = _pq_cal_yr + 1
+                    else:
+                        _pq_fy_yr = _pq_cal_yr
+
+                _prev_label = f"{_prev_qk} FY{_pq_fy_yr}"
+                # Try to match in existing quarters list
+                for _fq in _fc_quarters:
+                    if _fq.get("label", "") == _prev_label:
+                        _viewing_q = _fq
+                        break
+                # If not found, build a synthetic entry
+                if not _viewing_q:
+                    _months_str = _q_month_ranges.get(_prev_qk, "")
+                    _viewing_q = {
+                        "quarter": _prev_qk,
+                        "months": _months_str,
+                        "period_end": "",
+                        "filing_date": "",
+                        "earnings_date": "",
+                        "label": _prev_label,
+                        "calendar_year": str(_pq_cal_yr),
+                    }
 
             _viewing_label = _viewing_q.get("label", "") if _viewing_q else ""
             _viewing_qnum = _viewing_q.get("quarter", "") if _viewing_q else ""
