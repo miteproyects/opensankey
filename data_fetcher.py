@@ -1926,6 +1926,7 @@ def get_fiscal_calendar(ticker: str) -> dict:
                         "months": months_str,
                         "period_end": date_str,
                         "filing_date": filling,
+                        "earnings_date": "",
                         "label": f"{period} FY{cal_year}" if cal_year else period,
                         "calendar_year": cal_year,
                     })
@@ -1935,6 +1936,7 @@ def get_fiscal_calendar(ticker: str) -> dict:
             print(f"[FiscalCal] FMP error for {ticker}: {exc}")
 
     # ── Step 4: Fallback — Finnhub earnings calendar (same source as Earnings page) ──
+    # NOTE: Finnhub "date" = earnings report date, NOT period end date.
     if not fmp_ok:
         try:
             from datetime import date as _date, timedelta as _td
@@ -1948,7 +1950,6 @@ def get_fiscal_calendar(ticker: str) -> dict:
             )
             if _fh_resp.status_code == 200:
                 _fh_data = _fh_resp.json().get("earningsCalendar", [])
-                # Sort newest first
                 _fh_data.sort(key=lambda x: x.get("date", ""), reverse=True)
                 _seen_labels = set()
                 for it in _fh_data[:12]:
@@ -1967,13 +1968,14 @@ def get_fiscal_calendar(ticker: str) -> dict:
                     result["quarters"].append({
                         "quarter": f"Q{q}",
                         "months": months_str,
-                        "period_end": dt_str,
+                        "period_end": "",  # Finnhub doesn't have period end
                         "filing_date": "",
+                        "earnings_date": dt_str,  # This is the earnings report date
                         "label": label,
                         "calendar_year": str(yr),
                     })
                 if result["quarters"]:
-                    fmp_ok = True  # skip further fallbacks
+                    fmp_ok = True
         except Exception as exc:
             print(f"[FiscalCal] Finnhub fallback error for {ticker}: {exc}")
 
@@ -2001,6 +2003,7 @@ def get_fiscal_calendar(ticker: str) -> dict:
                         "months": months_str,
                         "period_end": ts.strftime("%Y-%m-%d"),
                         "filing_date": "",
+                        "earnings_date": "",
                         "label": f"Q{fq} FY{fy_year}",
                         "calendar_year": str(ts.year),
                     })
@@ -2019,6 +2022,7 @@ def get_fiscal_calendar(ticker: str) -> dict:
                 "months": months_str,
                 "period_end": "",
                 "filing_date": "",
+                "earnings_date": "",
                 "label": f"Q{fq} FY{cur_year}",
                 "calendar_year": str(cur_year),
             })
