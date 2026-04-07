@@ -2905,6 +2905,9 @@ with st.sidebar:
 
             # ── Next Earnings data ──
             _ne_line = ""
+            _ne_qlabel = ""
+            _nef = ""
+            _ds_part = ""
             try:
                 _ne = get_next_earnings(ticker)
                 if _ne and _ne.get("date"):
@@ -2944,36 +2947,56 @@ with st.sidebar:
             except Exception:
                 pass
 
-            # ── Build fiscal calendar row: Q1 (Mon–Mon) · Q2 (...) ──
+            # ── Build fiscal calendar pills: Q1 (Mon–Mon) · Q2 (...) ──
             _fc_items = ""
             for _qi in range(1, 5):
                 _qk = f"Q{_qi}"
                 _months = _q_month_ranges.get(_qk, "")
-                _fc_items += f'<span style="color:#64748b;">{_qk}</span>'
-                _fc_items += f'<span style="color:#475569;font-size:0.76rem;">({_months})</span>'
+                _fc_items += (
+                    f'<span style="font-weight:600;color:#cbd5e1;">{_qk}</span>'
+                    f'<span style="color:#64748b;"> ({_months})</span>'
+                )
                 if _qi < 4:
-                    _fc_items += '<span style="color:#334155;margin:0 2px;">&#183;</span>'
+                    _fc_items += '<span style="color:#334155;margin:0 3px;">·</span>'
 
-            # ── Render single unified card ──
-            st.markdown(
-                f'<div style="border-radius:10px;background:rgba(255,255,255,0.03);'
-                f'border:1px solid rgba(255,255,255,0.07);padding:12px 14px;margin-top:4px;">'
-                # Line 1: Latest from TICKER: Q4 2025 (Nov–Jan)
-                f'<div style="font-size:0.82rem;color:#94a3b8;">'
-                f'Latest from <strong style="color:#e2e8f0;">{ticker}</strong>: '
-                f'<strong style="color:#60a5fa;">{_latest_label}</strong>'
-                f' <span style="color:#475569;font-size:0.76rem;">({_latest_months})</span>'
-                f'</div>'
-                # Line 2: Next Earnings (Q1 2026): May 20, 2026 — in 43d
-                f'{_ne_line}'
-                # Line 3: Fiscal calendar row
-                f'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;'
-                f'font-size:0.78rem;line-height:1.6;margin-top:6px;color:#64748b;">'
-                f'<span style="color:#94a3b8;font-weight:600;">{ticker} Fiscal Calendar:</span> '
-                f'{_fc_items}</div>'
-                f'</div>',
-                unsafe_allow_html=True,
+            # ── Shared box style ──
+            _box = (
+                'border-radius:8px;padding:10px 12px;'
+                'background:rgba(255,255,255,0.03);'
+                'border:1px solid rgba(255,255,255,0.06);'
             )
+            _title = 'font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:0.75rem;font-weight:600;color:#cbd5e1;'
+            _val = 'font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:0.75rem;font-weight:400;color:#94a3b8;'
+
+            # ── Box 1: Latest from NVDA ──
+            _box1 = (
+                f'<div style="{_box}">'
+                f'<span style="{_title}">Latest from {ticker}:</span> '
+                f'<span style="{_val}">{_latest_label} ({_latest_months})</span>'
+                f'</div>'
+            )
+
+            # ── Box 2: Next Earnings ──
+            _box2 = ""
+            if _ne_line:
+                _box2 = (
+                    f'<div style="{_box}margin-top:6px;">'
+                    f'<span style="{_title}">Next Earnings ({_ne_qlabel}):</span> '
+                    f'<span style="{_val}">{_nef}</span>'
+                    f'<span style="font-size:0.7rem;color:#64748b;margin-left:4px;">{_ds_part.replace(" &mdash; ", "· ") if _ds_part else ""}</span>'
+                    f'</div>'
+                )
+
+            # ── Box 3: Fiscal Calendar ──
+            _box3 = (
+                f'<div style="{_box}margin-top:6px;">'
+                f'<div style="{_title}margin-bottom:4px;">{ticker} Fiscal Calendar</div>'
+                f'<div style="{_val}line-height:1.7;">{_fc_items}</div>'
+                f'</div>'
+            )
+
+            # ── Render ──
+            st.markdown(f'{_box1}{_box2}{_box3}', unsafe_allow_html=True)
 
         except Exception as _fc_err:
             print(f"[Sidebar] Fiscal widget error: {_fc_err}")
