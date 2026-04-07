@@ -2846,15 +2846,6 @@ with st.sidebar:
             st.markdown('<style>[data-testid="stSidebar"] [data-testid="stImage"]{display:none!important}</style>', unsafe_allow_html=True)
             # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ Sankey Period Comparison Selector Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
             from datetime import datetime as _dt
-            st.markdown('<p style="font-size:1.26rem;font-weight:600;color:#495057;margin:0 0 6px;">Compare Periods By:</p>', unsafe_allow_html=True)
-
-            _compare_mode = st.radio(
-                "Compare by",
-                ["Annual", "Quarterly"],
-                key="sankey_compare_mode",
-                horizontal=True,
-                label_visibility="collapsed",
-            )
 
             _cur_year = _dt.now().year
             _cur_month = _dt.now().month
@@ -2873,8 +2864,7 @@ with st.sidebar:
 
             def _fq_end_year(q, fy, fy_end):
                 """Return calendar year when fiscal quarter q of FY fy ends."""
-                months_to_fy_end = 3 * (4 - q)
-                end_cal_month = fy_end - months_to_fy_end
+                end_cal_month = fy_end - 3 * (4 - q)
                 end_cal_year = fy
                 while end_cal_month <= 0:
                     end_cal_month += 12
@@ -2897,51 +2887,62 @@ with st.sidebar:
             else:
                 _cur_fy = _cur_year
 
+            # Latest completed quarter for the current FY (caps the selector)
+            _max_q = _completed_qs_in_fy(_cur_fy, _fy_m_sk)
+
+            # ── Quarter selector: user picks which quarter to compare up to ──
+            _q_options = [f"Q{q}" for q in range(1, _max_q + 1)] + (["Full Year"] if _max_q == 4 else [])
+            # Default: latest available (last option)
+            _default_q_idx = len(_q_options) - 1
+            _selected_q_label = st.radio(
+                "Compare up to",
+                _q_options,
+                index=_default_q_idx,
+                key="sankey_q_selector",
+                horizontal=True,
+            )
+            # Parse selected quarter number (4 means full year)
+            if _selected_q_label == "Full Year":
+                _sel_q = 4
+            else:
+                _sel_q = int(_selected_q_label[1])
+            st.session_state["_sankey_annual_match_q"] = _sel_q
+
+            st.markdown('<p style="font-size:1.26rem;font-weight:600;color:#495057;margin:0 0 6px;">Compare Periods By:</p>', unsafe_allow_html=True)
+
+            _compare_mode = st.radio(
+                "Compare by",
+                ["Annual", "Quarterly"],
+                key="sankey_compare_mode",
+                horizontal=True,
+                label_visibility="collapsed",
+            )
+
             if _compare_mode == "Annual":
-                # Build year list, annotating incomplete FYs with "(Qn included)"
+                # Build year list — only years with at least _sel_q completed quarters
                 _years = []
-                _year_labels_a = {}   # Period A labels
-                _year_qs = {}         # completed quarter count per year
+                _year_qs = {}
                 for _y in range(_cur_fy, _cur_fy - 11, -1):
                     _cq = _completed_qs_in_fy(_y, _fy_m_sk)
-                    if _cq == 0:
-                        continue  # skip years with no completed quarters
+                    if _cq < _sel_q:
+                        continue  # skip years that don't have enough quarters
                     _ys = str(_y)
                     _years.append(_ys)
                     _year_qs[_ys] = _cq
-                    if _cq < 4:
-                        _year_labels_a[_ys] = f"{_y} (Q{_cq} included)"
-                    else:
-                        _year_labels_a[_ys] = str(_y)
+
+                # Labels: "YYYY (Qn)" when partial, plain "YYYY" when full year
+                def _yr_label(y):
+                    if _sel_q < 4:
+                        return f"{y} (Q{_sel_q})"
+                    return y
 
                 st.session_state.sankey_period_a = st.selectbox(
                     "Period A (show in Sankey)", _years, index=0, key="sk_pa",
-                    format_func=lambda y: _year_labels_a.get(y, y),
+                    format_func=_yr_label,
                 )
-
-                # Determine how many Qs Period A covers — Period B matches
-                _sel_a = st.session_state.sankey_period_a
-                _match_q = _year_qs.get(_sel_a, 4)
-                st.session_state["_sankey_annual_match_q"] = _match_q
-
-                # Period B labels: annotate with "(Qn)" when Period A is incomplete
-                _year_labels_b = {}
-                for _ys in _years:
-                    _cq_b = _year_qs.get(_ys, 4)
-                    if _match_q < 4:
-                        # Cap at the match count (can't compare more Qs than A has)
-                        _show_q = min(_cq_b, _match_q)
-                        _year_labels_b[_ys] = f"{_ys} (Q{_show_q})"
-                    else:
-                        # Period A is a full year — show normal labels
-                        if _cq_b < 4:
-                            _year_labels_b[_ys] = f"{_ys} (Q{_cq_b} included)"
-                        else:
-                            _year_labels_b[_ys] = _ys
-
                 st.session_state.sankey_period_b = st.selectbox(
                     "Period B (compare to)", _years, index=min(1, len(_years) - 1), key="sk_pb",
-                    format_func=lambda y: _year_labels_b.get(y, y),
+                    format_func=_yr_label,
                 )
                 st.session_state.sankey_compare_quarterly = False
             else:
