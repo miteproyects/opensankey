@@ -2998,7 +2998,9 @@ with st.sidebar:
                 </div>
                 ''', unsafe_allow_html=True)
             else:
-                st.markdown('''
+                _is_non_dec2 = _fy_month != 12
+                _fy_note2 = f' <span style="color:#f59e0b;font-size:0.68rem;">(non-standard)</span>' if _is_non_dec2 else ""
+                st.markdown(f'''
                 <div style="border-radius:10px;background:rgba(255,255,255,0.03);
                     border:1px solid rgba(255,255,255,0.07);padding:14px;margin-top:4px;">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
@@ -3012,8 +3014,9 @@ with st.sidebar:
                         <span style="font-size:0.88rem;font-weight:700;color:#e2e8f0;">
                             Fiscal Calendar</span>
                     </div>
-                    <div style="font-size:0.78rem;color:#64748b;">
-                        Calendar year (Dec FY end)</div>
+                    <div style="font-size:0.75rem;color:#64748b;">
+                        FY ends: <strong style="color:#94a3b8;">{_fy_label}</strong>{_fy_note2}
+                    </div>
                 </div>
                 ''', unsafe_allow_html=True)
         except Exception as _fc_err:
