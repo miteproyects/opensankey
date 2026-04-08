@@ -2997,81 +2997,126 @@ with st.sidebar:
                     format_func=_yr_label,
                 )
 
-                # ── Fiscal Quarter Calendar UI ──
+                # ── Fiscal Quarter Calendar Grid ──
                 _sel_fy = int(st.session_state.sankey_period_a)
                 _prev_fy = _sel_fy - 1
 
-                _q_display = []
-                for _qq in range(1, 5):
-                    if _q_is_completed(_qq, _sel_fy, _fy_m_sk):
-                        _fy_lbl = _sel_fy
-                    else:
-                        _fy_lbl = _prev_fy
-                    _cpy = _fq_end_year(_qq, _fy_lbl, _fy_m_sk)
-                    _cpm = _fq_end_month(_qq, _fy_m_sk)
-                    _q_display.append((_qq, _cpy, _cpm, _fy_lbl))
-                _q_display.sort(key=lambda x: (x[1], x[2]))  # chronological
+                # ── Map any calendar month → (fiscal_quarter, fiscal_year) ──
+                def _m2fq(cm, cy):
+                    fy = cy + 1 if cm > _fy_m_sk else cy
+                    fs = (_fy_m_sk % 12) + 1
+                    off = (cm - fs) if cm >= fs else (cm + 12 - fs)
+                    return (off // 3) + 1, fy
 
-                # ── Color palette per quarter ──
+                # ── Quarter colours ──
                 _QC = {
-                    1: {"ac": "#3B82F6", "bg": "#EFF6FF", "pill": "#DBEAFE"},  # blue
-                    2: {"ac": "#10B981", "bg": "#ECFDF5", "pill": "#D1FAE5"},  # emerald
-                    3: {"ac": "#F59E0B", "bg": "#FFFBEB", "pill": "#FEF3C7"},  # amber
-                    4: {"ac": "#8B5CF6", "bg": "#F5F3FF", "pill": "#EDE9FE"},  # violet
+                    1: "#3B82F6",   # blue
+                    2: "#10B981",   # emerald
+                    3: "#EAB308",   # yellow
+                    4: "#8B5CF6",   # violet
                 }
+                _MABBR = ["", "JAN", "FEB", "MAR", "APR", "MAY",
+                          "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
+                # ── Determine grid range (7 rows = 21 months) ──
+                # End at the calendar-quarter boundary that contains the FY end
+                _fy_end_cq = ((_fy_m_sk - 1) // 3 + 1) * 3
+                _ge_m = _fy_end_cq
+                _ge_y = _sel_fy
+                # Start 21 months earlier, aligned to calendar-quarter start
+                _gs_m = _ge_m - 20
+                _gs_y = _ge_y
+                while _gs_m <= 0:
+                    _gs_m += 12
+                    _gs_y -= 1
+                _gs_m = ((_gs_m - 1) // 3) * 3 + 1  # align to Jan/Apr/Jul/Oct
+
+                # ── Build rows of 3 months each ──
+                _grow = []
+                _gy, _gm = _gs_y, _gs_m
+                _end_abs = _ge_y * 12 + _ge_m
+                while _gy * 12 + _gm <= _end_abs:
+                    _r = []
+                    for _ in range(3):
+                        _r.append((_gy, _gm))
+                        _gm += 1
+                        if _gm > 12:
+                            _gm = 1
+                            _gy += 1
+                    _grow.append(_r)
+
+                # ── CSS for calendar grid ──
                 st.markdown("""<style>
-                .qcal-card{border-radius:12px;padding:12px 14px;margin-bottom:2px;
-                    border-left:5px solid;box-shadow:0 1px 4px rgba(0,0,0,.06);
-                    transition:transform .15s ease,box-shadow .15s ease}
-                .qcal-card:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.1)}
-                .qcal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-                .qcal-qn{font-weight:800;font-size:.92rem;letter-spacing:.5px}
-                .qcal-fy{font-size:.65rem;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.4px}
-                .qcal-grid{display:flex;gap:5px}
-                .qcal-mo{flex:1;text-align:center;padding:7px 2px;border-radius:8px;
-                    font-size:.7rem;font-weight:700;color:#fff;text-transform:uppercase;
-                    letter-spacing:.6px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+                .fqcal{width:100%;border-collapse:separate;border-spacing:3px;margin:0}
+                .fqcal td{border-radius:8px;padding:8px 2px;text-align:center;
+                    font-weight:700;color:#fff;font-size:.68rem;line-height:1.3;
+                    vertical-align:middle;letter-spacing:.3px;
+                    box-shadow:0 1px 3px rgba(0,0,0,.10)}
+                .fqcal .fq-e{background:transparent;box-shadow:none}
+                .fqcal .fq-q{font-size:.58rem;opacity:.82;display:block;margin-bottom:1px}
+                .fqcal .fq-m{display:block;font-size:.72rem}
                 </style>""", unsafe_allow_html=True)
 
                 st.markdown(
-                    '<p style="font-size:.95rem;font-weight:700;color:#374151;'
-                    'margin:4px 0 10px;letter-spacing:.2px;">'
-                    '\U0001f4c5 Select Quarters to Compare</p>',
+                    '<p style="font-size:.93rem;font-weight:700;color:#374151;'
+                    'margin:4px 0 8px;">\U0001f4c5 Fiscal Quarter Calendar</p>',
                     unsafe_allow_html=True,
                 )
 
-                for _idx, (_qn, _cy, _cm, _fyl) in enumerate(_q_display):
-                    _c = _QC[_qn]
-                    # Compute the 3 calendar months in this fiscal quarter
-                    _end_m = _fq_end_month(_qn, _fy_m_sk)
-                    _s_m = _end_m - 2
-                    if _s_m <= 0:
-                        _s_m += 12
-                    _mid_m = _end_m - 1
-                    if _mid_m <= 0:
-                        _mid_m += 12
-                    _mnames = [_MON[_s_m], _MON[_mid_m], _MON[_end_m]]
+                # ── Render HTML table ──
+                _h = '<table class="fqcal">'
+                for _row in _grow:
+                    _h += '<tr>'
+                    for (_cy, _cm) in _row:
+                        _fq, _fyl = _m2fq(_cm, _cy)
+                        if _fyl in (_sel_fy, _prev_fy):
+                            _bg = _QC[_fq]
+                            _star = " *" if _cm == _fy_m_sk else ""
+                            _h += (
+                                f'<td style="background:{_bg};">'
+                                f'<span class="fq-q">Q{_fq}</span>'
+                                f'<span class="fq-m">{_MABBR[_cm]} {_cy % 100:02d}{_star}</span>'
+                                f'</td>'
+                            )
+                        else:
+                            _h += '<td class="fq-e"></td>'
+                    _h += '</tr>'
+                _h += '</table>'
+                st.markdown(_h, unsafe_allow_html=True)
 
-                    st.markdown(
-                        f'<div class="qcal-card" style="border-color:{_c["ac"]};background:{_c["bg"]};">'
-                        f'<div class="qcal-head">'
-                        f'<span class="qcal-qn" style="color:{_c["ac"]};">Q{_qn}</span>'
-                        f'<span class="qcal-fy" style="color:{_c["ac"]};background:{_c["pill"]};">FY {_fyl}</span>'
-                        f'</div>'
-                        f'<div class="qcal-grid">'
-                        f'<div class="qcal-mo" style="background:{_c["ac"]};">{_mnames[0]}</div>'
-                        f'<div class="qcal-mo" style="background:{_c["ac"]};">{_mnames[1]}</div>'
-                        f'<div class="qcal-mo" style="background:{_c["ac"]};">{_mnames[2]}</div>'
-                        f'</div></div>',
-                        unsafe_allow_html=True,
-                    )
-                    _default_on = (_idx == len(_q_display) - 1)
-                    st.checkbox(
-                        f"Compare Q{_qn}",
-                        value=_default_on,
-                        key=f"sk_q{_qn}",
-                    )
+                # ── Legend ──
+                st.markdown(
+                    f'<p style="font-size:.62rem;color:#9CA3AF;margin:3px 0 10px;">'
+                    f'* Fiscal year ends in {_MON[_fy_m_sk]}</p>',
+                    unsafe_allow_html=True,
+                )
+
+                # ── Quarter selection checkboxes (compact, below calendar) ──
+                st.markdown(
+                    '<p style="font-size:.82rem;font-weight:600;color:#6B7280;'
+                    'margin:2px 0 4px;">Select quarters to compare:</p>',
+                    unsafe_allow_html=True,
+                )
+                _q_chron = []
+                for _qq in range(1, 5):
+                    if _q_is_completed(_qq, _sel_fy, _fy_m_sk):
+                        _eqy = _fq_end_year(_qq, _sel_fy, _fy_m_sk)
+                    else:
+                        _eqy = _fq_end_year(_qq, _prev_fy, _fy_m_sk)
+                    _eqm = _fq_end_month(_qq, _fy_m_sk)
+                    _q_chron.append((_qq, _eqy, _eqm))
+                _q_chron.sort(key=lambda x: (x[1], x[2]))
+
+                _cb1, _cb2 = st.columns(2)
+                for _idx, (_qn, _, _) in enumerate(_q_chron):
+                    _default_on = (_idx == len(_q_chron) - 1)
+                    _col = _cb1 if _idx % 2 == 0 else _cb2
+                    with _col:
+                        st.checkbox(
+                            f"Q{_qn}",
+                            value=_default_on,
+                            key=f"sk_q{_qn}",
+                        )
 
                 st.session_state["_sankey_annual_match_q"] = _max_sel_q
                 st.session_state.sankey_compare_quarterly = False
