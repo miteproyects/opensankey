@@ -3766,18 +3766,26 @@ def render_sankey_page():
     # --- Period comparison (from sidebar selectors) ---
     _sq2 = st.session_state.get("sankey_compare_quarterly", False)
     _same_period = False
-    if _partial_year:
+
+    # Build quarter annotation for the comparison note
+    _q_tag = f" (Q{_match_q})" if (not _sq2) and _match_q < 4 else ""
+
+    if _partial_year and _pa and _pb and _pa != _pb:
         # Already aggregated — col 0 = Period A, col 1 = Period B
         _compare_label = f"vs {_pb}"
         _compare_note = f"Comparing {_pa} (Q1-Q{_match_q}) vs {_pb} (Q1-Q{_match_q})"
+    elif _partial_year and _pa and _pb and _pa == _pb:
+        _compare_label = f"vs {_pb}"
+        _compare_note = f"Comparing {_pa} (Q1-Q{_match_q}) vs {_pb} (Q1-Q{_match_q})"
+        _same_period = True
     elif _pa and _pb and _pa != _pb:
         income_df = _reorder_df_for_comparison(income_df, _pa, _pb, _sq2)
         balance_df = _reorder_df_for_comparison(balance_df, _pa, _pb, _sq2)
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa} vs {_pb}"
+        _compare_note = f"Comparing {_pa}{_q_tag} vs {_pb}{_q_tag}"
     elif _pa and _pb and _pa == _pb:
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa} vs {_pb}"
+        _compare_note = f"Comparing {_pa}{_q_tag} vs {_pb}{_q_tag}"
         _same_period = True
     else:
         _compare_label = "YoY"
