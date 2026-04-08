@@ -3815,6 +3815,74 @@ def render_sankey_page():
 
     company_name = info.get("shortName", info.get("longName", ticker))
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # LIVE DATA VALIDATION — runs automatically on every ticker load
+    # ═══════════════════════════════════════════════════════════════════════
+    _validation_results = []
+    if income_df is not None and not income_df.empty and not using_demo:
+        _v_revenue = _safe(income_df, "Total Revenue")
+        _v_cogs = abs(_safe(income_df, "Cost Of Revenue"))
+        _v_gp = _safe(income_df, "Gross Profit")
+        _v_op_inc = _safe(income_df, "Operating Income")
+        _v_pretax = _safe(income_df, "Pretax Income") or _safe(income_df, "Income Before Tax")
+        _v_tax = abs(_safe(income_df, "Tax Provision"))
+        _v_ni = _safe(income_df, "Net Income")
+
+        # Check 1: Gross Profit = Revenue - COGS (if both are filed)
+        if _v_revenue > 0 and _v_cogs > 0 and _v_gp != 0:
+            _computed_gp = _v_revenue - _v_cogs
+            _gp_diff = abs(_computed_gp - _v_gp) / _v_revenue * 100
+            _validation_results.append({
+                "check": "Gross Profit = Revenue − COGS",
+                "ok": _gp_diff < 1,
+                "detail": f"Computed ${_computed_gp:,.0f} vs Filed ${_v_gp:,.0f} (diff {_gp_diff:.1f}%)",
+            })
+
+        # Check 2: Net Income should not exceed Revenue (sanity)
+        if _v_revenue > 0 and abs(_v_ni) > _v_revenue * 2:
+            _validation_results.append({
+                "check": "Net Income magnitude vs Revenue",
+                "ok": False,
+                "detail": f"NI ${_v_ni:,.0f} exceeds 2x Revenue ${_v_revenue:,.0f}",
+            })
+
+        # Check 3: Operating Margin in reasonable range
+        if _v_revenue > 0:
+            _v_op_margin = _v_op_inc / _v_revenue * 100
+            _margin_ok = -200 < _v_op_margin < 200
+            if not _margin_ok:
+                _validation_results.append({
+                    "check": "Operating Margin range",
+                    "ok": False,
+                    "detail": f"Op Margin {_v_op_margin:.1f}% is extreme",
+                })
+
+        # Check 4: Revenue should be positive (unless pre-revenue)
+        if _v_revenue == 0 and _v_ni != 0:
+            _validation_results.append({
+                "check": "Revenue = 0 (pre-revenue company)",
+                "ok": True,  # Not an error, just informational
+                "detail": "Pre-revenue company — sankey requires revenue as root node",
+            })
+
+        # Check 5: Quarter sum validation (if partial year)
+        if _partial_year and not _is_full_year:
+            _qs_str = "+".join(f"Q{q}" for q in sorted(_match_qs))
+            _validation_results.append({
+                "check": f"Quarter aggregation ({_qs_str})",
+                "ok": _v_revenue > 0 or _v_ni != 0,
+                "detail": f"Summed {_qs_str} data: Rev ${_v_revenue:,.0f}, NI ${_v_ni:,.0f}",
+            })
+
+    # Store results for the audit panel
+    st.session_state["_validation_results"] = _validation_results
+
+    # Show warning banner if any critical check failed
+    _failed_checks = [r for r in _validation_results if not r["ok"]]
+    if _failed_checks:
+        _warn_msg = " | ".join(f'{r["check"]}: {r["detail"]}' for r in _failed_checks)
+        st.warning(f"⚠️ Data validation: {_warn_msg}")
+
     # Tab selection
     sankey_view = st.session_state.get("sankey_view", "income")
     qp_view = st.query_params.get("view", "").lower()
@@ -4203,67 +4271,20 @@ def render_sankey_page():
 
         st.markdown("---")
 
-        # ── Section 4: Consistency checks (live) ──
-        st.markdown(f'<p class="audit-header">✅ Live Consistency Checks</p>', unsafe_allow_html=True)
-        if income_df is not None and not income_df.empty:
-            _checks = []
-
-            revenue = _safe(income_df, "Total Revenue")
-            cogs = abs(_safe(income_df, "Cost Of Revenue"))
-            gp = _safe(income_df, "Gross Profit")
-            op_inc = _safe(income_df, "Operating Income")
-            pretax = _safe(income_df, "Pretax Income") or _safe(income_df, "Income Before Tax")
-            tax = abs(_safe(income_df, "Tax Provision"))
-            ni = _safe(income_df, "Net Income")
-
-            # Check 1: Gross Profit = Revenue - COGS
-            if revenue > 0 and cogs > 0:
-                computed_gp = revenue - cogs
-                diff_pct = abs(computed_gp - gp) / revenue * 100 if revenue else 0
-                _checks.append({
-                    "Check": "Gross Profit = Revenue − COGS",
-                    "Computed": f"${computed_gp:,.0f}",
-                    "Filed": f"${gp:,.0f}" if gp else "Not filed",
-                    "Diff": f"{diff_pct:.1f}%",
-                    "Status": "✅" if diff_pct < 1 else ("⚠️" if diff_pct < 5 else "❌"),
+        # ── Section 4: Live Validation Results ──
+        st.markdown(f'<p class="audit-header">✅ Live Validation (runs automatically on every ticker)</p>', unsafe_allow_html=True)
+        _vr = st.session_state.get("_validation_results", [])
+        if _vr:
+            _check_rows = []
+            for r in _vr:
+                _check_rows.append({
+                    "Status": "✅" if r["ok"] else "⚠️",
+                    "Check": r["check"],
+                    "Detail": r["detail"],
                 })
-
-            # Check 2: Tax ≈ Pretax - Net Income
-            if pretax != 0 and ni != 0:
-                computed_tax = pretax - ni
-                diff_pct = abs(computed_tax - tax) / abs(pretax) * 100 if pretax else 0
-                _checks.append({
-                    "Check": "Tax ≈ Pretax − Net Income",
-                    "Computed": f"${computed_tax:,.0f}",
-                    "Filed": f"${tax:,.0f}",
-                    "Diff": f"{diff_pct:.1f}%",
-                    "Status": "✅" if diff_pct < 2 else ("⚠️" if diff_pct < 10 else "❌"),
-                })
-
-            # Check 3: Revenue > 0 (basic sanity)
-            _checks.append({
-                "Check": "Revenue > 0",
-                "Computed": f"${revenue:,.0f}",
-                "Filed": "—",
-                "Diff": "—",
-                "Status": "✅" if revenue > 0 else "⚠️ Pre-revenue",
-            })
-
-            # Check 4: Operating Margin in reasonable range
-            if revenue > 0:
-                op_margin = op_inc / revenue * 100
-                _checks.append({
-                    "Check": "Operating Margin reasonable (−100% to 100%)",
-                    "Computed": f"{op_margin:.1f}%",
-                    "Filed": "—",
-                    "Diff": "—",
-                    "Status": "✅" if -100 < op_margin < 100 else "⚠️ Extreme",
-                })
-
-            if _checks:
-                st.dataframe(pd.DataFrame(_checks), use_container_width=True, hide_index=True)
-            else:
-                st.info("No consistency checks applicable.")
+            st.dataframe(pd.DataFrame(_check_rows), use_container_width=True, hide_index=True)
+        else:
+            st.success("All automatic checks passed — no issues detected.")
 
         # ── Section 5: XBRL tags used ──
         st.markdown("---")

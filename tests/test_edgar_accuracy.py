@@ -162,7 +162,7 @@ KNOWN_QUARTERLY = {
 def test_annual_values():
     """Verify annual income statement values match known 10-K filings."""
     sp = _import_sankey_helpers()
-    tolerance = 0.005  # 0.5% tolerance for rounding differences
+    tolerance = 0.0003  # 0.03% tolerance — values must nearly exactly match EDGAR
 
     results = []
     for ticker, expected in KNOWN_ANNUAL.items():
