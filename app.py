@@ -2937,32 +2937,52 @@ with st.sidebar:
             )
 
             if _compare_mode == "Annual":
-                # Handle session_state key: if existing value is no longer valid, reset
-                _prev_sel = st.session_state.get("sankey_q_selector", None)
-                if _prev_sel not in _q_values:
-                    st.session_state["sankey_q_selector"] = _q_values[_default_q_idx]
+                # ── Quarter checkboxes: user can select 1, 2, 3, or all 4 ──
+                st.markdown('<p style="font-size:0.92rem;font-weight:500;color:#495057;margin:0 0 4px;">Select Quarters to Compare:</p>', unsafe_allow_html=True)
 
-                _selected_q_val = st.radio(
-                    "Select Quarter to Compare:",
-                    _q_values,
-                    index=_default_q_idx,
-                    key="sankey_q_selector",
-                    horizontal=True,
-                    format_func=lambda v: _q_labels.get(v, v),
-                )
-                _sel_q = int(_selected_q_val)
-                st.session_state["_sankey_annual_match_q"] = _sel_q
-                # Build year list — only years where Q_sel_q is completed
+                # Render in 2 columns, chronological order (oldest→newest)
+                _selected_qs = []
+                _cb_col1, _cb_col2 = st.columns(2)
+                for _idx, (_qn, _cy, _cm) in enumerate(_q_sort):
+                    _label = _q_labels[str(_qn)]
+                    # Default: most recent quarter (last in sorted list) is checked
+                    _default_on = (_idx == len(_q_sort) - 1)
+                    _col = _cb_col1 if _idx % 2 == 0 else _cb_col2
+                    with _col:
+                        if st.checkbox(_label, value=_default_on, key=f"sk_q{_qn}"):
+                            _selected_qs.append(_qn)
+
+                # Must have at least 1 quarter selected
+                if not _selected_qs:
+                    _selected_qs = [_q_sort[-1][0]]  # fallback to most recent
+                    st.warning("Select at least one quarter.")
+
+                _selected_qs.sort()  # always in Q1,Q2,Q3,Q4 order
+                st.session_state["_sankey_annual_match_qs"] = _selected_qs
+
+                # Highest selected Q determines which years are available
+                _max_sel_q = max(_selected_qs)
+
+                # Build year list — only years where _max_sel_q is completed
                 _years = []
                 for _y in range(_cur_fy, _cur_fy - 11, -1):
                     _cq = _completed_qs_in_fy(_y, _fy_m_sk)
-                    if _cq < _sel_q:
-                        continue  # this year doesn't have Q_sel_q done yet
+                    if _cq < _max_sel_q:
+                        continue
                     _years.append(str(_y))
 
-                # Labels: "YYYY (Qn)" always — Q4 = full year, still labelled
+                # Build quarter tag for labels: "Q2" or "Q1+Q3" or "Q1-Q4"
+                def _q_tag():
+                    if _selected_qs == [1, 2, 3, 4]:
+                        return "Q1-Q4"
+                    elif len(_selected_qs) == 1:
+                        return f"Q{_selected_qs[0]}"
+                    else:
+                        return "+".join(f"Q{q}" for q in _selected_qs)
+
+                _qt = _q_tag()
                 def _yr_label(y):
-                    return f"{y} (Q{_sel_q})"
+                    return f"{y} ({_qt})"
 
                 # Guard against empty years list
                 if not _years:
@@ -2989,6 +3009,8 @@ with st.sidebar:
                     "Period B (compare to)", _years, index=min(1, len(_years) - 1), key="sk_pb",
                     format_func=_yr_label,
                 )
+                # Also store old single-value key for backward compat
+                st.session_state["_sankey_annual_match_q"] = _max_sel_q
                 st.session_state.sankey_compare_quarterly = False
             else:
                 st.session_state["_sankey_annual_match_q"] = 4
