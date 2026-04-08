@@ -2913,15 +2913,17 @@ with st.sidebar:
                 if _q_is_completed(q, _cur_fy, _fy_m_sk):
                     _comp_y = _fq_end_year(q, _cur_fy, _fy_m_sk)
                     _comp_m = _fq_end_month(q, _fy_m_sk)
+                    _fy_label = _cur_fy
                 else:
                     _comp_y = _fq_end_year(q, _cur_fy - 1, _fy_m_sk)
                     _comp_m = _fq_end_month(q, _fy_m_sk)
-                _q_sort.append((q, _comp_y, _comp_m))
+                    _fy_label = _cur_fy - 1
+                _q_sort.append((q, _comp_y, _comp_m, _fy_label))
             _q_sort.sort(key=lambda x: (x[1], x[2]))  # oldest first
 
-            # Build labels: "Q4 (Mar-May)" etc, in chronological order
-            _q_values = [str(t[0]) for t in _q_sort]           # ["4","1","2","3"]
-            _q_labels = {str(t[0]): f"Q{t[0]} {_q_month_range(t[0], _fy_m_sk)}"
+            # Build labels: "Q4 (Mar-May) '25" etc, in chronological order
+            _q_values = [str(t[0]) for t in _q_sort]
+            _q_labels = {str(t[0]): f"Q{t[0]} {_q_month_range(t[0], _fy_m_sk)} '{t[3] % 100:02d}"
                          for t in _q_sort}
             # Default = rightmost (most recent)
             _default_q_idx = len(_q_values) - 1
@@ -2943,7 +2945,7 @@ with st.sidebar:
                 # Render in 2 columns, chronological order (oldest→newest)
                 _selected_qs = []
                 _cb_col1, _cb_col2 = st.columns(2)
-                for _idx, (_qn, _cy, _cm) in enumerate(_q_sort):
+                for _idx, (_qn, _cy, _cm, _fyl) in enumerate(_q_sort):
                     _label = _q_labels[str(_qn)]
                     # Default: most recent quarter (last in sorted list) is checked
                     _default_on = (_idx == len(_q_sort) - 1)
