@@ -2997,35 +2997,81 @@ with st.sidebar:
                     format_func=_yr_label,
                 )
 
-                # ── Quarter checkboxes based on Period A year + previous year ──
+                # ── Fiscal Quarter Calendar UI ──
                 _sel_fy = int(st.session_state.sankey_period_a)
                 _prev_fy = _sel_fy - 1
 
-                # For each quarter, show selected year if available, else previous year
                 _q_display = []
                 for _qq in range(1, 5):
                     if _q_is_completed(_qq, _sel_fy, _fy_m_sk):
                         _fy_lbl = _sel_fy
-                        _cpy = _fq_end_year(_qq, _sel_fy, _fy_m_sk)
-                        _cpm = _fq_end_month(_qq, _fy_m_sk)
                     else:
                         _fy_lbl = _prev_fy
-                        _cpy = _fq_end_year(_qq, _prev_fy, _fy_m_sk)
-                        _cpm = _fq_end_month(_qq, _fy_m_sk)
+                    _cpy = _fq_end_year(_qq, _fy_lbl, _fy_m_sk)
+                    _cpm = _fq_end_month(_qq, _fy_m_sk)
                     _q_display.append((_qq, _cpy, _cpm, _fy_lbl))
                 _q_display.sort(key=lambda x: (x[1], x[2]))  # chronological
 
-                _q_labels_dyn = {qq: f"Q{qq} {_q_month_range(qq, _fy_m_sk)} '{fyl % 100:02d}"
-                                 for (qq, cy, cm, fyl) in _q_display}
+                # ── Color palette per quarter ──
+                _QC = {
+                    1: {"ac": "#3B82F6", "bg": "#EFF6FF", "pill": "#DBEAFE"},  # blue
+                    2: {"ac": "#10B981", "bg": "#ECFDF5", "pill": "#D1FAE5"},  # emerald
+                    3: {"ac": "#F59E0B", "bg": "#FFFBEB", "pill": "#FEF3C7"},  # amber
+                    4: {"ac": "#8B5CF6", "bg": "#F5F3FF", "pill": "#EDE9FE"},  # violet
+                }
 
-                st.markdown('<p style="font-size:0.92rem;font-weight:500;color:#495057;margin:0 0 4px;">Select Quarters to Compare:</p>', unsafe_allow_html=True)
-                _cb_col1, _cb_col2 = st.columns(2)
+                st.markdown("""<style>
+                .qcal-card{border-radius:12px;padding:12px 14px;margin-bottom:2px;
+                    border-left:5px solid;box-shadow:0 1px 4px rgba(0,0,0,.06);
+                    transition:transform .15s ease,box-shadow .15s ease}
+                .qcal-card:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.1)}
+                .qcal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+                .qcal-qn{font-weight:800;font-size:.92rem;letter-spacing:.5px}
+                .qcal-fy{font-size:.65rem;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.4px}
+                .qcal-grid{display:flex;gap:5px}
+                .qcal-mo{flex:1;text-align:center;padding:7px 2px;border-radius:8px;
+                    font-size:.7rem;font-weight:700;color:#fff;text-transform:uppercase;
+                    letter-spacing:.6px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+                </style>""", unsafe_allow_html=True)
+
+                st.markdown(
+                    '<p style="font-size:.95rem;font-weight:700;color:#374151;'
+                    'margin:4px 0 10px;letter-spacing:.2px;">'
+                    '\U0001f4c5 Select Quarters to Compare</p>',
+                    unsafe_allow_html=True,
+                )
+
                 for _idx, (_qn, _cy, _cm, _fyl) in enumerate(_q_display):
-                    _label = _q_labels_dyn[_qn]
+                    _c = _QC[_qn]
+                    # Compute the 3 calendar months in this fiscal quarter
+                    _end_m = _fq_end_month(_qn, _fy_m_sk)
+                    _s_m = _end_m - 2
+                    if _s_m <= 0:
+                        _s_m += 12
+                    _mid_m = _end_m - 1
+                    if _mid_m <= 0:
+                        _mid_m += 12
+                    _mnames = [_MON[_s_m], _MON[_mid_m], _MON[_end_m]]
+
+                    st.markdown(
+                        f'<div class="qcal-card" style="border-color:{_c["ac"]};background:{_c["bg"]};">'
+                        f'<div class="qcal-head">'
+                        f'<span class="qcal-qn" style="color:{_c["ac"]};">Q{_qn}</span>'
+                        f'<span class="qcal-fy" style="color:{_c["ac"]};background:{_c["pill"]};">FY {_fyl}</span>'
+                        f'</div>'
+                        f'<div class="qcal-grid">'
+                        f'<div class="qcal-mo" style="background:{_c["ac"]};">{_mnames[0]}</div>'
+                        f'<div class="qcal-mo" style="background:{_c["ac"]};">{_mnames[1]}</div>'
+                        f'<div class="qcal-mo" style="background:{_c["ac"]};">{_mnames[2]}</div>'
+                        f'</div></div>',
+                        unsafe_allow_html=True,
+                    )
                     _default_on = (_idx == len(_q_display) - 1)
-                    _col = _cb_col1 if _idx % 2 == 0 else _cb_col2
-                    with _col:
-                        st.checkbox(_label, value=_default_on, key=f"sk_q{_qn}")
+                    st.checkbox(
+                        f"Compare Q{_qn}",
+                        value=_default_on,
+                        key=f"sk_q{_qn}",
+                    )
 
                 st.session_state["_sankey_annual_match_q"] = _max_sel_q
                 st.session_state.sankey_compare_quarterly = False
