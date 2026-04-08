@@ -2997,12 +2997,32 @@ with st.sidebar:
                     format_func=_yr_label,
                 )
 
-                # ── Quarter checkboxes (below Period selectors) ──
+                # ── Quarter checkboxes based on Period A year + previous year ──
+                _sel_fy = int(st.session_state.sankey_period_a)
+                _prev_fy = _sel_fy - 1
+
+                # For each quarter, show selected year if available, else previous year
+                _q_display = []
+                for _qq in range(1, 5):
+                    if _q_is_completed(_qq, _sel_fy, _fy_m_sk):
+                        _fy_lbl = _sel_fy
+                        _cpy = _fq_end_year(_qq, _sel_fy, _fy_m_sk)
+                        _cpm = _fq_end_month(_qq, _fy_m_sk)
+                    else:
+                        _fy_lbl = _prev_fy
+                        _cpy = _fq_end_year(_qq, _prev_fy, _fy_m_sk)
+                        _cpm = _fq_end_month(_qq, _fy_m_sk)
+                    _q_display.append((_qq, _cpy, _cpm, _fy_lbl))
+                _q_display.sort(key=lambda x: (x[1], x[2]))  # chronological
+
+                _q_labels_dyn = {qq: f"Q{qq} {_q_month_range(qq, _fy_m_sk)} '{fyl % 100:02d}"
+                                 for (qq, cy, cm, fyl) in _q_display}
+
                 st.markdown('<p style="font-size:0.92rem;font-weight:500;color:#495057;margin:0 0 4px;">Select Quarters to Compare:</p>', unsafe_allow_html=True)
                 _cb_col1, _cb_col2 = st.columns(2)
-                for _idx, (_qn, _cy, _cm, _fyl) in enumerate(_q_sort):
-                    _label = _q_labels[str(_qn)]
-                    _default_on = (_idx == len(_q_sort) - 1)
+                for _idx, (_qn, _cy, _cm, _fyl) in enumerate(_q_display):
+                    _label = _q_labels_dyn[_qn]
+                    _default_on = (_idx == len(_q_display) - 1)
                     _col = _cb_col1 if _idx % 2 == 0 else _cb_col2
                     with _col:
                         st.checkbox(_label, value=_default_on, key=f"sk_q{_qn}")
