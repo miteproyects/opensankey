@@ -2936,23 +2936,22 @@ with st.sidebar:
                 label_visibility="collapsed",
             )
 
-            # Handle session_state key: if existing value is no longer valid, reset
-            _prev_sel = st.session_state.get("sankey_q_selector", None)
-            if _prev_sel not in _q_values:
-                st.session_state["sankey_q_selector"] = _q_values[_default_q_idx]
-
-            _selected_q_val = st.radio(
-                "Select Quarter to Compare:",
-                _q_values,
-                index=_default_q_idx,
-                key="sankey_q_selector",
-                horizontal=True,
-                format_func=lambda v: _q_labels.get(v, v),
-            )
-            _sel_q = int(_selected_q_val)
-            st.session_state["_sankey_annual_match_q"] = _sel_q
-
             if _compare_mode == "Annual":
+                # Handle session_state key: if existing value is no longer valid, reset
+                _prev_sel = st.session_state.get("sankey_q_selector", None)
+                if _prev_sel not in _q_values:
+                    st.session_state["sankey_q_selector"] = _q_values[_default_q_idx]
+
+                _selected_q_val = st.radio(
+                    "Select Quarter to Compare:",
+                    _q_values,
+                    index=_default_q_idx,
+                    key="sankey_q_selector",
+                    horizontal=True,
+                    format_func=lambda v: _q_labels.get(v, v),
+                )
+                _sel_q = int(_selected_q_val)
+                st.session_state["_sankey_annual_match_q"] = _sel_q
                 # Build year list — only years where Q_sel_q is completed
                 _years = []
                 for _y in range(_cur_fy, _cur_fy - 11, -1):
@@ -2979,6 +2978,7 @@ with st.sidebar:
                 )
                 st.session_state.sankey_compare_quarterly = False
             else:
+                st.session_state["_sankey_annual_match_q"] = 4
                 _quarters = []
                 for _fy in range(_cur_fy, _cur_fy - 6, -1):
                     for _fq in range(4, 0, -1):
