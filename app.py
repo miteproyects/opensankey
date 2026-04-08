@@ -2942,7 +2942,7 @@ with st.sidebar:
                 st.session_state["sankey_q_selector"] = _q_values[_default_q_idx]
 
             _selected_q_val = st.radio(
-                "Compare up to",
+                "Select Quarter to Compare:",
                 _q_values,
                 index=_default_q_idx,
                 key="sankey_q_selector",
