@@ -2926,6 +2926,16 @@ with st.sidebar:
             # Default = rightmost (most recent)
             _default_q_idx = len(_q_values) - 1
 
+            st.markdown('<p style="font-size:1.26rem;font-weight:600;color:#495057;margin:0 0 6px;">Compare Periods By:</p>', unsafe_allow_html=True)
+
+            _compare_mode = st.radio(
+                "Compare by",
+                ["Annual", "Quarterly"],
+                key="sankey_compare_mode",
+                horizontal=True,
+                label_visibility="collapsed",
+            )
+
             # Handle session_state key: if existing value is no longer valid, reset
             _prev_sel = st.session_state.get("sankey_q_selector", None)
             if _prev_sel not in _q_values:
@@ -2941,16 +2951,6 @@ with st.sidebar:
             )
             _sel_q = int(_selected_q_val)
             st.session_state["_sankey_annual_match_q"] = _sel_q
-
-            st.markdown('<p style="font-size:1.26rem;font-weight:600;color:#495057;margin:0 0 6px;">Compare Periods By:</p>', unsafe_allow_html=True)
-
-            _compare_mode = st.radio(
-                "Compare by",
-                ["Annual", "Quarterly"],
-                key="sankey_compare_mode",
-                horizontal=True,
-                label_visibility="collapsed",
-            )
 
             if _compare_mode == "Annual":
                 # Build year list — only years where Q_sel_q is completed
