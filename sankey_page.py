@@ -4121,4 +4121,158 @@ def render_sankey_page():
             st.warning(f"No balance sheet data available for {ticker}.")
 
         st.caption(f"QuarterCharts \u00b7 SEC EDGAR data \u00b7 {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # AUDIT / DEBUG PANEL — "Show Source Data"
+    # ═══════════════════════════════════════════════════════════════════════
+    with st.expander("🔍 Show Source Data (Audit Panel)", expanded=False):
+        st.markdown("""
+        <style>
+        .audit-header { font-size: 0.85rem; font-weight: 600; color: #495057; margin: 8px 0 4px; }
+        .audit-tag { font-family: monospace; font-size: 0.78rem; color: #6c757d; background: #f8f9fa;
+                     padding: 2px 6px; border-radius: 3px; }
+        </style>
+        """, unsafe_allow_html=True)
+
+        _audit_fy_end = st.session_state.get("_fy_end_month", 12)
+        _audit_qs = st.session_state.get("_sankey_annual_match_qs", [1, 2, 3, 4])
+        _audit_sq = st.session_state.get("sankey_compare_quarterly", False)
+        _MON_AUDIT = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
+        # ── Section 1: Data source info ──
+        st.markdown(f'<p class="audit-header">📋 Data Source</p>', unsafe_allow_html=True)
+        _src_cols = st.columns(2)
+        with _src_cols[0]:
+            st.markdown(f"**Ticker:** {ticker.upper()}")
+            st.markdown(f"**FY End Month:** {_MON_AUDIT[_audit_fy_end]} ({_audit_fy_end})")
+        with _src_cols[1]:
+            st.markdown(f"**Mode:** {'Quarterly' if _audit_sq else 'Annual'}")
+            if not _audit_sq:
+                _q_str = ", ".join(f"Q{q}" for q in sorted(_audit_qs))
+                st.markdown(f"**Selected Quarters:** {_q_str}")
+            st.markdown(f"**Period A:** {_pa}  |  **Period B:** {_pb}")
+
+        st.markdown("---")
+
+        # ── Section 2: Raw income statement data ──
+        st.markdown(f'<p class="audit-header">📊 Income Statement — Raw Values (Period A = col 0, Period B = col 1)</p>', unsafe_allow_html=True)
+        if income_df is not None and not income_df.empty:
+            # Format for display
+            _disp_income = income_df.copy()
+            _disp_income.columns = [str(c) for c in _disp_income.columns]
+            # Add a "Formula" column showing how derived values are computed
+            _formulas = []
+            for idx in _disp_income.index:
+                name = str(idx)
+                if "gross profit" in name.lower():
+                    _formulas.append("= Revenue − Cost Of Revenue")
+                elif "operating income" in name.lower():
+                    _formulas.append("= Gross Profit − OpEx")
+                elif "pretax" in name.lower():
+                    _formulas.append("= Operating Income − Interest + Other")
+                elif "net income" in name.lower():
+                    _formulas.append("= Pretax Income − Tax")
+                else:
+                    _formulas.append("Direct from EDGAR XBRL")
+            _disp_income["Source / Formula"] = _formulas
+
+            # Format numbers with commas
+            for col in _disp_income.columns:
+                if col != "Source / Formula":
+                    _disp_income[col] = _disp_income[col].apply(
+                        lambda x: f"${x:,.0f}" if pd.notna(x) and x != 0 else "—"
+                    )
+            st.dataframe(_disp_income, use_container_width=True)
+        else:
+            st.info("No income data available.")
+
+        st.markdown("---")
+
+        # ── Section 3: Raw balance sheet data ──
+        st.markdown(f'<p class="audit-header">🏦 Balance Sheet — Raw Values</p>', unsafe_allow_html=True)
+        if balance_df is not None and not balance_df.empty:
+            _disp_balance = balance_df.copy()
+            _disp_balance.columns = [str(c) for c in _disp_balance.columns]
+            for col in _disp_balance.columns:
+                _disp_balance[col] = _disp_balance[col].apply(
+                    lambda x: f"${x:,.0f}" if pd.notna(x) and x != 0 else "—"
+                )
+            st.dataframe(_disp_balance, use_container_width=True)
+        else:
+            st.info("No balance sheet data available.")
+
+        st.markdown("---")
+
+        # ── Section 4: Consistency checks (live) ──
+        st.markdown(f'<p class="audit-header">✅ Live Consistency Checks</p>', unsafe_allow_html=True)
+        if income_df is not None and not income_df.empty:
+            _checks = []
+
+            revenue = _safe(income_df, "Total Revenue")
+            cogs = abs(_safe(income_df, "Cost Of Revenue"))
+            gp = _safe(income_df, "Gross Profit")
+            op_inc = _safe(income_df, "Operating Income")
+            pretax = _safe(income_df, "Pretax Income") or _safe(income_df, "Income Before Tax")
+            tax = abs(_safe(income_df, "Tax Provision"))
+            ni = _safe(income_df, "Net Income")
+
+            # Check 1: Gross Profit = Revenue - COGS
+            if revenue > 0 and cogs > 0:
+                computed_gp = revenue - cogs
+                diff_pct = abs(computed_gp - gp) / revenue * 100 if revenue else 0
+                _checks.append({
+                    "Check": "Gross Profit = Revenue − COGS",
+                    "Computed": f"${computed_gp:,.0f}",
+                    "Filed": f"${gp:,.0f}" if gp else "Not filed",
+                    "Diff": f"{diff_pct:.1f}%",
+                    "Status": "✅" if diff_pct < 1 else ("⚠️" if diff_pct < 5 else "❌"),
+                })
+
+            # Check 2: Tax ≈ Pretax - Net Income
+            if pretax != 0 and ni != 0:
+                computed_tax = pretax - ni
+                diff_pct = abs(computed_tax - tax) / abs(pretax) * 100 if pretax else 0
+                _checks.append({
+                    "Check": "Tax ≈ Pretax − Net Income",
+                    "Computed": f"${computed_tax:,.0f}",
+                    "Filed": f"${tax:,.0f}",
+                    "Diff": f"{diff_pct:.1f}%",
+                    "Status": "✅" if diff_pct < 2 else ("⚠️" if diff_pct < 10 else "❌"),
+                })
+
+            # Check 3: Revenue > 0 (basic sanity)
+            _checks.append({
+                "Check": "Revenue > 0",
+                "Computed": f"${revenue:,.0f}",
+                "Filed": "—",
+                "Diff": "—",
+                "Status": "✅" if revenue > 0 else "⚠️ Pre-revenue",
+            })
+
+            # Check 4: Operating Margin in reasonable range
+            if revenue > 0:
+                op_margin = op_inc / revenue * 100
+                _checks.append({
+                    "Check": "Operating Margin reasonable (−100% to 100%)",
+                    "Computed": f"{op_margin:.1f}%",
+                    "Filed": "—",
+                    "Diff": "—",
+                    "Status": "✅" if -100 < op_margin < 100 else "⚠️ Extreme",
+                })
+
+            if _checks:
+                st.dataframe(pd.DataFrame(_checks), use_container_width=True, hide_index=True)
+            else:
+                st.info("No consistency checks applicable.")
+
+        # ── Section 5: XBRL tags used ──
+        st.markdown("---")
+        st.markdown(f'<p class="audit-header">🏷️ XBRL Tags Reference</p>', unsafe_allow_html=True)
+        _tag_data = []
+        for display_name, tags in _XBRL_INCOME_TAGS.items():
+            _tag_data.append({
+                "Metric": display_name,
+                "XBRL Tags (priority order)": " → ".join(tags) if tags else "Derived",
+            })
+        st.dataframe(pd.DataFrame(_tag_data), use_container_width=True, hide_index=True)
 """"""
