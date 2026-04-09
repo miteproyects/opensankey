@@ -3189,7 +3189,7 @@ with st.sidebar:
                         return (
                             f"FY{fy} (Q{qi}) available in {_days} days"
                             f" — subscribe to get notified"
-                        )
+                        )  # plain text (help= doesn't support links)
                     _on = st.session_state.get(key, False)
                     if _on:
                         return None  # ON button — no tooltip needed
@@ -3234,7 +3234,7 @@ with st.sidebar:
                         _days = _days_until_q(_qi_i, _fy_i)
                         _future_msg = (
                             f"FY{_fy_i} (Q{_qi_i}) available in {_days} days"
-                            f" — subscribe to get notified"
+                            f" — [subscribe](https://quartercharts.com/pricing) to get notified"
                         )
                         st.button(
                             f"FY{_fy_i} - Q{_qi_i} — in {_days}d",
