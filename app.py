@@ -3191,10 +3191,14 @@ with st.sidebar:
 
                     if not _avail:
                         _days = _days_until_q(_qi_i, _fy_i)
+                        _future_msg = (
+                            f"FY{_fy_i} (Q{_qi_i}) available in {_days} days"
+                            f" — subscribe to get notified"
+                        )
                         st.button(
                             f"FY{_fy_i} - Q{_qi_i} — in {_days}d",
                             key=_bid, use_container_width=True,
-                            disabled=True,
+                            on_click=lambda m=_future_msg: st.session_state.update({"_qbtn_toast": m}),
                         )
                     elif _on:
                         st.button(
