@@ -3158,16 +3158,10 @@ with st.sidebar:
                     ):
                         st.session_state[key] = True  # keep last one on
 
-                # ── Collect per-button CSS overrides ──
-                _btn_styles = []
-
                 # ── Render one year's quarter buttons ──
+                _btn_idx = [0]  # mutable counter for nth-child targeting
+
                 def _render_fy_buttons(fy, prefix):
-                    st.markdown(
-                        f'<p style="font-size:.82rem;font-weight:700;color:#495057;'
-                        f'margin:6px 0 4px;">FY {fy}</p>',
-                        unsafe_allow_html=True,
-                    )
                     _cq = _completed_qs_in_fy(fy, _fy_m_sk)
                     for qi in range(1, 5):
                         _avail = qi <= _cq
@@ -3177,52 +3171,56 @@ with st.sidebar:
                         _bid = f"btn_{prefix}_{qi}"
 
                         if not _avail:
-                            # ── Unavailable: disabled grey button ──
                             _days = _days_until_q(qi, fy)
-                            st.button(
-                                f"Q{qi} — in {_days}d",
-                                key=_bid,
-                                use_container_width=True,
-                                disabled=True,
-                            )
+                            _lbl = f"FY{fy} Q{qi} — in {_days}d"
+                            _bg = "#f1f3f5"; _fg = "#adb5bd"
+                            _bdr = "#dee2e6"; _shd = "none"; _fw = "600"
+                        elif _on:
+                            _lbl = f"FY{fy} " + _q_btn_label(qi, fy)
+                            _bg = _c["bg"]; _fg = "#fff"
+                            _bdr = _c["bg"]; _shd = f"0 2px 10px {_c['bg']}40"; _fw = "700"
                         else:
-                            # ── Available: clickable toggle ──
-                            _lbl = _q_btn_label(qi, fy)
-                            if st.button(_lbl, key=_bid,
+                            _lbl = f"FY{fy} " + _q_btn_label(qi, fy)
+                            _bg = _c["dim"]; _fg = _c["tx"]
+                            _bdr = f'{_c["bg"]}50'; _shd = "none"; _fw = "600"
+
+                        # Render HTML card + invisible st.button overlay
+                        st.markdown(
+                            f'<div class="qb" id="qb{_btn_idx[0]}" style="'
+                            f'background:{_bg};color:{_fg};font-weight:{_fw};'
+                            f'border-left:4px solid {_bdr};box-shadow:{_shd};'
+                            f'border-radius:8px;padding:10px 14px;margin-bottom:5px;'
+                            f'font-size:.78rem;position:relative;'
+                            f'{"" if _avail else "opacity:.55;"}'
+                            f'">{_lbl}</div>',
+                            unsafe_allow_html=True,
+                        )
+                        if _avail:
+                            if st.button(" ", key=_bid,
                                          use_container_width=True):
                                 _toggle_q(_key); st.rerun()
-                            # Queue CSS to color this button
-                            if _on:
-                                _btn_styles.append(
-                                    f'div[data-testid="stButton"]:has(button[key="{_bid}"]) button{{'
-                                    f'background:{_c["bg"]}!important;'
-                                    f'color:#fff!important;'
-                                    f'border:none!important;'
-                                    f'box-shadow:0 2px 10px {_c["bg"]}40!important;'
-                                    f'font-weight:700!important;'
-                                    f'border-left:4px solid {_c["bg"]}!important;'
-                                    f'border-radius:8px!important}}'
-                                )
-                            else:
-                                _btn_styles.append(
-                                    f'div[data-testid="stButton"]:has(button[key="{_bid}"]) button{{'
-                                    f'background:{_c["dim"]}!important;'
-                                    f'color:{_c["tx"]}!important;'
-                                    f'border:none!important;'
-                                    f'font-weight:600!important;'
-                                    f'border-left:4px solid {_c["bg"]}50!important;'
-                                    f'border-radius:8px!important}}'
-                                )
+                        _btn_idx[0] += 1
 
+                # CSS: hide st.button visuals, make them overlay the card
+                st.markdown("""<style>
+                .qb+div[data-testid="stButton"]{margin-top:-42px;margin-bottom:5px;position:relative;z-index:2}
+                .qb+div[data-testid="stButton"] button{
+                    opacity:0!important;height:42px!important;min-height:42px!important;
+                    cursor:pointer!important;border:none!important;padding:0!important}
+                </style>""", unsafe_allow_html=True)
+
+                st.markdown(
+                    f'<p style="font-size:.82rem;font-weight:700;color:#495057;'
+                    f'margin:6px 0 4px;">FY {_sel_fy}</p>',
+                    unsafe_allow_html=True,
+                )
                 _render_fy_buttons(_sel_fy, "sk_Ya")
+                st.markdown(
+                    f'<p style="font-size:.82rem;font-weight:700;color:#495057;'
+                    f'margin:10px 0 4px;">FY {_prev_fy}</p>',
+                    unsafe_allow_html=True,
+                )
                 _render_fy_buttons(_prev_fy, "sk_Yb")
-
-                # ── Inject all button color styles at once ──
-                if _btn_styles:
-                    st.markdown(
-                        '<style>' + '\n'.join(_btn_styles) + '</style>',
-                        unsafe_allow_html=True,
-                    )
 
                 st.session_state["_sankey_annual_match_q"] = _max_sel_q
                 st.session_state.sankey_compare_quarterly = False
