@@ -3807,6 +3807,12 @@ def render_sankey_page():
         try:
             _fy_a = int(_pa)
             _fy_b = int(_pb)
+            # When only previous-year Qs are selected (qa empty), bump fy
+            # so that main_fy-1 = dropdown value (user expects Period B
+            # dropdown to map directly to the qb_nums year)
+            if not _qa_nums_agg and _qb_nums_agg:
+                _fy_a += 1
+                _fy_b += 1
             income_df = _build_partial_year_df(
                 income_df, _fy_a, _fy_b, _match_qs, _fy_end,
                 is_balance_sheet=False,
@@ -3851,12 +3857,18 @@ def render_sankey_page():
     if _partial_year and _pa and _pb and _pa != _pb:
         _fy_a_int = int(_pa)
         _fy_b_int = int(_pb)
+        # When only prev-year Qs selected, bump so main_fy-1 = dropdown value
+        if not _qa_qs and _qb_qs:
+            _fy_a_int += 1
+            _fy_b_int += 1
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
         _label_b = _build_period_label(_fy_b_int, _qa_qs, _qb_qs) if not _sq2 else _pb
         _compare_label = f"vs {_pb}"
         _compare_note = f"Comparing {_label_a} vs {_label_b}"
     elif _partial_year and _pa and _pb and _pa == _pb:
         _fy_a_int = int(_pa)
+        if not _qa_qs and _qb_qs:
+            _fy_a_int += 1
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
         _compare_label = f"vs {_pb}"
         _compare_note = f"Comparing {_label_a} vs {_label_a}"
