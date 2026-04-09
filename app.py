@@ -3104,6 +3104,29 @@ with st.sidebar:
                 st.session_state["_sankey_qb_nums"] = _qb_nums
                 _max_sel_q = max(_selected_qs)
 
+                def _build_deselect_msg(keys_to_deselect):
+                    """Build grouped message like 'Deselect FY2026 (Q3 & Q2) & FY2025 (Q4)'."""
+                    # Group by fiscal year
+                    from collections import defaultdict
+                    _by_fy = defaultdict(list)
+                    for k in keys_to_deselect:
+                        # Find the (fy, q) for this key
+                        for (_, _, fy_i, qi_i, pfx_i) in _all_q_items:
+                            if f"{pfx_i}_q{qi_i}" == k:
+                                _by_fy[fy_i].append(qi_i)
+                                break
+                    # Sort: newest FY first, highest Q first within FY
+                    parts = []
+                    for fy in sorted(_by_fy.keys(), reverse=True):
+                        qs = sorted(_by_fy[fy], reverse=True)
+                        qs_str = ", ".join(f"Q{q}" for q in qs[:-1])
+                        if qs_str:
+                            qs_str += f", & Q{qs[-1]}" if len(qs) > 2 else f" & Q{qs[-1]}"
+                            parts.append(f"FY{fy} ({qs_str})")
+                        else:
+                            parts.append(f"FY{fy} (Q{qs[0]})")
+                    return " & ".join(parts)
+
                 def _toggle_q(key):
                     """Toggle with rules: min 1, max 4, max span 3."""
                     _was_on = st.session_state.get(key, False)
@@ -3117,21 +3140,46 @@ with st.sidebar:
                         ):
                             st.session_state[key] = True  # keep last one
                     else:
-                        # Turning ON — check max 4 and max span 3
-                        _on_keys = [
-                            k for k in _key_to_idx
-                            if st.session_state.get(k, False)
-                        ]
-                        if len(_on_keys) >= 4:
-                            return  # already at max
-                        # Check span: indices of currently-on + this new one
-                        _on_idxs = [_key_to_idx[k] for k in _on_keys]
+                        _on_keys = sorted(
+                            [k for k in _key_to_idx if st.session_state.get(k, False)],
+                            key=lambda k: _key_to_idx[k],
+                        )
                         _new_idx = _key_to_idx.get(key)
-                        if _new_idx is not None:
-                            _on_idxs.append(_new_idx)
-                        if max(_on_idxs) - min(_on_idxs) > 3:
-                            return  # span too wide
+
+                        # ── Max 4 check ──
+                        if len(_on_keys) >= 4:
+                            st.session_state["_qbtn_toast"] = (
+                                "Max 4 quarters selected. Deselect one to choose this quarter."
+                            )
+                            return
+
+                        # ── Span check: find which ON keys must be deselected ──
+                        _on_idxs = [_key_to_idx[k] for k in _on_keys]
+                        _test_idxs = _on_idxs + [_new_idx]
+                        if max(_test_idxs) - min(_test_idxs) > 3:
+                            # Find which existing keys are too far
+                            _to_deselect = []
+                            for k in _on_keys:
+                                ki = _key_to_idx[k]
+                                # Check if this key is outside a valid window with the new one
+                                remaining = [i for i in _on_idxs if i != ki] + [_new_idx]
+                                if not remaining:
+                                    continue
+                                if max(remaining) - min(remaining) <= 3:
+                                    _to_deselect.append(k)
+                            if not _to_deselect or len(_to_deselect) == len(_on_keys):
+                                st.session_state["_qbtn_toast"] = (
+                                    "Can't select — deselect farthest quarters first"
+                                )
+                            else:
+                                _msg = _build_deselect_msg(_to_deselect)
+                                st.session_state["_qbtn_toast"] = (
+                                    f"Deselect {_msg} to choose this quarter"
+                                )
+                            return
                         st.session_state[key] = True
+                        # Clear any previous toast
+                        st.session_state.pop("_qbtn_toast", None)
 
                 # ── Render sorted quarter toggle buttons ──
                 for _idx, (_, _, _fy_i, _qi_i, _pfx_i) in enumerate(_all_q_items):
@@ -3162,6 +3210,11 @@ with st.sidebar:
                             on_click=_toggle_q, args=(_key,),
                             use_container_width=True,
                         )
+
+                # ── Show toast if a blocked button was clicked ──
+                _toast_msg = st.session_state.pop("_qbtn_toast", None)
+                if _toast_msg:
+                    st.warning(_toast_msg)
 
                 st.session_state["_sankey_annual_match_q"] = _max_sel_q
                 st.session_state.sankey_compare_quarterly = False
