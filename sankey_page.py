@@ -293,11 +293,18 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
     ser_b, ts_b = _aggregate_multi_year(qtr_df, fy_b, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
     if ser_a is None and ser_b is None:
         return qtr_df  # fallback to raw quarterly data
+    # Use positional labels so columns are always distinct even when fy_a == fy_b
+    # (same timestamp would overwrite the first column otherwise).
+    # _safe() reads iloc[:,0] and _safe_prev() reads iloc[:,1], so names don't matter.
     result = pd.DataFrame()
     if ser_a is not None:
-        result[ts_a] = ser_a
+        result[f"A_{ts_a}"] = ser_a
     if ser_b is not None:
-        result[ts_b] = ser_b
+        result[f"B_{ts_b}"] = ser_b
+    # Guarantee exactly 2 columns so _safe_prev always finds column 1.
+    # If Period B aggregation failed (data too old), duplicate Period A so delta = 0%.
+    if result.shape[1] == 1:
+        result["_placeholder"] = result.iloc[:, 0]
     return result
 
 
@@ -2895,17 +2902,16 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         pct = _yoy(val, prev_val)
         delta_str = _fmt_delta(val, prev_val) if prev_val else None
         pct_suffix = ""
-        if not same_period:
-            if pct is not None:
-                diff = val - prev_val if prev_val else 0
-                arrow = "\u2191" if diff >= 0 else "\u2193"
-                pct_suffix = f"  {arrow}{pct:+.1f}%"
-                if delta_str:
-                    pct_suffix += f" {delta_str}"
-            elif delta_str:
-                diff = val - prev_val if prev_val else 0
-                arrow = "\u2191" if diff >= 0 else "\u2193"
-                pct_suffix = f"  {arrow}{delta_str}"
+        if pct is not None:
+            diff = val - prev_val if prev_val else 0
+            arrow = "\u2191" if diff >= 0 else "\u2193"
+            pct_suffix = f"  {arrow}{pct:+.1f}%"
+            if delta_str:
+                pct_suffix += f" {delta_str}"
+        elif delta_str:
+            diff = val - prev_val if prev_val else 0
+            arrow = "\u2191" if diff >= 0 else "\u2193"
+            pct_suffix = f"  {arrow}{delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
         node_colors.append(colors[color_idx])
         node_x.append(x)
@@ -3185,17 +3191,16 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         pct = _yoy(val, pv)
         delta_str = _fmt_delta(val, pv) if pv else None
         pct_suffix = ""
-        if not same_period:
-            if pct is not None:
-                diff = val - pv if pv else 0
-                arrow = "\u2191" if diff >= 0 else "\u2193"
-                pct_suffix = f"  {arrow}{pct:+.1f}%"
-                if delta_str:
-                    pct_suffix += f" {delta_str}"
-            elif delta_str:
-                diff = val - pv if pv else 0
-                arrow = "\u2191" if diff >= 0 else "\u2193"
-                pct_suffix = f"  {arrow}{delta_str}"
+        if pct is not None:
+            diff = val - pv if pv else 0
+            arrow = "\u2191" if diff >= 0 else "\u2193"
+            pct_suffix = f"  {arrow}{pct:+.1f}%"
+            if delta_str:
+                pct_suffix += f" {delta_str}"
+        elif delta_str:
+            diff = val - pv if pv else 0
+            arrow = "\u2191" if diff >= 0 else "\u2193"
+            pct_suffix = f"  {arrow}{delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
         node_colors_list.append(color)
         node_x.append(x)
@@ -4046,12 +4051,6 @@ def render_sankey_page():
             if cogs_prev > 0:
                 gp_prev = rev_prev - cogs_prev
 
-        if _same_period:
-            rev_prev = revenue
-            gp_prev = gross_profit
-            oi_prev = op_income
-            ni_prev = net_income
-
         # Build adaptive KPI cards — only show metrics that have data
         _kpi_items = []
         if revenue != 0:
@@ -4182,12 +4181,6 @@ def render_sankey_page():
         tl_prev      = _safe_prev(balance_df, "Total Liabilities Net Minority Interest") or _safe_prev(balance_df, "Total Liab")
         eq_prev      = _safe_prev(balance_df, "Stockholders Equity") or _safe_prev(balance_df, "Total Stockholders Equity")
         cash_prev    = _safe_prev(balance_df, "Cash And Cash Equivalents")
-        if _same_period:
-            ta_prev = total_assets
-            tl_prev = total_liab
-            eq_prev = equity_val
-            cash_prev = cash_val
-
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Total Assets", _fmt(total_assets), _yoy_delta(total_assets, ta_prev, _compare_label))
         m2.metric("Total Liabilities", _fmt(total_liab), _yoy_delta(total_liab, tl_prev, _compare_label))
