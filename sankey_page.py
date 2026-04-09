@@ -245,16 +245,52 @@ def _aggregate_partial_year(qtr_df, fy, quarter_list, fy_end, is_balance_sheet=F
         return qtr_df[matched_cols].sum(axis=1), matched_cols[-1]
 
 
-def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end, is_balance_sheet=False):
+def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
+                           is_balance_sheet=False, qa_nums=None, qb_nums=None):
     """Build a 2-column DataFrame aggregating selected quarters for two FYs.
 
-    Args:
-        quarter_list: List of quarter numbers, e.g. [1, 2] or [1, 3, 4].
+    The quarter pattern is defined by qa_nums (current-year Qs) and qb_nums
+    (previous-year Qs).  Period A aggregates qa_nums from fy_a + qb_nums from
+    fy_a-1.  Period B mirrors the same pattern: qa_nums from fy_b + qb_nums
+    from fy_b-1.  Falls back to quarter_list for both years if qa/qb not given.
 
-    Column 0 = Period A (fy_a), Column 1 = Period B (fy_b).
+    Column 0 = Period A, Column 1 = Period B.
     """
-    ser_a, ts_a = _aggregate_partial_year(qtr_df, fy_a, quarter_list, fy_end, is_balance_sheet)
-    ser_b, ts_b = _aggregate_partial_year(qtr_df, fy_b, quarter_list, fy_end, is_balance_sheet)
+    # Determine per-year quarter lists
+    _cur_qs = qa_nums if qa_nums else quarter_list
+    _prev_qs = qb_nums if qb_nums else []
+
+    def _aggregate_multi_year(qtr_df, main_fy, cur_qs, prev_qs, fy_end, is_bs):
+        """Aggregate quarters across main_fy (cur_qs) and main_fy-1 (prev_qs)."""
+        all_series = []
+        last_ts = None
+        # Current year quarters
+        if cur_qs:
+            s, ts = _aggregate_partial_year(qtr_df, main_fy, cur_qs, fy_end, is_bs)
+            if s is not None:
+                all_series.append(s)
+                last_ts = ts
+        # Previous year quarters
+        if prev_qs:
+            s, ts = _aggregate_partial_year(qtr_df, main_fy - 1, prev_qs, fy_end, is_bs)
+            if s is not None:
+                all_series.append(s)
+                if last_ts is None:
+                    last_ts = ts
+        if not all_series:
+            return None, None
+        if is_bs:
+            # Balance sheet: use latest snapshot
+            return all_series[0], last_ts
+        else:
+            # Income: sum all matched quarter series
+            combined = all_series[0]
+            for s in all_series[1:]:
+                combined = combined.add(s, fill_value=0)
+            return combined, last_ts
+
+    ser_a, ts_a = _aggregate_multi_year(qtr_df, fy_a, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
+    ser_b, ts_b = _aggregate_multi_year(qtr_df, fy_b, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
     if ser_a is None and ser_b is None:
         return qtr_df  # fallback to raw quarterly data
     result = pd.DataFrame()
@@ -3765,14 +3801,20 @@ def render_sankey_page():
     # --- Partial-year aggregation (Annual mode with selected quarters) ---
     if _partial_year and not using_demo:
         _fy_end = st.session_state.get("_fy_end_month", 12)
+        _qa_nums_agg = st.session_state.get("_sankey_qa_nums", _match_qs)
+        _qb_nums_agg = st.session_state.get("_sankey_qb_nums", [])
         try:
             _fy_a = int(_pa)
             _fy_b = int(_pb)
             income_df = _build_partial_year_df(
-                income_df, _fy_a, _fy_b, _match_qs, _fy_end, is_balance_sheet=False
+                income_df, _fy_a, _fy_b, _match_qs, _fy_end,
+                is_balance_sheet=False,
+                qa_nums=_qa_nums_agg, qb_nums=_qb_nums_agg,
             )
             balance_df = _build_partial_year_df(
-                balance_df, _fy_a, _fy_b, _match_qs, _fy_end, is_balance_sheet=True
+                balance_df, _fy_a, _fy_b, _match_qs, _fy_end,
+                is_balance_sheet=True,
+                qa_nums=_qa_nums_agg, qb_nums=_qb_nums_agg,
             )
         except Exception:
             pass  # fall back to raw data if aggregation fails
@@ -3794,25 +3836,38 @@ def render_sankey_page():
     _q_tag = _build_q_tag(_match_qs) if not _sq2 else ""
     # Per-year quarter tags for compare note
     _qa_qs = st.session_state.get("_sankey_qa_nums", _match_qs)
-    _qb_qs = st.session_state.get("_sankey_qb_nums", _match_qs)
-    _q_tag_a = _build_q_tag(_qa_qs) if not _sq2 else ""
-    _q_tag_b = _build_q_tag(_qb_qs) if not _sq2 else ""
+    _qb_qs = st.session_state.get("_sankey_qb_nums", [])
+
+    def _build_period_label(main_fy, cur_qs, prev_qs):
+        """Build label like '2026 (Q1) + 2025 (Q2+Q3)' or '2026 (Q1+Q2)'."""
+        parts = []
+        if cur_qs:
+            parts.append(f"{main_fy}{_build_q_tag(cur_qs)}")
+        if prev_qs:
+            parts.append(f"{main_fy - 1}{_build_q_tag(prev_qs)}")
+        return " + ".join(parts) if parts else str(main_fy)
 
     if _partial_year and _pa and _pb and _pa != _pb:
+        _fy_a_int = int(_pa)
+        _fy_b_int = int(_pb)
+        _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
+        _label_b = _build_period_label(_fy_b_int, _qa_qs, _qb_qs) if not _sq2 else _pb
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa}{_q_tag_a} vs {_pb}{_q_tag_b}"
+        _compare_note = f"Comparing {_label_a} vs {_label_b}"
     elif _partial_year and _pa and _pb and _pa == _pb:
+        _fy_a_int = int(_pa)
+        _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa}{_q_tag_a} vs {_pb}{_q_tag_b}"
+        _compare_note = f"Comparing {_label_a} vs {_label_a}"
         _same_period = True
     elif _pa and _pb and _pa != _pb:
         income_df = _reorder_df_for_comparison(income_df, _pa, _pb, _sq2)
         balance_df = _reorder_df_for_comparison(balance_df, _pa, _pb, _sq2)
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa}{_q_tag_a} vs {_pb}{_q_tag_b}"
+        _compare_note = f"Comparing {_pa} vs {_pb}"
     elif _pa and _pb and _pa == _pb:
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa}{_q_tag_a} vs {_pb}{_q_tag_b}"
+        _compare_note = f"Comparing {_pa} vs {_pb}"
         _same_period = True
     else:
         _compare_label = "YoY"
