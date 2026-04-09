@@ -3067,7 +3067,7 @@ with st.sidebar:
                     em_a = _fq_end_month(qi, _fy_m_sk)
                     ey_a = _fq_end_year(qi, _sel_fy, _fy_m_sk)
                     _all_q_items.append((ey_a, em_a, _sel_fy, qi, "sk_Ya"))
-                _all_q_items.sort(key=lambda x: (x[0], x[1]))
+                _all_q_items.sort(key=lambda x: (x[0], x[1]), reverse=True)
 
                 # ── Render sorted quarter toggle buttons ──
                 _qbtn_css = []
