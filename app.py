@@ -3234,7 +3234,10 @@ with st.sidebar:
                         _days = _days_until_q(_qi_i, _fy_i)
                         _future_msg = (
                             f"FY{_fy_i} (Q{_qi_i}) available in {_days} days"
-                            f" — [subscribe](https://quartercharts.com/pricing) to get notified"
+                            f' — <a href="https://quartercharts.com/pricing"'
+                            f' target="_blank" style="color:#946500;'
+                            f'font-weight:600;text-decoration:underline">'
+                            f'subscribe</a> to get notified'
                         )
                         st.button(
                             f"FY{_fy_i} - Q{_qi_i} — in {_days}d",
@@ -3262,7 +3265,16 @@ with st.sidebar:
                 # ── Show toast if a blocked button was clicked ──
                 _toast_msg = st.session_state.pop("_qbtn_toast", None)
                 if _toast_msg:
-                    st.warning(_toast_msg)
+                    if "<a " in _toast_msg:
+                        st.markdown(
+                            f'<div style="background:#fff3cd;border:1px solid #ffc107;'
+                            f'border-radius:0.5rem;padding:0.75rem 1rem;'
+                            f'color:#664d03;font-size:0.875rem">'
+                            f'⚠️ {_toast_msg}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.warning(_toast_msg)
 
                 st.session_state["_sankey_annual_match_q"] = _max_sel_q
                 st.session_state.sankey_compare_quarterly = False
