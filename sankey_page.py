@@ -298,13 +298,11 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
     # _safe() reads iloc[:,0] and _safe_prev() reads iloc[:,1], so names don't matter.
     result = pd.DataFrame()
     if ser_a is not None:
-        result[f"A_{ts_a}"] = ser_a
+        result["Period_A"] = ser_a
     if ser_b is not None:
-        result[f"B_{ts_b}"] = ser_b
-    # Guarantee exactly 2 columns so _safe_prev always finds column 1.
-    # If Period B aggregation failed (data too old), duplicate Period A so delta = 0%.
-    if result.shape[1] == 1:
-        result["_placeholder"] = result.iloc[:, 0]
+        result["Period_B"] = ser_b
+    # If only one period found, keep 1 column — _safe_prev will return 0
+    # and _yoy_delta will show no delta (better than a fake 0% from a duplicate).
     return result
 
 
@@ -3832,8 +3830,11 @@ def render_sankey_page():
                 is_balance_sheet=True,
                 qa_nums=_qa_nums_agg, qb_nums=_qb_nums_agg,
             )
-        except Exception:
-            pass  # fall back to raw data if aggregation fails
+        except Exception as _agg_exc:
+            import traceback as _tb
+            _agg_tb = _tb.format_exc()
+            # Store for audit panel debugging; fall back to raw data
+            st.session_state["_partial_agg_error"] = f"{_agg_exc}: {_agg_tb}"
 
     # --- Period comparison (from sidebar selectors) ---
     _sq2 = st.session_state.get("sankey_compare_quarterly", False)
@@ -4289,6 +4290,13 @@ def render_sankey_page():
                 _q_str = ", ".join(f"Q{q}" for q in sorted(_audit_qs))
                 st.markdown(f"**Selected Quarters:** {_q_str}")
             st.markdown(f"**Period A:** {_pa}  |  **Period B:** {_pb}")
+            # Show aggregation errors if any
+            _agg_err = st.session_state.get("_partial_agg_error", None)
+            if _agg_err:
+                st.error(f"⚠️ Partial-year aggregation error: {_agg_err}")
+            # Show DF shape for debugging
+            if income_df is not None:
+                st.markdown(f"**Income DF shape:** {income_df.shape}  |  **Columns:** {list(income_df.columns)[:5]}")
 
         st.markdown("---")
 
