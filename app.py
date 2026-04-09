@@ -2966,6 +2966,8 @@ with st.sidebar:
 
                 _selected_qs = sorted(set(_qa_nums + _qb_nums))
                 st.session_state["_sankey_annual_match_qs"] = _selected_qs
+                st.session_state["_sankey_qa_nums"] = _qa_nums
+                st.session_state["_sankey_qb_nums"] = _qb_nums
 
                 _max_sel_q = max(_selected_qs)
 
@@ -3076,7 +3078,8 @@ with st.sidebar:
                     _key = f"{_pfx_i}_q{_qi_i}"
                     _c = _QC[_qi_i]
                     _on = st.session_state.get(_key, False)
-                    _bid = f"btn_{_pfx_i}_{_qi_i}"
+                    # Hyphenated key for reliable .st-key- CSS targeting
+                    _bid = f"qb-{_pfx_i.replace('_','-')}-{_qi_i}"
 
                     if not _avail:
                         _days = _days_until_q(_qi_i, _fy_i)
@@ -3084,9 +3087,9 @@ with st.sidebar:
                         st.button(_lbl, key=_bid, use_container_width=True,
                                   disabled=True)
                         _qbtn_css.append(
-                            f'.st-key-{_bid} button{{background:#f1f3f5!important;'
-                            f'color:#adb5bd!important;border:none!important;'
-                            f'border-left:4px solid #dee2e6!important;'
+                            f'.st-key-{_bid} button,.st-key-{_bid} button:disabled{{'
+                            f'background:#f1f3f5!important;color:#adb5bd!important;'
+                            f'border:none!important;border-left:4px solid #dee2e6!important;'
                             f'border-radius:8px!important;font-size:.78rem!important;'
                             f'font-weight:600!important;opacity:.55!important}}'
                         )
@@ -3097,18 +3100,20 @@ with st.sidebar:
                                   use_container_width=True)
                         if _on:
                             _qbtn_css.append(
-                                f'.st-key-{_bid} button{{background:{_c["bg"]}!important;'
-                                f'color:#fff!important;border:none!important;'
-                                f'border-left:4px solid {_c["bg"]}!important;'
+                                f'.st-key-{_bid} button,.st-key-{_bid} button:hover,'
+                                f'.st-key-{_bid} button:focus,.st-key-{_bid} button:active{{'
+                                f'background:{_c["bg"]}!important;color:#fff!important;'
+                                f'border:none!important;border-left:4px solid {_c["bg"]}!important;'
                                 f'box-shadow:0 2px 10px {_c["bg"]}40!important;'
                                 f'border-radius:8px!important;font-size:.78rem!important;'
                                 f'font-weight:700!important}}'
                             )
                         else:
                             _qbtn_css.append(
-                                f'.st-key-{_bid} button{{background:{_c["dim"]}!important;'
-                                f'color:{_c["tx"]}!important;border:none!important;'
-                                f'border-left:4px solid {_c["bg"]}50!important;'
+                                f'.st-key-{_bid} button,.st-key-{_bid} button:hover,'
+                                f'.st-key-{_bid} button:focus,.st-key-{_bid} button:active{{'
+                                f'background:{_c["dim"]}!important;color:{_c["tx"]}!important;'
+                                f'border:none!important;border-left:4px solid {_c["bg"]}50!important;'
                                 f'border-radius:8px!important;font-size:.78rem!important;'
                                 f'font-weight:600!important}}'
                             )
