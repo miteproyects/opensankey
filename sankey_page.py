@@ -3800,6 +3800,8 @@ def render_sankey_page():
         st.info(f"\ud83d\udcc8 Showing sample data for **{ticker.upper()}** \u2013 SEC EDGAR data is temporarily unavailable. Refresh in a minute for live data.")
 
     # --- Partial-year aggregation (Annual mode with selected quarters) ---
+    _raw_qtr_income_df = None  # For audit panel: per-quarter breakdown
+    _raw_qtr_balance_df = None
     if _partial_year and not using_demo:
         _fy_end = st.session_state.get("_fy_end_month", 12)
         _qa_nums_agg = st.session_state.get("_sankey_qa_nums", _match_qs)
@@ -3813,6 +3815,8 @@ def render_sankey_page():
             if not _qa_nums_agg and _qb_nums_agg:
                 _fy_a += 1
                 _fy_b += 1
+            _raw_qtr_income_df = income_df.copy() if income_df is not None else None
+            _raw_qtr_balance_df = balance_df.copy() if balance_df is not None else None
             income_df = _build_partial_year_df(
                 income_df, _fy_a, _fy_b, _match_qs, _fy_end,
                 is_balance_sheet=False,
@@ -4294,6 +4298,85 @@ def render_sankey_page():
             st.markdown(f"**Period A:** {_pa}  |  **Period B:** {_pb}")
 
         st.markdown("---")
+
+        # ── Section 1b: Per-Quarter Breakdown (when partial-year) ──
+        if _partial_year and _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
+            st.markdown(f'<p class="audit-header">📅 Per-Quarter Breakdown — Income Statement</p>', unsafe_allow_html=True)
+            _audit_fy_end_q = st.session_state.get("_fy_end_month", 12)
+            _audit_qa = st.session_state.get("_sankey_qa_nums", [])
+            _audit_qb = st.session_state.get("_sankey_qb_nums", [])
+            _audit_pa = int(_pa) if _pa else 0
+            _audit_pb = int(_pb) if _pb else 0
+            # Adjust for empty qa case (same bump as aggregation)
+            _adj = 1 if (not _audit_qa and _audit_qb) else 0
+
+            # Key metrics to show
+            _audit_metrics = ["Total Revenue", "Cost Of Revenue", "Gross Profit",
+                              "Operating Income", "Net Income"]
+
+            # Build per-quarter table for each period
+            for _period_label, _main_fy in [("Period A", _audit_pa + _adj),
+                                             ("Period B", _audit_pb + _adj)]:
+                _q_rows = []
+                _totals = {m: 0 for m in _audit_metrics}
+                _q_sources = []
+
+                # Current-year quarters
+                for q in sorted(_audit_qa):
+                    em = _fq_end_month_s(q, _audit_fy_end_q)
+                    ey = _fq_end_year_s(q, _main_fy, _audit_fy_end_q)
+                    row = {"Quarter": f"FY{_main_fy} Q{q}", "Date": f"{_MON_AUDIT[em]} {ey}"}
+                    for col_name in _raw_qtr_income_df.columns:
+                        try:
+                            ts = pd.Timestamp(col_name)
+                            if ts.month == em and ts.year == ey:
+                                for m in _audit_metrics:
+                                    for idx in _raw_qtr_income_df.index:
+                                        if m.lower() in str(idx).lower():
+                                            val = _raw_qtr_income_df.at[idx, col_name]
+                                            if pd.notna(val):
+                                                row[m] = f"${float(val):,.0f}"
+                                                _totals[m] += float(val)
+                                            break
+                                break
+                        except Exception:
+                            pass
+                    _q_rows.append(row)
+
+                # Previous-year quarters
+                for q in sorted(_audit_qb):
+                    _pfy = _main_fy - 1
+                    em = _fq_end_month_s(q, _audit_fy_end_q)
+                    ey = _fq_end_year_s(q, _pfy, _audit_fy_end_q)
+                    row = {"Quarter": f"FY{_pfy} Q{q}", "Date": f"{_MON_AUDIT[em]} {ey}"}
+                    for col_name in _raw_qtr_income_df.columns:
+                        try:
+                            ts = pd.Timestamp(col_name)
+                            if ts.month == em and ts.year == ey:
+                                for m in _audit_metrics:
+                                    for idx in _raw_qtr_income_df.index:
+                                        if m.lower() in str(idx).lower():
+                                            val = _raw_qtr_income_df.at[idx, col_name]
+                                            if pd.notna(val):
+                                                row[m] = f"${float(val):,.0f}"
+                                                _totals[m] += float(val)
+                                            break
+                                break
+                        except Exception:
+                            pass
+                    _q_rows.append(row)
+
+                if _q_rows:
+                    # Add totals row
+                    _total_row = {"Quarter": "**TOTAL**", "Date": ""}
+                    for m in _audit_metrics:
+                        _total_row[m] = f"**${_totals[m]:,.0f}**"
+                    _q_rows.append(_total_row)
+
+                    st.markdown(f"**{_period_label}** (FY {_main_fy if _audit_qa else _main_fy - 1})")
+                    st.dataframe(pd.DataFrame(_q_rows), use_container_width=True, hide_index=True)
+
+            st.markdown("---")
 
         # ── Section 2: Raw income statement data ──
         st.markdown(f'<p class="audit-header">📊 Income Statement — Raw Values (Period A = col 0, Period B = col 1)</p>', unsafe_allow_html=True)
