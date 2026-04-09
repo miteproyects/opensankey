@@ -3014,16 +3014,8 @@ with st.sidebar:
                     format_func=_yr_label,
                 )
 
-                # ── Fiscal Quarter Calendar Grid ──
                 _sel_fy = int(st.session_state.sankey_period_a)
                 _prev_fy = _sel_fy - 1
-
-                # ── Map calendar month → (fiscal_quarter, fiscal_year) ──
-                def _m2fq(cm, cy):
-                    fy = cy + 1 if cm > _fy_m_sk else cy
-                    fs = (_fy_m_sk % 12) + 1
-                    off = (cm - fs) if cm >= fs else (cm + 12 - fs)
-                    return (off // 3) + 1, fy
 
                 # ── Quarter palette (quartercharts.com) ──
                 _QC = {
@@ -3032,98 +3024,6 @@ with st.sidebar:
                     3: {"bg": "#f9ab00", "dim": "#fef3cd", "tx": "#946500"},
                     4: {"bg": "#9c27b0", "dim": "#e8d5ec", "tx": "#6a1b7a"},
                 }
-                _MABBR = ["", "JAN", "FEB", "MAR", "APR", "MAY",
-                          "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
-
-                # ── Build glow set: specific (fiscal_year, quarter) pairs ──
-                _sel_fq_pairs = set()
-                for _q in _qa_nums:
-                    _sel_fq_pairs.add((_sel_fy, _q))
-                for _q in _qb_nums:
-                    _sel_fq_pairs.add((_prev_fy, _q))
-
-                # ── Grid range: 7 rows = 21 months ──
-                _fy_end_cq = ((_fy_m_sk - 1) // 3 + 1) * 3
-                _ge_m, _ge_y = _fy_end_cq, _sel_fy
-                _gs_m, _gs_y = _ge_m - 20, _ge_y
-                while _gs_m <= 0:
-                    _gs_m += 12; _gs_y -= 1
-                _gs_m = ((_gs_m - 1) // 3) * 3 + 1
-
-                _grow = []
-                _gy, _gm = _gs_y, _gs_m
-                _end_abs = _ge_y * 12 + _ge_m
-                while _gy * 12 + _gm <= _end_abs:
-                    _r = []
-                    for _ in range(3):
-                        _r.append((_gy, _gm))
-                        _gm += 1
-                        if _gm > 12: _gm = 1; _gy += 1
-                    _grow.append(_r)
-
-                # ── CSS ──
-                st.markdown("""<style>
-                .fqw{background:#f8f9fa;border-radius:14px;padding:10px;margin-bottom:2px}
-                .fqcal{width:100%;border-collapse:separate;border-spacing:4px 5px}
-                .fqcal td{border-radius:8px;padding:8px 2px;text-align:center;
-                    vertical-align:middle;line-height:1.3;letter-spacing:.2px}
-                .fqcal .fq-on{color:#fff;box-shadow:0 2px 10px var(--gw)}
-                .fqcal .fq-off{box-shadow:inset 0 0 0 1.5px var(--bc)}
-                .fqcal .fq-e{background:transparent}
-                .fqcal .fq-q{font-size:.55rem;font-weight:700;display:block;
-                    margin-bottom:1px;letter-spacing:.6px;text-transform:uppercase}
-                .fqcal .fq-on .fq-q{opacity:.85}
-                .fqcal .fq-off .fq-q{opacity:.6}
-                .fqcal .fq-m{display:block;font-size:.72rem;font-weight:800}
-                .fqcal .fq-on .fq-m{color:#fff}
-                .fqcal .fq-s{font-weight:400;opacity:.7}
-                </style>""", unsafe_allow_html=True)
-
-                st.markdown(
-                    '<p style="font-size:.93rem;font-weight:700;color:#212529;'
-                    'margin:4px 0 8px;">\U0001f4c5 Fiscal Quarter Calendar</p>',
-                    unsafe_allow_html=True,
-                )
-
-                # ── Build HTML (year-aware glow) ──
-                _h = '<div class="fqw"><table class="fqcal">'
-                for _row in _grow:
-                    _h += '<tr>'
-                    for (_cy, _cm) in _row:
-                        _fq, _fyl = _m2fq(_cm, _cy)
-                        if _fyl in (_sel_fy, _prev_fy):
-                            _c = _QC[_fq]
-                            _on = (_fyl, _fq) in _sel_fq_pairs
-                            _star = ' <span class="fq-s">*</span>' if _cm == _fy_m_sk else ""
-                            if _on:
-                                _h += (
-                                    f'<td class="fq-on" style="background:{_c["bg"]};'
-                                    f'--gw:{_c["bg"]}40;">'
-                                    f'<span class="fq-q">Q{_fq}</span>'
-                                    f'<span class="fq-m">{_MABBR[_cm]} {_cy % 100:02d}{_star}</span>'
-                                    f'</td>'
-                                )
-                            else:
-                                _h += (
-                                    f'<td class="fq-off" style="background:{_c["dim"]};'
-                                    f'--bc:{_c["bg"]}50;color:{_c["tx"]};">'
-                                    f'<span class="fq-q" style="color:{_c["tx"]};">Q{_fq}</span>'
-                                    f'<span class="fq-m" style="color:{_c["tx"]};">'
-                                    f'{_MABBR[_cm]} {_cy % 100:02d}{_star}</span>'
-                                    f'</td>'
-                                )
-                        else:
-                            _h += '<td class="fq-e"></td>'
-                    _h += '</tr>'
-                _h += '</table></div>'
-                st.markdown(_h, unsafe_allow_html=True)
-
-                # ── Legend ──
-                st.markdown(
-                    f'<p style="font-size:.6rem;color:#adb5bd;margin:4px 0 8px;">'
-                    f'* Fiscal year ends {_MON[_fy_m_sk]}</p>',
-                    unsafe_allow_html=True,
-                )
 
                 # ── Helpers for toggle buttons ──
                 def _q_btn_label(q, fy):
