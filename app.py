@@ -3158,58 +3158,7 @@ with st.sidebar:
                     ):
                         st.session_state[key] = True  # keep last one on
 
-                # ── Render one year's quarter buttons ──
-                _btn_idx = [0]  # mutable counter for nth-child targeting
-
-                def _render_fy_buttons(fy, prefix):
-                    _cq = _completed_qs_in_fy(fy, _fy_m_sk)
-                    for qi in range(1, 5):
-                        _avail = qi <= _cq
-                        _key = f"{prefix}_q{qi}"
-                        _c = _QC[qi]
-                        _on = st.session_state.get(_key, False)
-                        _bid = f"btn_{prefix}_{qi}"
-
-                        if not _avail:
-                            _days = _days_until_q(qi, fy)
-                            _lbl = f"FY{fy} - Q{qi} — in {_days}d"
-                            _bg = "#f1f3f5"; _fg = "#adb5bd"
-                            _bdr = "#dee2e6"; _shd = "none"; _fw = "600"
-                        elif _on:
-                            _lbl = f"FY{fy} - " + _q_btn_label(qi, fy)
-                            _bg = _c["bg"]; _fg = "#fff"
-                            _bdr = _c["bg"]; _shd = f"0 2px 10px {_c['bg']}40"; _fw = "700"
-                        else:
-                            _lbl = f"FY{fy} - " + _q_btn_label(qi, fy)
-                            _bg = _c["dim"]; _fg = _c["tx"]
-                            _bdr = f'{_c["bg"]}50'; _shd = "none"; _fw = "600"
-
-                        # Render HTML card + invisible st.button overlay
-                        st.markdown(
-                            f'<div class="qb" id="qb{_btn_idx[0]}" style="'
-                            f'background:{_bg};color:{_fg};font-weight:{_fw};'
-                            f'border-left:4px solid {_bdr};box-shadow:{_shd};'
-                            f'border-radius:8px;padding:10px 14px;margin-bottom:5px;'
-                            f'font-size:.78rem;position:relative;'
-                            f'{"" if _avail else "opacity:.55;"}'
-                            f'">{_lbl}</div>',
-                            unsafe_allow_html=True,
-                        )
-                        if _avail:
-                            if st.button(" ", key=_bid,
-                                         use_container_width=True):
-                                _toggle_q(_key); st.rerun()
-                        _btn_idx[0] += 1
-
-                # CSS: hide st.button visuals, make them overlay the card
-                st.markdown("""<style>
-                .qb+div[data-testid="stButton"]{margin-top:-42px;margin-bottom:5px;position:relative;z-index:2}
-                .qb+div[data-testid="stButton"] button{
-                    opacity:0!important;height:42px!important;min-height:42px!important;
-                    cursor:pointer!important;border:none!important;padding:0!important}
-                </style>""", unsafe_allow_html=True)
-
-                # ── Build sorted list: all 8 quarters, oldest first (closest to present at bottom) ──
+                # ── Build sorted list: all 8 quarters, oldest first ──
                 _all_q_items = []
                 for qi in range(1, 5):
                     em_b = _fq_end_month(qi, _fy_m_sk)
@@ -3220,8 +3169,9 @@ with st.sidebar:
                     _all_q_items.append((ey_a, em_a, _sel_fy, qi, "sk_Ya"))
                 _all_q_items.sort(key=lambda x: (x[0], x[1]))
 
+                # ── Render sorted quarter toggle buttons ──
+                _qbtn_css = []
                 for (_, _, _fy_i, _qi_i, _pfx_i) in _all_q_items:
-                    _render_fy_buttons.__code__  # just to reference; call inline
                     _avail = _qi_i <= _completed_qs_in_fy(_fy_i, _fy_m_sk)
                     _key = f"{_pfx_i}_q{_qi_i}"
                     _c = _QC[_qi_i]
@@ -3231,31 +3181,42 @@ with st.sidebar:
                     if not _avail:
                         _days = _days_until_q(_qi_i, _fy_i)
                         _lbl = f"FY{_fy_i} - Q{_qi_i} — in {_days}d"
-                        _bg = "#f1f3f5"; _fg = "#adb5bd"
-                        _bdr = "#dee2e6"; _shd = "none"; _fw = "600"
-                    elif _on:
-                        _lbl = f"FY{_fy_i} - " + _q_btn_label(_qi_i, _fy_i)
-                        _bg = _c["bg"]; _fg = "#fff"
-                        _bdr = _c["bg"]; _shd = f"0 2px 10px {_c['bg']}40"; _fw = "700"
+                        st.button(_lbl, key=_bid, use_container_width=True,
+                                  disabled=True)
+                        _qbtn_css.append(
+                            f'.st-key-{_bid} button{{background:#f1f3f5!important;'
+                            f'color:#adb5bd!important;border:none!important;'
+                            f'border-left:4px solid #dee2e6!important;'
+                            f'border-radius:8px!important;font-size:.78rem!important;'
+                            f'font-weight:600!important;opacity:.55!important}}'
+                        )
                     else:
                         _lbl = f"FY{_fy_i} - " + _q_btn_label(_qi_i, _fy_i)
-                        _bg = _c["dim"]; _fg = _c["tx"]
-                        _bdr = f'{_c["bg"]}50'; _shd = "none"; _fw = "600"
-
-                    st.markdown(
-                        f'<div class="qb" style="'
-                        f'background:{_bg};color:{_fg};font-weight:{_fw};'
-                        f'border-left:4px solid {_bdr};box-shadow:{_shd};'
-                        f'border-radius:8px;padding:10px 14px;margin-bottom:5px;'
-                        f'font-size:.78rem;position:relative;'
-                        f'{"" if _avail else "opacity:.55;"}'
-                        f'">{_lbl}</div>',
-                        unsafe_allow_html=True,
-                    )
-                    if _avail:
-                        if st.button(" ", key=_bid,
-                                     use_container_width=True):
-                            _toggle_q(_key); st.rerun()
+                        st.button(_lbl, key=_bid,
+                                  on_click=_toggle_q, args=(_key,),
+                                  use_container_width=True)
+                        if _on:
+                            _qbtn_css.append(
+                                f'.st-key-{_bid} button{{background:{_c["bg"]}!important;'
+                                f'color:#fff!important;border:none!important;'
+                                f'border-left:4px solid {_c["bg"]}!important;'
+                                f'box-shadow:0 2px 10px {_c["bg"]}40!important;'
+                                f'border-radius:8px!important;font-size:.78rem!important;'
+                                f'font-weight:700!important}}'
+                            )
+                        else:
+                            _qbtn_css.append(
+                                f'.st-key-{_bid} button{{background:{_c["dim"]}!important;'
+                                f'color:{_c["tx"]}!important;border:none!important;'
+                                f'border-left:4px solid {_c["bg"]}50!important;'
+                                f'border-radius:8px!important;font-size:.78rem!important;'
+                                f'font-weight:600!important}}'
+                            )
+                # Inject all button styles
+                st.markdown(
+                    '<style>' + '\n'.join(_qbtn_css) + '</style>',
+                    unsafe_allow_html=True,
+                )
 
                 st.session_state["_sankey_annual_match_q"] = _max_sel_q
                 st.session_state.sankey_compare_quarterly = False
