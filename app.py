@@ -2939,23 +2939,33 @@ with st.sidebar:
             )
 
             if _compare_mode == "Annual":
-                # ── Read per-year quarter selections (from previous render) ──
+                # ── Read per-year quarter multiselect (from previous render) ──
                 _cq_cur = _completed_qs_in_fy(_cur_fy, _fy_m_sk)
-                _default_q = max(1, _cq_cur)  # latest completed Q
+                _default_q = max(1, _cq_cur)
 
-                _fqa_raw = st.session_state.get("sk_fqa", f"Q{_default_q}")
-                _fqb_raw = st.session_state.get("sk_fqb", "\u2014")
+                # Initialise on first load
+                if "sk_fqa" not in st.session_state:
+                    st.session_state["sk_fqa"] = [f"Q{_default_q}"]
+                if "sk_fqb" not in st.session_state:
+                    st.session_state["sk_fqb"] = []
 
-                # Parse quarter numbers safely
-                _qa_num = int(_fqa_raw[1]) if (isinstance(_fqa_raw, str) and len(_fqa_raw) == 2
-                             and _fqa_raw[0] == "Q" and _fqa_raw[1].isdigit()) else _default_q
-                _qb_num = int(_fqb_raw[1]) if (isinstance(_fqb_raw, str) and len(_fqb_raw) == 2
-                             and _fqb_raw[0] == "Q" and _fqb_raw[1].isdigit()) else None
+                # Parse lists of "Q1","Q2",… → ints
+                def _parse_qs(raw):
+                    out = []
+                    for x in (raw if isinstance(raw, list) else []):
+                        if isinstance(x, str) and len(x) == 2 and x[0] == "Q" and x[1].isdigit():
+                            out.append(int(x[1]))
+                    return sorted(out)
 
-                _selected_qs = [_qa_num]
-                if _qb_num is not None:
-                    _selected_qs.append(_qb_num)
-                _selected_qs = sorted(set(_selected_qs))
+                _qa_nums = _parse_qs(st.session_state.get("sk_fqa", []))
+                _qb_nums = _parse_qs(st.session_state.get("sk_fqb", []))
+
+                # Enforce: at least 1 quarter selected across both years
+                if not _qa_nums and not _qb_nums:
+                    _qa_nums = [_default_q]
+                    st.session_state["sk_fqa"] = [f"Q{_default_q}"]
+
+                _selected_qs = sorted(set(_qa_nums + _qb_nums))
                 st.session_state["_sankey_annual_match_qs"] = _selected_qs
 
                 _max_sel_q = max(_selected_qs)
@@ -3028,9 +3038,10 @@ with st.sidebar:
 
                 # ── Build glow set: specific (fiscal_year, quarter) pairs ──
                 _sel_fq_pairs = set()
-                _sel_fq_pairs.add((_sel_fy, _qa_num))
-                if _qb_num is not None:
-                    _sel_fq_pairs.add((_prev_fy, _qb_num))
+                for _q in _qa_nums:
+                    _sel_fq_pairs.add((_sel_fy, _q))
+                for _q in _qb_nums:
+                    _sel_fq_pairs.add((_prev_fy, _q))
 
                 # ── Grid range: 7 rows = 21 months ──
                 _fy_end_cq = ((_fy_m_sk - 1) // 3 + 1) * 3
@@ -3115,33 +3126,43 @@ with st.sidebar:
                     unsafe_allow_html=True,
                 )
 
-                # ── Per-year quarter selectors (1 Q per FY, max 4 total) ──
+                # ── Per-year quarter multiselects (any combo, min 1 total) ──
                 st.markdown(
                     '<p style="font-size:.82rem;font-weight:600;color:#495057;'
-                    'margin:2px 0 4px;">Select quarter per year:</p>',
+                    'margin:2px 0 4px;">Select quarters per year:</p>',
                     unsafe_allow_html=True,
                 )
 
-                # FY sel_fy: only completed quarters
+                # FY sel_fy: only completed quarters available
                 _avail_a = [f"Q{q}" for q in range(1, _completed_qs_in_fy(_sel_fy, _fy_m_sk) + 1)]
                 if not _avail_a:
                     _avail_a = [f"Q{_default_q}"]
-                if st.session_state.get("sk_fqa") not in _avail_a:
-                    st.session_state["sk_fqa"] = _avail_a[-1]
-                st.selectbox(
+                # Filter stored selection to valid options
+                _cur_a = st.session_state.get("sk_fqa", [])
+                _valid_a = [x for x in _cur_a if x in _avail_a]
+                if not _valid_a:
+                    _valid_a = [_avail_a[-1]]
+                if _valid_a != _cur_a:
+                    st.session_state["sk_fqa"] = _valid_a
+                st.multiselect(
                     f"FY {_sel_fy}",
                     _avail_a,
                     key="sk_fqa",
                 )
+                # Enforce min 1: if user cleared both, restore default
+                if not st.session_state.get("sk_fqa") and not st.session_state.get("sk_fqb"):
+                    st.session_state["sk_fqa"] = [_avail_a[-1]]
+                    st.rerun()
 
-                # FY prev_fy: all completed quarters + "—" (none)
+                # FY prev_fy: all completed quarters (optional)
                 _avail_b = [f"Q{q}" for q in range(1, _completed_qs_in_fy(_prev_fy, _fy_m_sk) + 1)]
-                _opts_b = ["\u2014"] + _avail_b
-                if st.session_state.get("sk_fqb") not in _opts_b:
-                    st.session_state["sk_fqb"] = "\u2014"
-                st.selectbox(
+                _cur_b = st.session_state.get("sk_fqb", [])
+                _valid_b = [x for x in _cur_b if x in _avail_b]
+                if _valid_b != _cur_b:
+                    st.session_state["sk_fqb"] = _valid_b
+                st.multiselect(
                     f"FY {_prev_fy}",
-                    _opts_b,
+                    _avail_b,
                     key="sk_fqb",
                 )
 
