@@ -2997,12 +2997,7 @@ with st.sidebar:
                     st.session_state["sk_pa"] = _years[0]
                 if "sk_pb" not in st.session_state or st.session_state["sk_pb"] not in _years:
                     st.session_state["sk_pb"] = _years[min(1, len(_years) - 1)]
-                if st.session_state["sk_pa"] == st.session_state["sk_pb"] and len(_years) > 1:
-                    _pa_val = st.session_state["sk_pa"]
-                    _pa_idx = _years.index(_pa_val) if _pa_val in _years else 0
-                    _pb_new = _years[min(_pa_idx + 1, len(_years) - 1)]
-                    if _pb_new != _pa_val:
-                        st.session_state["sk_pb"] = _pb_new
+                # Allow same year for both Period A and Period B (e.g. 2020 vs 2020)
 
                 # ── Period A & B selectors ──
                 # Use computed index matching session state to avoid index/key conflicts

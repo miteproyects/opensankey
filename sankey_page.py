@@ -4299,114 +4299,90 @@ def render_sankey_page():
 
         st.markdown("---")
 
-        # ── Section 1b: Per-Quarter Breakdown (when partial-year) ──
-        if _partial_year and _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
-            st.markdown(f'<p class="audit-header">📅 Per-Quarter Breakdown — Income Statement</p>', unsafe_allow_html=True)
-            _audit_fy_end_q = st.session_state.get("_fy_end_month", 12)
-            _audit_qa = st.session_state.get("_sankey_qa_nums", [])
-            _audit_qb = st.session_state.get("_sankey_qb_nums", [])
-            _audit_pa = int(_pa) if _pa else 0
-            _audit_pb = int(_pb) if _pb else 0
-            # Adjust for empty qa case (same bump as aggregation)
-            _adj = 1 if (not _audit_qa and _audit_qb) else 0
+        # ── Section 2: Income Statement — Per-Quarter Tables ──
+        # Build two tables (Period A, Period B) with all accounts as rows,
+        # each selected quarter as a column, plus a SUM column.
+        _audit_fy_end_q = st.session_state.get("_fy_end_month", 12)
+        _audit_qa = st.session_state.get("_sankey_qa_nums", [])
+        _audit_qb = st.session_state.get("_sankey_qb_nums", [])
+        _audit_pa_val = int(_pa) if _pa else 0
+        _audit_pb_val = int(_pb) if _pb else 0
+        _adj_audit = 1 if (not _audit_qa and _audit_qb) else 0
 
-            # Key metrics to show
-            _audit_metrics = ["Total Revenue", "Cost Of Revenue", "Gross Profit",
-                              "Operating Income", "Net Income"]
+        # Use raw quarterly data if available; otherwise fall back to aggregated
+        _src_inc = _raw_qtr_income_df if (_raw_qtr_income_df is not None and not _raw_qtr_income_df.empty) else (income_df if income_df is not None else pd.DataFrame())
 
-            # Build per-quarter table for each period
-            for _period_label, _main_fy in [("Period A", _audit_pa + _adj),
-                                             ("Period B", _audit_pb + _adj)]:
-                _q_rows = []
-                _totals = {m: 0 for m in _audit_metrics}
-                _q_sources = []
+        if not _src_inc.empty:
+            # Pre-parse column timestamps once
+            _col_ts_map = {}
+            for _c in _src_inc.columns:
+                try:
+                    _col_ts_map[_c] = pd.Timestamp(_c)
+                except Exception:
+                    pass
 
-                # Current-year quarters
-                for q in sorted(_audit_qa):
-                    em = _fq_end_month_s(q, _audit_fy_end_q)
-                    ey = _fq_end_year_s(q, _main_fy, _audit_fy_end_q)
-                    row = {"Quarter": f"FY{_main_fy} Q{q}", "Date": f"{_MON_AUDIT[em]} {ey}"}
-                    for col_name in _raw_qtr_income_df.columns:
-                        try:
-                            ts = pd.Timestamp(col_name)
-                            if ts.month == em and ts.year == ey:
-                                for m in _audit_metrics:
-                                    for idx in _raw_qtr_income_df.index:
-                                        if m.lower() in str(idx).lower():
-                                            val = _raw_qtr_income_df.at[idx, col_name]
-                                            if pd.notna(val):
-                                                row[m] = f"${float(val):,.0f}"
-                                                _totals[m] += float(val)
-                                            break
-                                break
-                        except Exception:
-                            pass
-                    _q_rows.append(row)
+            def _find_col_for_q(q_num, fy_val, fy_end_m):
+                """Find the DataFrame column matching fiscal quarter q_num of FY fy_val."""
+                em = _fq_end_month_s(q_num, fy_end_m)
+                ey = _fq_end_year_s(q_num, fy_val, fy_end_m)
+                for col_name, ts in _col_ts_map.items():
+                    if ts.month == em and ts.year == ey:
+                        return col_name
+                return None
 
-                # Previous-year quarters
-                for q in sorted(_audit_qb):
-                    _pfy = _main_fy - 1
-                    em = _fq_end_month_s(q, _audit_fy_end_q)
-                    ey = _fq_end_year_s(q, _pfy, _audit_fy_end_q)
-                    row = {"Quarter": f"FY{_pfy} Q{q}", "Date": f"{_MON_AUDIT[em]} {ey}"}
-                    for col_name in _raw_qtr_income_df.columns:
-                        try:
-                            ts = pd.Timestamp(col_name)
-                            if ts.month == em and ts.year == ey:
-                                for m in _audit_metrics:
-                                    for idx in _raw_qtr_income_df.index:
-                                        if m.lower() in str(idx).lower():
-                                            val = _raw_qtr_income_df.at[idx, col_name]
-                                            if pd.notna(val):
-                                                row[m] = f"${float(val):,.0f}"
-                                                _totals[m] += float(val)
-                                            break
-                                break
-                        except Exception:
-                            pass
-                    _q_rows.append(row)
+            def _build_period_table(main_fy, qa_list, qb_list, fy_end_m, src_df, period_name):
+                """Build a DataFrame: rows = accounts, cols = each Q + SUM."""
+                # Collect (label, col_name) pairs in order
+                q_cols = []
+                for q in sorted(qa_list):
+                    col = _find_col_for_q(q, main_fy, fy_end_m)
+                    q_cols.append((f"FY{main_fy} Q{q}", col))
+                for q in sorted(qb_list):
+                    col = _find_col_for_q(q, main_fy - 1, fy_end_m)
+                    q_cols.append((f"FY{main_fy - 1} Q{q}", col))
 
-                if _q_rows:
-                    # Add totals row
-                    _total_row = {"Quarter": "**TOTAL**", "Date": ""}
-                    for m in _audit_metrics:
-                        _total_row[m] = f"**${_totals[m]:,.0f}**"
-                    _q_rows.append(_total_row)
+                if not q_cols:
+                    return None
 
-                    st.markdown(f"**{_period_label}** (FY {_main_fy if _audit_qa else _main_fy - 1})")
-                    st.dataframe(pd.DataFrame(_q_rows), use_container_width=True, hide_index=True)
+                result = pd.DataFrame(index=src_df.index)
+                numeric_cols = []
+                for label, col_name in q_cols:
+                    if col_name is not None and col_name in src_df.columns:
+                        result[label] = src_df[col_name]
+                        numeric_cols.append(label)
+                    else:
+                        result[label] = float("nan")
+
+                # SUM column (sum across all quarter columns)
+                if numeric_cols:
+                    result["SUM"] = result[numeric_cols].sum(axis=1)
+                else:
+                    result["SUM"] = float("nan")
+
+                # Format all numbers
+                for col in result.columns:
+                    result[col] = result[col].apply(
+                        lambda x: f"${x:,.0f}" if pd.notna(x) and x != 0 else "—"
+                    )
+                return result
+
+            # Period A table
+            _main_fy_a = _audit_pa_val + _adj_audit
+            _tbl_a = _build_period_table(_main_fy_a, _audit_qa, _audit_qb, _audit_fy_end_q, _src_inc, "Period A")
+            if _tbl_a is not None:
+                _lbl_a = _build_period_label(_main_fy_a, _audit_qa, _audit_qb) if (_audit_qa or _audit_qb) else f"FY{_audit_pa_val}"
+                st.markdown(f'<p class="audit-header">📊 Income Statement — Period A: {_lbl_a}</p>', unsafe_allow_html=True)
+                st.dataframe(_tbl_a, use_container_width=True)
 
             st.markdown("---")
 
-        # ── Section 2: Raw income statement data ──
-        st.markdown(f'<p class="audit-header">📊 Income Statement — Raw Values (Period A = col 0, Period B = col 1)</p>', unsafe_allow_html=True)
-        if income_df is not None and not income_df.empty:
-            # Format for display
-            _disp_income = income_df.copy()
-            _disp_income.columns = [str(c) for c in _disp_income.columns]
-            # Add a "Formula" column showing how derived values are computed
-            _formulas = []
-            for idx in _disp_income.index:
-                name = str(idx)
-                if "gross profit" in name.lower():
-                    _formulas.append("= Revenue − Cost Of Revenue")
-                elif "operating income" in name.lower():
-                    _formulas.append("= Gross Profit − OpEx")
-                elif "pretax" in name.lower():
-                    _formulas.append("= Operating Income − Interest + Other")
-                elif "net income" in name.lower():
-                    _formulas.append("= Pretax Income − Tax")
-                else:
-                    _formulas.append("Direct from EDGAR XBRL")
-            _disp_income["Source / Formula"] = _formulas
-
-            # Format numbers with commas
-            for col in _disp_income.columns:
-                if col != "Source / Formula":
-                    _disp_income[col] = _disp_income[col].apply(
-                        lambda x: f"${x:,.0f}" if pd.notna(x) and x != 0 else "—"
-                    )
-            st.dataframe(_disp_income, use_container_width=True)
+            # Period B table
+            _main_fy_b = _audit_pb_val + _adj_audit
+            _tbl_b = _build_period_table(_main_fy_b, _audit_qa, _audit_qb, _audit_fy_end_q, _src_inc, "Period B")
+            if _tbl_b is not None:
+                _lbl_b = _build_period_label(_main_fy_b, _audit_qa, _audit_qb) if (_audit_qa or _audit_qb) else f"FY{_audit_pb_val}"
+                st.markdown(f'<p class="audit-header">📊 Income Statement — Period B: {_lbl_b}</p>', unsafe_allow_html=True)
+                st.dataframe(_tbl_b, use_container_width=True)
         else:
             st.info("No income data available.")
 
