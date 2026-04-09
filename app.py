@@ -3188,7 +3188,7 @@ with st.sidebar:
                         _days = _days_until_q(qi, fy)
                         return (
                             f"FY{fy} (Q{qi}) available in {_days} days"
-                            f" — subscribe at quartercharts.com/pricing"
+                            f" — [subscribe](https://quartercharts.com/pricing) to get notified"
                         )
                     _on = st.session_state.get(key, False)
                     if _on:
