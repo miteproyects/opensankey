@@ -3072,56 +3072,34 @@ with st.sidebar:
                 _all_q_items.sort(key=lambda x: (x[0], x[1]), reverse=True)
 
                 # ── Render sorted quarter toggle buttons ──
-                _qbtn_css = []
                 for (_, _, _fy_i, _qi_i, _pfx_i) in _all_q_items:
                     _avail = _qi_i <= _completed_qs_in_fy(_fy_i, _fy_m_sk)
                     _key = f"{_pfx_i}_q{_qi_i}"
                     _c = _QC[_qi_i]
                     _on = st.session_state.get(_key, False)
-                    # Hyphenated key for reliable .st-key- CSS targeting
                     _bid = f"qb-{_pfx_i.replace('_','-')}-{_qi_i}"
 
                     if not _avail:
                         _days = _days_until_q(_qi_i, _fy_i)
-                        _lbl = f"FY{_fy_i} - Q{_qi_i} — in {_days}d"
-                        st.button(_lbl, key=_bid, use_container_width=True,
-                                  disabled=True)
-                        _qbtn_css.append(
-                            f'.st-key-{_bid} button,.st-key-{_bid} button:disabled{{'
-                            f'background:#f1f3f5!important;color:#adb5bd!important;'
-                            f'border:none!important;border-left:4px solid #dee2e6!important;'
-                            f'border-radius:8px!important;font-size:.78rem!important;'
-                            f'font-weight:600!important;opacity:.55!important}}'
+                        st.button(
+                            f"FY{_fy_i} - Q{_qi_i} — in {_days}d",
+                            key=_bid, use_container_width=True,
+                            disabled=True,
+                        )
+                    elif _on:
+                        st.button(
+                            f"FY{_fy_i} - " + _q_btn_label(_qi_i, _fy_i),
+                            key=_bid, type="primary",
+                            on_click=_toggle_q, args=(_key,),
+                            use_container_width=True,
                         )
                     else:
-                        _lbl = f"FY{_fy_i} - " + _q_btn_label(_qi_i, _fy_i)
-                        st.button(_lbl, key=_bid,
-                                  on_click=_toggle_q, args=(_key,),
-                                  use_container_width=True)
-                        if _on:
-                            _qbtn_css.append(
-                                f'.st-key-{_bid} button,.st-key-{_bid} button:hover,'
-                                f'.st-key-{_bid} button:focus,.st-key-{_bid} button:active{{'
-                                f'background:{_c["bg"]}!important;color:#fff!important;'
-                                f'border:none!important;border-left:4px solid {_c["bg"]}!important;'
-                                f'box-shadow:0 2px 10px {_c["bg"]}40!important;'
-                                f'border-radius:8px!important;font-size:.78rem!important;'
-                                f'font-weight:700!important}}'
-                            )
-                        else:
-                            _qbtn_css.append(
-                                f'.st-key-{_bid} button,.st-key-{_bid} button:hover,'
-                                f'.st-key-{_bid} button:focus,.st-key-{_bid} button:active{{'
-                                f'background:{_c["dim"]}!important;color:{_c["tx"]}!important;'
-                                f'border:none!important;border-left:4px solid {_c["bg"]}50!important;'
-                                f'border-radius:8px!important;font-size:.78rem!important;'
-                                f'font-weight:600!important}}'
-                            )
-                # Inject all button styles
-                st.markdown(
-                    '<style>' + '\n'.join(_qbtn_css) + '</style>',
-                    unsafe_allow_html=True,
-                )
+                        st.button(
+                            f"FY{_fy_i} - " + _q_btn_label(_qi_i, _fy_i),
+                            key=_bid,
+                            on_click=_toggle_q, args=(_key,),
+                            use_container_width=True,
+                        )
 
                 st.session_state["_sankey_annual_match_q"] = _max_sel_q
                 st.session_state.sankey_compare_quarterly = False
