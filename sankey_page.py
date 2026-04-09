@@ -185,6 +185,158 @@ def _yoy_delta(current, previous, label="YoY"):
     return f"{pct:+.1f}% {label}"
 
 
+def _compute_sankey_metrics(income_df, balance_df=None):
+    """Compute ALL Sankey page metrics from the final aggregated DataFrames using Pandas.
+
+    Returns a dict with:
+      - 'income': dict of {account_name: {'current': float, 'previous': float, 'pct_change': float|None, 'dollar_change': float|None}}
+      - 'balance': same structure for balance sheet
+      - 'kpi': list of KPI card data
+      - 'df_info': debugging info about the DataFrames
+    """
+    result = {"income": {}, "balance": {}, "kpi": [], "df_info": {}}
+
+    def _extract_metric(df, key):
+        """Extract current (col 0) and previous (col 1) values using Pandas iloc."""
+        if df is None or df.empty:
+            return 0.0, 0.0
+        cur = 0.0
+        prev = 0.0
+        for idx in df.index:
+            if key.lower() in str(idx).lower():
+                cur = float(df.iloc[df.index.get_loc(idx), 0]) if pd.notna(df.iloc[df.index.get_loc(idx), 0]) else 0.0
+                if df.shape[1] >= 2:
+                    prev = float(df.iloc[df.index.get_loc(idx), 1]) if pd.notna(df.iloc[df.index.get_loc(idx), 1]) else 0.0
+                break
+        return cur, prev
+
+    def _pct_change(cur, prev):
+        """Compute percentage change using Pandas-compatible math."""
+        if prev and prev != 0:
+            return ((cur - prev) / abs(prev)) * 100
+        return None
+
+    if income_df is not None and not income_df.empty:
+        # Store DF diagnostics
+        result["df_info"]["income_shape"] = income_df.shape
+        result["df_info"]["income_cols"] = list(income_df.columns)
+
+        # Extract all income statement metrics
+        _keys = ["Total Revenue", "Cost Of Revenue", "Gross Profit",
+                 "Research And Development", "Selling General And Administration",
+                 "Reconciled Depreciation", "Other Operating Expense",
+                 "Operating Income", "Interest Expense", "Pretax Income",
+                 "Tax Provision", "Net Income"]
+        for k in _keys:
+            cur, prev = _extract_metric(income_df, k)
+            pct = _pct_change(cur, prev)
+            result["income"][k] = {
+                "current": cur, "previous": prev,
+                "pct_change": pct,
+                "dollar_change": cur - prev if prev != 0 else None,
+            }
+
+        # Derive Gross Profit if missing
+        rev = result["income"].get("Total Revenue", {}).get("current", 0)
+        cogs = abs(result["income"].get("Cost Of Revenue", {}).get("current", 0))
+        gp = result["income"].get("Gross Profit", {}).get("current", 0)
+        if gp == 0 and rev > 0 and cogs > 0:
+            rev_prev = result["income"]["Total Revenue"]["previous"]
+            cogs_prev = abs(result["income"]["Cost Of Revenue"]["previous"])
+            gp_derived = rev - cogs
+            gp_prev_derived = rev_prev - cogs_prev if rev_prev > 0 and cogs_prev > 0 else 0
+            result["income"]["Gross Profit"] = {
+                "current": gp_derived, "previous": gp_prev_derived,
+                "pct_change": _pct_change(gp_derived, gp_prev_derived),
+                "dollar_change": gp_derived - gp_prev_derived if gp_prev_derived != 0 else None,
+            }
+
+    if balance_df is not None and not balance_df.empty:
+        result["df_info"]["balance_shape"] = balance_df.shape
+        result["df_info"]["balance_cols"] = list(balance_df.columns)
+        _bs_keys = ["Total Assets", "Total Liabilities Net Minority Interest",
+                     "Total Equity Gross Minority Interest", "Stockholders Equity",
+                     "Current Assets", "Current Liabilities", "Cash And Cash Equivalents",
+                     "Total Debt", "Net Debt"]
+        for k in _bs_keys:
+            cur, prev = _extract_metric(balance_df, k)
+            pct = _pct_change(cur, prev)
+            result["balance"][k] = {
+                "current": cur, "previous": prev,
+                "pct_change": pct,
+                "dollar_change": cur - prev if prev != 0 else None,
+            }
+
+    return result
+
+
+def _cross_validate_metrics(metrics, raw_qtr_df, fy, qa_nums, qb_nums, fy_end):
+    """Cross-validate aggregated metrics against raw quarterly data using Pandas.
+
+    Independently recomputes sums from raw quarterly data and compares
+    against the values in the metrics dict. Returns list of check results.
+    """
+    checks = []
+    if raw_qtr_df is None or raw_qtr_df.empty:
+        return checks
+
+    # Re-aggregate from raw data independently
+    def _independent_sum(account_key, main_fy, cur_qs, prev_qs):
+        """Sum quarters from raw DF for a given account — fully independent computation."""
+        total = 0.0
+        for idx in raw_qtr_df.index:
+            if account_key.lower() not in str(idx).lower():
+                continue
+            row_total = 0.0
+            for q in cur_qs:
+                em = _fq_end_month_s(q, fy_end)
+                ey = _fq_end_year_s(q, main_fy, fy_end)
+                for col in raw_qtr_df.columns:
+                    try:
+                        ts = pd.Timestamp(col)
+                        if ts.month == em and ts.year == ey:
+                            v = raw_qtr_df.at[idx, col]
+                            if pd.notna(v):
+                                row_total += float(v)
+                            break
+                    except Exception:
+                        continue
+            for q in prev_qs:
+                em = _fq_end_month_s(q, fy_end)
+                ey = _fq_end_year_s(q, main_fy - 1, fy_end)
+                for col in raw_qtr_df.columns:
+                    try:
+                        ts = pd.Timestamp(col)
+                        if ts.month == em and ts.year == ey:
+                            v = raw_qtr_df.at[idx, col]
+                            if pd.notna(v):
+                                row_total += float(v)
+                            break
+                    except Exception:
+                        continue
+            total = row_total
+            break
+        return total
+
+    # Check key metrics
+    for key in ["Total Revenue", "Gross Profit", "Operating Income", "Net Income"]:
+        if key not in metrics.get("income", {}):
+            continue
+        displayed = metrics["income"][key]["current"]
+        recomputed = _independent_sum(key, fy, qa_nums, qb_nums)
+        diff = abs(displayed - recomputed)
+        threshold = max(abs(displayed) * 0.001, 1)  # 0.1% tolerance
+        checks.append({
+            "check": f"{key} (Period A)",
+            "ok": diff < threshold,
+            "displayed": displayed,
+            "recomputed": recomputed,
+            "diff": diff,
+        })
+
+    return checks
+
+
 def _fq_end_month_s(q, fy_end):
     """Return calendar month (1-12) when fiscal quarter q ends."""
     m = fy_end - 3 * (4 - q)
@@ -289,13 +441,21 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
                 combined = combined.add(s, fill_value=0)
             return combined, last_ts
 
-    ser_a, ts_a = _aggregate_multi_year(qtr_df, fy_a, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
-    ser_b, ts_b = _aggregate_multi_year(qtr_df, fy_b, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
+    # ── CRITICAL: same-period optimization ──
+    # When fy_a == fy_b, aggregate once and duplicate → guaranteed 0% delta.
+    # This prevents any subtle data mismatch when comparing a period to itself.
+    if fy_a == fy_b:
+        ser_a, ts_a = _aggregate_multi_year(qtr_df, fy_a, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
+        ser_b, ts_b = ser_a.copy() if ser_a is not None else None, ts_a
+    else:
+        ser_a, ts_a = _aggregate_multi_year(qtr_df, fy_a, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
+        ser_b, ts_b = _aggregate_multi_year(qtr_df, fy_b, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
+
     if ser_a is None and ser_b is None:
-        return qtr_df  # fallback to raw quarterly data
+        return qtr_df  # fallback to raw quarterly data only if BOTH periods are empty
+
     # Use positional labels so columns are always distinct even when fy_a == fy_b
-    # (same timestamp would overwrite the first column otherwise).
-    # _safe() reads iloc[:,0] and _safe_prev() reads iloc[:,1], so names don't matter.
+    # _safe() reads iloc[:,0] and _safe_prev() reads iloc[:,1].
     result = pd.DataFrame()
     if ser_a is not None:
         result["Period_A"] = ser_a
@@ -3833,8 +3993,16 @@ def render_sankey_page():
         except Exception as _agg_exc:
             import traceback as _tb
             _agg_tb = _tb.format_exc()
-            # Store for audit panel debugging; fall back to raw data
             st.session_state["_partial_agg_error"] = f"{_agg_exc}: {_agg_tb}"
+            # ── CRITICAL: do NOT silently fall back to raw quarterly data ──
+            # Raw quarterly DF has many columns; _safe/_safe_prev would read
+            # col 0 and col 1 (two DIFFERENT quarters), producing WRONG deltas.
+            # Instead, create a proper empty 2-column DF so deltas show as N/A.
+            _empty_idx = income_df.index if income_df is not None and not income_df.empty else []
+            income_df = pd.DataFrame({"Period_A": pd.Series(dtype=float, index=_empty_idx),
+                                       "Period_B": pd.Series(dtype=float, index=_empty_idx)})
+            balance_df = pd.DataFrame({"Period_A": pd.Series(dtype=float, index=_empty_idx),
+                                        "Period_B": pd.Series(dtype=float, index=_empty_idx)})
 
     # --- Period comparison (from sidebar selectors) ---
     _sq2 = st.session_state.get("sankey_compare_quarterly", False)
@@ -3897,6 +4065,32 @@ def render_sankey_page():
         _compare_note = None
 
     company_name = info.get("shortName", info.get("longName", ticker))
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # SINGLE SOURCE OF TRUTH — compute all metrics once using Pandas
+    # ═══════════════════════════════════════════════════════════════════════
+    _sankey_metrics = _compute_sankey_metrics(income_df, balance_df)
+    st.session_state["_sankey_metrics"] = _sankey_metrics  # for audit panel
+
+    # Cross-validate against raw quarterly data if available
+    _cross_checks = []
+    if _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
+        _xv_fy_end = st.session_state.get("_fy_end_month", 12)
+        _xv_qa = st.session_state.get("_sankey_qa_nums", _match_qs)
+        _xv_qb = st.session_state.get("_sankey_qb_nums", [])
+        _xv_fy_a = int(_pa) if _pa else 0
+        if not _xv_qa and _xv_qb:
+            _xv_fy_a += 1
+        _cross_checks = _cross_validate_metrics(
+            _sankey_metrics, _raw_qtr_income_df, _xv_fy_a, _xv_qa, _xv_qb, _xv_fy_end
+        )
+    st.session_state["_cross_checks"] = _cross_checks
+
+    # Show cross-validation failures as warning
+    _xv_fails = [c for c in _cross_checks if not c["ok"]]
+    if _xv_fails:
+        _xv_msg = " | ".join(f'{c["check"]}: displayed={_fmt(c["displayed"])} vs recomputed={_fmt(c["recomputed"])}' for c in _xv_fails)
+        st.warning(f"⚠️ Cross-validation mismatch: {_xv_msg}")
 
     # ═══════════════════════════════════════════════════════════════════════
     # LIVE DATA VALIDATION — runs automatically on every ticker load
@@ -4419,7 +4613,43 @@ def render_sankey_page():
         else:
             st.success("All automatic checks passed — no issues detected.")
 
-        # ── Section 5: XBRL tags used ──
+        # ── Section 5: Cross-Validation (Pandas recomputed vs displayed) ──
+        st.markdown("---")
+        st.markdown(f'<p class="audit-header">🔬 Cross-Validation: Raw Q Sum vs Aggregated (Pandas)</p>', unsafe_allow_html=True)
+        _xv = st.session_state.get("_cross_checks", [])
+        if _xv:
+            _xv_rows = []
+            for c in _xv:
+                _xv_rows.append({
+                    "Status": "✅" if c["ok"] else "❌",
+                    "Metric": c["check"],
+                    "Displayed (Sankey)": f"${c['displayed']:,.0f}" if c['displayed'] else "—",
+                    "Recomputed (Pandas)": f"${c['recomputed']:,.0f}" if c['recomputed'] else "—",
+                    "Difference": f"${c['diff']:,.0f}" if c['diff'] else "$0",
+                })
+            st.dataframe(pd.DataFrame(_xv_rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Cross-validation not available (raw quarterly data needed)")
+
+        # ── Section 6: Sankey Metrics (Single Source of Truth) ──
+        st.markdown("---")
+        st.markdown(f'<p class="audit-header">📊 Pandas Metrics (Single Source of Truth)</p>', unsafe_allow_html=True)
+        _sm = st.session_state.get("_sankey_metrics", {})
+        if _sm.get("df_info"):
+            st.markdown(f"**DataFrame Info:** {_sm['df_info']}")
+        if _sm.get("income"):
+            _m_rows = []
+            for k, v in _sm["income"].items():
+                _m_rows.append({
+                    "Account": k,
+                    "Current (Period A)": f"${v['current']:,.0f}" if v['current'] else "—",
+                    "Previous (Period B)": f"${v['previous']:,.0f}" if v['previous'] else "—",
+                    "% Change": f"{v['pct_change']:+.1f}%" if v['pct_change'] is not None else "N/A",
+                    "$ Change": f"${v['dollar_change']:,.0f}" if v['dollar_change'] is not None else "N/A",
+                })
+            st.dataframe(pd.DataFrame(_m_rows), use_container_width=True, hide_index=True)
+
+        # ── Section 7: XBRL tags used ──
         st.markdown("---")
         st.markdown(f'<p class="audit-header">🏷️ XBRL Tags Reference</p>', unsafe_allow_html=True)
         _tag_data = []
