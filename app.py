@@ -3188,8 +3188,8 @@ with st.sidebar:
                         _days = _days_until_q(qi, fy)
                         return (
                             f"FY{fy} (Q{qi}) available in {_days} days"
-                            f" — subscribe to get notified"
-                        )  # plain text (help= doesn't support links)
+                            f" — subscribe at quartercharts.com/pricing"
+                        )
                     _on = st.session_state.get(key, False)
                     if _on:
                         return None  # ON button — no tooltip needed
@@ -3232,25 +3232,11 @@ with st.sidebar:
 
                     if not _avail:
                         _days = _days_until_q(_qi_i, _fy_i)
-                        _future_clicked_key = f"_fq_clicked_{_bid}"
                         st.button(
                             f"FY{_fy_i} - Q{_qi_i} — in {_days}d",
                             key=_bid, use_container_width=True,
                             help=_tip,
-                            on_click=lambda k=_future_clicked_key: st.session_state.update({k: True}),
                         )
-                        if st.session_state.pop(_future_clicked_key, False):
-                            st.markdown(
-                                f'<div style="background:#fff3cd;border:1px solid #ffc107;'
-                                f'border-radius:0.5rem;padding:0.75rem 1rem;'
-                                f'color:#664d03;font-size:0.875rem">'
-                                f'⚠️ FY{_fy_i} (Q{_qi_i}) available in {_days} days'
-                                f' — <a href="https://quartercharts.com/pricing"'
-                                f' target="_blank" style="color:#946500;'
-                                f'font-weight:600;text-decoration:underline">'
-                                f'subscribe</a> to get notified</div>',
-                                unsafe_allow_html=True,
-                            )
                     elif _on:
                         st.button(
                             f"FY{_fy_i} - " + _q_btn_label(_qi_i, _fy_i),
