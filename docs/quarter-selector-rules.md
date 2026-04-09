@@ -19,3 +19,9 @@
 - Click an OFF button to turn it ON (if constraints allow).
 - Click an ON button to turn it OFF (if at least 1 remains ON).
 - If a toggle would violate max-4 or max-span-3, the toggle is ignored (button stays OFF).
+
+## State Validation
+- On every rerun, existing state is validated against all constraints.
+- If the span between the newest and oldest selected quarter exceeds 3 periods, the oldest selections are dropped until the span fits.
+- If more than 4 quarters are selected, the oldest are dropped.
+- This handles stale state from before the rules were deployed or edge cases from year switching.

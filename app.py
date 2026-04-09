@@ -3062,10 +3062,44 @@ with st.sidebar:
                     _all_q_items.append((ey_a, em_a, _sel_fy, qi, "sk_Ya"))
                 # Sort newest first; assign chronological index (0 = newest)
                 _all_q_items.sort(key=lambda x: (x[0], x[1]), reverse=True)
-                # Map session-state key → chrono index
+                # Map session-state key → chrono index (0 = newest)
                 _key_to_idx = {}
                 for _idx, (_, _, _fy_i, _qi_i, _pfx_i) in enumerate(_all_q_items):
                     _key_to_idx[f"{_pfx_i}_q{_qi_i}"] = _idx
+
+                # ── Validate existing state: enforce max 4 & max span 3 ──
+                _on_keys = sorted(
+                    [k for k in _key_to_idx if st.session_state.get(k, False)],
+                    key=lambda k: _key_to_idx[k],
+                )
+                _changed = True
+                while _changed:
+                    _changed = False
+                    # Enforce max 4: drop the oldest beyond limit
+                    while len(_on_keys) > 4:
+                        _drop = _on_keys.pop()  # highest idx = oldest
+                        st.session_state[_drop] = False
+                        _changed = True
+                    # Enforce max span 3: drop oldest until span fits
+                    while (len(_on_keys) > 1 and
+                           _key_to_idx[_on_keys[-1]] - _key_to_idx[_on_keys[0]] > 3):
+                        _drop = _on_keys.pop()  # drop oldest
+                        st.session_state[_drop] = False
+                        _changed = True
+                # Enforce min 1
+                if not _on_keys:
+                    _def_key = f"sk_Ya_q{_default_q}"
+                    st.session_state[_def_key] = True
+                    _on_keys = [_def_key]
+
+                # Re-read after validation
+                _qa_nums = sorted([q for q in range(1, 5) if st.session_state.get(f"sk_Ya_q{q}", False)])
+                _qb_nums = sorted([q for q in range(1, 5) if st.session_state.get(f"sk_Yb_q{q}", False)])
+                _selected_qs = sorted(set(_qa_nums + _qb_nums))
+                st.session_state["_sankey_annual_match_qs"] = _selected_qs
+                st.session_state["_sankey_qa_nums"] = _qa_nums
+                st.session_state["_sankey_qb_nums"] = _qb_nums
+                _max_sel_q = max(_selected_qs)
 
                 def _toggle_q(key):
                     """Toggle with rules: min 1, max 4, max span 3."""
