@@ -3008,37 +3008,26 @@ with st.sidebar:
                     off = (cm - fs) if cm >= fs else (cm + 12 - fs)
                     return (off // 3) + 1, fy
 
-                # ── Colours aligned to quartercharts.com palette ──
-                _QC_FULL = {
-                    1: {"bg": "#4285f4", "glow": "rgba(66,133,244,.45)"},   # Google blue
-                    2: {"bg": "#34a853", "glow": "rgba(52,168,83,.45)"},    # Google green
-                    3: {"bg": "#fbbc04", "glow": "rgba(251,188,4,.50)"},    # Google yellow
-                    4: {"bg": "#9c27b0", "glow": "rgba(156,39,176,.45)"},   # Material purple
-                }
-                _QC_DIM = {
-                    1: {"bg": "rgba(66,133,244,.22)"},
-                    2: {"bg": "rgba(52,168,83,.22)"},
-                    3: {"bg": "rgba(251,188,4,.25)"},
-                    4: {"bg": "rgba(156,39,176,.22)"},
+                # ── Quarter palette (quartercharts.com) ──
+                _QC = {
+                    1: {"bg": "#4285f4", "dim": "#dce8fd", "tx": "#2b5ea7"},
+                    2: {"bg": "#34a853", "dim": "#d4edda", "tx": "#1e6b34"},
+                    3: {"bg": "#f9ab00", "dim": "#fef3cd", "tx": "#946500"},
+                    4: {"bg": "#9c27b0", "dim": "#e8d5ec", "tx": "#6a1b7a"},
                 }
                 _MABBR = ["", "JAN", "FEB", "MAR", "APR", "MAY",
                           "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
-                # ── Determine which quarters are selected (read session state) ──
                 _sel_q_set = set(_selected_qs)
 
-                # ── Grid range: 7 rows = 21 months ending at FY-end quarter ──
+                # ── Grid range: 7 rows = 21 months ──
                 _fy_end_cq = ((_fy_m_sk - 1) // 3 + 1) * 3
-                _ge_m = _fy_end_cq
-                _ge_y = _sel_fy
-                _gs_m = _ge_m - 20
-                _gs_y = _ge_y
+                _ge_m, _ge_y = _fy_end_cq, _sel_fy
+                _gs_m, _gs_y = _ge_m - 20, _ge_y
                 while _gs_m <= 0:
-                    _gs_m += 12
-                    _gs_y -= 1
+                    _gs_m += 12; _gs_y -= 1
                 _gs_m = ((_gs_m - 1) // 3) * 3 + 1
 
-                # ── Build rows of 3 months ──
                 _grow = []
                 _gy, _gm = _gs_y, _gs_m
                 _end_abs = _ge_y * 12 + _ge_m
@@ -3047,74 +3036,77 @@ with st.sidebar:
                     for _ in range(3):
                         _r.append((_gy, _gm))
                         _gm += 1
-                        if _gm > 12:
-                            _gm = 1
-                            _gy += 1
+                        if _gm > 12: _gm = 1; _gy += 1
                     _grow.append(_r)
 
                 # ── CSS ──
                 st.markdown("""<style>
-                .fqcal{width:100%;border-collapse:separate;border-spacing:6px 6px;margin:0}
-                .fqcal td{border-radius:10px;padding:9px 4px;text-align:center;
-                    font-weight:700;color:#fff;font-size:.68rem;line-height:1.35;
-                    vertical-align:middle;letter-spacing:.3px;
-                    transition:all .2s ease}
-                .fqcal .fq-on{box-shadow:0 2px 8px var(--glow)}
-                .fqcal .fq-dim{opacity:.35;filter:saturate(.3);box-shadow:none}
-                .fqcal .fq-e{background:transparent;box-shadow:none}
-                .fqcal .fq-q{font-size:.56rem;font-weight:800;opacity:.88;
-                    display:block;margin-bottom:2px;letter-spacing:.8px;text-transform:uppercase}
-                .fqcal .fq-m{display:block;font-size:.74rem;font-weight:800}
-                .fqcal .fq-star{font-size:.74rem;font-weight:800;color:#ffffffcc}
+                .fqw{background:#f8f9fa;border-radius:14px;padding:10px;margin-bottom:2px}
+                .fqcal{width:100%;border-collapse:separate;border-spacing:4px 5px}
+                .fqcal td{border-radius:8px;padding:8px 2px;text-align:center;
+                    vertical-align:middle;line-height:1.3;letter-spacing:.2px}
+                .fqcal .fq-on{color:#fff;box-shadow:0 2px 10px var(--gw)}
+                .fqcal .fq-off{box-shadow:inset 0 0 0 1.5px var(--bc)}
+                .fqcal .fq-e{background:transparent}
+                .fqcal .fq-q{font-size:.55rem;font-weight:700;display:block;
+                    margin-bottom:1px;letter-spacing:.6px;text-transform:uppercase}
+                .fqcal .fq-on .fq-q{opacity:.85}
+                .fqcal .fq-off .fq-q{opacity:.6}
+                .fqcal .fq-m{display:block;font-size:.72rem;font-weight:800}
+                .fqcal .fq-on .fq-m{color:#fff}
+                .fqcal .fq-s{font-weight:400;opacity:.7}
                 </style>""", unsafe_allow_html=True)
 
                 st.markdown(
-                    '<p style="font-size:.93rem;font-weight:700;color:#374151;'
-                    'margin:4px 0 10px;">\U0001f4c5 Fiscal Quarter Calendar</p>',
+                    '<p style="font-size:.93rem;font-weight:700;color:#212529;'
+                    'margin:4px 0 8px;">\U0001f4c5 Fiscal Quarter Calendar</p>',
                     unsafe_allow_html=True,
                 )
 
-                # ── Render HTML table with glow/dim ──
-                _h = '<table class="fqcal">'
+                # ── Build HTML ──
+                _h = '<div class="fqw"><table class="fqcal">'
                 for _row in _grow:
                     _h += '<tr>'
                     for (_cy, _cm) in _row:
                         _fq, _fyl = _m2fq(_cm, _cy)
                         if _fyl in (_sel_fy, _prev_fy):
-                            _is_on = _fq in _sel_q_set
-                            if _is_on:
-                                _c = _QC_FULL[_fq]
-                                _cls = "fq-on"
-                                _sty = f'background:{_c["bg"]};--glow:{_c["glow"]}'
+                            _c = _QC[_fq]
+                            _on = _fq in _sel_q_set
+                            _star = ' <span class="fq-s">*</span>' if _cm == _fy_m_sk else ""
+                            if _on:
+                                _h += (
+                                    f'<td class="fq-on" style="background:{_c["bg"]};'
+                                    f'--gw:{_c["bg"]}40;">'
+                                    f'<span class="fq-q">Q{_fq}</span>'
+                                    f'<span class="fq-m">{_MABBR[_cm]} {_cy % 100:02d}{_star}</span>'
+                                    f'</td>'
+                                )
                             else:
-                                _c = _QC_DIM[_fq]
-                                _cls = "fq-dim"
-                                _sty = f'background:{_QC_FULL[_fq]["bg"]}'
-                            _star = " *" if _cm == _fy_m_sk else ""
-                            _h += (
-                                f'<td class="{_cls}" style="{_sty};">'
-                                f'<span class="fq-q">Q{_fq}</span>'
-                                f'<span class="fq-m">{_MABBR[_cm]} {_cy % 100:02d}'
-                                f'{"<span class=fq-star> *</span>" if _star else ""}'
-                                f'</span></td>'
-                            )
+                                _h += (
+                                    f'<td class="fq-off" style="background:{_c["dim"]};'
+                                    f'--bc:{_c["bg"]}50;color:{_c["tx"]};">'
+                                    f'<span class="fq-q" style="color:{_c["tx"]};">Q{_fq}</span>'
+                                    f'<span class="fq-m" style="color:{_c["tx"]};">'
+                                    f'{_MABBR[_cm]} {_cy % 100:02d}{_star}</span>'
+                                    f'</td>'
+                                )
                         else:
                             _h += '<td class="fq-e"></td>'
                     _h += '</tr>'
-                _h += '</table>'
+                _h += '</table></div>'
                 st.markdown(_h, unsafe_allow_html=True)
 
                 # ── Legend ──
                 st.markdown(
-                    f'<p style="font-size:.62rem;color:#9CA3AF;margin:4px 0 10px;">'
-                    f'* Fiscal year ends in {_MON[_fy_m_sk]}</p>',
+                    f'<p style="font-size:.6rem;color:#adb5bd;margin:4px 0 8px;">'
+                    f'* Fiscal year ends {_MON[_fy_m_sk]}</p>',
                     unsafe_allow_html=True,
                 )
 
-                # ── Quarter selection checkboxes ──
+                # ── Quarter checkboxes ──
                 st.markdown(
                     '<p style="font-size:.82rem;font-weight:600;color:#6B7280;'
-                    'margin:2px 0 4px;">Select quarters to compare:</p>',
+                    'margin:2px 0 4px;">Select quarters:</p>',
                     unsafe_allow_html=True,
                 )
                 _q_chron = []
