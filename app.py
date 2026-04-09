@@ -2939,15 +2939,23 @@ with st.sidebar:
             )
 
             if _compare_mode == "Annual":
-                # ── Read quarter checkboxes state (use previous values on first pass) ──
-                _selected_qs = []
-                for _idx, (_qn, _cy, _cm, _fyl) in enumerate(_q_sort):
-                    _default_on = (_idx == len(_q_sort) - 1)
-                    if st.session_state.get(f"sk_q{_qn}", _default_on):
-                        _selected_qs.append(_qn)
-                if not _selected_qs:
-                    _selected_qs = [_q_sort[-1][0]]
-                _selected_qs.sort()
+                # ── Read per-year quarter selections (from previous render) ──
+                _cq_cur = _completed_qs_in_fy(_cur_fy, _fy_m_sk)
+                _default_q = max(1, _cq_cur)  # latest completed Q
+
+                _fqa_raw = st.session_state.get("sk_fqa", f"Q{_default_q}")
+                _fqb_raw = st.session_state.get("sk_fqb", "\u2014")
+
+                # Parse quarter numbers safely
+                _qa_num = int(_fqa_raw[1]) if (isinstance(_fqa_raw, str) and len(_fqa_raw) == 2
+                             and _fqa_raw[0] == "Q" and _fqa_raw[1].isdigit()) else _default_q
+                _qb_num = int(_fqb_raw[1]) if (isinstance(_fqb_raw, str) and len(_fqb_raw) == 2
+                             and _fqb_raw[0] == "Q" and _fqb_raw[1].isdigit()) else None
+
+                _selected_qs = [_qa_num]
+                if _qb_num is not None:
+                    _selected_qs.append(_qb_num)
+                _selected_qs = sorted(set(_selected_qs))
                 st.session_state["_sankey_annual_match_qs"] = _selected_qs
 
                 _max_sel_q = max(_selected_qs)
@@ -3018,7 +3026,11 @@ with st.sidebar:
                 _MABBR = ["", "JAN", "FEB", "MAR", "APR", "MAY",
                           "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
-                _sel_q_set = set(_selected_qs)
+                # ── Build glow set: specific (fiscal_year, quarter) pairs ──
+                _sel_fq_pairs = set()
+                _sel_fq_pairs.add((_sel_fy, _qa_num))
+                if _qb_num is not None:
+                    _sel_fq_pairs.add((_prev_fy, _qb_num))
 
                 # ── Grid range: 7 rows = 21 months ──
                 _fy_end_cq = ((_fy_m_sk - 1) // 3 + 1) * 3
@@ -3063,7 +3075,7 @@ with st.sidebar:
                     unsafe_allow_html=True,
                 )
 
-                # ── Build HTML ──
+                # ── Build HTML (year-aware glow) ──
                 _h = '<div class="fqw"><table class="fqcal">'
                 for _row in _grow:
                     _h += '<tr>'
@@ -3071,7 +3083,7 @@ with st.sidebar:
                         _fq, _fyl = _m2fq(_cm, _cy)
                         if _fyl in (_sel_fy, _prev_fy):
                             _c = _QC[_fq]
-                            _on = _fq in _sel_q_set
+                            _on = (_fyl, _fq) in _sel_fq_pairs
                             _star = ' <span class="fq-s">*</span>' if _cm == _fy_m_sk else ""
                             if _on:
                                 _h += (
@@ -3103,32 +3115,35 @@ with st.sidebar:
                     unsafe_allow_html=True,
                 )
 
-                # ── Quarter checkboxes ──
+                # ── Per-year quarter selectors (1 Q per FY, max 4 total) ──
                 st.markdown(
-                    '<p style="font-size:.82rem;font-weight:600;color:#6B7280;'
-                    'margin:2px 0 4px;">Select quarters:</p>',
+                    '<p style="font-size:.82rem;font-weight:600;color:#495057;'
+                    'margin:2px 0 4px;">Select quarter per year:</p>',
                     unsafe_allow_html=True,
                 )
-                _q_chron = []
-                for _qq in range(1, 5):
-                    if _q_is_completed(_qq, _sel_fy, _fy_m_sk):
-                        _eqy = _fq_end_year(_qq, _sel_fy, _fy_m_sk)
-                    else:
-                        _eqy = _fq_end_year(_qq, _prev_fy, _fy_m_sk)
-                    _eqm = _fq_end_month(_qq, _fy_m_sk)
-                    _q_chron.append((_qq, _eqy, _eqm))
-                _q_chron.sort(key=lambda x: (x[1], x[2]))
 
-                _cb1, _cb2 = st.columns(2)
-                for _idx, (_qn, _, _) in enumerate(_q_chron):
-                    _default_on = (_idx == len(_q_chron) - 1)
-                    _col = _cb1 if _idx % 2 == 0 else _cb2
-                    with _col:
-                        st.checkbox(
-                            f"Q{_qn}",
-                            value=_default_on,
-                            key=f"sk_q{_qn}",
-                        )
+                # FY sel_fy: only completed quarters
+                _avail_a = [f"Q{q}" for q in range(1, _completed_qs_in_fy(_sel_fy, _fy_m_sk) + 1)]
+                if not _avail_a:
+                    _avail_a = [f"Q{_default_q}"]
+                if st.session_state.get("sk_fqa") not in _avail_a:
+                    st.session_state["sk_fqa"] = _avail_a[-1]
+                st.selectbox(
+                    f"FY {_sel_fy}",
+                    _avail_a,
+                    key="sk_fqa",
+                )
+
+                # FY prev_fy: all completed quarters + "—" (none)
+                _avail_b = [f"Q{q}" for q in range(1, _completed_qs_in_fy(_prev_fy, _fy_m_sk) + 1)]
+                _opts_b = ["\u2014"] + _avail_b
+                if st.session_state.get("sk_fqb") not in _opts_b:
+                    st.session_state["sk_fqb"] = "\u2014"
+                st.selectbox(
+                    f"FY {_prev_fy}",
+                    _opts_b,
+                    key="sk_fqb",
+                )
 
                 st.session_state["_sankey_annual_match_q"] = _max_sel_q
                 st.session_state.sankey_compare_quarterly = False
