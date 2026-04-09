@@ -3181,6 +3181,46 @@ with st.sidebar:
                         # Clear any previous toast
                         st.session_state.pop("_qbtn_toast", None)
 
+                # ── Compute hover tooltip for each button ──
+                def _get_help_text(key, avail, fy, qi):
+                    """Return tooltip string or None (no tooltip for active/free buttons)."""
+                    if not avail:
+                        _days = _days_until_q(qi, fy)
+                        return (
+                            f"FY{fy} (Q{qi}) available in {_days} days"
+                            f" — subscribe to get notified"
+                        )
+                    _on = st.session_state.get(key, False)
+                    if _on:
+                        return None  # ON button — no tooltip needed
+                    # OFF button — check if it CAN be turned on
+                    _on_k = sorted(
+                        [k for k in _key_to_idx if st.session_state.get(k, False)],
+                        key=lambda k: _key_to_idx[k],
+                    )
+                    _new_idx = _key_to_idx.get(key)
+                    # Max 4 check
+                    if len(_on_k) >= 4:
+                        return "Max 4 quarters selected — deselect one to choose this quarter"
+                    # Span check
+                    _on_idxs = [_key_to_idx[k] for k in _on_k]
+                    _test_idxs = _on_idxs + [_new_idx]
+                    if max(_test_idxs) - min(_test_idxs) > 3:
+                        _to_deselect = []
+                        for k in _on_k:
+                            ki = _key_to_idx[k]
+                            remaining = [i for i in _on_idxs if i != ki] + [_new_idx]
+                            if not remaining:
+                                continue
+                            if max(remaining) - min(remaining) <= 3:
+                                _to_deselect.append(k)
+                        if not _to_deselect or len(_to_deselect) == len(_on_k):
+                            return "Can't select — deselect farthest quarters first"
+                        else:
+                            _msg = _build_deselect_msg(_to_deselect)
+                            return f"Deselect {_msg} to choose this quarter"
+                    return None  # Free to toggle — no tooltip
+
                 # ── Render sorted quarter toggle buttons ──
                 for _idx, (_, _, _fy_i, _qi_i, _pfx_i) in enumerate(_all_q_items):
                     _avail = _qi_i <= _completed_qs_in_fy(_fy_i, _fy_m_sk)
@@ -3188,6 +3228,7 @@ with st.sidebar:
                     _c = _QC[_qi_i]
                     _on = st.session_state.get(_key, False)
                     _bid = f"qb-{_pfx_i.replace('_','-')}-{_qi_i}"
+                    _tip = _get_help_text(_key, _avail, _fy_i, _qi_i)
 
                     if not _avail:
                         _days = _days_until_q(_qi_i, _fy_i)
@@ -3198,12 +3239,14 @@ with st.sidebar:
                         st.button(
                             f"FY{_fy_i} - Q{_qi_i} — in {_days}d",
                             key=_bid, use_container_width=True,
+                            help=_tip,
                             on_click=lambda m=_future_msg: st.session_state.update({"_qbtn_toast": m}),
                         )
                     elif _on:
                         st.button(
                             f"FY{_fy_i} - " + _q_btn_label(_qi_i, _fy_i),
                             key=_bid, type="primary",
+                            help=_tip,
                             on_click=_toggle_q, args=(_key,),
                             use_container_width=True,
                         )
@@ -3211,6 +3254,7 @@ with st.sidebar:
                         st.button(
                             f"FY{_fy_i} - " + _q_btn_label(_qi_i, _fy_i),
                             key=_bid,
+                            help=_tip,
                             on_click=_toggle_q, args=(_key,),
                             use_container_width=True,
                         )
