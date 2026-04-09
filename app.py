@@ -3001,37 +3001,44 @@ with st.sidebar:
                 _sel_fy = int(st.session_state.sankey_period_a)
                 _prev_fy = _sel_fy - 1
 
-                # ── Map any calendar month → (fiscal_quarter, fiscal_year) ──
+                # ── Map calendar month → (fiscal_quarter, fiscal_year) ──
                 def _m2fq(cm, cy):
                     fy = cy + 1 if cm > _fy_m_sk else cy
                     fs = (_fy_m_sk % 12) + 1
                     off = (cm - fs) if cm >= fs else (cm + 12 - fs)
                     return (off // 3) + 1, fy
 
-                # ── Quarter colours ──
-                _QC = {
-                    1: "#3B82F6",   # blue
-                    2: "#10B981",   # emerald
-                    3: "#EAB308",   # yellow
-                    4: "#8B5CF6",   # violet
+                # ── Colours aligned to quartercharts.com palette ──
+                _QC_FULL = {
+                    1: {"bg": "#4285f4", "glow": "rgba(66,133,244,.45)"},   # Google blue
+                    2: {"bg": "#34a853", "glow": "rgba(52,168,83,.45)"},    # Google green
+                    3: {"bg": "#fbbc04", "glow": "rgba(251,188,4,.50)"},    # Google yellow
+                    4: {"bg": "#9c27b0", "glow": "rgba(156,39,176,.45)"},   # Material purple
+                }
+                _QC_DIM = {
+                    1: {"bg": "rgba(66,133,244,.22)"},
+                    2: {"bg": "rgba(52,168,83,.22)"},
+                    3: {"bg": "rgba(251,188,4,.25)"},
+                    4: {"bg": "rgba(156,39,176,.22)"},
                 }
                 _MABBR = ["", "JAN", "FEB", "MAR", "APR", "MAY",
                           "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
-                # ── Determine grid range (7 rows = 21 months) ──
-                # End at the calendar-quarter boundary that contains the FY end
+                # ── Determine which quarters are selected (read session state) ──
+                _sel_q_set = set(_selected_qs)
+
+                # ── Grid range: 7 rows = 21 months ending at FY-end quarter ──
                 _fy_end_cq = ((_fy_m_sk - 1) // 3 + 1) * 3
                 _ge_m = _fy_end_cq
                 _ge_y = _sel_fy
-                # Start 21 months earlier, aligned to calendar-quarter start
                 _gs_m = _ge_m - 20
                 _gs_y = _ge_y
                 while _gs_m <= 0:
                     _gs_m += 12
                     _gs_y -= 1
-                _gs_m = ((_gs_m - 1) // 3) * 3 + 1  # align to Jan/Apr/Jul/Oct
+                _gs_m = ((_gs_m - 1) // 3) * 3 + 1
 
-                # ── Build rows of 3 months each ──
+                # ── Build rows of 3 months ──
                 _grow = []
                 _gy, _gm = _gs_y, _gs_m
                 _end_abs = _ge_y * 12 + _ge_m
@@ -3045,38 +3052,51 @@ with st.sidebar:
                             _gy += 1
                     _grow.append(_r)
 
-                # ── CSS for calendar grid ──
+                # ── CSS ──
                 st.markdown("""<style>
-                .fqcal{width:100%;border-collapse:separate;border-spacing:3px;margin:0}
-                .fqcal td{border-radius:8px;padding:8px 2px;text-align:center;
-                    font-weight:700;color:#fff;font-size:.68rem;line-height:1.3;
+                .fqcal{width:100%;border-collapse:separate;border-spacing:6px 6px;margin:0}
+                .fqcal td{border-radius:10px;padding:9px 4px;text-align:center;
+                    font-weight:700;color:#fff;font-size:.68rem;line-height:1.35;
                     vertical-align:middle;letter-spacing:.3px;
-                    box-shadow:0 1px 3px rgba(0,0,0,.10)}
+                    transition:all .2s ease}
+                .fqcal .fq-on{box-shadow:0 2px 8px var(--glow)}
+                .fqcal .fq-dim{opacity:.35;filter:saturate(.3);box-shadow:none}
                 .fqcal .fq-e{background:transparent;box-shadow:none}
-                .fqcal .fq-q{font-size:.58rem;opacity:.82;display:block;margin-bottom:1px}
-                .fqcal .fq-m{display:block;font-size:.72rem}
+                .fqcal .fq-q{font-size:.56rem;font-weight:800;opacity:.88;
+                    display:block;margin-bottom:2px;letter-spacing:.8px;text-transform:uppercase}
+                .fqcal .fq-m{display:block;font-size:.74rem;font-weight:800}
+                .fqcal .fq-star{font-size:.74rem;font-weight:800;color:#ffffffcc}
                 </style>""", unsafe_allow_html=True)
 
                 st.markdown(
                     '<p style="font-size:.93rem;font-weight:700;color:#374151;'
-                    'margin:4px 0 8px;">\U0001f4c5 Fiscal Quarter Calendar</p>',
+                    'margin:4px 0 10px;">\U0001f4c5 Fiscal Quarter Calendar</p>',
                     unsafe_allow_html=True,
                 )
 
-                # ── Render HTML table ──
+                # ── Render HTML table with glow/dim ──
                 _h = '<table class="fqcal">'
                 for _row in _grow:
                     _h += '<tr>'
                     for (_cy, _cm) in _row:
                         _fq, _fyl = _m2fq(_cm, _cy)
                         if _fyl in (_sel_fy, _prev_fy):
-                            _bg = _QC[_fq]
+                            _is_on = _fq in _sel_q_set
+                            if _is_on:
+                                _c = _QC_FULL[_fq]
+                                _cls = "fq-on"
+                                _sty = f'background:{_c["bg"]};--glow:{_c["glow"]}'
+                            else:
+                                _c = _QC_DIM[_fq]
+                                _cls = "fq-dim"
+                                _sty = f'background:{_QC_FULL[_fq]["bg"]}'
                             _star = " *" if _cm == _fy_m_sk else ""
                             _h += (
-                                f'<td style="background:{_bg};">'
+                                f'<td class="{_cls}" style="{_sty};">'
                                 f'<span class="fq-q">Q{_fq}</span>'
-                                f'<span class="fq-m">{_MABBR[_cm]} {_cy % 100:02d}{_star}</span>'
-                                f'</td>'
+                                f'<span class="fq-m">{_MABBR[_cm]} {_cy % 100:02d}'
+                                f'{"<span class=fq-star> *</span>" if _star else ""}'
+                                f'</span></td>'
                             )
                         else:
                             _h += '<td class="fq-e"></td>'
@@ -3086,12 +3106,12 @@ with st.sidebar:
 
                 # ── Legend ──
                 st.markdown(
-                    f'<p style="font-size:.62rem;color:#9CA3AF;margin:3px 0 10px;">'
+                    f'<p style="font-size:.62rem;color:#9CA3AF;margin:4px 0 10px;">'
                     f'* Fiscal year ends in {_MON[_fy_m_sk]}</p>',
                     unsafe_allow_html=True,
                 )
 
-                # ── Quarter selection checkboxes (compact, below calendar) ──
+                # ── Quarter selection checkboxes ──
                 st.markdown(
                     '<p style="font-size:.82rem;font-weight:600;color:#6B7280;'
                     'margin:2px 0 4px;">Select quarters to compare:</p>',
