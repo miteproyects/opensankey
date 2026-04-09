@@ -2939,31 +2939,30 @@ with st.sidebar:
             )
 
             if _compare_mode == "Annual":
-                # ── Read per-year quarter multiselect (from previous render) ──
+                # ── Read per-year quarter toggle-button state ──
+                import calendar as _cal_mod
+                from datetime import date as _date_cls
+
                 _cq_cur = _completed_qs_in_fy(_cur_fy, _fy_m_sk)
                 _default_q = max(1, _cq_cur)
 
-                # Initialise on first load
-                if "sk_fqa" not in st.session_state:
-                    st.session_state["sk_fqa"] = [f"Q{_default_q}"]
-                if "sk_fqb" not in st.session_state:
-                    st.session_state["sk_fqb"] = []
+                # Keys: sk_Ya_q{1-4} = True/False, sk_Yb_q{1-4} = True/False
+                # Initialise: only latest Q of sel_fy on
+                _init_key = "_sk_btns_init"
+                if _init_key not in st.session_state:
+                    for _qi in range(1, 5):
+                        st.session_state[f"sk_Ya_q{_qi}"] = (_qi == _default_q)
+                        st.session_state[f"sk_Yb_q{_qi}"] = False
+                    st.session_state[_init_key] = True
 
-                # Parse lists of "Q1","Q2",… → ints
-                def _parse_qs(raw):
-                    out = []
-                    for x in (raw if isinstance(raw, list) else []):
-                        if isinstance(x, str) and len(x) == 2 and x[0] == "Q" and x[1].isdigit():
-                            out.append(int(x[1]))
-                    return sorted(out)
+                # Read current toggle state
+                _qa_nums = sorted([q for q in range(1, 5) if st.session_state.get(f"sk_Ya_q{q}", False)])
+                _qb_nums = sorted([q for q in range(1, 5) if st.session_state.get(f"sk_Yb_q{q}", False)])
 
-                _qa_nums = _parse_qs(st.session_state.get("sk_fqa", []))
-                _qb_nums = _parse_qs(st.session_state.get("sk_fqb", []))
-
-                # Enforce: at least 1 quarter selected across both years
+                # Enforce min 1 across both years
                 if not _qa_nums and not _qb_nums:
                     _qa_nums = [_default_q]
-                    st.session_state["sk_fqa"] = [f"Q{_default_q}"]
+                    st.session_state[f"sk_Ya_q{_default_q}"] = True
 
                 _selected_qs = sorted(set(_qa_nums + _qb_nums))
                 st.session_state["_sankey_annual_match_qs"] = _selected_qs
@@ -3126,45 +3125,106 @@ with st.sidebar:
                     unsafe_allow_html=True,
                 )
 
-                # ── Per-year quarter multiselects (any combo, min 1 total) ──
-                st.markdown(
-                    '<p style="font-size:.82rem;font-weight:600;color:#495057;'
-                    'margin:2px 0 4px;">Select quarters per year:</p>',
-                    unsafe_allow_html=True,
-                )
+                # ── Helpers for toggle buttons ──
+                def _q_btn_label(q, fy):
+                    """Build label like 'Q3 (Dec 25 · Jan 26 · Feb 26)'."""
+                    em = _fq_end_month(q, _fy_m_sk)
+                    sm = em - 2
+                    if sm <= 0: sm += 12
+                    mm = em - 1
+                    if mm <= 0: mm += 12
+                    ey = _fq_end_year(q, fy, _fy_m_sk)
+                    sy = ey - (1 if sm > em else 0)
+                    my = ey - (1 if mm > em else 0)
+                    return (f"Q{q}  ({_MON[sm]} {sy % 100:02d} · "
+                            f"{_MON[mm]} {my % 100:02d} · {_MON[em]} {ey % 100:02d})")
 
-                # FY sel_fy: only completed quarters available
-                _avail_a = [f"Q{q}" for q in range(1, _completed_qs_in_fy(_sel_fy, _fy_m_sk) + 1)]
-                if not _avail_a:
-                    _avail_a = [f"Q{_default_q}"]
-                # Filter stored selection to valid options
-                _cur_a = st.session_state.get("sk_fqa", [])
-                _valid_a = [x for x in _cur_a if x in _avail_a]
-                if not _valid_a:
-                    _valid_a = [_avail_a[-1]]
-                if _valid_a != _cur_a:
-                    st.session_state["sk_fqa"] = _valid_a
-                st.multiselect(
-                    f"FY {_sel_fy}",
-                    _avail_a,
-                    key="sk_fqa",
-                )
-                # Enforce min 1: if user cleared both, restore default
-                if not st.session_state.get("sk_fqa") and not st.session_state.get("sk_fqb"):
-                    st.session_state["sk_fqa"] = [_avail_a[-1]]
-                    st.rerun()
+                def _days_until_q(q, fy):
+                    """Days until quarter ends (data becomes available)."""
+                    em = _fq_end_month(q, _fy_m_sk)
+                    ey = _fq_end_year(q, fy, _fy_m_sk)
+                    last_d = _cal_mod.monthrange(ey, em)[1]
+                    q_end = _date_cls(ey, em, last_d)
+                    today = _date_cls(_cur_year, _cur_month, _dt.now().day)
+                    return max(0, (q_end - today).days)
 
-                # FY prev_fy: all completed quarters (optional)
-                _avail_b = [f"Q{q}" for q in range(1, _completed_qs_in_fy(_prev_fy, _fy_m_sk) + 1)]
-                _cur_b = st.session_state.get("sk_fqb", [])
-                _valid_b = [x for x in _cur_b if x in _avail_b]
-                if _valid_b != _cur_b:
-                    st.session_state["sk_fqb"] = _valid_b
-                st.multiselect(
-                    f"FY {_prev_fy}",
-                    _avail_b,
-                    key="sk_fqb",
-                )
+                def _toggle_q(key):
+                    """Toggle a quarter button; enforce min-1 rule."""
+                    st.session_state[key] = not st.session_state.get(key, False)
+                    if not any(
+                        st.session_state.get(f"sk_Ya_q{x}", False) or
+                        st.session_state.get(f"sk_Yb_q{x}", False)
+                        for x in range(1, 5)
+                    ):
+                        st.session_state[key] = True  # keep last one on
+
+                # ── CSS for hiding st.button labels (use HTML card as visual) ──
+                st.markdown("""<style>
+                .qtbtn-wrap .stButton button{
+                    height:0;padding:0;margin:-8px 0 0 0;overflow:hidden;
+                    border:none;min-height:0;opacity:0;position:absolute;width:100%}
+                .qtbtn-wrap{position:relative}
+                </style>""", unsafe_allow_html=True)
+
+                # ── Render one year's quarter buttons ──
+                def _render_fy_buttons(fy, prefix):
+                    st.markdown(
+                        f'<p style="font-size:.82rem;font-weight:700;color:#495057;'
+                        f'margin:6px 0 4px;">FY {fy}</p>',
+                        unsafe_allow_html=True,
+                    )
+                    _cq = _completed_qs_in_fy(fy, _fy_m_sk)
+                    for qi in range(1, 5):
+                        _avail = qi <= _cq
+                        _key = f"{prefix}_q{qi}"
+                        _c = _QC[qi]
+                        _on = st.session_state.get(_key, False)
+
+                        if not _avail:
+                            # ── Unavailable: grey card with countdown ──
+                            _days = _days_until_q(qi, fy)
+                            st.markdown(
+                                f'<div style="background:#f1f3f5;border-radius:8px;'
+                                f'padding:9px 14px;margin-bottom:4px;color:#adb5bd;'
+                                f'font-size:.78rem;font-weight:600;'
+                                f'border-left:4px solid #dee2e6;">'
+                                f'Q{qi} &mdash; <i>in {_days}d</i></div>',
+                                unsafe_allow_html=True,
+                            )
+                        elif _on:
+                            # ── ON / glow: vivid colored card ──
+                            st.markdown(
+                                f'<div class="qtbtn-wrap">'
+                                f'<div style="background:{_c["bg"]};border-radius:8px;'
+                                f'padding:9px 14px;margin-bottom:4px;color:#fff;'
+                                f'font-size:.78rem;font-weight:700;cursor:pointer;'
+                                f'box-shadow:0 2px 10px {_c["bg"]}40;'
+                                f'border-left:4px solid {_c["bg"]};">'
+                                f'{_q_btn_label(qi, fy)}</div>',
+                                unsafe_allow_html=True,
+                            )
+                            if st.button("x", key=f"btn_{prefix}_{qi}",
+                                         use_container_width=True):
+                                _toggle_q(_key); st.rerun()
+                            st.markdown('</div>', unsafe_allow_html=True)
+                        else:
+                            # ── OFF / dim: pastel card ──
+                            st.markdown(
+                                f'<div class="qtbtn-wrap">'
+                                f'<div style="background:{_c["dim"]};border-radius:8px;'
+                                f'padding:9px 14px;margin-bottom:4px;color:{_c["tx"]};'
+                                f'font-size:.78rem;font-weight:600;cursor:pointer;'
+                                f'border-left:4px solid {_c["bg"]}50;">'
+                                f'{_q_btn_label(qi, fy)}</div>',
+                                unsafe_allow_html=True,
+                            )
+                            if st.button("x", key=f"btn_{prefix}_{qi}",
+                                         use_container_width=True):
+                                _toggle_q(_key); st.rerun()
+                            st.markdown('</div>', unsafe_allow_html=True)
+
+                _render_fy_buttons(_sel_fy, "sk_Ya")
+                _render_fy_buttons(_prev_fy, "sk_Yb")
 
                 st.session_state["_sankey_annual_match_q"] = _max_sel_q
                 st.session_state.sankey_compare_quarterly = False
