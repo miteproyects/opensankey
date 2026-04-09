@@ -3777,9 +3777,10 @@ def render_sankey_page():
     _pb = st.session_state.get("sankey_period_b", None)
 
     # Determine if we need partial-year aggregation:
-    # - Annual mode (not quarterly)
-    # - Not all 4 quarters selected
-    _is_full_year = sorted(_match_qs) == [1, 2, 3, 4]
+    # Full year only when all 4 Qs of current year selected AND no previous-year Qs
+    _qa_qs_check = st.session_state.get("_sankey_qa_nums", [])
+    _qb_qs_check = st.session_state.get("_sankey_qb_nums", [])
+    _is_full_year = (sorted(_qa_qs_check) == [1, 2, 3, 4] and not _qb_qs_check)
     _partial_year = (not _sq) and (not _is_full_year) and _pa and _pb
 
     with st.spinner(f"Loading {ticker} financial data..."):
@@ -3826,7 +3827,7 @@ def render_sankey_page():
     # Build quarter tag for comparison note
     def _build_q_tag(qs):
         qs = sorted(qs)
-        if qs == [1, 2, 3, 4]:
+        if not qs:
             return ""
         elif len(qs) == 1:
             return f" (Q{qs[0]})"
