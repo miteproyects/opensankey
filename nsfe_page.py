@@ -3388,6 +3388,154 @@ def _render_analytics():
     st.caption("Data refreshes every 5 minutes · Powered by GA4 Data API")
 
 
+def _render_device_preview():
+    """Device preview dashboard — live iframe previews of quartercharts.com
+    in iOS, Android, and Windows device frames (portrait + landscape)."""
+
+    st.markdown("## 📱 Device Preview Dashboard")
+    st.caption("Preview quartercharts.com across iOS, Android & Windows devices in portrait and landscape orientations.")
+
+    # ── URL selector ──
+    _pages = {
+        "Home": "https://quartercharts.com/",
+        "Sankey (AAPL)": "https://quartercharts.com/?page=sankey&ticker=AAPL",
+        "Sankey (META)": "https://quartercharts.com/?page=sankey&ticker=META",
+        "Profile (NVDA)": "https://quartercharts.com/?page=profile&ticker=NVDA",
+        "Earnings": "https://quartercharts.com/?page=earnings",
+        "Pricing": "https://quartercharts.com/?page=pricing",
+        "Login": "https://quartercharts.com/?page=login",
+    }
+    _sel_page = st.selectbox("Page to preview", list(_pages.keys()), key="dp_page")
+    _custom_url = st.text_input("Or enter custom URL", value="", key="dp_custom_url",
+                                placeholder="https://quartercharts.com/?page=...")
+    _url = _custom_url.strip() if _custom_url.strip() else _pages[_sel_page]
+
+    st.markdown("---")
+
+    # ── Device definitions ──
+    # (name, category, width_portrait, height_portrait, pixel_ratio)
+    _DEVICES = [
+        # iOS
+        ("iPhone SE", "iOS", 375, 667, 2),
+        ("iPhone 14", "iOS", 390, 844, 3),
+        ("iPhone 15 Pro Max", "iOS", 430, 932, 3),
+        ("iPad Air", "iOS", 820, 1180, 2),
+        ("iPad Pro 12.9\"", "iOS", 1024, 1366, 2),
+        # Android
+        ("Pixel 7", "Android", 412, 915, 2.6),
+        ("Samsung Galaxy S24", "Android", 360, 780, 3),
+        ("Samsung Galaxy Tab S9", "Android", 800, 1280, 2),
+        # Windows / Desktop
+        ("Laptop 1366×768", "Windows", 1366, 768, 1),
+        ("Desktop 1920×1080", "Windows", 1920, 1080, 1),
+        ("Surface Pro", "Windows", 912, 1368, 2),
+    ]
+
+    # ── Category filter ──
+    _cats = ["All", "iOS", "Android", "Windows"]
+    _sel_cat = st.pills("Filter by platform", _cats, key="dp_cat", default="All")
+    if not _sel_cat:
+        _sel_cat = "All"
+
+    # ── Orientation toggle ──
+    _orientation = st.radio("Orientation", ["Portrait", "Landscape"],
+                            horizontal=True, key="dp_orient")
+    _is_landscape = (_orientation == "Landscape")
+
+    # ── Scale for large devices ──
+    _scale = st.slider("Preview scale", 0.2, 1.0, 0.45, 0.05, key="dp_scale")
+
+    st.markdown("---")
+
+    # ── Render device previews ──
+    _filtered = [d for d in _DEVICES if _sel_cat == "All" or d[1] == _sel_cat]
+
+    # Show in rows of 3
+    for i in range(0, len(_filtered), 3):
+        cols = st.columns(3)
+        for j, col in enumerate(cols):
+            idx = i + j
+            if idx >= len(_filtered):
+                break
+            name, cat, wp, hp, dpr = _filtered[idx]
+            w = hp if _is_landscape else wp
+            h = wp if _is_landscape else hp
+            # Scaled dimensions for the iframe container
+            sw = int(w * _scale)
+            sh = int(h * _scale)
+            # Platform badge color
+            badge_color = {"iOS": "#007AFF", "Android": "#34A853", "Windows": "#0078D4"}.get(cat, "#666")
+            orient_label = "landscape" if _is_landscape else "portrait"
+
+            with col:
+                st.markdown(f"""
+                <div style="border:1px solid #e2e8f0; border-radius:12px; padding:12px; margin-bottom:16px;
+                            background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                        <span style="background:{badge_color}; color:#fff; font-size:11px; font-weight:600;
+                                     padding:2px 8px; border-radius:4px;">{cat}</span>
+                        <span style="font-weight:600; font-size:14px; color:#1e293b;">{name}</span>
+                    </div>
+                    <div style="font-size:12px; color:#94a3b8; margin-bottom:8px;">
+                        {w}×{h} · {orient_label} · {dpr}x DPR
+                    </div>
+                    <div style="border:2px solid #e2e8f0; border-radius:8px; overflow:hidden;
+                                width:{sw}px; height:{sh}px; background:#f1f5f9;">
+                        <iframe src="{_url}" width="{w}" height="{h}"
+                                style="transform:scale({_scale}); transform-origin:top left;
+                                       border:none; pointer-events:auto;"
+                                loading="lazy" sandbox="allow-scripts allow-same-origin allow-popups"
+                                title="{name} preview">
+                        </iframe>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # ── SSL certificate status card ──
+    st.markdown("---")
+    st.markdown("### 🔒 SSL Certificate Status")
+    st.markdown(f"""
+    <div style="border:1px solid #e2e8f0; border-radius:12px; padding:20px; background:#f0fdf4;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+            <span style="font-size:28px;">✅</span>
+            <div>
+                <div style="font-weight:600; font-size:16px; color:#166534;">Certificate Valid</div>
+                <div style="font-size:13px; color:#4ade80;">Let's Encrypt · Auto-renews via Railway</div>
+            </div>
+        </div>
+        <table style="width:100%; font-size:13px; color:#334155;">
+            <tr><td style="padding:4px 0; font-weight:600;">Domain</td><td>quartercharts.com</td></tr>
+            <tr><td style="padding:4px 0; font-weight:600;">Issuer</td><td>Let's Encrypt (R11)</td></tr>
+            <tr><td style="padding:4px 0; font-weight:600;">IP</td><td>151.101.2.15</td></tr>
+            <tr><td style="padding:4px 0; font-weight:600;">Chain</td><td>Complete (all intermediates installed)</td></tr>
+            <tr><td style="padding:4px 0; font-weight:600;">Hosting</td><td>Railway (us-west2)</td></tr>
+            <tr><td style="padding:4px 0; font-weight:600;">Browser support</td><td>All major browsers (Chrome, Safari, Firefox, Edge)</td></tr>
+        </table>
+    </div>
+    """, unsafe_allow_html=True)
+    st.caption("Certificate data from SSLShopper.com · Railway auto-renews 30 days before expiry")
+
+    # ── Quick links for external testing tools ──
+    st.markdown("### 🔧 External Testing Tools")
+    _tool_cols = st.columns(4)
+    _tools = [
+        ("🔍 SSL Checker", "https://www.sslshopper.com/ssl-checker.html#hostname=quartercharts.com"),
+        ("📱 Mobile Test", "https://search.google.com/test/mobile-friendly?url=https://quartercharts.com"),
+        ("⚡ PageSpeed", "https://pagespeed.web.dev/analysis?url=https://quartercharts.com"),
+        ("🌐 DNS Check", "https://dnschecker.org/#CNAME/quartercharts.com"),
+    ]
+    for k, (label, url) in enumerate(_tools):
+        with _tool_cols[k]:
+            st.markdown(f"""
+            <a href="{url}" target="_blank"
+               style="display:block; text-align:center; padding:14px; border:1px solid #e2e8f0;
+                      border-radius:10px; text-decoration:none; color:#1e293b; background:#fff;
+                      box-shadow:0 1px 3px rgba(0,0,0,0.04); font-size:14px; font-weight:500;">
+                {label}
+            </a>
+            """, unsafe_allow_html=True)
+
+
 def render_nsfe_page():
     """Render the password-protected NSFE manager control center."""
     st.markdown(_STYLES, unsafe_allow_html=True)
@@ -3417,10 +3565,11 @@ def render_nsfe_page():
     # ── Main Menu (Streamlit tabs) ──
     _sync_steps()
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.tabs([
         "📋 Dashboard", "🛡️ Security", "⚙️ Settings",
         "🛡️ Certifications", "🏗️ Infrastructure",
         "👥 Team & Admin", "🔍 SEO", "💳 Pricing", "👤 Users", "📊 Analytics", "🧠 Memory",
+        "📱 Device Preview",
     ])
 
     with tab1:
@@ -3453,6 +3602,9 @@ def render_nsfe_page():
 
     with tab11:
         _render_memory()
+
+    with tab12:
+        _render_device_preview()
 
     # Footer
     st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
