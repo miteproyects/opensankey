@@ -3839,13 +3839,13 @@ def render_sankey_page():
     _qb_qs = st.session_state.get("_sankey_qb_nums", [])
 
     def _build_period_label(main_fy, cur_qs, prev_qs):
-        """Build label like '2026 (Q1) + 2025 (Q2+Q3)' or '2026 (Q1+Q2)'."""
+        """Build label like 'FY2026 (Q1) + FY2025 (Q2+Q3)' or 'FY2026 (Q1+Q2)'."""
         parts = []
         if cur_qs:
-            parts.append(f"{main_fy}{_build_q_tag(cur_qs)}")
+            parts.append(f"FY{main_fy}{_build_q_tag(cur_qs)}")
         if prev_qs:
-            parts.append(f"{main_fy - 1}{_build_q_tag(prev_qs)}")
-        return " + ".join(parts) if parts else str(main_fy)
+            parts.append(f"FY{main_fy - 1}{_build_q_tag(prev_qs)}")
+        return " + ".join(parts) if parts else f"FY{main_fy}"
 
     if _partial_year and _pa and _pb and _pa != _pb:
         _fy_a_int = int(_pa)
