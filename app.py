@@ -2944,10 +2944,10 @@ with st.sidebar:
                 from datetime import date as _date_cls
 
                 _cq_cur = _completed_qs_in_fy(_cur_fy, _fy_m_sk)
-                _default_q = max(1, _cq_cur)
+                _default_q = max(1, _cq_cur)  # closest available Q to present
 
                 # Keys: sk_Ya_q{1-4} = True/False, sk_Yb_q{1-4} = True/False
-                # Initialise: only latest Q of sel_fy on
+                # Initialise: only closest-to-present Q of sel_fy ON
                 _init_key = "_sk_btns_init"
                 if _init_key not in st.session_state:
                     for _qi in range(1, 5):
@@ -3050,17 +3050,8 @@ with st.sidebar:
                     today = _date_cls(_cur_year, _cur_month, _dt.now().day)
                     return max(0, (q_end - today).days)
 
-                def _toggle_q(key):
-                    """Toggle a quarter button; enforce min-1 rule."""
-                    st.session_state[key] = not st.session_state.get(key, False)
-                    if not any(
-                        st.session_state.get(f"sk_Ya_q{x}", False) or
-                        st.session_state.get(f"sk_Yb_q{x}", False)
-                        for x in range(1, 5)
-                    ):
-                        st.session_state[key] = True  # keep last one on
-
-                # ── Build sorted list: all 8 quarters, oldest first ──
+                # ── Build sorted list: all 8 quarters, newest first ──
+                # Each item: (end_year, end_month, fiscal_year, quarter, prefix, chrono_idx)
                 _all_q_items = []
                 for qi in range(1, 5):
                     em_b = _fq_end_month(qi, _fy_m_sk)
@@ -3069,10 +3060,44 @@ with st.sidebar:
                     em_a = _fq_end_month(qi, _fy_m_sk)
                     ey_a = _fq_end_year(qi, _sel_fy, _fy_m_sk)
                     _all_q_items.append((ey_a, em_a, _sel_fy, qi, "sk_Ya"))
+                # Sort newest first; assign chronological index (0 = newest)
                 _all_q_items.sort(key=lambda x: (x[0], x[1]), reverse=True)
+                # Map session-state key → chrono index
+                _key_to_idx = {}
+                for _idx, (_, _, _fy_i, _qi_i, _pfx_i) in enumerate(_all_q_items):
+                    _key_to_idx[f"{_pfx_i}_q{_qi_i}"] = _idx
+
+                def _toggle_q(key):
+                    """Toggle with rules: min 1, max 4, max span 3."""
+                    _was_on = st.session_state.get(key, False)
+                    if _was_on:
+                        # Turning OFF — enforce min 1
+                        st.session_state[key] = False
+                        if not any(
+                            st.session_state.get(f"sk_Ya_q{x}", False) or
+                            st.session_state.get(f"sk_Yb_q{x}", False)
+                            for x in range(1, 5)
+                        ):
+                            st.session_state[key] = True  # keep last one
+                    else:
+                        # Turning ON — check max 4 and max span 3
+                        _on_keys = [
+                            k for k in _key_to_idx
+                            if st.session_state.get(k, False)
+                        ]
+                        if len(_on_keys) >= 4:
+                            return  # already at max
+                        # Check span: indices of currently-on + this new one
+                        _on_idxs = [_key_to_idx[k] for k in _on_keys]
+                        _new_idx = _key_to_idx.get(key)
+                        if _new_idx is not None:
+                            _on_idxs.append(_new_idx)
+                        if max(_on_idxs) - min(_on_idxs) > 3:
+                            return  # span too wide
+                        st.session_state[key] = True
 
                 # ── Render sorted quarter toggle buttons ──
-                for (_, _, _fy_i, _qi_i, _pfx_i) in _all_q_items:
+                for _idx, (_, _, _fy_i, _qi_i, _pfx_i) in enumerate(_all_q_items):
                     _avail = _qi_i <= _completed_qs_in_fy(_fy_i, _fy_m_sk)
                     _key = f"{_pfx_i}_q{_qi_i}"
                     _c = _QC[_qi_i]
