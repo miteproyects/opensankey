@@ -2987,7 +2987,7 @@ with st.sidebar:
 
                 _qt = _q_tag()
                 def _yr_label(y):
-                    return f"{y} ({_qt})"
+                    return f"{y}"
 
                 if not _years:
                     _years = [str(_cur_fy - 1)]
