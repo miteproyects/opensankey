@@ -3792,22 +3792,27 @@ def render_sankey_page():
             return " (" + "+".join(f"Q{q}" for q in qs) + ")"
 
     _q_tag = _build_q_tag(_match_qs) if not _sq2 else ""
+    # Per-year quarter tags for compare note
+    _qa_qs = st.session_state.get("_sankey_qa_nums", _match_qs)
+    _qb_qs = st.session_state.get("_sankey_qb_nums", _match_qs)
+    _q_tag_a = _build_q_tag(_qa_qs) if not _sq2 else ""
+    _q_tag_b = _build_q_tag(_qb_qs) if not _sq2 else ""
 
     if _partial_year and _pa and _pb and _pa != _pb:
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa}{_q_tag} vs {_pb}{_q_tag}"
+        _compare_note = f"Comparing {_pa}{_q_tag_a} vs {_pb}{_q_tag_b}"
     elif _partial_year and _pa and _pb and _pa == _pb:
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa}{_q_tag} vs {_pb}{_q_tag}"
+        _compare_note = f"Comparing {_pa}{_q_tag_a} vs {_pb}{_q_tag_b}"
         _same_period = True
     elif _pa and _pb and _pa != _pb:
         income_df = _reorder_df_for_comparison(income_df, _pa, _pb, _sq2)
         balance_df = _reorder_df_for_comparison(balance_df, _pa, _pb, _sq2)
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa}{_q_tag} vs {_pb}{_q_tag}"
+        _compare_note = f"Comparing {_pa}{_q_tag_a} vs {_pb}{_q_tag_b}"
     elif _pa and _pb and _pa == _pb:
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa}{_q_tag} vs {_pb}{_q_tag}"
+        _compare_note = f"Comparing {_pa}{_q_tag_a} vs {_pb}{_q_tag_b}"
         _same_period = True
     else:
         _compare_label = "YoY"
