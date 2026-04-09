@@ -2971,13 +2971,11 @@ with st.sidebar:
 
                 _max_sel_q = max(_selected_qs)
 
-                # Build year list
+                # Build year list (any year with ≥1 completed quarter)
                 _years = []
                 for _y in range(_cur_fy, _cur_fy - 11, -1):
-                    _cq = _completed_qs_in_fy(_y, _fy_m_sk)
-                    if _cq < _max_sel_q:
-                        continue
-                    _years.append(str(_y))
+                    if _completed_qs_in_fy(_y, _fy_m_sk) >= 1:
+                        _years.append(str(_y))
 
                 def _q_tag():
                     if _selected_qs == [1, 2, 3, 4]:
