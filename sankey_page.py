@@ -273,65 +273,78 @@ def _compute_sankey_metrics(income_df, balance_df=None):
 def _cross_validate_metrics(metrics, raw_qtr_df, fy, qa_nums, qb_nums, fy_end):
     """Cross-validate aggregated metrics against raw quarterly data using Pandas.
 
-    Independently recomputes sums from raw quarterly data and compares
-    against the values in the metrics dict. Returns list of check results.
+    Uses the SAME _aggregate_partial_year function that produces the Sankey data
+    to independently recompute from the raw quarterly DataFrame, then compares.
     """
     checks = []
     if raw_qtr_df is None or raw_qtr_df.empty:
         return checks
 
-    # Re-aggregate from raw data independently
-    def _independent_sum(account_key, main_fy, cur_qs, prev_qs):
-        """Sum quarters from raw DF for a given account — fully independent computation."""
-        total = 0.0
-        for idx in raw_qtr_df.index:
-            if account_key.lower() not in str(idx).lower():
-                continue
-            row_total = 0.0
-            for q in cur_qs:
-                em = _fq_end_month_s(q, fy_end)
-                ey = _fq_end_year_s(q, main_fy, fy_end)
-                for col in raw_qtr_df.columns:
-                    try:
-                        ts = pd.Timestamp(col)
-                        if ts.month == em and ts.year == ey:
-                            v = raw_qtr_df.at[idx, col]
-                            if pd.notna(v):
-                                row_total += float(v)
-                            break
-                    except Exception:
-                        continue
-            for q in prev_qs:
-                em = _fq_end_month_s(q, fy_end)
-                ey = _fq_end_year_s(q, main_fy - 1, fy_end)
-                for col in raw_qtr_df.columns:
-                    try:
-                        ts = pd.Timestamp(col)
-                        if ts.month == em and ts.year == ey:
-                            v = raw_qtr_df.at[idx, col]
-                            if pd.notna(v):
-                                row_total += float(v)
-                            break
-                    except Exception:
-                        continue
-            total = row_total
-            break
-        return total
+    # Re-aggregate using the EXACT same function that _build_partial_year_df uses
+    try:
+        all_series = []
+        if qa_nums:
+            s, _ = _aggregate_partial_year(raw_qtr_df, fy, qa_nums, fy_end, False)
+            if s is not None:
+                all_series.append(s)
+        if qb_nums:
+            s, _ = _aggregate_partial_year(raw_qtr_df, fy - 1, qb_nums, fy_end, False)
+            if s is not None:
+                all_series.append(s)
 
-    # Check key metrics
-    for key in ["Total Revenue", "Gross Profit", "Operating Income", "Net Income"]:
-        if key not in metrics.get("income", {}):
-            continue
-        displayed = metrics["income"][key]["current"]
-        recomputed = _independent_sum(key, fy, qa_nums, qb_nums)
-        diff = abs(displayed - recomputed)
-        threshold = max(abs(displayed) * 0.001, 1)  # 0.1% tolerance
+        if not all_series:
+            # Store debug info about why no series were found
+            _col_info = []
+            for c in raw_qtr_df.columns[:6]:
+                try:
+                    ts = pd.Timestamp(c)
+                    _col_info.append(f"{c} (m={ts.month},y={ts.year})")
+                except Exception:
+                    _col_info.append(f"{c} (unparseable)")
+            checks.append({
+                "check": "Column matching",
+                "ok": False,
+                "displayed": 0,
+                "recomputed": 0,
+                "diff": 0,
+                "detail": f"No columns matched. qa={qa_nums} qb={qb_nums} fy={fy} fy_end={fy_end}. Cols: {_col_info}",
+            })
+            return checks
+
+        recomputed_series = all_series[0]
+        for s in all_series[1:]:
+            recomputed_series = recomputed_series.add(s, fill_value=0)
+
+        # Compare key metrics
+        for key in ["Total Revenue", "Gross Profit", "Operating Income", "Net Income"]:
+            if key not in metrics.get("income", {}):
+                continue
+            displayed = metrics["income"][key]["current"]
+            # Find matching index in the recomputed series
+            recomputed = 0.0
+            for idx in recomputed_series.index:
+                if key.lower() in str(idx).lower():
+                    v = recomputed_series[idx]
+                    if pd.notna(v):
+                        recomputed = float(v)
+                    break
+            diff = abs(displayed - recomputed)
+            threshold = max(abs(displayed) * 0.001, 1)  # 0.1% tolerance
+            checks.append({
+                "check": f"{key} (Period A)",
+                "ok": diff < threshold,
+                "displayed": displayed,
+                "recomputed": recomputed,
+                "diff": diff,
+            })
+    except Exception as e:
         checks.append({
-            "check": f"{key} (Period A)",
-            "ok": diff < threshold,
-            "displayed": displayed,
-            "recomputed": recomputed,
-            "diff": diff,
+            "check": "Cross-validation error",
+            "ok": False,
+            "displayed": 0,
+            "recomputed": 0,
+            "diff": 0,
+            "detail": str(e),
         })
 
     return checks
