@@ -2965,8 +2965,16 @@ with st.sidebar:
                 import calendar as _cal_mod
                 from datetime import date as _date_cls
 
+                # Find the default FY: most recent year with available data
                 _cq_cur = _completed_qs_in_fy(_cur_fy, _fy_m_sk)
-                _default_q = max(1, _cq_cur)  # closest available Q to present
+                if _cq_cur >= 1:
+                    _default_fy = _cur_fy
+                    _default_q = _cq_cur  # most recent available Q in current FY
+                else:
+                    # Current FY has no filed data yet — fall back to previous FY
+                    _default_fy = _cur_fy - 1
+                    _cq_prev = _completed_qs_in_fy(_default_fy, _fy_m_sk)
+                    _default_q = max(1, _cq_prev)  # most recent Q of prev FY
 
                 # Keys: sk_Ya_q{1-4} = True/False, sk_Yb_q{1-4} = True/False
                 # Initialise: only closest-to-present Q of sel_fy ON
