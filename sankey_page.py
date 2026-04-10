@@ -456,26 +456,44 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
 
     # ── CRITICAL: same-period optimization ──
     # When fy_a == fy_b, aggregate once and duplicate → guaranteed 0% delta.
-    # This prevents any subtle data mismatch when comparing a period to itself.
     if fy_a == fy_b:
         ser_a, ts_a = _aggregate_multi_year(qtr_df, fy_a, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
-        ser_b, ts_b = ser_a.copy() if ser_a is not None else None, ts_a
+        if ser_a is not None:
+            ser_b = ser_a.copy()
+            ts_b = ts_a
+        else:
+            ser_b, ts_b = None, None
     else:
         ser_a, ts_a = _aggregate_multi_year(qtr_df, fy_a, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
         ser_b, ts_b = _aggregate_multi_year(qtr_df, fy_b, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
 
-    if ser_a is None and ser_b is None:
-        return qtr_df  # fallback to raw quarterly data only if BOTH periods are empty
-
-    # Use positional labels so columns are always distinct even when fy_a == fy_b
-    # _safe() reads iloc[:,0] and _safe_prev() reads iloc[:,1].
-    result = pd.DataFrame()
+    # ── NEVER return raw quarterly DF — it has many columns and _safe/_safe_prev
+    # would read two DIFFERENT quarters, producing completely wrong deltas.
+    # Always return a controlled 2-column (or 1-column) DataFrame.
+    result = pd.DataFrame(index=qtr_df.index)
     if ser_a is not None:
         result["Period_A"] = ser_a
+    else:
+        # Fill with NaN so the column exists but _safe returns 0
+        result["Period_A"] = np.nan
     if ser_b is not None:
         result["Period_B"] = ser_b
-    # If only one period found, keep 1 column — _safe_prev will return 0
-    # and _yoy_delta will show no delta (better than a fake 0% from a duplicate).
+    else:
+        result["Period_B"] = np.nan
+
+    # Store debug info about what was matched
+    import streamlit as _st_debug
+    _st_debug.session_state["_agg_debug"] = {
+        "fy_a": fy_a, "fy_b": fy_b,
+        "cur_qs": list(_cur_qs), "prev_qs": list(_prev_qs),
+        "ser_a_found": ser_a is not None,
+        "ser_b_found": ser_b is not None,
+        "result_shape": result.shape,
+        "raw_cols": [str(c) for c in qtr_df.columns[:8]],
+        "fy_end": fy_end,
+        "is_bs": is_balance_sheet,
+    }
+
     return result
 
 
@@ -4099,11 +4117,17 @@ def render_sankey_page():
         )
     st.session_state["_cross_checks"] = _cross_checks
 
-    # Show cross-validation failures as warning
+    # Show cross-validation failures as warning (include detail if present)
     _xv_fails = [c for c in _cross_checks if not c["ok"]]
     if _xv_fails:
-        _xv_msg = " | ".join(f'{c["check"]}: displayed={_fmt(c["displayed"])} vs recomputed={_fmt(c["recomputed"])}' for c in _xv_fails)
-        st.warning(f"⚠️ Cross-validation mismatch: {_xv_msg}")
+        _xv_parts = []
+        for c in _xv_fails:
+            if c.get("detail"):
+                _xv_parts.append(f'{c["check"]}: {c["detail"]}')
+            else:
+                _xv_parts.append(f'{c["check"]}: displayed={_fmt(c["displayed"])} vs recomputed={_fmt(c["recomputed"])}')
+        _xv_msg = " | ".join(_xv_parts)
+        st.warning(f"⚠️ Cross-validation: {_xv_msg}")
 
     # ═══════════════════════════════════════════════════════════════════════
     # LIVE DATA VALIDATION — runs automatically on every ticker load
@@ -4504,6 +4528,27 @@ def render_sankey_page():
             # Show DF shape for debugging
             if income_df is not None:
                 st.markdown(f"**Income DF shape:** {income_df.shape}  |  **Columns:** {list(income_df.columns)[:5]}")
+            # Show aggregation debug info
+            _agg_dbg = st.session_state.get("_agg_debug", {})
+            if _agg_dbg:
+                st.markdown(f"**Aggregation Debug:**")
+                st.markdown(f"- FY A={_agg_dbg.get('fy_a')} FY B={_agg_dbg.get('fy_b')} | cur_qs={_agg_dbg.get('cur_qs')} prev_qs={_agg_dbg.get('prev_qs')}")
+                st.markdown(f"- **Period A found:** {_agg_dbg.get('ser_a_found')} | **Period B found:** {_agg_dbg.get('ser_b_found')}")
+                st.markdown(f"- Result shape: {_agg_dbg.get('result_shape')} | FY end: {_agg_dbg.get('fy_end')}")
+                _raw_cols = _agg_dbg.get('raw_cols', [])
+                if _raw_cols:
+                    st.markdown(f"- Raw Q DF columns (first 8): {_raw_cols}")
+                # Show expected vs actual column dates for the searched quarters
+                _dbg_fy_end = _agg_dbg.get('fy_end', 12)
+                _dbg_fy_a = _agg_dbg.get('fy_a', 0)
+                _dbg_cur_qs = _agg_dbg.get('cur_qs', [])
+                if _dbg_cur_qs and _dbg_fy_a:
+                    _expected = []
+                    for q in _dbg_cur_qs:
+                        em = _fq_end_month_s(q, _dbg_fy_end)
+                        ey = _fq_end_year_s(q, _dbg_fy_a, _dbg_fy_end)
+                        _expected.append(f"Q{q}→month={em},year={ey}")
+                    st.markdown(f"- **Expected columns for Period A:** {_expected}")
 
         st.markdown("---")
 
