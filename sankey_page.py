@@ -481,9 +481,10 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
     else:
         result["Period_B"] = np.nan
 
-    # Store debug info about what was matched
+    # Store debug info about what was matched (use different key for income vs balance)
     import streamlit as _st_debug
-    _st_debug.session_state["_agg_debug"] = {
+    _dbg_key = "_agg_debug_bs" if is_balance_sheet else "_agg_debug"
+    _st_debug.session_state[_dbg_key] = {
         "fy_a": fy_a, "fy_b": fy_b,
         "cur_qs": list(_cur_qs), "prev_qs": list(_prev_qs),
         "ser_a_found": ser_a is not None,
@@ -4035,6 +4036,41 @@ def render_sankey_page():
             balance_df = pd.DataFrame({"Period_A": pd.Series(dtype=float, index=_empty_idx),
                                         "Period_B": pd.Series(dtype=float, index=_empty_idx)})
 
+    # --- Handle missing period data after aggregation ---
+    # When Period A data hasn't been filed yet (all NaN), we need to handle it
+    # intelligently instead of showing $0 with -100% deltas.
+    _period_a_missing = False
+    _period_b_missing = False
+    _swapped_periods = False
+    if _partial_year and not using_demo:
+        _agg_dbg = st.session_state.get("_agg_debug", {})
+        _period_a_missing = not _agg_dbg.get("ser_a_found", True)
+        _period_b_missing = not _agg_dbg.get("ser_b_found", True)
+
+        if _period_a_missing and not _period_b_missing:
+            # Period A data not available (e.g. Q1 FY2026 not filed yet)
+            # but Period B IS available — swap so Sankey shows real data
+            if income_df is not None and "Period_B" in income_df.columns:
+                income_df["Period_A"] = income_df["Period_B"]
+                income_df["Period_B"] = np.nan
+                _swapped_periods = True
+            if balance_df is not None and "Period_B" in balance_df.columns:
+                balance_df["Period_A"] = balance_df["Period_B"]
+                balance_df["Period_B"] = np.nan
+            _qs_tag = "+".join(f"Q{q}" for q in sorted(st.session_state.get("_sankey_qa_nums", [1])))
+            st.warning(f"⚠️ {_qs_tag} FY{_pa} data not yet available in SEC EDGAR. Showing {_qs_tag} FY{_pb} data instead.")
+        elif _period_a_missing and _period_b_missing:
+            # Neither period found — show most recent available from raw DF
+            if _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
+                _latest_col = _raw_qtr_income_df.columns[0]  # most recent (sorted desc)
+                income_df = pd.DataFrame({"Period_A": _raw_qtr_income_df[_latest_col], "Period_B": np.nan})
+                _swapped_periods = True
+            if _raw_qtr_balance_df is not None and not _raw_qtr_balance_df.empty:
+                _latest_col_b = _raw_qtr_balance_df.columns[0]
+                balance_df = pd.DataFrame({"Period_A": _raw_qtr_balance_df[_latest_col_b], "Period_B": np.nan})
+            _qs_tag = "+".join(f"Q{q}" for q in sorted(st.session_state.get("_sankey_qa_nums", [1])))
+            st.warning(f"⚠️ {_qs_tag} data not available for FY{_pa} or FY{_pb} in SEC EDGAR. Showing most recent quarter data.")
+
     # --- Period comparison (from sidebar selectors) ---
     _sq2 = st.session_state.get("sankey_compare_quarterly", False)
     _same_period = False
@@ -4072,15 +4108,24 @@ def render_sankey_page():
             _fy_b_int += 1
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
         _label_b = _build_period_label(_fy_b_int, _qa_qs, _qb_qs) if not _sq2 else _pb
-        _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_label_a} vs {_label_b}"
+        if _swapped_periods:
+            # Period A data not available — showing Period B data instead
+            _compare_label = ""
+            _compare_note = f"Showing {_label_b} (FY{_pa} data not yet available)"
+        else:
+            _compare_label = f"vs {_pb}"
+            _compare_note = f"Comparing {_label_a} vs {_label_b}"
     elif _partial_year and _pa and _pb and _pa == _pb:
         _fy_a_int = int(_pa)
         if not _qa_qs and _qb_qs:
             _fy_a_int += 1
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
-        _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_label_a} vs {_label_a}"
+        if _swapped_periods:
+            _compare_label = ""
+            _compare_note = f"Showing most recent data ({_label_a} not yet available)"
+        else:
+            _compare_label = f"vs {_pb}"
+            _compare_note = f"Comparing {_label_a} vs {_label_a}"
         _same_period = True
     elif _pa and _pb and _pa != _pb:
         income_df = _reorder_df_for_comparison(income_df, _pa, _pb, _sq2)
@@ -4117,9 +4162,9 @@ def render_sankey_page():
         )
     st.session_state["_cross_checks"] = _cross_checks
 
-    # Show cross-validation failures as warning (include detail if present)
+    # Show cross-validation failures as warning (skip if periods were swapped — mismatch expected)
     _xv_fails = [c for c in _cross_checks if not c["ok"]]
-    if _xv_fails:
+    if _xv_fails and not _swapped_periods:
         _xv_parts = []
         for c in _xv_fails:
             if c.get("detail"):
