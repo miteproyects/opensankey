@@ -2966,24 +2966,23 @@ with st.sidebar:
                 # ── Read per-year quarter toggle-button state ──
 
                 # Find the default Q: most recent quarter with filed data.
-                # If current FY has available Qs, default to that (sk_Ya).
-                # Otherwise default to previous FY's latest Q (sk_Yb).
+                # Default always uses sk_Ya (Period A) so the Sankey renders
+                # correctly.  Period A dropdown will default to first year
+                # with data (see _years_with_data below).
                 _cq_cur = _completed_qs_in_fy(_cur_fy, _fy_m_sk)
                 if _cq_cur >= 1:
                     _default_q = _cq_cur
-                    _default_prefix = "sk_Ya"  # current FY button
                 else:
                     _cq_prev = _completed_qs_in_fy(_cur_fy - 1, _fy_m_sk)
                     _default_q = max(1, _cq_prev)
-                    _default_prefix = "sk_Yb"  # previous FY button
 
                 # Keys: sk_Ya_q{1-4} = True/False, sk_Yb_q{1-4} = True/False
-                # Initialise: only the closest available Q is ON
+                # Initialise: only the closest available Q is ON (always sk_Ya)
                 _init_key = "_sk_btns_init"
                 if _init_key not in st.session_state:
                     for _qi in range(1, 5):
-                        st.session_state[f"sk_Ya_q{_qi}"] = (_default_prefix == "sk_Ya" and _qi == _default_q)
-                        st.session_state[f"sk_Yb_q{_qi}"] = (_default_prefix == "sk_Yb" and _qi == _default_q)
+                        st.session_state[f"sk_Ya_q{_qi}"] = (_qi == _default_q)
+                        st.session_state[f"sk_Yb_q{_qi}"] = False
                     st.session_state[_init_key] = True
 
                 # Read current toggle state
@@ -2992,11 +2991,8 @@ with st.sidebar:
 
                 # Enforce min 1 across both years
                 if not _qa_nums and not _qb_nums:
-                    if _default_prefix == "sk_Ya":
-                        _qa_nums = [_default_q]
-                    else:
-                        _qb_nums = [_default_q]
-                    st.session_state[f"{_default_prefix}_q{_default_q}"] = True
+                    _qa_nums = [_default_q]
+                    st.session_state[f"sk_Ya_q{_default_q}"] = True
 
                 _selected_qs = sorted(set(_qa_nums + _qb_nums))
                 st.session_state["_sankey_annual_match_qs"] = _selected_qs
@@ -3009,9 +3005,13 @@ with st.sidebar:
                 # filed yet) so the user sees greyed-out buttons for pending Qs.
                 # Then add prior years that have ≥1 completed quarter.
                 _years = [str(_cur_fy)]
+                _years_with_data = []  # subset: only years with ≥1 filed Q
+                if _cq_cur >= 1:
+                    _years_with_data.append(str(_cur_fy))
                 for _y in range(_cur_fy - 1, _cur_fy - 11, -1):
                     if _completed_qs_in_fy(_y, _fy_m_sk) >= 1:
                         _years.append(str(_y))
+                        _years_with_data.append(str(_y))
 
                 def _q_tag():
                     if _selected_qs == [1, 2, 3, 4]:
@@ -3027,12 +3027,15 @@ with st.sidebar:
 
                 if not _years:
                     _years = [str(_cur_fy - 1)]
+                if not _years_with_data:
+                    _years_with_data = [str(_cur_fy - 1)]
 
-                # Initialise selectbox keys only if missing or invalid
+                # Initialise selectbox keys: default Period A to first year
+                # WITH data (not just current FY which may have no filed Qs)
                 if "sk_pa" not in st.session_state or st.session_state["sk_pa"] not in _years:
-                    st.session_state["sk_pa"] = _years[0]
+                    st.session_state["sk_pa"] = _years_with_data[0]
                 if "sk_pb" not in st.session_state or st.session_state["sk_pb"] not in _years:
-                    st.session_state["sk_pb"] = _years[min(1, len(_years) - 1)]
+                    st.session_state["sk_pb"] = _years_with_data[min(1, len(_years_with_data) - 1)]
                 # Allow same year for both Period A and Period B (e.g. 2020 vs 2020)
 
                 # ── Period A & B selectors ──
