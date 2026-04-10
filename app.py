@@ -2871,13 +2871,37 @@ with st.sidebar:
                     end_cal_year -= 1
                 return end_cal_year
 
+            # SEC filing buffer: companies must file 10-Q within 40-45 days
+            # of quarter end.  A quarter's DATA is only available after filing.
+            _SEC_FILING_BUFFER_DAYS = 45
+
+            def _q_end_date(q, fy, fy_end):
+                """Return the calendar date when fiscal quarter q of FY fy ends."""
+                em = _fq_end_month(q, fy_end)
+                ey = _fq_end_year(q, fy, fy_end)
+                last_d = _cal_mod.monthrange(ey, em)[1]
+                return _date_cls(ey, em, last_d)
+
+            def _q_data_available(q, fy, fy_end):
+                """Check if SEC data is likely available for this quarter.
+                True only after quarter end + filing buffer days."""
+                from datetime import timedelta as _td
+                q_end = _q_end_date(q, fy, fy_end)
+                today = _date_cls(_cur_year, _cur_month, _dt.now().day)
+                return today >= q_end + _td(days=_SEC_FILING_BUFFER_DAYS)
+
+            def _q_has_ended(q, fy, fy_end):
+                """Check if the quarter has ended (calendar-wise)."""
+                q_end = _q_end_date(q, fy, fy_end)
+                today = _date_cls(_cur_year, _cur_month, _dt.now().day)
+                return today > q_end
+
             def _completed_qs_in_fy(fy, fy_end):
-                """Return the number of completed fiscal quarters for a given FY."""
+                """Return the number of quarters with SEC data likely available.
+                Accounts for ~45 day filing delay after quarter end."""
                 count = 0
                 for q in range(1, 5):
-                    em = _fq_end_month(q, fy_end)
-                    ey = _fq_end_year(q, fy, fy_end)
-                    if (ey < _cur_year) or (ey == _cur_year and em < _cur_month):
+                    if _q_data_available(q, fy, fy_end):
                         count += 1
                 return count
 
@@ -2900,10 +2924,8 @@ with st.sidebar:
                 return f"({_MON[start_m]}-{_MON[end_m]})"
 
             def _q_is_completed(q, fy, fy_end):
-                """Check if fiscal quarter q of FY fy has ended."""
-                em = _fq_end_month(q, fy_end)
-                ey = _fq_end_year(q, fy, fy_end)
-                return (ey < _cur_year) or (ey == _cur_year and em < _cur_month)
+                """Check if fiscal quarter q of FY fy has data available."""
+                return _q_data_available(q, fy, fy_end)
 
             # Order Q1-Q4 chronologically by most recent completion date
             # (oldest on the left, most recent on the right)
@@ -3040,13 +3062,16 @@ with st.sidebar:
                             f"{_MON[mm]} {my % 100:02d} · {_MON[em]} {ey % 100:02d})")
 
                 def _days_until_q(q, fy):
-                    """Days until quarter ends (data becomes available)."""
-                    em = _fq_end_month(q, _fy_m_sk)
-                    ey = _fq_end_year(q, fy, _fy_m_sk)
-                    last_d = _cal_mod.monthrange(ey, em)[1]
-                    q_end = _date_cls(ey, em, last_d)
+                    """Days until quarter data becomes available (end + filing buffer)."""
+                    from datetime import timedelta as _td
+                    q_end = _q_end_date(q, fy, _fy_m_sk)
+                    data_avail = q_end + _td(days=_SEC_FILING_BUFFER_DAYS)
                     today = _date_cls(_cur_year, _cur_month, _dt.now().day)
-                    return max(0, (q_end - today).days)
+                    return max(0, (data_avail - today).days)
+
+                def _q_filing_pending(q, fy):
+                    """True if quarter has ended but filing not yet expected."""
+                    return _q_has_ended(q, fy, _fy_m_sk) and not _q_data_available(q, fy, _fy_m_sk)
 
                 # ── Build sorted list: all 8 quarters, newest first ──
                 # Each item: (end_year, end_month, fiscal_year, quarter, prefix, chrono_idx)
@@ -3226,12 +3251,21 @@ with st.sidebar:
                     _tip = _get_help_text(_key, _avail, _fy_i, _qi_i)
 
                     if not _avail:
-                        _days = _days_until_q(_qi_i, _fy_i)
-                        st.button(
-                            f"FY{_fy_i} - Q{_qi_i} — in {_days}d",
-                            key=_bid, use_container_width=True,
-                            help=_tip,
-                        )
+                        _pending = _q_filing_pending(_qi_i, _fy_i)
+                        if _pending:
+                            _days = _days_until_q(_qi_i, _fy_i)
+                            st.button(
+                                f"FY{_fy_i} - Q{_qi_i} — filing ~{_days}d",
+                                key=_bid, use_container_width=True,
+                                help="Quarter ended, SEC filing pending (~45 days after quarter end)",
+                            )
+                        else:
+                            _days = _days_until_q(_qi_i, _fy_i)
+                            st.button(
+                                f"FY{_fy_i} - Q{_qi_i} — in {_days}d",
+                                key=_bid, use_container_width=True,
+                                help=_tip,
+                            )
                     elif _on:
                         st.button(
                             f"FY{_fy_i} - " + _q_btn_label(_qi_i, _fy_i),
