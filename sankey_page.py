@@ -4004,12 +4004,9 @@ def render_sankey_page():
         try:
             _fy_a = int(_pa)
             _fy_b = int(_pb)
-            # When only previous-year Qs are selected (qa empty), bump fy
-            # so that main_fy-1 = dropdown value (user expects Period B
-            # dropdown to map directly to the qb_nums year)
-            if not _qa_nums_agg and _qb_nums_agg:
-                _fy_a += 1
-                _fy_b += 1
+            # No bump needed: _aggregate_multi_year already maps
+            # cur_qs (sk_Ya) → main_fy and prev_qs (sk_Yb) → main_fy-1.
+            # Period A=2026 + sk_Yb_q4 → main_fy-1 = 2025 Q4 ✓
             _raw_qtr_income_df = income_df.copy() if income_df is not None else None
             _raw_qtr_balance_df = balance_df.copy() if balance_df is not None else None
             income_df = _build_partial_year_df(
@@ -4144,10 +4141,6 @@ def render_sankey_page():
     if _partial_year and _pa and _pb and _pa != _pb:
         _fy_a_int = int(_pa)
         _fy_b_int = int(_pb)
-        # When only prev-year Qs selected, bump so main_fy-1 = dropdown value
-        if not _qa_qs and _qb_qs:
-            _fy_a_int += 1
-            _fy_b_int += 1
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
         _label_b = _build_period_label(_fy_b_int, _qa_qs, _qb_qs) if not _sq2 else _pb
         if _swapped_periods:
@@ -4161,8 +4154,6 @@ def render_sankey_page():
             _compare_note = f"Comparing {_label_a} vs {_label_b}"
     elif _partial_year and _pa and _pb and _pa == _pb:
         _fy_a_int = int(_pa)
-        if not _qa_qs and _qb_qs:
-            _fy_a_int += 1
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
         if _swapped_periods:
             _fb_fy_used = st.session_state.get("_fallback_fy", _fy_a_int)
@@ -4201,8 +4192,6 @@ def render_sankey_page():
         _xv_qa = st.session_state.get("_sankey_qa_nums", _match_qs)
         _xv_qb = st.session_state.get("_sankey_qb_nums", [])
         _xv_fy_a = int(_pa) if _pa else 0
-        if not _xv_qa and _xv_qb:
-            _xv_fy_a += 1
         _cross_checks = _cross_validate_metrics(
             _sankey_metrics, _raw_qtr_income_df, _xv_fy_a, _xv_qa, _xv_qb, _xv_fy_end
         )
