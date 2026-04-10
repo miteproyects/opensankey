@@ -2873,6 +2873,8 @@ with st.sidebar:
 
             # SEC filing buffer: companies must file 10-Q within 40-45 days
             # of quarter end.  A quarter's DATA is only available after filing.
+            import calendar as _cal_mod
+            from datetime import date as _date_cls
             _SEC_FILING_BUFFER_DAYS = 45
 
             def _q_end_date(q, fy, fy_end):
@@ -2962,27 +2964,26 @@ with st.sidebar:
 
             if _compare_mode == "Annual":
                 # ── Read per-year quarter toggle-button state ──
-                import calendar as _cal_mod
-                from datetime import date as _date_cls
 
-                # Find the default FY: most recent year with available data
+                # Find the default Q: most recent quarter with filed data.
+                # If current FY has available Qs, default to that (sk_Ya).
+                # Otherwise default to previous FY's latest Q (sk_Yb).
                 _cq_cur = _completed_qs_in_fy(_cur_fy, _fy_m_sk)
                 if _cq_cur >= 1:
-                    _default_fy = _cur_fy
-                    _default_q = _cq_cur  # most recent available Q in current FY
+                    _default_q = _cq_cur
+                    _default_prefix = "sk_Ya"  # current FY button
                 else:
-                    # Current FY has no filed data yet — fall back to previous FY
-                    _default_fy = _cur_fy - 1
-                    _cq_prev = _completed_qs_in_fy(_default_fy, _fy_m_sk)
-                    _default_q = max(1, _cq_prev)  # most recent Q of prev FY
+                    _cq_prev = _completed_qs_in_fy(_cur_fy - 1, _fy_m_sk)
+                    _default_q = max(1, _cq_prev)
+                    _default_prefix = "sk_Yb"  # previous FY button
 
                 # Keys: sk_Ya_q{1-4} = True/False, sk_Yb_q{1-4} = True/False
-                # Initialise: only closest-to-present Q of sel_fy ON
+                # Initialise: only the closest available Q is ON
                 _init_key = "_sk_btns_init"
                 if _init_key not in st.session_state:
                     for _qi in range(1, 5):
-                        st.session_state[f"sk_Ya_q{_qi}"] = (_qi == _default_q)
-                        st.session_state[f"sk_Yb_q{_qi}"] = False
+                        st.session_state[f"sk_Ya_q{_qi}"] = (_default_prefix == "sk_Ya" and _qi == _default_q)
+                        st.session_state[f"sk_Yb_q{_qi}"] = (_default_prefix == "sk_Yb" and _qi == _default_q)
                     st.session_state[_init_key] = True
 
                 # Read current toggle state
@@ -2991,8 +2992,11 @@ with st.sidebar:
 
                 # Enforce min 1 across both years
                 if not _qa_nums and not _qb_nums:
-                    _qa_nums = [_default_q]
-                    st.session_state[f"sk_Ya_q{_default_q}"] = True
+                    if _default_prefix == "sk_Ya":
+                        _qa_nums = [_default_q]
+                    else:
+                        _qb_nums = [_default_q]
+                    st.session_state[f"{_default_prefix}_q{_default_q}"] = True
 
                 _selected_qs = sorted(set(_qa_nums + _qb_nums))
                 st.session_state["_sankey_annual_match_qs"] = _selected_qs
@@ -3001,9 +3005,11 @@ with st.sidebar:
 
                 _max_sel_q = max(_selected_qs)
 
-                # Build year list (any year with ≥1 completed quarter)
-                _years = []
-                for _y in range(_cur_fy, _cur_fy - 11, -1):
+                # Build year list: always include current FY (even if no Qs
+                # filed yet) so the user sees greyed-out buttons for pending Qs.
+                # Then add prior years that have ≥1 completed quarter.
+                _years = [str(_cur_fy)]
+                for _y in range(_cur_fy - 1, _cur_fy - 11, -1):
                     if _completed_qs_in_fy(_y, _fy_m_sk) >= 1:
                         _years.append(str(_y))
 
