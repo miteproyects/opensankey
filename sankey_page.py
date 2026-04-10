@@ -4047,48 +4047,71 @@ def render_sankey_page():
         _period_a_missing = not _agg_dbg.get("ser_a_found", True)
         _period_b_missing = not _agg_dbg.get("ser_b_found", True)
 
-        if _period_a_missing and not _period_b_missing:
-            # Period A data not available (e.g. Q1 FY2026 not filed yet)
-            # Fall back to closest available Q — which is Period B
-            if income_df is not None and "Period_B" in income_df.columns:
-                income_df["Period_A"] = income_df["Period_B"]
-                income_df["Period_B"] = np.nan
-                _swapped_periods = True
-            if balance_df is not None and "Period_B" in balance_df.columns:
-                balance_df["Period_A"] = balance_df["Period_B"]
-                balance_df["Period_B"] = np.nan
+        # --- Helper: search backwards for closest FY with data ---
+        def _find_closest_available_fy(raw_df, start_fy, quarter_list, fy_end, is_bs):
+            """Try FY start_fy-1, start_fy-2, … down to start_fy-10.
+            Returns (Series, timestamp, found_fy) or (None, None, None)."""
+            for try_fy in range(start_fy - 1, start_fy - 11, -1):
+                ser, ts = _aggregate_partial_year(raw_df, try_fy, quarter_list, fy_end, is_bs)
+                if ser is not None:
+                    return ser, ts, try_fy
+            return None, None, None
+
+        _MON_S = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+        def _build_month_label(qs, fy, fy_end):
+            """Build e.g. '(Oct 25 · Nov 25 · Dec 25)' for given quarters."""
+            parts = []
+            for q in sorted(qs):
+                try:
+                    em = _fq_end_month_s(q, fy_end)
+                    ey = _fq_end_year_s(q, fy, fy_end)
+                    parts.append(f"{_MON_S[em]} {ey % 100:02d}")
+                except Exception:
+                    pass
+            return " (" + " · ".join(parts) + ")" if parts else ""
+
+        if _period_a_missing:
             _qs_tag = "+".join(f"Q{q}" for q in sorted(st.session_state.get("_sankey_qa_nums", [1])))
-            # Build month range label for the fallback quarter
             _fb_qs = sorted(st.session_state.get("_sankey_qa_nums", [1]))
-            _fb_fy = int(_pb) if _pb else 0
-            _MON_S = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-            _fb_months = ""
-            if _fb_fy and _fb_qs:
-                _fy_end_m = st.session_state.get("_fy_end_month", 12)
-                _parts = []
-                for _fq in _fb_qs:
-                    try:
-                        _em = _fq_end_month_s(_fq, _fy_end_m)
-                        _ey = _fq_end_year_s(_fq, _fb_fy, _fy_end_m)
-                        _parts.append(f"{_MON_S[_em]} {_ey % 100:02d}")
-                    except Exception:
-                        pass
-                if _parts:
-                    _fb_months = " (" + " · ".join(_parts) + ")"
-            st.warning(f"⚠️ {_qs_tag} FY{_pa} data not yet filed in SEC EDGAR. "
-                       f"Falling back to closest available: {_qs_tag} FY{_pb}{_fb_months}.")
-        elif _period_a_missing and _period_b_missing:
-            # Neither period found — show most recent available from raw DF
+            _fy_end_m = st.session_state.get("_fy_end_month", 12)
+            _pa_int = int(_pa) if _pa else 2026
+
+            # Search backwards from FY(A) for closest available data
+            _fb_inc_ser, _fb_inc_ts, _fb_fy_inc = None, None, None
+            _fb_bal_ser, _fb_bal_ts, _fb_fy_bal = None, None, None
             if _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
-                _latest_col = _raw_qtr_income_df.columns[0]  # most recent (sorted desc)
-                income_df = pd.DataFrame({"Period_A": _raw_qtr_income_df[_latest_col], "Period_B": np.nan})
-                _swapped_periods = True
+                _fb_inc_ser, _fb_inc_ts, _fb_fy_inc = _find_closest_available_fy(
+                    _raw_qtr_income_df, _pa_int, _fb_qs, _fy_end_m, False)
             if _raw_qtr_balance_df is not None and not _raw_qtr_balance_df.empty:
-                _latest_col_b = _raw_qtr_balance_df.columns[0]
-                balance_df = pd.DataFrame({"Period_A": _raw_qtr_balance_df[_latest_col_b], "Period_B": np.nan})
-            _qs_tag = "+".join(f"Q{q}" for q in sorted(st.session_state.get("_sankey_qa_nums", [1])))
-            st.warning(f"⚠️ {_qs_tag} data not available for FY{_pa} or FY{_pb} in SEC EDGAR. Showing most recent quarter data.")
+                _fb_bal_ser, _fb_bal_ts, _fb_fy_bal = _find_closest_available_fy(
+                    _raw_qtr_balance_df, _pa_int, _fb_qs, _fy_end_m, True)
+
+            _fb_fy = _fb_fy_inc or _fb_fy_bal  # whichever was found
+
+            if _fb_fy is not None:
+                # Found closest available — use it as Period A, clear Period B
+                if _fb_inc_ser is not None:
+                    income_df = pd.DataFrame({"Period_A": _fb_inc_ser, "Period_B": np.nan})
+                    _swapped_periods = True
+                elif income_df is not None:
+                    income_df["Period_A"] = np.nan
+                    income_df["Period_B"] = np.nan
+                if _fb_bal_ser is not None:
+                    balance_df = pd.DataFrame({"Period_A": _fb_bal_ser, "Period_B": np.nan})
+                elif balance_df is not None:
+                    balance_df["Period_A"] = np.nan
+                    balance_df["Period_B"] = np.nan
+                _fb_months = _build_month_label(_fb_qs, _fb_fy, _fy_end_m)
+                st.warning(f"⚠️ {_qs_tag} FY{_pa} data not yet filed in SEC EDGAR. "
+                           f"Falling back to closest available: {_qs_tag} FY{_fb_fy}{_fb_months}.")
+                # Store fallback FY for compare note
+                st.session_state["_fallback_fy"] = _fb_fy
+            else:
+                # Nothing found at all
+                _swapped_periods = True
+                st.warning(f"⚠️ {_qs_tag} data not available for FY{_pa} in SEC EDGAR. No recent data found.")
 
     # --- Period comparison (from sidebar selectors) ---
     _sq2 = st.session_state.get("sankey_compare_quarterly", False)
@@ -4129,8 +4152,10 @@ def render_sankey_page():
         _label_b = _build_period_label(_fy_b_int, _qa_qs, _qb_qs) if not _sq2 else _pb
         if _swapped_periods:
             # Period A data not available — fell back to closest available Q
+            _fb_fy_used = st.session_state.get("_fallback_fy", int(_pb))
+            _fb_label = _build_period_label(_fb_fy_used, _qa_qs, _qb_qs) if not _sq2 else f"FY{_fb_fy_used}"
             _compare_label = ""
-            _compare_note = f"Showing {_label_b} — closest available (FY{_pa} not yet filed)"
+            _compare_note = f"Showing {_fb_label} — closest available (FY{_pa} not yet filed)"
         else:
             _compare_label = f"vs {_pb}"
             _compare_note = f"Comparing {_label_a} vs {_label_b}"
@@ -4140,8 +4165,10 @@ def render_sankey_page():
             _fy_a_int += 1
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
         if _swapped_periods:
+            _fb_fy_used = st.session_state.get("_fallback_fy", _fy_a_int)
+            _fb_label = _build_period_label(_fb_fy_used, _qa_qs, _qb_qs) if not _sq2 else f"FY{_fb_fy_used}"
             _compare_label = ""
-            _compare_note = f"Showing most recent data ({_label_a} not yet available)"
+            _compare_note = f"Showing {_fb_label} — closest available ({_label_a} not yet filed)"
         else:
             _compare_label = f"vs {_pb}"
             _compare_note = f"Comparing {_label_a} vs {_label_a}"
