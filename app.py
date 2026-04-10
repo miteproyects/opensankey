@@ -3271,7 +3271,7 @@ with st.sidebar:
                             st.button(
                                 f"FY{_fy_i} - Q{_qi_i} — filing ~{_days}d",
                                 key=_bid, use_container_width=True,
-                                help="Quarter ended, SEC filing pending (~45 days after quarter end)",
+                                help=f"Quarter ended, SEC filing pending (~45 days after quarter end) — [subscribe](https://quartercharts.com/pricing) to get notified",
                             )
                         else:
                             _days = _days_until_q(_qi_i, _fy_i)
