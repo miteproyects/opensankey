@@ -4049,7 +4049,7 @@ def render_sankey_page():
 
         if _period_a_missing and not _period_b_missing:
             # Period A data not available (e.g. Q1 FY2026 not filed yet)
-            # but Period B IS available — swap so Sankey shows real data
+            # Fall back to closest available Q — which is Period B
             if income_df is not None and "Period_B" in income_df.columns:
                 income_df["Period_A"] = income_df["Period_B"]
                 income_df["Period_B"] = np.nan
@@ -4058,7 +4058,26 @@ def render_sankey_page():
                 balance_df["Period_A"] = balance_df["Period_B"]
                 balance_df["Period_B"] = np.nan
             _qs_tag = "+".join(f"Q{q}" for q in sorted(st.session_state.get("_sankey_qa_nums", [1])))
-            st.warning(f"⚠️ {_qs_tag} FY{_pa} data not yet available in SEC EDGAR. Showing {_qs_tag} FY{_pb} data instead.")
+            # Build month range label for the fallback quarter
+            _fb_qs = sorted(st.session_state.get("_sankey_qa_nums", [1]))
+            _fb_fy = int(_pb) if _pb else 0
+            _MON_S = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            _fb_months = ""
+            if _fb_fy and _fb_qs:
+                _fy_end_m = st.session_state.get("_fy_end_month", 12)
+                _parts = []
+                for _fq in _fb_qs:
+                    try:
+                        _em = _fq_end_month_s(_fq, _fy_end_m)
+                        _ey = _fq_end_year_s(_fq, _fb_fy, _fy_end_m)
+                        _parts.append(f"{_MON_S[_em]} {_ey % 100:02d}")
+                    except Exception:
+                        pass
+                if _parts:
+                    _fb_months = " (" + " · ".join(_parts) + ")"
+            st.warning(f"⚠️ {_qs_tag} FY{_pa} data not yet filed in SEC EDGAR. "
+                       f"Falling back to closest available: {_qs_tag} FY{_pb}{_fb_months}.")
         elif _period_a_missing and _period_b_missing:
             # Neither period found — show most recent available from raw DF
             if _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
@@ -4109,9 +4128,9 @@ def render_sankey_page():
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
         _label_b = _build_period_label(_fy_b_int, _qa_qs, _qb_qs) if not _sq2 else _pb
         if _swapped_periods:
-            # Period A data not available — showing Period B data instead
+            # Period A data not available — fell back to closest available Q
             _compare_label = ""
-            _compare_note = f"Showing {_label_b} (FY{_pa} data not yet available)"
+            _compare_note = f"Showing {_label_b} — closest available (FY{_pa} not yet filed)"
         else:
             _compare_label = f"vs {_pb}"
             _compare_note = f"Comparing {_label_a} vs {_label_b}"
