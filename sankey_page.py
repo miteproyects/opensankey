@@ -4088,25 +4088,26 @@ def render_sankey_page():
             _fb_fy = _fb_fy_inc or _fb_fy_bal  # whichever was found
 
             if _fb_fy is not None:
-                # Found closest available — use it as Period A, clear Period B
+                # Found closest available — replace ONLY Period A.
+                # Period B keeps the user's selected comparison year.
                 if _fb_inc_ser is not None:
-                    income_df = pd.DataFrame({"Period_A": _fb_inc_ser, "Period_B": np.nan})
+                    _existing_b_inc = income_df["Period_B"].copy() if (income_df is not None and "Period_B" in income_df.columns) else pd.Series(dtype=float)
+                    income_df = pd.DataFrame({"Period_A": _fb_inc_ser})
+                    income_df["Period_B"] = _existing_b_inc
                     _swapped_periods = True
                 elif income_df is not None:
                     income_df["Period_A"] = np.nan
-                    income_df["Period_B"] = np.nan
                 if _fb_bal_ser is not None:
-                    balance_df = pd.DataFrame({"Period_A": _fb_bal_ser, "Period_B": np.nan})
+                    _existing_b_bal = balance_df["Period_B"].copy() if (balance_df is not None and "Period_B" in balance_df.columns) else pd.Series(dtype=float)
+                    balance_df = pd.DataFrame({"Period_A": _fb_bal_ser})
+                    balance_df["Period_B"] = _existing_b_bal
                 elif balance_df is not None:
                     balance_df["Period_A"] = np.nan
-                    balance_df["Period_B"] = np.nan
                 _fb_months = _build_month_label(_fb_qs, _fb_fy, _fy_end_m)
                 st.warning(f"⚠️ {_qs_tag} FY{_pa} data not yet filed in SEC EDGAR. "
                            f"Falling back to closest available: {_qs_tag} FY{_fb_fy}{_fb_months}.")
-                # Store fallback FY for compare note
                 st.session_state["_fallback_fy"] = _fb_fy
             else:
-                # Nothing found at all
                 _swapped_periods = True
                 st.warning(f"⚠️ {_qs_tag} data not available for FY{_pa} in SEC EDGAR. No recent data found.")
 
@@ -4144,11 +4145,11 @@ def render_sankey_page():
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
         _label_b = _build_period_label(_fy_b_int, _qa_qs, _qb_qs) if not _sq2 else _pb
         if _swapped_periods:
-            # Period A data not available — fell back to closest available Q
+            # Period A fell back to closest available; Period B kept as-is
             _fb_fy_used = st.session_state.get("_fallback_fy", int(_pb))
             _fb_label = _build_period_label(_fb_fy_used, _qa_qs, _qb_qs) if not _sq2 else f"FY{_fb_fy_used}"
-            _compare_label = ""
-            _compare_note = f"Showing {_fb_label} — closest available (FY{_pa} not yet filed)"
+            _compare_label = f"vs {_pb}"
+            _compare_note = f"Comparing {_fb_label} vs {_label_b} (FY{_pa} not yet filed)"
         else:
             _compare_label = f"vs {_pb}"
             _compare_note = f"Comparing {_label_a} vs {_label_b}"
