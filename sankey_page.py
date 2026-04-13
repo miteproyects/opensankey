@@ -2382,6 +2382,8 @@ def _inject_node_hover_js(metric_map, color_map):
                 plotDiv.on('plotly_hover', function(data) {{
                     if (!data || !data.points || !data.points[0]) return;
                     var pt = data.points[0];
+                    // Skip link hovers — only handle node hovers
+                    if (pt.hasOwnProperty('flow') || pt.hasOwnProperty('source') || pt.hasOwnProperty('target')) return;
                     var idx = pt.pointNumber;
                     if (typeof idx !== 'number') return;
                     // Get label from customdata
