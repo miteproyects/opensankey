@@ -2223,7 +2223,6 @@ def _inject_sankey_click_js(metric_map, section="income"):
         obs.observe(parentDoc.body, {{childList: true, subtree: true}});
         attach();
         setInterval(function() {{ attach(); }}, 3000);
-        }}
     }})();
     </script>
     """
