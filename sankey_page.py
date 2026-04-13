@@ -3333,7 +3333,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     _gp_frac = max(gross_profit / revenue, 0.1) if revenue > 0 else 1.0
     _c3_eff = _c3_n / _gp_frac
     # Col4 items live inside OI band (fraction ≈ oi / revenue)
-    _oi_val = max(operating_income, 1)
+    _oi_val = max(operating_inc, 1)
     _oi_frac = max(_oi_val / revenue, 0.05) if revenue > 0 else 1.0
     _c4_eff = _c4_n / _oi_frac
     # Col5 items live inside Pretax band (similar fraction to OI)
