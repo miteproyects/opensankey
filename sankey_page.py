@@ -2091,11 +2091,18 @@ def _inject_sankey_click_js(metric_map, section="income"):
         const parentDoc = window.parent.document;
 
         function clickPill(label) {{
-            /* Set query params to trigger Streamlit rerun with metric selection */
-            var url = new URL(window.parent.location.href);
-            url.searchParams.set('open_metric', label);
-            url.searchParams.set('metric_section', SECTION);
-            window.parent.location.href = url.toString();
+            /* Inject a script into the parent document that navigates in
+               the parent context — avoids SecurityError from sandboxed iframe. */
+            var safeLabel = label.replace(/'/g, "\\'");
+            var s = window.parent.document.createElement('script');
+            s.textContent = "(function(){{" +
+                "var u=new URL(window.location.href);" +
+                "u.searchParams.set('open_metric','" + safeLabel + "');" +
+                "u.searchParams.set('metric_section','" + SECTION + "');" +
+                "window.location.href=u.toString();" +
+                "}})();";
+            window.parent.document.head.appendChild(s);
+            s.remove();
         }}
 
         function extractLabel(raw) {{
@@ -2633,10 +2640,18 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
         }}
 
         function clickPill(label) {{
-            var url = new URL(window.parent.location.href);
-            url.searchParams.set('open_metric', label);
-            url.searchParams.set('metric_section', SECTION);
-            window.parent.location.href = url.toString();
+            /* Inject a script into the parent document that navigates in
+               the parent context — avoids SecurityError from sandboxed iframe. */
+            var safeLabel = label.replace(/'/g, "\\'");
+            var s = window.parent.document.createElement('script');
+            s.textContent = "(function(){{" +
+                "var u=new URL(window.location.href);" +
+                "u.searchParams.set('open_metric','" + safeLabel + "');" +
+                "u.searchParams.set('metric_section','" + SECTION + "');" +
+                "window.location.href=u.toString();" +
+                "}})();";
+            window.parent.document.head.appendChild(s);
+            s.remove();
         }}
 
         function setupKpiHovers() {{
