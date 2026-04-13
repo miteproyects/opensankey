@@ -2717,7 +2717,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 # ââ Build nodes: (label, value, x, y_center, color) ââ
                 # Layout: 5 columns matching the Plotly Sankey
                 # Wide X spacing for PDF Sankey (matplotlib-drawn, not Plotly)
-                X1, X2, X3, X4, X5 = 0.01, 0.18, 0.36, 0.54, 0.70
+                X1, X2, X3, X4, X5 = 0.01, 0.14, 0.32, 0.52, 0.68
                 nodes = []
                 nmap = {}
 
@@ -3202,12 +3202,15 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     }
 
     # Wide X spacing — text is placed via annotations (not built-in labels)
-    X1, X2, X3, X4, X5 = 0.01, 0.18, 0.36, 0.54, 0.70
+    # Col1/Col2 use 2-row labels (shorter) so can be closer together
+    X1, X2, X3, X4, X5 = 0.01, 0.14, 0.32, 0.52, 0.68
     colors = VIVID
     nodes = []
     node_colors = []
     node_x = []
     node_y = []
+    node_row1 = []   # "Name  $xB" (for 2-row annotations)
+    node_row2 = []   # "↑+15.2% +$68.30B" (for 2-row annotations)
     imap = {}
     def add(name, val, color_idx, x, y, prev_val=None, expandable=False):
         y = round(max(0.01, min(0.99, y)), 4)
@@ -3228,6 +3231,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             arrow = "\u2191" if diff >= 0 else "\u2193"
             pct_suffix = f"  {arrow}{delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
+        node_row1.append(f"{display_name}:  {_fmt(val)}")
+        node_row2.append(pct_suffix.strip() if pct_suffix.strip() else "")
         node_colors.append(colors[color_idx])
         node_x.append(x)
         node_y.append(y)
@@ -3487,14 +3492,25 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
 
     # ── Annotation-based labels (render above all nodes) ──────────────
     _dom_y0, _dom_y1 = 0.04, 0.96
+    _small_sz = max(8, _font_sz - 2)
     for i in range(len(nodes)):
         # Convert Sankey node coords → paper coords
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
+        # Columns 1 & 2 (X1, X2) → 2-row format; others → single line
+        if node_x[i] <= X2 + 0.01:
+            r2 = node_row2[i]
+            if r2:
+                txt = (f"<b>{node_row1[i]}</b><br>"
+                       f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
+            else:
+                txt = f"<b>{node_row1[i]}</b>"
+        else:
+            txt = nodes[i]
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
-            text=nodes[i],
+            text=txt,
             showarrow=False,
             xanchor="left",
             yanchor="middle",
@@ -3614,6 +3630,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     C = BS_COLORS
     nodes, node_colors_list, node_x, node_y = [], [], [], []
+    node_row1, node_row2 = [], []
     links_src, links_tgt, links_val, links_col = [], [], [], []
     imap = {}
 
@@ -3638,6 +3655,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             arrow = "\u2191" if diff >= 0 else "\u2193"
             pct_suffix = f"  {arrow}{delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
+        node_row1.append(f"{display_name}:  {_fmt(val)}")
+        node_row2.append(pct_suffix.strip() if pct_suffix.strip() else "")
         node_colors_list.append(color)
         node_x.append(x)
         node_y.append(y)
@@ -3724,7 +3743,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             eq_items.append(("Total Equity", equity, C["equity"]))
 
     # Wide X spacing — text is placed via annotations (not built-in labels)
-    X1, X2, X3, X4 = 0.01, 0.22, 0.44, 0.66
+    # Col1/Col2 use 2-row labels (shorter) so can be closer together
+    X1, X2, X3, X4 = 0.01, 0.16, 0.38, 0.62
 
     # ── Band-confined proportional Y-positioning (same as income Sankey) ──
     Y_MIN, Y_MAX = 0.04, 0.96
@@ -3907,13 +3927,24 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     # ── Annotation-based labels (render above all nodes) ──────────────
     _dom_y0, _dom_y1 = 0.04, 0.96
+    _small_sz = max(8, _font_sz - 2)
     for i in range(len(nodes)):
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
+        # Columns 1 & 2 (X1, X2) → 2-row format; others → single line
+        if node_x[i] <= X2 + 0.01:
+            r2 = node_row2[i]
+            if r2:
+                txt = (f"<b>{node_row1[i]}</b><br>"
+                       f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
+            else:
+                txt = f"<b>{node_row1[i]}</b>"
+        else:
+            txt = nodes[i]
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
-            text=nodes[i],
+            text=txt,
             showarrow=False,
             xanchor="left",
             yanchor="middle",
