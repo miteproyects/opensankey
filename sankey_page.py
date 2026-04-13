@@ -926,18 +926,22 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
     df.columns = pd.to_datetime(df.columns)
     df = df.sort_index(axis=1, ascending=False)  # Most recent first
 
-    # Compute derived fields
+    # Compute derived fields — track which rows are derived
+    _derived_set = set()
     if "Total Non Current Assets" in tag_map and "Total Non Current Assets" not in df.index:
         if "Total Assets" in df.index and "Current Assets" in df.index:
             nca = df.loc["Total Assets"] - df.loc["Current Assets"]
             df.loc["Total Non Current Assets"] = nca
+            _derived_set.add("Total Non Current Assets")
 
     if "Total Non Current Liabilities Net Minority Interest" in tag_map:
         if "Total Non Current Liabilities Net Minority Interest" not in df.index:
             if "Total Liabilities Net Minority Interest" in df.index and "Current Liabilities" in df.index:
                 ncl = df.loc["Total Liabilities Net Minority Interest"] - df.loc["Current Liabilities"]
                 df.loc["Total Non Current Liabilities Net Minority Interest"] = ncl
+                _derived_set.add("Total Non Current Liabilities Net Minority Interest")
 
+    df.attrs["_derived_rows"] = _derived_set
     return df
 
 
@@ -4052,6 +4056,47 @@ def render_sankey_page():
             # Period A=2026 + sk_Yb_q4 → main_fy-1 = 2025 Q4 ✓
             _raw_qtr_income_df = income_df.copy() if income_df is not None else None
             _raw_qtr_balance_df = balance_df.copy() if balance_df is not None else None
+
+            # ── Track & add derived income rows for audit panel ──
+            _derived_income_rows = {}  # row_name → footnote text
+            if _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
+                _ri = _raw_qtr_income_df
+                # Gross Profit derivation
+                if "Gross Profit" not in _ri.index:
+                    if "Total Revenue" in _ri.index and "Cost Of Revenue" in _ri.index:
+                        _ri.loc["Gross Profit"] = _ri.loc["Total Revenue"] - _ri.loc["Cost Of Revenue"].abs()
+                        _derived_income_rows["Gross Profit"] = "Revenue − Cost of Revenue"
+                # Operating Income derivation
+                if "Operating Income" not in _ri.index:
+                    _gp = _ri.loc["Gross Profit"] if "Gross Profit" in _ri.index else 0
+                    _rd = _ri.loc["Research And Development"].abs() if "Research And Development" in _ri.index else 0
+                    _sg = _ri.loc["Selling General And Administration"].abs() if "Selling General And Administration" in _ri.index else 0
+                    _da = _ri.loc["Reconciled Depreciation"].abs() if "Reconciled Depreciation" in _ri.index else 0
+                    _oe = _ri.loc["Other Operating Expenses"].abs() if "Other Operating Expenses" in _ri.index else 0
+                    if isinstance(_gp, pd.Series):
+                        _ri.loc["Operating Income"] = _gp - _rd - _sg - _da - _oe
+                        _derived_income_rows["Operating Income"] = "Gross Profit − R&D − SG&A − D&A − Other OpEx"
+                # Pretax Income derivation
+                if "Pretax Income" not in _ri.index:
+                    if "Operating Income" in _ri.index and "Interest Expense" in _ri.index:
+                        _ri.loc["Pretax Income"] = _ri.loc["Operating Income"] - _ri.loc["Interest Expense"].abs()
+                        _derived_income_rows["Pretax Income"] = "Operating Income − Interest Expense"
+                # Net Income derivation
+                if "Net Income" not in _ri.index:
+                    if "Pretax Income" in _ri.index and "Tax Provision" in _ri.index:
+                        _ri.loc["Net Income"] = _ri.loc["Pretax Income"] - _ri.loc["Tax Provision"].abs()
+                        _derived_income_rows["Net Income"] = "Pretax Income − Tax Provision"
+            st.session_state["_derived_income_rows"] = _derived_income_rows
+
+            # ── Track derived balance sheet rows ──
+            _derived_balance_rows = {}
+            if _raw_qtr_balance_df is not None and not _raw_qtr_balance_df.empty:
+                _bs_derived_set = getattr(_raw_qtr_balance_df, "attrs", {}).get("_derived_rows", set())
+                if "Total Non Current Assets" in _bs_derived_set:
+                    _derived_balance_rows["Total Non Current Assets"] = "Total Assets − Current Assets"
+                if "Total Non Current Liabilities Net Minority Interest" in _bs_derived_set:
+                    _derived_balance_rows["Total Non Current Liabilities Net Minority Interest"] = "Total Liabilities − Current Liabilities"
+            st.session_state["_derived_balance_rows"] = _derived_balance_rows
             income_df = _build_partial_year_df(
                 income_df, _fy_a, _fy_b, _match_qs, _fy_end,
                 is_balance_sheet=False,
@@ -4717,8 +4762,11 @@ def render_sankey_page():
                         return col_name
                 return None
 
-            def _build_period_table(main_fy, qa_list, qb_list, fy_end_m, src_df, period_name):
-                """Build a DataFrame: rows = accounts, cols = each Q + SUM."""
+            def _build_period_table(main_fy, qa_list, qb_list, fy_end_m, src_df, period_name, derived_rows=None):
+                """Build a DataFrame: rows = accounts, cols = each Q + SUM.
+                derived_rows: dict of row_name → description for derived values."""
+                if derived_rows is None:
+                    derived_rows = {}
                 # Collect (label, col_name) pairs in order
                 q_cols = []
                 for q in sorted(qa_list):
@@ -4729,7 +4777,7 @@ def render_sankey_page():
                     q_cols.append((f"FY{main_fy - 1} Q{q}", col))
 
                 if not q_cols:
-                    return None
+                    return None, []
 
                 result = pd.DataFrame(index=src_df.index)
                 numeric_cols = []
@@ -4746,30 +4794,54 @@ def render_sankey_page():
                 else:
                     result["SUM"] = float("nan")
 
-                # Format all numbers
+                # Build footnote index: assign *1, *2, etc. to derived rows that appear in this table
+                _footnote_map = {}  # row_name → footnote number
+                _footnotes_used = []  # list of (number, row_name, description)
+                _fn_counter = 1
+                for row_name in result.index:
+                    if row_name in derived_rows:
+                        _footnote_map[row_name] = _fn_counter
+                        _footnotes_used.append((_fn_counter, row_name, derived_rows[row_name]))
+                        _fn_counter += 1
+
+                # Format all numbers, appending *n for derived rows
                 for col in result.columns:
-                    result[col] = result[col].apply(
-                        lambda x: f"${x:,.0f}" if pd.notna(x) and x != 0 else "—"
-                    )
-                return result
+                    for row_name in result.index:
+                        val = result.at[row_name, col]
+                        if pd.notna(val) and val != 0:
+                            formatted = f"${val:,.0f}"
+                        else:
+                            formatted = "—"
+                        if row_name in _footnote_map and formatted != "—":
+                            formatted = f"{formatted} *{_footnote_map[row_name]}"
+                        result.at[row_name, col] = formatted
+
+                return result, _footnotes_used
 
             # Period A table
+            _derived_inc = st.session_state.get("_derived_income_rows", {})
             _main_fy_a = _audit_pa_val + _adj_audit
-            _tbl_a = _build_period_table(_main_fy_a, _audit_qa, _audit_qb, _audit_fy_end_q, _src_inc, "Period A")
+            _tbl_a, _fn_a = _build_period_table(_main_fy_a, _audit_qa, _audit_qb, _audit_fy_end_q, _src_inc, "Period A", derived_rows=_derived_inc)
             if _tbl_a is not None:
                 _lbl_a = _build_period_label(_main_fy_a, _audit_qa, _audit_qb) if (_audit_qa or _audit_qb) else f"FY{_audit_pa_val}"
                 st.markdown(f'<p class="audit-header">📊 Income Statement — Period A: {_lbl_a}</p>', unsafe_allow_html=True)
                 st.dataframe(_tbl_a, use_container_width=True)
+                if _fn_a:
+                    _fn_lines_a = "  \n".join([f"\\*{n} *{row}*: derived from {desc}" for n, row, desc in _fn_a])
+                    st.caption(_fn_lines_a)
 
             st.markdown("---")
 
             # Period B table
             _main_fy_b = _audit_pb_val + _adj_audit
-            _tbl_b = _build_period_table(_main_fy_b, _audit_qa, _audit_qb, _audit_fy_end_q, _src_inc, "Period B")
+            _tbl_b, _fn_b = _build_period_table(_main_fy_b, _audit_qa, _audit_qb, _audit_fy_end_q, _src_inc, "Period B", derived_rows=_derived_inc)
             if _tbl_b is not None:
                 _lbl_b = _build_period_label(_main_fy_b, _audit_qa, _audit_qb) if (_audit_qa or _audit_qb) else f"FY{_audit_pb_val}"
                 st.markdown(f'<p class="audit-header">📊 Income Statement — Period B: {_lbl_b}</p>', unsafe_allow_html=True)
                 st.dataframe(_tbl_b, use_container_width=True)
+                if _fn_b:
+                    _fn_lines_b = "  \n".join([f"\\*{n} *{row}*: derived from {desc}" for n, row, desc in _fn_b])
+                    st.caption(_fn_lines_b)
         else:
             st.info("No income data available.")
 
@@ -4778,13 +4850,32 @@ def render_sankey_page():
         # ── Section 3: Raw balance sheet data ──
         st.markdown(f'<p class="audit-header">🏦 Balance Sheet — Raw Values</p>', unsafe_allow_html=True)
         if balance_df is not None and not balance_df.empty:
+            _derived_bal = st.session_state.get("_derived_balance_rows", {})
+            # Assign footnote numbers to derived balance sheet rows
+            _bs_fn_map = {}
+            _bs_footnotes = []
+            _bs_fn_ctr = 1
             _disp_balance = balance_df.copy()
+            for row_name in _disp_balance.index:
+                if row_name in _derived_bal:
+                    _bs_fn_map[row_name] = _bs_fn_ctr
+                    _bs_footnotes.append((_bs_fn_ctr, row_name, _derived_bal[row_name]))
+                    _bs_fn_ctr += 1
             _disp_balance.columns = [str(c) for c in _disp_balance.columns]
             for col in _disp_balance.columns:
-                _disp_balance[col] = _disp_balance[col].apply(
-                    lambda x: f"${x:,.0f}" if pd.notna(x) and x != 0 else "—"
-                )
+                for row_name in _disp_balance.index:
+                    val = _disp_balance.at[row_name, col]
+                    if pd.notna(val) and val != 0:
+                        formatted = f"${val:,.0f}"
+                    else:
+                        formatted = "—"
+                    if row_name in _bs_fn_map and formatted != "—":
+                        formatted = f"{formatted} *{_bs_fn_map[row_name]}"
+                    _disp_balance.at[row_name, col] = formatted
             st.dataframe(_disp_balance, use_container_width=True)
+            if _bs_footnotes:
+                _bs_fn_lines = "  \n".join([f"\\*{n} *{row}*: derived from {desc}" for n, row, desc in _bs_footnotes])
+                st.caption(_bs_fn_lines)
         else:
             st.info("No balance sheet data available.")
 
