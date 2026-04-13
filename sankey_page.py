@@ -116,10 +116,11 @@ def _text_height_px(font_sz, has_row2=True):
     """Return the pixel height of a 3-row or 2-row annotation label.
 
     Row layout:  <b>Name</b>  <b>$Value</b>  [<span>↑+X% +$delta</span>]
-    Line height ≈ font_size × 1.45 (for layout/spacing calculations).
-    For visual overlap detection, use _text_height_px_visual() instead.
+    Line height ≈ font_size × 2.4 (for layout/spacing calculations).
+    This must be large enough that the NODES themselves are spaced apart
+    so 3-row text labels don't overlap visually.
     """
-    line_h = font_sz * 1.45
+    line_h = font_sz * 2.4
     return line_h * (3 if has_row2 else 2)
 
 
@@ -130,7 +131,7 @@ def _text_height_px_visual(font_sz, has_row2=True):
     more vertical spacing than standard CSS line-height. This larger estimate
     is used only for post-layout overlap detection, NOT for chart height calc.
     """
-    line_h = font_sz * 3.5
+    line_h = font_sz * 2.6
     return line_h * (3 if has_row2 else 2)
 
 
@@ -217,9 +218,9 @@ def _fix_annotation_overlaps(node_x, node_y, node_row2, font_sz, chart_height):
                 lower_top = lower_y + lower_th / 2
 
                 overlap = lower_top - upper_bottom
-                if overlap > -0.005:  # fix even near-overlaps
-                    # Push apart symmetrically with generous padding
-                    shift = max(overlap, 0) / 2 + 0.025
+                if overlap > -0.008:  # fix even near-overlaps
+                    # Push apart symmetrically with visible padding
+                    shift = max(overlap, 0) / 2 + 0.015
                     positions[j][1] = upper_y + shift
                     positions[j + 1][1] = lower_y - shift
                     changed = True
