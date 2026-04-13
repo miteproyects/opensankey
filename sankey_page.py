@@ -116,11 +116,9 @@ def _text_height_px(font_sz, has_row2=True):
     """Return the pixel height of a 3-row or 2-row annotation label.
 
     Row layout:  <b>Name</b>  <b>$Value</b>  [<span>↑+X% +$delta</span>]
-    Line height ≈ font_size × 2.4 (for layout/spacing calculations).
-    This must be large enough that the NODES themselves are spaced apart
-    so 3-row text labels don't overlap visually.
+    Line height ≈ font_size × 1.45 (for layout/spacing calculations).
     """
-    line_h = font_sz * 2.4
+    line_h = font_sz * 1.45
     return line_h * (3 if has_row2 else 2)
 
 
@@ -161,82 +159,82 @@ def _min_band_for_text(font_sz, chart_height, has_row2=True):
     return text_px / (chart_height * dom_span)
 
 
-def _fix_annotation_overlaps(node_x, node_y, node_row2, font_sz, chart_height):
-    """Post-layout pass: push apart annotation Y positions so text never overlaps.
+def _fix_bar_gaps(node_x, node_y, node_val_raw, chart_height, min_gap_px=2):
+    """Ensure minimum pixel gap between adjacent bar EDGES in each column.
 
-    For each column (group of nodes sharing the same x), sort nodes by y,
-    then check adjacent pairs. Each node occupies a vertical extent defined
-    by the LARGER of:
-      - its Sankey bar band height (from node_y spacing), and
-      - its 3-row (or 2-row) text label height (in paper coords).
+    Plotly Sankey bar height is proportional to the node's flow value.
+    This function computes bar heights, finds the gap between the bottom
+    edge of each bar and the top edge of the bar below it, and pushes
+    node_y positions apart if the gap is smaller than min_gap_px.
 
-    If two adjacent nodes' extents overlap, they are pushed apart symmetrically.
-    The adjusted Y positions are returned as a dict {node_index: new_y_paper}.
-
-    All coordinates are in paper space where y increases upward, but
-    node_y in Plotly Sankey increases downward (node_y=0 is top).
-    Annotations use: y_paper = dom_y0 + dom_span * (1 - node_y).
+    Operates in node_y space (0=top, 1=bottom).  Mutates node_y in-place.
     """
-    dom_y0, dom_y1 = 0.04, 0.96
-    dom_span = dom_y1 - dom_y0
-
-    # Text height in paper coordinates — use visual (rendered) height for overlap detection
-    text_h_3row = _text_height_px_visual(font_sz, has_row2=True) / (chart_height * dom_span) * dom_span
-    text_h_2row = _text_height_px_visual(font_sz, has_row2=False) / (chart_height * dom_span) * dom_span
-
-    # Group nodes by column (x coordinate, rounded to avoid float issues)
     from collections import defaultdict
+
+    dom_span = 0.92  # domain [0.04, 0.96]
+    avail_px = chart_height * dom_span
+
+    # Global scale: Plotly scales bars so that the densest column fits.
+    # For each column, sum of values gives total flow.
     columns = defaultdict(list)
     for i in range(len(node_x)):
         col_key = round(node_x[i], 3)
-        y_paper = dom_y0 + dom_span * (1.0 - node_y[i])
-        has_r2 = bool(node_row2[i])
-        th = text_h_3row if has_r2 else text_h_2row
-        columns[col_key].append((i, y_paper, th))
+        columns[col_key].append(i)
 
-    adjusted = {}
-    for col_key, col_nodes in columns.items():
-        if len(col_nodes) <= 1:
+    # Find max column sum → determines the global bar-height scale
+    max_col_sum = 0
+    for col_idxs in columns.values():
+        col_sum = sum(node_val_raw[i] for i in col_idxs)
+        max_col_sum = max(max_col_sum, col_sum)
+
+    if max_col_sum <= 0:
+        return
+
+    scale_px = avail_px / max_col_sum  # pixels per value unit
+
+    # Convert min_gap_px to node_y units (node_y [0,1] spans avail_px)
+    min_gap_ny = min_gap_px / avail_px
+
+    # For each column, enforce minimum gap between bar edges
+    for col_key, col_idxs in columns.items():
+        if len(col_idxs) <= 1:
             continue
 
-        # Sort by y_paper descending (top of chart = higher y_paper)
-        col_nodes.sort(key=lambda t: -t[1])
+        # Sort by node_y ascending (top to bottom on screen)
+        col_idxs.sort(key=lambda i: node_y[i])
 
-        # Extract mutable y positions
-        positions = [[idx, yp, th] for idx, yp, th in col_nodes]
+        # Compute bar half-heights in node_y units
+        bar_half = []
+        for i in col_idxs:
+            bar_h_px = node_val_raw[i] * scale_px
+            bar_h_ny = bar_h_px / avail_px
+            bar_half.append(bar_h_ny / 2)
 
-        # Multiple passes to resolve all overlaps
-        for _pass in range(10):
+        # Multiple passes to push apart
+        for _pass in range(20):
             changed = False
-            for j in range(len(positions) - 1):
-                upper_idx, upper_y, upper_th = positions[j]
-                lower_idx, lower_y, lower_th = positions[j + 1]
+            for j in range(len(col_idxs) - 1):
+                i_upper = col_idxs[j]
+                i_lower = col_idxs[j + 1]
 
-                # Upper node bottom edge = upper_y - upper_th / 2
-                # Lower node top edge = lower_y + lower_th / 2
-                upper_bottom = upper_y - upper_th / 2
-                lower_top = lower_y + lower_th / 2
+                upper_bar_bottom = node_y[i_upper] + bar_half[j]
+                lower_bar_top = node_y[i_lower] - bar_half[j + 1]
 
-                overlap = lower_top - upper_bottom
-                if overlap > -0.008:  # fix even near-overlaps
-                    # Push apart symmetrically with visible padding
-                    shift = max(overlap, 0) / 2 + 0.015
-                    positions[j][1] = upper_y + shift
-                    positions[j + 1][1] = lower_y - shift
+                gap = lower_bar_top - upper_bar_bottom
+                if gap < min_gap_ny:
+                    # Push apart symmetrically
+                    push = (min_gap_ny - gap) / 2 + 0.0001
+                    node_y[i_upper] = node_y[i_upper] - push
+                    node_y[i_lower] = node_y[i_lower] + push
                     changed = True
 
             if not changed:
                 break
 
-            # Clamp to [dom_y0, dom_y1]
-            for p in positions:
-                p[1] = max(dom_y0 + p[2] / 2, min(dom_y1 - p[2] / 2, p[1]))
-
-        # Store adjusted positions
-        for idx, yp, th in positions:
-            adjusted[idx] = yp
-
-    return adjusted
+            # Clamp to [0.01, 0.99]
+            for j, i in enumerate(col_idxs):
+                node_y[i] = max(0.01 + bar_half[j],
+                                min(0.99 - bar_half[j], node_y[i]))
 
 
 def _fmt(val):
@@ -3381,6 +3379,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     node_colors = []
     node_x = []
     node_y = []
+    node_val_raw = []    # raw numeric value (for bar height calculation)
     node_name_list = []  # "Revenue" (for 3-row annotations)
     node_val_str = []    # "$68.30B" (for 3-row annotations)
     node_row2 = []       # "↑+15.2% +$68.30B" (for 3-row annotations)
@@ -3407,6 +3406,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_name_list.append(display_name)
         node_val_str.append(_fmt(val))
         node_row2.append(pct_suffix.strip() if pct_suffix.strip() else "")
+        node_val_raw.append(max(val, 0))
         node_colors.append(colors[color_idx])
         node_x.append(x)
         node_y.append(y)
@@ -3690,6 +3690,11 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = _font_sz_est  # use pre-computed value (same formula)
 
+    # ── Fix bar gaps: ensure ≥2px between adjacent bar edges ────────────
+    # This adjusts node_y IN-PLACE before the figure is created, so both
+    # bars and annotations move together.
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
@@ -3710,13 +3715,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     fig.update_layout(**_layout)
 
     # ── Annotation-based labels ──────────────────────────────────────────
-    # Post-layout pass: fix any remaining text overlaps per column
-    _adj_y = _fix_annotation_overlaps(node_x, node_y, node_row2, _font_sz, _h)
+    # Annotations are placed at the same node_y (already adjusted by _fix_bar_gaps)
     _dom_y0, _dom_y1 = 0.04, 0.96
     _small_sz = max(8, _font_sz - 2)
     for i in range(len(nodes)):
         x_paper = node_x[i]
-        y_paper = _adj_y.get(i, _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i]))
+        y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
         r2 = node_row2[i]
         if r2:
             txt = (f"<b>{node_name_list[i]}</b><br>"
@@ -3875,6 +3879,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     C = BS_COLORS
     nodes, node_colors_list, node_x, node_y = [], [], [], []
+    node_val_raw = []  # raw numeric value (for bar height calculation)
     node_name_list, node_val_str, node_row2 = [], [], []
     links_src, links_tgt, links_val, links_col = [], [], [], []
     imap = {}
@@ -3903,6 +3908,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         node_name_list.append(display_name)
         node_val_str.append(_fmt(val))
         node_row2.append(pct_suffix.strip() if pct_suffix.strip() else "")
+        node_val_raw.append(max(val, 0))
         node_colors_list.append(color)
         node_x.append(x)
         node_y.append(y)
@@ -4220,6 +4226,9 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
+    # ── Fix bar gaps: ensure ≥2px between adjacent bar edges ────────────
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
     _empty_labels = [""] * len(nodes)
@@ -4242,13 +4251,11 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     fig.update_layout(**_layout)
 
     # ── Annotation-based labels (render above all nodes) ──────────────
-    # Post-layout pass: fix any remaining text overlaps per column
-    _adj_y = _fix_annotation_overlaps(node_x, node_y, node_row2, _font_sz, _h)
     _dom_y0, _dom_y1 = 0.04, 0.96
     _small_sz = max(8, _font_sz - 2)
     for i in range(len(nodes)):
         x_paper = node_x[i]
-        y_paper = _adj_y.get(i, _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i]))
+        y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
         r2 = node_row2[i]
         if r2:
             txt = (f"<b>{node_name_list[i]}</b><br>"
