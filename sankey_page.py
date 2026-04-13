@@ -3900,14 +3900,16 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = _font_sz_est  # use pre-computed value (same formula)
 
-    # ── Fix bar gaps: ensure ≥2px between adjacent bar edges ────────────
-    # This adjusts node_y IN-PLACE before the figure is created, so both
-    # bars and annotations move together.
+    # ── Fix gaps: bars → text → cross-column → re-fix vertical ──────────
+    # Cross-column fix moves nodes vertically, which can re-introduce
+    # vertical overlaps, so we re-run bar/text gap fixes afterward.
     _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
     _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
     _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
                            node_val_str, node_row2, _font_sz, _h, _thickness,
                            min_gap_px=2)
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
 
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
@@ -4440,12 +4442,14 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
-    # ── Fix bar gaps: ensure ≥2px between adjacent bar edges ────────────
+    # ── Fix gaps: bars → text → cross-column → re-fix vertical ──────────
     _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
     _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
     _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
                            node_val_str, node_row2, _font_sz, _h, _thickness,
                            min_gap_px=2)
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
