@@ -120,7 +120,8 @@ def _resolve_annotation_overlaps(positions, min_gap=0.06):
         min_gap: minimum vertical distance between annotation centres (paper coords).
                  3-row annotations are taller, so we use a larger gap for those.
     Returns:
-        dict mapping index → adjusted y_paper
+        tuple: (dict mapping index → adjusted y_paper,
+                set of indices that should use compact 2-row format)
     """
     from collections import defaultdict
     # Group by x column (round to nearest 0.05 to bucket same-column nodes)
@@ -130,31 +131,44 @@ def _resolve_annotation_overlaps(positions, min_gap=0.06):
         cols[col_key].append((idx, yp, has_r2))
 
     adjusted = {}
+    compact_set = set()  # indices that should use 2-row (no YoY) format
     for col_key, items in cols.items():
         if len(items) <= 1:
             for idx, yp, _ in items:
                 adjusted[idx] = yp
             continue
+
+        n = len(items)
+        # For crowded columns (5+ items), use compact 2-row format
+        use_compact = n >= 5
+        if use_compact:
+            for idx, _, _ in items:
+                compact_set.add(idx)
+
+        # Adaptive gap: 3-row ≈ 0.10, 2-row ≈ 0.07, scale down for very crowded columns
+        avail = 0.94  # paper range [0.03, 0.97]
+        if use_compact:
+            base_gap = min(min_gap, avail / (n + 0.5))
+        else:
+            base_gap = min(min_gap * 1.3, avail / (n + 0.5))
+
         # Sort by y position (top to bottom in paper coords = high to low)
         items.sort(key=lambda t: -t[1])  # highest y first (top of chart)
         ys = [(idx, yp, has_r2) for idx, yp, has_r2 in items]
 
         # Iterative push-apart: ensure min gap between consecutive annotations
-        for _pass in range(5):  # multiple passes to settle
+        for _pass in range(8):  # more passes for convergence
             changed = False
             for i in range(len(ys) - 1):
                 idx_a, ya, r2_a = ys[i]
                 idx_b, yb, r2_b = ys[i + 1]
-                # Taller labels (3 rows) need more gap
-                gap = min_gap * 1.15 if (r2_a or r2_b) else min_gap
+                gap = base_gap * (1.2 if (r2_a or r2_b) and not use_compact else 1.0)
                 if ya - yb < gap:
-                    # Push apart symmetrically
                     mid = (ya + yb) / 2
                     new_a = mid + gap / 2
                     new_b = mid - gap / 2
-                    # Clamp to paper bounds [0.02, 0.98]
-                    new_a = min(0.98, max(0.02, new_a))
-                    new_b = min(0.98, max(0.02, new_b))
+                    new_a = min(0.97, max(0.03, new_a))
+                    new_b = min(0.97, max(0.03, new_b))
                     ys[i] = (idx_a, new_a, r2_a)
                     ys[i + 1] = (idx_b, new_b, r2_b)
                     changed = True
@@ -162,7 +176,7 @@ def _resolve_annotation_overlaps(positions, min_gap=0.06):
                 break
         for idx, yp, _ in ys:
             adjusted[idx] = yp
-    return adjusted
+    return adjusted, compact_set
 
 
 def _fmt(val):
@@ -3605,20 +3619,20 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
         _ann_positions.append((i, x_paper, y_paper, bool(node_row2[i])))
-    _adj_y = _resolve_annotation_overlaps(_ann_positions, min_gap=0.065)
+    _adj_y, _compact = _resolve_annotation_overlaps(_ann_positions, min_gap=0.09)
 
     for i in range(len(nodes)):
         x_paper = node_x[i]
         y_paper = _adj_y.get(i, _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i]))
-        # 3-row format for ALL columns: Name / $Value / ↑% +$delta
         r2 = node_row2[i]
-        if r2:
+        # Compact mode: drop YoY row for crowded columns (5+ nodes)
+        if i in _compact or not r2:
+            txt = (f"<b>{node_name_list[i]}</b><br>"
+                   f"<b>{node_val_str[i]}</b>")
+        else:
             txt = (f"<b>{node_name_list[i]}</b><br>"
                    f"<b>{node_val_str[i]}</b><br>"
                    f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
-        else:
-            txt = (f"<b>{node_name_list[i]}</b><br>"
-                   f"<b>{node_val_str[i]}</b>")
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
@@ -4078,20 +4092,20 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
         _ann_positions.append((i, x_paper, y_paper, bool(node_row2[i])))
-    _adj_y = _resolve_annotation_overlaps(_ann_positions, min_gap=0.065)
+    _adj_y, _compact = _resolve_annotation_overlaps(_ann_positions, min_gap=0.09)
 
     for i in range(len(nodes)):
         x_paper = node_x[i]
         y_paper = _adj_y.get(i, _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i]))
-        # 3-row format for ALL columns: Name / $Value / ↑% +$delta
         r2 = node_row2[i]
-        if r2:
+        # Compact mode: drop YoY row for crowded columns (5+ nodes)
+        if i in _compact or not r2:
+            txt = (f"<b>{node_name_list[i]}</b><br>"
+                   f"<b>{node_val_str[i]}</b>")
+        else:
             txt = (f"<b>{node_name_list[i]}</b><br>"
                    f"<b>{node_val_str[i]}</b><br>"
                    f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
-        else:
-            txt = (f"<b>{node_name_list[i]}</b><br>"
-                   f"<b>{node_val_str[i]}</b>")
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
