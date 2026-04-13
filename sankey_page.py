@@ -5435,7 +5435,7 @@ def render_sankey_page():
             _kpi_cols[_ki].metric(_kl, _fmt(_kv), _yoy_delta(_kv, _kp, _compare_label))
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div></div></div>', unsafe_allow_html=True)
         # Build adaptive pill tags — filter out metrics without data
         _has_rev = revenue != 0
         _has_gp = gross_profit != 0
@@ -5466,56 +5466,13 @@ def render_sankey_page():
                 st.session_state["popup_trigger_income"] = sel
             active_metric = st.session_state["popup_active_income"]
 
-            # Check if this metric is expandable (must have 2+ sub-items in EDGAR)
-            _metric_can_expand = False
-            if active_metric in EXPANDABLE_INCOME_NODES and ticker:
-                _cfg = EXPANDABLE_INCOME_NODES[active_metric]
-                _sub_check = _fetch_sub_values(ticker, _cfg["children"])
-                _n_ch = sum(1 for ch in _cfg["children"] if _sub_check.get(ch["label"], 0) > 0)
-                _metric_can_expand = _n_ch >= 2
+            @st.dialog(f"{active_metric} — Historical Trend", width="large")
+            def _income_popup():
+                _show_metric_popup(ticker, active_metric, "income")
+            _income_popup()
 
-            if _metric_can_expand:
-                @st.dialog(f"{active_metric}", width="small")
-                def _income_choice():
-                    st.markdown(f"### {active_metric}")
-                    st.caption("Choose an action for this node")
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        if st.button("\U0001F4C8 View History", use_container_width=True, key="expand_hist_income"):
-                            st.session_state["_expand_action_income"] = "history"
-                            st.session_state["_expand_target_income"] = active_metric
-                            st.rerun()
-                    with c2:
-                        if st.button("\U0001F50D Expand", use_container_width=True, key="expand_exp_income"):
-                            expanded = st.session_state.get("_expanded_income_nodes", set())
-                            if active_metric in expanded:
-                                expanded.discard(active_metric)
-                            else:
-                                expanded.add(active_metric)
-                            st.session_state["_expanded_income_nodes"] = expanded
-                            st.rerun()
-                _income_choice()
-            else:
-                @st.dialog(f"{active_metric} — Historical Trend", width="large")
-                def _income_popup():
-                    _show_metric_popup(ticker, active_metric, "income")
-                _income_popup()
-
-        # Handle deferred history action (from choice dialog)
-        if st.session_state.get("_expand_action_income") == "history":
-            _hist_metric = st.session_state.pop("_expand_target_income", None)
-            st.session_state.pop("_expand_action_income", None)
-            if _hist_metric:
-                st.session_state["popup_active_income"] = _hist_metric
-                st.session_state["popup_trigger_income"] = _hist_metric + "_hist"
-                @st.dialog(f"{_hist_metric} — Historical Trend", width="large")
-                def _income_hist_popup():
-                    _show_metric_popup(ticker, _hist_metric, "income")
-                _income_hist_popup()
-
-        _expanded_inc = st.session_state.get("_expanded_income_nodes", set())
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period,
-                                   expanded_nodes=_expanded_inc, ticker=ticker)
+                                   ticker=ticker)
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
             with st.container(key="sankey_income_scroll"):
@@ -5559,7 +5516,7 @@ def render_sankey_page():
         m4.metric("Cash", _fmt(cash_val), _yoy_delta(cash_val, cash_prev, _compare_label))
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div></div></div>', unsafe_allow_html=True)
         # ── Query-param bridge: node/KPI click sets ?open_metric=X ──
         _qp_metric = st.query_params.get("open_metric", "")
         _qp_section = st.query_params.get("metric_section", "")
@@ -5577,48 +5534,13 @@ def render_sankey_page():
                 st.session_state["popup_trigger_balance"] = sel
             active_metric = st.session_state["popup_active_balance"]
 
-            if active_metric in EXPANDABLE_BALANCE_NODES:
-                @st.dialog(f"{active_metric}", width="small")
-                def _balance_choice():
-                    st.markdown(f"### {active_metric}")
-                    st.caption("Choose an action for this node")
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        if st.button("\U0001F4C8 View History", use_container_width=True, key="expand_hist_balance"):
-                            st.session_state["_expand_action_balance"] = "history"
-                            st.session_state["_expand_target_balance"] = active_metric
-                            st.rerun()
-                    with c2:
-                        if st.button("\U0001F50D Expand", use_container_width=True, key="expand_exp_balance"):
-                            expanded = st.session_state.get("_expanded_balance_nodes", set())
-                            if active_metric in expanded:
-                                expanded.discard(active_metric)
-                            else:
-                                expanded.add(active_metric)
-                            st.session_state["_expanded_balance_nodes"] = expanded
-                            st.rerun()
-                _balance_choice()
-            else:
-                @st.dialog(f"{active_metric} — Historical Trend", width="large")
-                def _balance_popup():
-                    _show_metric_popup(ticker, active_metric, "balance")
-                _balance_popup()
+            @st.dialog(f"{active_metric} — Historical Trend", width="large")
+            def _balance_popup():
+                _show_metric_popup(ticker, active_metric, "balance")
+            _balance_popup()
 
-        # Handle deferred history action
-        if st.session_state.get("_expand_action_balance") == "history":
-            _hist_metric = st.session_state.pop("_expand_target_balance", None)
-            st.session_state.pop("_expand_action_balance", None)
-            if _hist_metric:
-                st.session_state["popup_active_balance"] = _hist_metric
-                st.session_state["popup_trigger_balance"] = _hist_metric + "_hist"
-                @st.dialog(f"{_hist_metric} — Historical Trend", width="large")
-                def _balance_hist_popup():
-                    _show_metric_popup(ticker, _hist_metric, "balance")
-                _balance_hist_popup()
-
-        _expanded_bal = st.session_state.get("_expanded_balance_nodes", set())
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
-                                          expanded_nodes=_expanded_bal, ticker=ticker)
+                                          ticker=ticker)
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
             with st.container(key="sankey_balance_scroll"):
