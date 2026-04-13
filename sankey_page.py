@@ -3027,6 +3027,11 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         p_operating_inc = max(0, p_gross_profit - p_rd_expense - p_sga_expense - p_dep_amort - p_other_opex)
     if p_pretax_income == 0 and p_operating_inc > 0:
         p_pretax_income = max(0, p_operating_inc - p_interest_exp)
+    # Derive previous-period other_nonop if there's a gap
+    if p_operating_inc > 0 and p_interest_exp > 0:
+        p_gap = p_operating_inc - p_pretax_income
+        if p_gap > p_interest_exp * 1.5:
+            p_other_nonop = p_gap - p_interest_exp
     if p_net_income == 0 and p_pretax_income > 0:
         p_net_income = max(0, p_pretax_income - p_tax)
 
@@ -3070,13 +3075,20 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         known_exp = rd_expense + sga_expense + dep_amort + other_opex
         operating_inc = max(0, gross_profit - known_exp)
 
-    # Level 3: Operating Income = Interest + Pretax Income
+    # Level 3: Operating Income = Interest + Other Non-Op + Pretax Income
+    other_nonop = 0
+    p_other_nonop = 0
     if pretax_income == 0:
         pretax_income = operating_inc - interest_exp
     if interest_exp + pretax_income != operating_inc and operating_inc > 0:
-        interest_adj = operating_inc - pretax_income
-        if interest_adj >= 0:
-            interest_exp = interest_adj
+        gap = operating_inc - pretax_income
+        if gap >= 0:
+            # If reported interest is small relative to gap, split into
+            # Interest Exp + Other Non-Op (investment losses, insurance, etc.)
+            if interest_exp > 0 and gap > interest_exp * 1.5:
+                other_nonop = gap - interest_exp
+            else:
+                interest_exp = gap
         else:
             pretax_income = operating_inc - interest_exp
 
@@ -3100,6 +3112,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     other_opex = max(other_opex, 0)
     operating_inc = max(operating_inc, 0)
     interest_exp = max(interest_exp, 0)
+    other_nonop = max(other_nonop, 0)
     pretax_income = max(pretax_income, 0)
     tax = max(tax, 0)
     net_income = max(net_income, 0)
@@ -3133,11 +3146,20 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             else:
                 operating_inc = 0
                 other_opex = max(0, gross_profit - rd_expense - sga_expense - dep_amort)
-    if interest_exp + pretax_income != operating_inc:
-        pretax_income = operating_inc - interest_exp
-        if pretax_income < 0:
-            pretax_income = 0
-            interest_exp = operating_inc
+    if interest_exp + other_nonop + pretax_income != operating_inc:
+        gap = operating_inc - pretax_income
+        if gap >= 0:
+            if interest_exp > 0 and gap > interest_exp * 1.5:
+                other_nonop = gap - interest_exp
+            else:
+                interest_exp = gap
+                other_nonop = 0
+        else:
+            pretax_income = operating_inc - interest_exp - other_nonop
+            if pretax_income < 0:
+                pretax_income = 0
+                other_nonop = 0
+                interest_exp = operating_inc
     if tax + net_income != pretax_income:
         net_income = pretax_income - tax
         if net_income < 0:
@@ -3156,6 +3178,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         "Other OpEx": other_opex,
         "Operating Income": operating_inc,
         "Interest Exp.": interest_exp,
+        "Other Non-Op": other_nonop,
         "Pretax Income": pretax_income,
         "Tax": tax,
         "Net Income": net_income,
@@ -3170,6 +3193,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         "Other OpEx": p_other_opex,
         "Operating Income": p_operating_inc,
         "Interest Exp.": p_interest_exp,
+        "Other Non-Op": p_other_nonop,
         "Pretax Income": p_pretax_income,
         "Tax": p_tax,
         "Net Income": p_net_income,
@@ -3206,8 +3230,9 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_y.append(y)
 
     add("Revenue", revenue, 0, X1, 0.42, p_revenue)
-    add("Cost of Revenue", cogs, 1, X2, 0.18, p_cogs)
-    add("Gross Profit", gross_profit, 2, X2, 0.56, p_gross_profit)
+    if cogs > 0:
+        add("Cost of Revenue", cogs, 1, X2, 0.18, p_cogs)
+    add("Gross Profit", gross_profit, 2, X2, 0.56 if cogs > 0 else 0.42, p_gross_profit)
 
     # --- Fetch sub-breakdown data for ALL expandable nodes (to check if breakdown exists) ---
     _sub_cache = {}
@@ -3281,10 +3306,18 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     oi_y = max(exp_y + n_exp * exp_gap + 0.08, 0.55)
     add("Operating Income", operating_inc, 6, X3, oi_y, p_operating_inc)
 
+    # Place non-op nodes — spread them dynamically
+    n_nonop = int(interest_exp > 0) + int(other_nonop > 0)
+    nonop_y = max(oi_y - 0.12, 0.30)
+    nonop_gap = 0.10
+    n_no = 0
     if interest_exp > 0:
-        inter_y = max(oi_y - 0.06, 0.45)
-        add("Interest Exp.", interest_exp, 7, X4, inter_y, p_interest_exp)
-    pt_y = min(oi_y + 0.10, 0.74)
+        add("Interest Exp.", interest_exp, 7, X4, nonop_y + n_no * nonop_gap, p_interest_exp)
+        n_no += 1
+    if other_nonop > 0:
+        add("Other Non-Op", other_nonop, 7, X4, nonop_y + n_no * nonop_gap, p_other_nonop)
+        n_no += 1
+    pt_y = min(max(nonop_y + n_no * nonop_gap + 0.08, oi_y + 0.10), 0.74)
     add("Pretax Income", pretax_income, 8, X4, pt_y, p_pretax_income)
 
     tax_y = min(pt_y + 0.08, 0.80)
@@ -3304,7 +3337,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             vals.append(val)
             lcolors.append(_rgba(colors[ci]))
 
-    link("Revenue", "Cost of Revenue", cogs, 1)
+    if cogs > 0:
+        link("Revenue", "Cost of Revenue", cogs, 1)
     link("Revenue", "Gross Profit", gross_profit, 2)
     if rd_expense > 0:
         link("Gross Profit", "R&D", rd_expense, 3)
@@ -3325,6 +3359,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     link("Gross Profit", "Operating Income", operating_inc, 6)
     if interest_exp > 0:
         link("Operating Income", "Interest Exp.", interest_exp, 7)
+    if other_nonop > 0:
+        link("Operating Income", "Other Non-Op", other_nonop, 7)
     link("Operating Income", "Pretax Income", pretax_income, 8)
     if tax > 0:
         link("Pretax Income", "Income Tax", tax, 9)
