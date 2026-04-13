@@ -2715,8 +2715,8 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
 
                 # ââ Build nodes: (label, value, x, y_center, color) ââ
                 # Layout: 5 columns matching the Plotly Sankey
-                # All X < 0.50 so Plotly places text labels to the RIGHT of each node
-                X1, X2, X3, X4, X5 = 0.01, 0.10, 0.22, 0.34, 0.46
+                # Wide X spacing for PDF Sankey (matplotlib-drawn, not Plotly)
+                X1, X2, X3, X4, X5 = 0.01, 0.18, 0.36, 0.54, 0.70
                 nodes = []
                 nmap = {}
 
@@ -3200,8 +3200,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         "Net Income": p_net_income,
     }
 
-    # All X < 0.50 so Plotly places text labels to the RIGHT of each node
-    X1, X2, X3, X4, X5 = 0.01, 0.10, 0.22, 0.34, 0.46
+    # Wide X spacing — text is placed via annotations (not built-in labels)
+    X1, X2, X3, X4, X5 = 0.01, 0.18, 0.36, 0.54, 0.70
     colors = VIVID
     nodes = []
     node_colors = []
@@ -3463,10 +3463,13 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
+    # Hide built-in node labels — we use annotations instead so text
+    # renders ON TOP of all nodes (separate SVG layer).
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         orientation="h",
-        textfont=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
+        textfont=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
+                      color="rgba(0,0,0,0)"),
         node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors, x=node_x, y=node_y,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
@@ -3479,6 +3482,25 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
+
+    # ── Annotation-based labels (render above all nodes) ──────────────
+    _dom_y0, _dom_y1 = 0.04, 0.96
+    for i in range(len(nodes)):
+        # Convert Sankey node coords → paper coords
+        x_paper = node_x[i]
+        y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
+        fig.add_annotation(
+            x=x_paper, y=y_paper,
+            xref="paper", yref="paper",
+            text=nodes[i],
+            showarrow=False,
+            xanchor="left",
+            yanchor="middle",
+            xshift=_thickness + 4,
+            font=dict(size=_font_sz,
+                      family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
+                      color="#1e293b"),
+        )
     return fig
 
 
@@ -3716,8 +3738,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     slot_height = 0.96 / max(total_slots, 1)
     slot_idx = 0
     group_y_ranges = []
-    # All X < 0.50 so Plotly places text labels to the RIGHT of each node
-    X1, X2, X3, X4 = 0.01, 0.12, 0.26, 0.40
+    # Wide X spacing — text is placed via annotations (not built-in labels)
+    X1, X2, X3, X4 = 0.01, 0.22, 0.44, 0.66
 
     for g_idx, (col2_parent, col3_parent, items, x_col) in enumerate(groups):
         y_first = 0.02 + slot_idx * slot_height
@@ -3789,10 +3811,13 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
+    # Hide built-in node labels — we use annotations instead so text
+    # renders ON TOP of all nodes (separate SVG layer).
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         orientation="h",
-        textfont=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"),
+        textfont=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
+                      color="rgba(0,0,0,0)"),
         node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
                   label=nodes, color=node_colors_list, x=node_x, y=node_y,
                   hovertemplate="<b>%{label}</b><extra></extra>"),
@@ -3805,6 +3830,24 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
+
+    # ── Annotation-based labels (render above all nodes) ──────────────
+    _dom_y0, _dom_y1 = 0.04, 0.96
+    for i in range(len(nodes)):
+        x_paper = node_x[i]
+        y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
+        fig.add_annotation(
+            x=x_paper, y=y_paper,
+            xref="paper", yref="paper",
+            text=nodes[i],
+            showarrow=False,
+            xanchor="left",
+            yanchor="middle",
+            xshift=_thickness + 4,
+            font=dict(size=_font_sz,
+                      family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
+                      color="#1e293b"),
+        )
     return fig
 
 
