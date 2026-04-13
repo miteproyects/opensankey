@@ -112,6 +112,59 @@ def _rgba(hex_color, alpha=0.42):
     return f"rgba({r},{g},{b},{alpha})"
 
 
+def _resolve_annotation_overlaps(positions, min_gap=0.06):
+    """Push apart annotation y-positions within the same x-column to avoid overlap.
+
+    Args:
+        positions: list of (index, x_paper, y_paper, has_row2) tuples
+        min_gap: minimum vertical distance between annotation centres (paper coords).
+                 3-row annotations are taller, so we use a larger gap for those.
+    Returns:
+        dict mapping index → adjusted y_paper
+    """
+    from collections import defaultdict
+    # Group by x column (round to nearest 0.05 to bucket same-column nodes)
+    cols = defaultdict(list)
+    for idx, xp, yp, has_r2 in positions:
+        col_key = round(xp * 20) / 20  # bucket to 0.05 precision
+        cols[col_key].append((idx, yp, has_r2))
+
+    adjusted = {}
+    for col_key, items in cols.items():
+        if len(items) <= 1:
+            for idx, yp, _ in items:
+                adjusted[idx] = yp
+            continue
+        # Sort by y position (top to bottom in paper coords = high to low)
+        items.sort(key=lambda t: -t[1])  # highest y first (top of chart)
+        ys = [(idx, yp, has_r2) for idx, yp, has_r2 in items]
+
+        # Iterative push-apart: ensure min gap between consecutive annotations
+        for _pass in range(5):  # multiple passes to settle
+            changed = False
+            for i in range(len(ys) - 1):
+                idx_a, ya, r2_a = ys[i]
+                idx_b, yb, r2_b = ys[i + 1]
+                # Taller labels (3 rows) need more gap
+                gap = min_gap * 1.15 if (r2_a or r2_b) else min_gap
+                if ya - yb < gap:
+                    # Push apart symmetrically
+                    mid = (ya + yb) / 2
+                    new_a = mid + gap / 2
+                    new_b = mid - gap / 2
+                    # Clamp to paper bounds [0.02, 0.98]
+                    new_a = min(0.98, max(0.02, new_a))
+                    new_b = min(0.98, max(0.02, new_b))
+                    ys[i] = (idx_a, new_a, r2_a)
+                    ys[i + 1] = (idx_b, new_b, r2_b)
+                    changed = True
+            if not changed:
+                break
+        for idx, yp, _ in ys:
+            adjusted[idx] = yp
+    return adjusted
+
+
 def _fmt(val):
     """Format a number as $XXB or $XXM."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
@@ -123,6 +176,8 @@ def _fmt(val):
         return f"${val/1e9:.2f}B"
     if av >= 1e6:
         return f"${val/1e6:.0f}M"
+    if av >= 1e3:
+        return f"${val/1e3:.0f}K"
     return f"${val:,.0f}"
 
 
@@ -170,7 +225,11 @@ def _safe_prev(df, key, default=0):
 
 def _yoy(current, previous):
     """Calculate year-over-year percentage change."""
-    if previous and previous != 0:
+    if current is None or previous is None:
+        return None
+    if isinstance(current, float) and (pd.isna(current) or pd.isna(previous)):
+        return None
+    if previous != 0:
         return ((current - previous) / abs(previous)) * 100
     return None
 
@@ -3107,6 +3166,40 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         else:
             net_income = pretax_income - tax
 
+    # ── Handle negative OI with positive downstream values ──
+    # When OI < 0 but pretax/net income > 0 (non-operating income exceeds
+    # operating loss), preserve downstream values by treating the flow as:
+    #   GP → [expenses eat all GP] + [OI = pretax_income + interest_exp]
+    # This keeps the Sankey showing accurate Net Income.
+    _orig_oi = operating_inc
+    _orig_pretax = pretax_income
+    _orig_net = net_income
+    _orig_tax = tax
+
+    if operating_inc < 0 and (_orig_pretax > 0 or _orig_net > 0):
+        # Company has non-op income exceeding the operating loss.
+        # Set OI = pretax + interest (absorb non-op gains into OI for Sankey).
+        _effective_pretax = max(_orig_pretax, 0) if _orig_pretax > 0 else max(_orig_net + _orig_tax, 0)
+        operating_inc = _effective_pretax + max(interest_exp, 0)
+        if operating_inc <= 0:
+            operating_inc = max(_orig_net, 0) + max(_orig_tax, 0) + max(interest_exp, 0)
+        # Re-balance expenses to fit: expenses = GP - OI
+        if gross_profit > 0 and operating_inc < gross_profit:
+            opex_budget = gross_profit - operating_inc
+            total = rd_expense + sga_expense + dep_amort + other_opex
+            if total > 0:
+                scale = opex_budget / total
+                rd_expense = round(rd_expense * scale)
+                sga_expense = round(sga_expense * scale)
+                dep_amort = round(dep_amort * scale)
+                other_opex = opex_budget - rd_expense - sga_expense - dep_amort
+            else:
+                other_opex = opex_budget
+        pretax_income = _effective_pretax
+        net_income = max(_orig_net, 0)
+        tax = max(pretax_income - net_income, 0)
+        other_nonop = 0
+
     # Ensure all positive for Sankey
     revenue = max(revenue, 0)
     cogs = max(cogs, 0)
@@ -3362,11 +3455,15 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                 if ch_val > 0:
                     children.append((ch["label"], ch_val, ch["color_idx"]))
             ch_sum = sum(v for _, v, _ in children)
-            scale = sga_expense / ch_sum if ch_sum > 0 else 1
-            children = [(l, round(v * scale), ci) for l, v, ci in children]
-            _expanded_children["SG&A"] = children
-            for ch_label, ch_val, ch_ci in children:
-                col3_items.append((ch_label, ch_val, ch_ci, None, False))
+            if ch_sum > 0 and children:
+                scale = sga_expense / ch_sum
+                children = [(l, round(v * scale), ci) for l, v, ci in children]
+                _expanded_children["SG&A"] = children
+                for ch_label, ch_val, ch_ci in children:
+                    col3_items.append((ch_label, ch_val, ch_ci, None, False))
+            else:
+                # Fallback: no valid children → show parent node unexpanded
+                col3_items.append(("SG&A", sga_expense, 4, p_sga_expense, _sga_expandable))
         else:
             col3_items.append(("SG&A", sga_expense, 4, p_sga_expense, _sga_expandable))
 
@@ -3380,11 +3477,15 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                 if ch_val > 0:
                     children.append((ch["label"], ch_val, ch["color_idx"]))
             ch_sum = sum(v for _, v, _ in children)
-            scale = dep_amort / ch_sum if ch_sum > 0 else 1
-            children = [(l, round(v * scale), ci) for l, v, ci in children]
-            _expanded_children["D&A"] = children
-            for ch_label, ch_val, ch_ci in children:
-                col3_items.append((ch_label, ch_val, ch_ci, None, False))
+            if ch_sum > 0 and children:
+                scale = dep_amort / ch_sum
+                children = [(l, round(v * scale), ci) for l, v, ci in children]
+                _expanded_children["D&A"] = children
+                for ch_label, ch_val, ch_ci in children:
+                    col3_items.append((ch_label, ch_val, ch_ci, None, False))
+            else:
+                # Fallback: no valid children → show parent node unexpanded
+                col3_items.append(("D&A", dep_amort, 5, p_dep_amort, _da_expandable))
         else:
             col3_items.append(("D&A", dep_amort, 5, p_dep_amort, _da_expandable))
 
@@ -3498,10 +3599,17 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     # ── Annotation-based labels (render above all nodes) ──────────────
     _dom_y0, _dom_y1 = 0.04, 0.96
     _small_sz = max(8, _font_sz - 2)
+    # Compute raw positions and resolve overlaps
+    _ann_positions = []
     for i in range(len(nodes)):
-        # Convert Sankey node coords → paper coords
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
+        _ann_positions.append((i, x_paper, y_paper, bool(node_row2[i])))
+    _adj_y = _resolve_annotation_overlaps(_ann_positions, min_gap=0.065)
+
+    for i in range(len(nodes)):
+        x_paper = node_x[i]
+        y_paper = _adj_y.get(i, _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i]))
         # 3-row format for ALL columns: Name / $Value / ↑% +$delta
         r2 = node_row2[i]
         if r2:
@@ -3538,13 +3646,24 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     current_assets    = _safe(balance_df, "Current Assets")
     noncurrent_assets = _safe(balance_df, "Total Non Current Assets")
     cash              = _safe(balance_df, "Cash And Cash Equivalents")
+    # Financial companies: try additional XBRL tags for cash
+    if cash == 0:
+        cash = (_safe(balance_df, "Cash Cash Equivalents And Federal Funds Sold")
+                or _safe(balance_df, "Cash And Due From Banks")
+                or _safe(balance_df, "Cash Cash Equivalents And Short Term Investments"))
     short_invest      = _safe(balance_df, "Other Short Term Investments")
+    if short_invest == 0:
+        short_invest = _safe(balance_df, "Available For Sale Securities")
     receivables       = _safe(balance_df, "Accounts Receivable") or _safe(balance_df, "Receivables")
+    if receivables == 0:
+        receivables = _safe(balance_df, "Net Loans") or _safe(balance_df, "Loans And Leases")
     inventory         = _safe(balance_df, "Inventory")
     ppe               = _safe(balance_df, "Net PPE") or _safe(balance_df, "Property Plant Equipment")
     goodwill          = _safe(balance_df, "Goodwill")
     intangibles       = _safe(balance_df, "Intangible Assets") or _safe(balance_df, "Other Intangible Assets")
     investments       = _safe(balance_df, "Investments And Advances") or _safe(balance_df, "Long Term Equity Investment")
+    if investments == 0:
+        investments = _safe(balance_df, "Held To Maturity Securities") or _safe(balance_df, "Trading Securities")
     total_liab        = _safe(balance_df, "Total Liabilities Net Minority Interest") or _safe(balance_df, "Total Liab")
     current_liab      = _safe(balance_df, "Current Liabilities")
     noncurrent_liab   = _safe(balance_df, "Total Non Current Liabilities Net Minority Interest")
@@ -3552,6 +3671,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     short_debt        = _safe(balance_df, "Current Debt") or _safe(balance_df, "Short Long Term Debt")
     long_debt         = _safe(balance_df, "Long Term Debt")
     deferred_rev      = _safe(balance_df, "Current Deferred Revenue")
+    # Financial companies: extract Deposits as a named liability item
+    deposits          = _safe(balance_df, "Deposits") or _safe(balance_df, "Total Deposits")
     equity            = _safe(balance_df, "Stockholders Equity") or _safe(balance_df, "Total Stockholders Equity")
     retained          = _safe(balance_df, "Retained Earnings")
 
@@ -3579,6 +3700,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         "PP&E": _p("Net PPE") or _p("Property Plant Equipment"),
         "Investments": _p("Investments And Advances") or _p("Long Term Equity Investment"),
         "Deferred Revenue": _p("Current Deferred Revenue"),
+        "Deposits": _p("Deposits") or _p("Total Deposits"),
     }
     # Derive prev CA/NCA from sub-items when reported as 0 (financial companies)
     if prev_map.get("Current Assets", 0) == 0:
@@ -3601,7 +3723,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     prev_map["Other Non-Current"] = max(0, prev_map.get("Non-Current Assets", 0) - _knca)
     _kcl = sum(prev_map.get(k, 0) for k in ["Accounts Payable", "Short-Term Debt", "Deferred Revenue"])
     prev_map["Other CL"] = max(0, prev_map.get("Current Liab.", 0) - _kcl)
-    prev_map["Other LT Liab."] = max(0, prev_map.get("Non-Current Liab.", 0) - prev_map.get("Long-Term Debt", 0))
+    prev_map["Other LT Liab."] = max(0, prev_map.get("Non-Current Liab.", 0) - prev_map.get("Long-Term Debt", 0) - prev_map.get("Deposits", 0))
     prev_map["Other Equity"] = max(0, prev_map.get("Equity", 0) - prev_map.get("Retained Earnings", 0))
     prev_map["Total Equity"] = prev_map.get("Equity", 0)
 
@@ -3715,7 +3837,12 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     ncl_items = []
     if long_debt > 0: ncl_items.append(("Long-Term Debt", long_debt, C["debt"]))
-    other_ncl = max(0, noncurrent_liab - long_debt)
+    # Financial companies: show Deposits as a named item instead of all in "Other LT Liab."
+    _ncl_known = long_debt
+    if deposits > 0:
+        ncl_items.append(("Deposits", deposits, C["liability"]))
+        _ncl_known += deposits
+    other_ncl = max(0, noncurrent_liab - _ncl_known)
     if other_ncl > 0: ncl_items.append(("Other LT Liab.", other_ncl, C["other"]))
 
     eq_items = []
@@ -3945,9 +4072,17 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     # ── Annotation-based labels (render above all nodes) ──────────────
     _dom_y0, _dom_y1 = 0.04, 0.96
     _small_sz = max(8, _font_sz - 2)
+    # Compute raw positions and resolve overlaps
+    _ann_positions = []
     for i in range(len(nodes)):
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
+        _ann_positions.append((i, x_paper, y_paper, bool(node_row2[i])))
+    _adj_y = _resolve_annotation_overlaps(_ann_positions, min_gap=0.065)
+
+    for i in range(len(nodes)):
+        x_paper = node_x[i]
+        y_paper = _adj_y.get(i, _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i]))
         # 3-row format for ALL columns: Name / $Value / ↑% +$delta
         r2 = node_row2[i]
         if r2:
@@ -4788,16 +4923,18 @@ def render_sankey_page():
         st.markdown(f'<div class="sankey-compare-card">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
         # ââ KPI Metric Cards ââ
-        revenue      = _safe(income_df, "Total Revenue")
-        gross_profit = _safe(income_df, "Gross Profit")
-        cogs_kpi     = abs(_safe(income_df, "Cost Of Revenue"))
-        op_income    = _safe(income_df, "Operating Income")
-        net_income   = _safe(income_df, "Net Income")
-        rev_prev     = _safe_prev(income_df, "Total Revenue")
-        gp_prev      = _safe_prev(income_df, "Gross Profit")
-        oi_prev      = _safe_prev(income_df, "Operating Income")
-        ni_prev      = _safe_prev(income_df, "Net Income")
-        # Compute derived Gross Profit when XBRL tag is missing
+        # Use Sankey reconciled values if available (handles negative OI, etc.)
+        _rec = st.session_state.get('_sankey_reconciled', {})
+        _rec_prev = st.session_state.get('_sankey_reconciled_prev', {})
+        revenue      = _rec.get('Revenue') or _safe(income_df, 'Total Revenue')
+        gross_profit = _rec.get('Gross Profit') or _safe(income_df, 'Gross Profit')
+        cogs_kpi     = abs(_rec.get('COGS', 0) or _safe(income_df, 'Cost Of Revenue'))
+        op_income    = _rec.get('Operating Income', _safe(income_df, 'Operating Income'))
+        net_income   = _rec.get('Net Income', _safe(income_df, 'Net Income'))
+        rev_prev     = _rec_prev.get('Revenue') or _safe_prev(income_df, 'Total Revenue')
+        gp_prev      = _rec_prev.get('Gross Profit') or _safe_prev(income_df, 'Gross Profit')
+        oi_prev      = _rec_prev.get('Operating Income', _safe_prev(income_df, 'Operating Income'))
+        ni_prev      = _rec_prev.get('Net Income', _safe_prev(income_df, 'Net Income'))
         # (matches Sankey reconciliation: GP = Revenue − COGS; when COGS=0, GP = Revenue)
         if gross_profit == 0 and revenue > 0:
             gross_profit = revenue - cogs_kpi  # cogs_kpi may be 0 → GP = Revenue
