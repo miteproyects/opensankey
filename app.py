@@ -2992,6 +2992,23 @@ with st.sidebar:
                         st.session_state[f"sk_Yb_q{_qi}"] = False
                     st.session_state[_init_key] = True
 
+                # ── Detect Period A year change ──
+                # When user switches to a year with no available Qs (e.g. 2026),
+                # the previously selected sk_Ya Qs become invalid.  Migrate them
+                # to sk_Yb so they stay selected (they now represent prev year).
+                _prev_pa_key = "_sk_prev_pa"
+                _cur_pa = st.session_state.get("sk_pa", _years_with_data[0])
+                _prev_pa = st.session_state.get(_prev_pa_key, _cur_pa)
+                if _cur_pa != _prev_pa:
+                    _cq_new = _completed_qs_in_fy(int(_cur_pa), _fy_m_sk)
+                    if _cq_new == 0:
+                        # New year has no data — move sk_Ya selections → sk_Yb
+                        for _qi in range(1, 5):
+                            if st.session_state.get(f"sk_Ya_q{_qi}", False):
+                                st.session_state[f"sk_Yb_q{_qi}"] = True
+                                st.session_state[f"sk_Ya_q{_qi}"] = False
+                    st.session_state[_prev_pa_key] = _cur_pa
+
                 # Read current toggle state
                 _qa_nums = sorted([q for q in range(1, 5) if st.session_state.get(f"sk_Ya_q{q}", False)])
                 _qb_nums = sorted([q for q in range(1, 5) if st.session_state.get(f"sk_Yb_q{q}", False)])
