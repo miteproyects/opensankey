@@ -316,14 +316,19 @@ def _cross_validate_metrics(metrics, raw_qtr_df, fy, qa_nums, qb_nums, fy_end):
             recomputed_series = recomputed_series.add(s, fill_value=0)
 
         # Compare key metrics
+        def _normalize(s):
+            """Remove spaces, underscores, hyphens for fuzzy matching."""
+            return s.lower().replace(" ", "").replace("_", "").replace("-", "")
+
         for key in ["Total Revenue", "Gross Profit", "Operating Income", "Net Income"]:
             if key not in metrics.get("income", {}):
                 continue
             displayed = metrics["income"][key]["current"]
             # Find matching index in the recomputed series
             recomputed = 0.0
+            _norm_key = _normalize(key)
             for idx in recomputed_series.index:
-                if key.lower() in str(idx).lower():
+                if _norm_key in _normalize(str(idx)):
                     v = recomputed_series[idx]
                     if pd.notna(v):
                         recomputed = float(v)
