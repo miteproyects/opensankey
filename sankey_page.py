@@ -3726,84 +3726,154 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     # Wide X spacing — text is placed via annotations (not built-in labels)
     X1, X2, X3, X4 = 0.01, 0.22, 0.44, 0.66
 
-    groups = []
-    if ca_items: groups.append(("Current Assets", None, ca_items, X3))
-    if nca_items: groups.append(("Non-Current Assets", None, nca_items, X3))
-    if cl_items: groups.append(("Total Liabilities", "Current Liab.", cl_items, X4))
-    if ncl_items: groups.append(("Total Liabilities", "Non-Current Liab.", ncl_items, X4))
-    if eq_items: groups.append(("Equity", None, eq_items, X3))
+    # ── Band-confined proportional Y-positioning (same as income Sankey) ──
+    Y_MIN, Y_MAX = 0.04, 0.96
+    MIN_GAP = 0.05
 
-    if not groups:
+    def _split_band_bs(values, band_top, band_bot):
+        """Split a vertical band into sub-bands proportional to values."""
+        n = len(values)
+        if n == 0:
+            return []
+        span = band_bot - band_top
+        if n == 1:
+            cy = (band_top + band_bot) / 2
+            return [(cy, band_top, band_bot)]
+        total = sum(values)
+        if total <= 0:
+            step = span / n
+            return [(band_top + step * (i + 0.5), band_top + step * i, band_top + step * (i + 1)) for i in range(n)]
+        min_band = max(MIN_GAP, span * 0.04)
+        results = []
+        cursor = band_top
+        for v in values:
+            raw_band = (v / total) * span
+            band_h = max(raw_band, min_band)
+            results.append((cursor, band_h))
+            cursor += band_h
+        actual_span = sum(h for _, h in results)
+        if actual_span > span + 0.001:
+            scale = span / actual_span
+            results2, cursor = [], band_top
+            for _, h in results:
+                h2 = h * scale
+                results2.append((cursor, h2))
+                cursor += h2
+            results = results2
+        out = []
+        for top_y, h in results:
+            bot_y = top_y + h
+            centre = top_y + h / 2
+            out.append((round(max(Y_MIN, min(Y_MAX, centre)), 4),
+                         round(max(Y_MIN, top_y), 4),
+                         round(min(Y_MAX, bot_y), 4)))
+        for i in range(1, len(out)):
+            if out[i][0] - out[i - 1][0] < MIN_GAP:
+                new_c = min(out[i - 1][0] + MIN_GAP, Y_MAX)
+                out[i] = (new_c, out[i][1], out[i][2])
+        return out
+
+    # ── Build the LEFT side (Assets) and RIGHT side (Liab + Equity) ──
+    # Column 1: Total Assets (full band)
+    # Column 2: CA + NCA  (split Total Assets band) — OR — Liab + Equity
+    # Column 3: sub-items of CA/NCA — OR — CL + NCL sub-items
+    #
+    # For the balance sheet we use a TWO-SIDED layout:
+    #   Left:  Total Assets → [CA, NCA] → sub-items
+    #   Right: Total Assets → [Liab, Equity] → sub-items
+    #
+    # But since Sankey is a single directed graph, we model it as:
+    #   Col1: Total Assets
+    #   Col2: CA, NCA, Liab, Equity  (intermediate nodes)
+    #   Col3: sub-items of CA/NCA + CL/NCL intermediate
+    #   Col4: sub-items of CL/NCL + equity sub-items
+
+    # ── Determine which col2 nodes exist (skip $0 parents with no items) ──
+    col2_items = []  # (name, value, color, children_items, col3_or_col4, expandable)
+
+    # Assets side
+    has_ca = current_assets > 0 and ca_items
+    has_nca = noncurrent_assets > 0 and nca_items
+    # For financial companies where CA/NCA = 0 but sub-items exist,
+    # derive the parent value from sub-items
+    if not has_ca and ca_items:
+        current_assets = sum(v for _, v, _ in ca_items)
+        if current_assets > 0:
+            has_ca = True
+    if not has_nca and nca_items:
+        noncurrent_assets = sum(v for _, v, _ in nca_items)
+        if noncurrent_assets > 0:
+            has_nca = True
+
+    if has_ca:
+        col2_items.append(("Current Assets", current_assets, C["asset"], ca_items, X3, False))
+    if has_nca:
+        col2_items.append(("Non-Current Assets", noncurrent_assets, C["asset2"], nca_items, X3, False))
+
+    # Liabilities side
+    has_liab = total_liab > 0
+    if has_liab:
+        # Liab has intermediate CL/NCL nodes at col3, then sub-items at col4
+        liab_children = []  # intermediate nodes for col3
+        if current_liab > 0 and cl_items:
+            liab_children.append(("Current Liab.", current_liab, C["liability"], cl_items))
+        if noncurrent_liab > 0 and ncl_items:
+            liab_children.append(("Non-Current Liab.", noncurrent_liab, C["liability"], ncl_items))
+        # If no CL/NCL breakdown, put "Other LT Liab." as direct child
+        if not liab_children:
+            _direct_liab_items = cl_items + ncl_items
+            if not _direct_liab_items:
+                _direct_liab_items = [("Other LT Liab.", total_liab, C["other"])]
+            col2_items.append(("Total Liabilities", total_liab, C["liability"], _direct_liab_items, X3, False))
+        else:
+            col2_items.append(("Total Liabilities", total_liab, C["liability"], liab_children, X3, False))
+
+    # Equity
+    if equity > 0 and eq_items:
+        col2_items.append(("Equity", equity, C["equity"], eq_items, X3, True))
+
+    if not col2_items:
         return None
 
-    n_groups = len(groups)
-    total_items = sum(len(items) for _, _, items, _ in groups)
-    gap_slots = 2
-    total_slots = total_items + gap_slots * max(0, n_groups - 1)
-    slot_height = 0.96 / max(total_slots, 1)
-    slot_idx = 0
-    group_y_ranges = []
+    # ── Column 1: Total Assets → full band ──
+    ta_band = (Y_MIN, Y_MAX)
+    ta_y = (Y_MIN + Y_MAX) / 2
+    add("Total Assets", total_assets, C["asset"], X1, ta_y)
 
-    for g_idx, (col2_parent, col3_parent, items, x_col) in enumerate(groups):
-        y_first = 0.02 + slot_idx * slot_height
-        for nm, vl, cl in items:
-            y = 0.02 + slot_idx * slot_height
-            add(nm, vl, cl, x_col, y)
-            slot_idx += 1
-        y_last = 0.02 + (slot_idx - 1) * slot_height
-        group_y_ranges.append((y_first, y_last))
-        if g_idx < n_groups - 1:
-            slot_idx += gap_slots
+    # ── Column 2: split Total Assets band among col2 items ──
+    c2_vals = [item[1] for item in col2_items]
+    c2 = _split_band_bs(c2_vals, *ta_band)
 
-    col2_parent_ys = {}
-    for g_idx, (col2_parent, col3_parent, items, x_col) in enumerate(groups):
-        y_first, y_last = group_y_ranges[g_idx]
-        y_center = (y_first + y_last) / 2
-        if col3_parent is not None:
-            if col3_parent not in imap:
-                val = current_liab if "Current" in col3_parent else noncurrent_liab
-                add(col3_parent, val, C["liability"], X3, y_center)
-            col2_parent_ys.setdefault(col2_parent, []).append(y_center)
+    for i, (name, val, color, children, x_children, expandable) in enumerate(col2_items):
+        c2_y, c2_band_top, c2_band_bot = c2[i]
+        add(name, val, color, X2, c2_y, expandable=expandable)
+        link("Total Assets", name, val, color)
+
+        # ── Column 3: split this col2 node's band among its children ──
+        # Check if children have nested sub-items (liabilities CL/NCL case)
+        has_nested = any(len(ch) == 4 for ch in children)
+
+        if has_nested:
+            # Liabilities: children are (name, val, color, sub_items) — intermediate col3 nodes
+            c3_vals = [ch[1] for ch in children]
+            c3 = _split_band_bs(c3_vals, c2_band_top, c2_band_bot)
+            for j, (ch_name, ch_val, ch_color, sub_items) in enumerate(children):
+                c3_y, c3_band_top, c3_band_bot = c3[j]
+                add(ch_name, ch_val, ch_color, X3, c3_y)
+                link(name, ch_name, ch_val, ch_color)
+                # Column 4: sub-items of CL/NCL
+                c4_vals = [si[1] for si in sub_items]
+                c4 = _split_band_bs(c4_vals, c3_band_top, c3_band_bot)
+                for k, (si_name, si_val, si_color) in enumerate(sub_items):
+                    add(si_name, si_val, si_color, X4, c4[k][0])
+                    link(ch_name, si_name, si_val, si_color)
         else:
-            col2_parent_ys.setdefault(col2_parent, []).append(y_center)
-
-    for parent_name, ys in col2_parent_ys.items():
-        center = sum(ys) / len(ys)
-        if parent_name == "Current Assets":
-            add("Current Assets", current_assets, C["asset"], X2, center)
-        elif parent_name == "Non-Current Assets":
-            add("Non-Current Assets", noncurrent_assets, C["asset2"], X2, center)
-        elif parent_name == "Total Liabilities":
-            add("Total Liabilities", total_liab, C["liability"], X2, center)
-        elif parent_name == "Equity":
-            add("Equity", equity, C["equity"], X2, center, expandable=True)
-
-    add("Total Assets", total_assets, C["asset"], X1, 0.45)
-
-    col2_ordered = sorted(col2_parent_ys.keys(),
-                          key=lambda k: sum(col2_parent_ys[k]) / len(col2_parent_ys[k]))
-    for parent_name in col2_ordered:
-        if parent_name == "Current Assets":
-            link("Total Assets", "Current Assets", current_assets, C["asset"])
-        elif parent_name == "Non-Current Assets":
-            link("Total Assets", "Non-Current Assets", noncurrent_assets, C["asset2"])
-        elif parent_name == "Total Liabilities":
-            link("Total Assets", "Total Liabilities", total_liab, C["liability"])
-        elif parent_name == "Equity":
-            link("Total Assets", "Equity", equity, C["equity"])
-
-    for g_idx, (col2_parent, col3_parent, items, x_col) in enumerate(groups):
-        if col3_parent is not None:
-            if col3_parent == "Current Liab.":
-                link("Total Liabilities", "Current Liab.", current_liab, C["liability"])
-            elif col3_parent == "Non-Current Liab.":
-                link("Total Liabilities", "Non-Current Liab.", noncurrent_liab, C["liability"])
-            link_parent = col3_parent
-        else:
-            link_parent = col2_parent
-        for nm, vl, cl in items:
-            if vl and vl > 0:
-                link(link_parent, nm, vl, cl)
+            # Direct children: (name, val, color)
+            c3_vals = [ch[1] for ch in children]
+            c3 = _split_band_bs(c3_vals, c2_band_top, c2_band_bot)
+            for j, (ch_name, ch_val, ch_color) in enumerate(children):
+                add(ch_name, ch_val, ch_color, x_children, c3[j][0])
+                link(name, ch_name, ch_val, ch_color)
 
     if not links_val:
         return None
