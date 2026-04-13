@@ -251,6 +251,28 @@ def _compute_sankey_metrics(income_df, balance_df=None):
                 "dollar_change": gp_derived - gp_prev_derived if gp_prev_derived != 0 else None,
             }
 
+        # Derive Operating Income if missing
+        op_inc = result["income"].get("Operating Income", {}).get("current", 0)
+        if op_inc == 0:
+            _gp_c = result["income"].get("Gross Profit", {}).get("current", 0)
+            if _gp_c > 0:
+                _rd_c = abs(result["income"].get("Research And Development", {}).get("current", 0))
+                _sg_c = abs(result["income"].get("Selling General And Administration", {}).get("current", 0))
+                _da_c = abs(result["income"].get("Reconciled Depreciation", {}).get("current", 0))
+                _oe_c = abs(result["income"].get("Other Operating Expense", {}).get("current", 0))
+                _oi_derived = _gp_c - _rd_c - _sg_c - _da_c - _oe_c
+                _gp_p = result["income"].get("Gross Profit", {}).get("previous", 0)
+                _rd_p = abs(result["income"].get("Research And Development", {}).get("previous", 0))
+                _sg_p = abs(result["income"].get("Selling General And Administration", {}).get("previous", 0))
+                _da_p = abs(result["income"].get("Reconciled Depreciation", {}).get("previous", 0))
+                _oe_p = abs(result["income"].get("Other Operating Expense", {}).get("previous", 0))
+                _oi_prev = _gp_p - _rd_p - _sg_p - _da_p - _oe_p if _gp_p > 0 else 0
+                result["income"]["Operating Income"] = {
+                    "current": _oi_derived, "previous": _oi_prev,
+                    "pct_change": _pct_change(_oi_derived, _oi_prev),
+                    "dollar_change": _oi_derived - _oi_prev if _oi_prev != 0 else None,
+                }
+
     if balance_df is not None and not balance_df.empty:
         result["df_info"]["balance_shape"] = balance_df.shape
         result["df_info"]["balance_cols"] = list(balance_df.columns)
@@ -4070,7 +4092,7 @@ def render_sankey_page():
     if income_df.empty and balance_df.empty:
         income_df, balance_df, info = _get_demo_data(ticker)
         using_demo = True
-        st.info(f"\ud83d\udcc8 Showing sample data for **{ticker.upper()}** \u2013 SEC EDGAR data is temporarily unavailable. Refresh in a minute for live data.")
+        st.info(f"\U0001F4C8 Showing sample data for **{ticker.upper()}** \u2013 SEC EDGAR data is temporarily unavailable. Refresh in a minute for live data.")
 
     # --- Partial-year aggregation (Annual mode with selected quarters) ---
     _raw_qtr_income_df = None  # For audit panel: per-quarter breakdown
