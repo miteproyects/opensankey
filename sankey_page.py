@@ -130,7 +130,7 @@ def _text_height_px_visual(font_sz, has_row2=True):
     more vertical spacing than standard CSS line-height. This larger estimate
     is used only for post-layout overlap detection, NOT for chart height calc.
     """
-    line_h = font_sz * 2.4
+    line_h = font_sz * 3.5
     return line_h * (3 if has_row2 else 2)
 
 
@@ -217,9 +217,9 @@ def _fix_annotation_overlaps(node_x, node_y, node_row2, font_sz, chart_height):
                 lower_top = lower_y + lower_th / 2
 
                 overlap = lower_top - upper_bottom
-                if overlap > -0.01:  # fix even near-overlaps
-                    # Push apart symmetrically with visible padding
-                    shift = max(overlap, 0) / 2 + 0.012
+                if overlap > -0.005:  # fix even near-overlaps
+                    # Push apart symmetrically with generous padding
+                    shift = max(overlap, 0) / 2 + 0.025
                     positions[j][1] = upper_y + shift
                     positions[j + 1][1] = lower_y - shift
                     changed = True
