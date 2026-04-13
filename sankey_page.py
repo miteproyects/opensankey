@@ -316,18 +316,15 @@ def _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
     neighbouring columns sit at similar Y positions, the left column's text
     can collide with the right column's text.
 
-    For every node, we build a text bounding box (Y-center ± text_half_h,
-    X-left → X-right).  Then for each pair of adjacent columns we find
-    nodes whose text boxes overlap on BOTH axes.  For each conflict, the
-    node with the smaller bar value is nudged up or down (whichever
-    direction is shorter) by the minimum amount to eliminate the Y overlap.
+    Text width is estimated in paper-X units relative to the gap between
+    adjacent columns — this is screen-size independent (no pixel-width
+    assumption).  For conflicts, BOTH nodes are pushed apart symmetrically
+    (upper goes up, lower goes down) by half the needed amount.
 
-    Each node looks at BOTH the column to its left and right, so fixing
-    columns 2↔3 won't silently break 3↔4.
+    Each node looks at both left and right neighbour columns across all
+    passes, so fixing cols 2↔3 won't silently break 3↔4.
 
-    The Y shift is capped at max_shift_ny so text never drifts too far
-    from its bar.
-
+    Y shift per node is capped at max_shift_ny to keep text near its bar.
     Runs AFTER _fix_bar_gaps and _fix_text_gaps.  Mutates node_y in-place.
     """
     from collections import defaultdict
@@ -335,41 +332,39 @@ def _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
     dom_span = 0.92
     avail_px = chart_height * dom_span
 
-    # ── Text height (Y extent) ──────────────────────────────────────────
+    # ── Text height (Y extent) in node_y units ──────────────────────────
     line_h_px = font_sz * 2.0
 
     def _text_h_ny(has_r2):
         px = line_h_px * (3 if has_r2 else 2)
         return px / avail_px
 
-    # ── Text width (X extent) ───────────────────────────────────────────
-    # Approximate rendered character width for Inter font at font_sz
-    char_w = font_sz * 0.62          # average char width in px
-    bar_half_x = (thickness / 2 + 1)  # xshift used in annotations (px)
-
-    # Chart usable width in px (margin l=6, r=6)
-    chart_w_px = max(300, 600)  # estimate; use_container_width makes it variable
-    # We work in paper-X units [0,1], so convert px → paper
-    px_to_paper_x = 1.0 / chart_w_px
+    # ── Text width in paper-X units (screen-size independent) ───────────
+    # Average character width ≈ 0.55 × font_sz.  We express the text
+    # width as a fraction of 1.0 (paper-X) by dividing by an assumed
+    # minimum chart width.  Using a SMALL chart width (350px ≈ mobile)
+    # makes the estimate conservative: if no overlap on a 350px screen,
+    # there won't be on a wider screen either.
+    _min_chart_w_px = 350.0
+    char_w_paper = (font_sz * 0.55) / _min_chart_w_px
+    bar_offset_paper = (thickness / 2 + 1) / _min_chart_w_px
 
     def _text_width_paper(idx):
-        """Estimate the text label width in paper-X coords."""
-        # Find the longest row among name, value, row2
+        """Estimate text label width in paper-X coords (mobile-safe)."""
         name_len = len(node_name_list[idx])
         val_len = len(node_val_str[idx])
         r2_len = len(node_row2[idx]) if node_row2[idx] else 0
         max_chars = max(name_len, val_len, r2_len)
-        w_px = max_chars * char_w + bar_half_x
-        return w_px * px_to_paper_x
+        return max_chars * char_w_paper + bar_offset_paper
 
-    # ── Build bounding boxes ────────────────────────────────────────────
-    # Each bbox: (x_left_paper, x_right_paper, y_top_ny, y_bot_ny)
+    # ── Build per-node data ─────────────────────────────────────────────
     n = len(node_x)
     text_half_h = [_text_h_ny(bool(node_row2[i])) / 2 for i in range(n)]
     text_w = [_text_width_paper(i) for i in range(n)]
 
-    # x_left in paper coords = node_x[i]  (bar center; text starts at bar right edge)
-    # x_right = node_x[i] + text_w[i]
+    # Track cumulative shift per node to enforce cap
+    total_shift = [0.0] * n
+    max_shift_ny = 30.0 / avail_px  # 30 px max drift
 
     # ── Group nodes by column (sorted left to right) ────────────────────
     columns = defaultdict(list)
@@ -378,8 +373,7 @@ def _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
         columns[col_key].append(i)
     sorted_col_keys = sorted(columns.keys())
 
-    # Maximum Y shift allowed (in node_y units) — cap so text stays near bar
-    max_shift_ny = 30.0 / avail_px  # 30 px max drift
+    min_gap_ny = min_gap_px / avail_px
 
     # ── Iterative global passes ─────────────────────────────────────────
     for _pass in range(15):
@@ -391,57 +385,51 @@ def _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
             right_key = sorted_col_keys[ci + 1]
 
             for li in columns[left_key]:
-                # Left node text box
-                l_x_left = node_x[li]
                 l_x_right = node_x[li] + text_w[li]
-                l_y_top = node_y[li] - text_half_h[li]
-                l_y_bot = node_y[li] + text_half_h[li]
 
                 for ri in columns[right_key]:
-                    # Right node text box
-                    r_x_left = node_x[ri]
-                    r_x_right = node_x[ri] + text_w[ri]
+                    # X overlap: left text extends past right column start?
+                    if l_x_right <= node_x[ri]:
+                        continue
+
+                    # Y overlap check
+                    l_y_top = node_y[li] - text_half_h[li]
+                    l_y_bot = node_y[li] + text_half_h[li]
                     r_y_top = node_y[ri] - text_half_h[ri]
                     r_y_bot = node_y[ri] + text_half_h[ri]
 
-                    # Check X overlap: left text extends into right column?
-                    if l_x_right <= r_x_left:
-                        continue  # no horizontal overlap
-                    # Check Y overlap
                     if l_y_bot <= r_y_top or r_y_bot <= l_y_top:
-                        continue  # no vertical overlap
+                        continue
 
-                    # ── Conflict found — compute minimal Y shift ────────
+                    # ── Conflict: push BOTH nodes apart symmetrically ───
                     any_conflict = True
-
-                    # Vertical overlap amount
                     y_overlap = min(l_y_bot, r_y_bot) - max(l_y_top, r_y_top)
-                    min_gap_ny = min_gap_px / avail_px
-                    needed = y_overlap + min_gap_ny
+                    needed = (y_overlap + min_gap_ny) / 2
 
-                    # Decide which node to move (prefer moving smaller value)
-                    # and which direction (up or down, whichever is shorter)
-                    if node_val_raw[li] <= node_val_raw[ri]:
-                        mover = li
+                    # Determine who is upper vs lower
+                    if node_y[li] <= node_y[ri]:
+                        upper, lower = li, ri
                     else:
-                        mover = ri
+                        upper, lower = ri, li
 
-                    # Try moving mover UP vs DOWN — pick direction that
-                    # creates distance with less shift
-                    other = ri if mover == li else li
-                    if node_y[mover] <= node_y[other]:
-                        # mover is above other → move mover UP (decrease node_y)
-                        shift = min(needed, max_shift_ny)
-                        node_y[mover] = node_y[mover] - shift
-                    else:
-                        # mover is below other → move mover DOWN (increase node_y)
-                        shift = min(needed, max_shift_ny)
-                        node_y[mover] = node_y[mover] + shift
+                    # Push upper UP, lower DOWN — each by half
+                    up_shift = min(needed, max_shift_ny - abs(total_shift[upper]))
+                    dn_shift = min(needed, max_shift_ny - abs(total_shift[lower]))
+                    up_shift = max(up_shift, 0)
+                    dn_shift = max(dn_shift, 0)
+
+                    node_y[upper] -= up_shift
+                    node_y[lower] += dn_shift
+                    total_shift[upper] -= up_shift
+                    total_shift[lower] += dn_shift
 
                     # Clamp
-                    node_y[mover] = max(0.01 + text_half_h[mover],
-                                        min(0.99 - text_half_h[mover],
-                                            node_y[mover]))
+                    node_y[upper] = max(0.01 + text_half_h[upper],
+                                        min(0.99 - text_half_h[upper],
+                                            node_y[upper]))
+                    node_y[lower] = max(0.01 + text_half_h[lower],
+                                        min(0.99 - text_half_h[lower],
+                                            node_y[lower]))
 
         if not any_conflict:
             break
