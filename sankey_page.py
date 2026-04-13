@@ -320,19 +320,29 @@ def _cross_validate_metrics(metrics, raw_qtr_df, fy, qa_nums, qb_nums, fy_end):
             """Remove spaces, underscores, hyphens for fuzzy matching."""
             return s.lower().replace(" ", "").replace("_", "").replace("-", "")
 
+        def _find_in_series(series, name):
+            """Find a value in the recomputed series by normalized name."""
+            _nk = _normalize(name)
+            for idx in series.index:
+                if _nk in _normalize(str(idx)):
+                    v = series[idx]
+                    if pd.notna(v):
+                        return float(v)
+            return 0.0
+
         for key in ["Total Revenue", "Gross Profit", "Operating Income", "Net Income"]:
             if key not in metrics.get("income", {}):
                 continue
             displayed = metrics["income"][key]["current"]
             # Find matching index in the recomputed series
-            recomputed = 0.0
-            _norm_key = _normalize(key)
-            for idx in recomputed_series.index:
-                if _norm_key in _normalize(str(idx)):
-                    v = recomputed_series[idx]
-                    if pd.notna(v):
-                        recomputed = float(v)
-                    break
+            recomputed = _find_in_series(recomputed_series, key)
+
+            # Derive Gross Profit if not in raw XBRL data (some companies don't file it)
+            if key == "Gross Profit" and recomputed == 0.0:
+                _xv_rev = _find_in_series(recomputed_series, "Total Revenue")
+                _xv_cogs = abs(_find_in_series(recomputed_series, "Cost Of Revenue"))
+                if _xv_rev > 0 and _xv_cogs > 0:
+                    recomputed = _xv_rev - _xv_cogs
             diff = abs(displayed - recomputed)
             threshold = max(abs(displayed) * 0.001, 1)  # 0.1% tolerance
             checks.append({
