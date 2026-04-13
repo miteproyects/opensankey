@@ -4002,7 +4002,9 @@ def render_sankey_page():
     _qa_qs_check = st.session_state.get("_sankey_qa_nums", [])
     _qb_qs_check = st.session_state.get("_sankey_qb_nums", [])
     _is_full_year = (sorted(_qa_qs_check) == [1, 2, 3, 4] and not _qb_qs_check)
-    _partial_year = (not _sq) and (not _is_full_year) and _pa and _pb
+    # Always use partial-year aggregation when quarters are selected,
+    # even full-year — we need quarterly data for the audit breakdown table.
+    _partial_year = (not _sq) and _pa and _pb
 
     with st.spinner(f"Loading {ticker} financial data..."):
         try:
