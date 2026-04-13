@@ -197,7 +197,7 @@ def _fmt(val):
 
 def _fmt_delta(current, previous):
     """Format the dollar difference as +$2.76B or -$2.23B."""
-    if previous is None or previous == 0:
+    if current is None or previous is None or previous == 0:
         return None
     diff = current - previous
     sign = "+" if diff >= 0 else "-"
@@ -208,6 +208,8 @@ def _fmt_delta(current, previous):
         return f"{sign}${av/1e9:.2f}B"
     if av >= 1e6:
         return f"{sign}${av/1e6:.0f}M"
+    if av >= 1e3:
+        return f"{sign}${av/1e3:.0f}K"
     return f"{sign}${av:,.0f}"
 
 
