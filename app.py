@@ -2952,7 +2952,7 @@ with st.sidebar:
             # Default = rightmost (most recent)
             _default_q_idx = len(_q_values) - 1
 
-            st.markdown('<p style="font-size:1.26rem;font-weight:600;color:#495057;margin:0 0 6px;">Compare Periods By:</p>', unsafe_allow_html=True)
+            st.markdown('<p style="font-size:1.26rem;font-weight:600;color:#495057;margin:0 0 6px;">Quarter Comparison</p>', unsafe_allow_html=True)
 
             # Always use Annual mode
             st.session_state.sankey_compare_quarterly = False
@@ -3064,12 +3064,12 @@ with st.sidebar:
                 _pa_idx = _years.index(st.session_state["sk_pa"])
                 _pb_idx = _years.index(st.session_state["sk_pb"])
                 st.session_state.sankey_period_a = st.selectbox(
-                    "Period A (show in Sankey)", _years,
+                    "Period A", _years,
                     index=_pa_idx, key="sk_pa",
                     format_func=_yr_label,
                 )
                 st.session_state.sankey_period_b = st.selectbox(
-                    "Period B (compare to)", _years,
+                    "Period B (compare)", _years,
                     index=_pb_idx, key="sk_pb",
                     format_func=_yr_label,
                 )
