@@ -2097,8 +2097,13 @@ def _inject_sankey_click_js(metric_map):
                 var btns = parentDoc.querySelectorAll(selectors[s]);
                 for (var i = 0; i < btns.length; i++) {{
                     if (btns[i].textContent.trim() === label) {{
-                        /* Use both .click() and native event dispatch for React compat */
-                        btns[i].dispatchEvent(new MouseEvent('click', {{bubbles: true, cancelable: true}}));
+                        var btn = btns[i];
+                        /* Full mouse event sequence for React compat */
+                        var opts = {{bubbles: true, cancelable: true, view: parentDoc.defaultView}};
+                        btn.dispatchEvent(new MouseEvent('mousedown', opts));
+                        btn.dispatchEvent(new MouseEvent('mouseup', opts));
+                        btn.dispatchEvent(new MouseEvent('click', opts));
+                        btn.click();
                         return;
                     }}
                 }}
@@ -2161,6 +2166,10 @@ def _inject_sankey_click_js(metric_map):
                         }}
                     }}
                 }});
+
+                // Make annotation overlays pass-through so clicks reach node-rects
+                var annots = plotDiv.querySelectorAll('.annotation');
+                annots.forEach(function(a) {{ a.style.pointerEvents = 'none'; }});
 
                 // Attach click handlers to SVG node rects and text labels using index
                 var rects = sankeyEl.querySelectorAll('.node-rect');
@@ -2637,7 +2646,12 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map):
                 var btns = parentDoc.querySelectorAll(selectors[s]);
                 for (var i = 0; i < btns.length; i++) {{
                     if (btns[i].textContent.trim() === label) {{
-                        btns[i].dispatchEvent(new MouseEvent('click', {{bubbles: true, cancelable: true}}));
+                        var btn = btns[i];
+                        var opts = {{bubbles: true, cancelable: true, view: parentDoc.defaultView}};
+                        btn.dispatchEvent(new MouseEvent('mousedown', opts));
+                        btn.dispatchEvent(new MouseEvent('mouseup', opts));
+                        btn.dispatchEvent(new MouseEvent('click', opts));
+                        btn.click();
                         return;
                     }}
                 }}
