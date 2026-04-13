@@ -3936,9 +3936,16 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
         r2 = node_row2[i]
         if r2:
+            # Color row 3: green for ↑, red for ↓, gray if zero/no arrow
+            if "\u2191" in r2:
+                _r2_color = "#16a34a"
+            elif "\u2193" in r2:
+                _r2_color = "#dc2626"
+            else:
+                _r2_color = "#64748b"
             txt = (f"<b>{node_name_list[i]}</b><br>"
                    f"<b>{node_val_str[i]}</b><br>"
-                   f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
+                   f"<span style='font-size:{_small_sz}px;color:{_r2_color}'>{r2}</span>")
         else:
             txt = (f"<b>{node_name_list[i]}</b><br>"
                    f"<b>{node_val_str[i]}</b>")
@@ -4477,9 +4484,16 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
         r2 = node_row2[i]
         if r2:
+            # Color row 3: green for ↑, red for ↓, gray if zero/no arrow
+            if "\u2191" in r2:
+                _r2_color = "#16a34a"
+            elif "\u2193" in r2:
+                _r2_color = "#dc2626"
+            else:
+                _r2_color = "#64748b"
             txt = (f"<b>{node_name_list[i]}</b><br>"
                    f"<b>{node_val_str[i]}</b><br>"
-                   f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
+                   f"<span style='font-size:{_small_sz}px;color:{_r2_color}'>{r2}</span>")
         else:
             txt = (f"<b>{node_name_list[i]}</b><br>"
                    f"<b>{node_val_str[i]}</b>")
