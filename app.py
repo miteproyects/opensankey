@@ -2954,15 +2954,9 @@ with st.sidebar:
 
             st.markdown('<p style="font-size:1.26rem;font-weight:600;color:#495057;margin:0 0 6px;">Compare Periods By:</p>', unsafe_allow_html=True)
 
-            _compare_mode = st.radio(
-                "Compare by",
-                ["Annual", "Quarterly"],
-                key="sankey_compare_mode",
-                horizontal=True,
-                label_visibility="collapsed",
-            )
-
-            if _compare_mode == "Annual":
+            # Always use Annual mode
+            st.session_state.sankey_compare_quarterly = False
+            if True:
                 # ── Build year lists first (needed for defaults) ──
                 # Always include current FY (even if no Qs filed yet)
                 # so the user sees greyed-out buttons for pending Qs.
@@ -3338,28 +3332,6 @@ with st.sidebar:
                     st.warning(_toast_msg)
 
                 st.session_state["_sankey_annual_match_q"] = _max_sel_q
-                st.session_state.sankey_compare_quarterly = False
-            else:
-                st.session_state["_sankey_annual_match_q"] = 4
-                _quarters = []
-                for _fy in range(_cur_fy, _cur_fy - 6, -1):
-                    for _fq in range(4, 0, -1):
-                        _end_m = _fq_end_month(_fq, _fy_m_sk)
-                        _end_y = _fq_end_year(_fq, _fy, _fy_m_sk)
-                        if (_end_y < _cur_year) or (_end_y == _cur_year and _end_m < _cur_month):
-                            _quarters.append(f"Q{_fq} {_fy}")
-                if not _quarters:
-                    for _fy in range(_cur_fy - 1, _cur_fy - 6, -1):
-                        for _fq in range(4, 0, -1):
-                            _quarters.append(f"Q{_fq} {_fy}")
-                st.session_state.sankey_period_a = st.selectbox(
-                    "Period A (show in Sankey)", _quarters, index=0, key="sk_qa"
-                )
-                _pb_idx = min(4, len(_quarters) - 1)
-                st.session_state.sankey_period_b = st.selectbox(
-                    "Period B (compare to)", _quarters, index=_pb_idx, key="sk_qb"
-                )
-                st.session_state.sankey_compare_quarterly = True
 
         # ---- Unified fiscal info widget (charts + sankey) ----
         st.markdown("---")
