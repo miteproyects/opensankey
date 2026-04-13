@@ -10,6 +10,7 @@ import pandas as pd
 from io import BytesIO
 import numpy as np
 import requests
+from auth import get_auth_params
 
 # âââ Demo / sample data for when Yahoo Finance is rate-limited âââââââââââââ
 def _get_demo_data(ticker: str):
@@ -4652,12 +4653,13 @@ def render_sankey_page():
                 st.button("PDF", key=f"gen_pdf_sankey_{sankey_view}",
                           disabled=True)
 
+    _auth_qs = get_auth_params()  # "&_sid=..." if logged in, else ""
     st.markdown(f"""
     <div class="sankey-tab-container">
         <a class="sankey-tab {'active' if sankey_view == 'income' else ''}"
-           href="?page=sankey&ticker={ticker}&view=income" target="_self">Income Statement</a>
+           href="?page=sankey&ticker={ticker}&view=income{_auth_qs}" target="_self">Income Statement</a>
         <a class="sankey-tab {'active' if sankey_view == 'balance' else ''}"
-           href="?page=sankey&ticker={ticker}&view=balance" target="_self">Balance Sheet</a>
+           href="?page=sankey&ticker={ticker}&view=balance{_auth_qs}" target="_self">Balance Sheet</a>
     </div>
     """, unsafe_allow_html=True)
 
