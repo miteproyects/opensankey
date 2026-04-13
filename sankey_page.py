@@ -116,10 +116,11 @@ def _text_height_px(font_sz, has_row2=True):
     """Return the pixel height of a 3-row or 2-row annotation label.
 
     Row layout:  <b>Name</b>  <b>$Value</b>  [<span>↑+X% +$delta</span>]
-    Line height ≈ font_size × 1.8 (Plotly HTML annotations add extra
-    spacing for <br> and <span> tags beyond standard line-height).
+    Line height ≈ font_size × 2.4 (Plotly HTML annotations with <b>,
+    <br>, and <span> tags render with significantly more vertical
+    spacing than standard CSS line-height).
     """
-    line_h = font_sz * 1.8
+    line_h = font_sz * 2.4
     return line_h * (3 if has_row2 else 2)
 
 
@@ -206,9 +207,9 @@ def _fix_annotation_overlaps(node_x, node_y, node_row2, font_sz, chart_height):
                 lower_top = lower_y + lower_th / 2
 
                 overlap = lower_top - upper_bottom
-                if overlap > -0.005:  # fix even near-overlaps
+                if overlap > -0.01:  # fix even near-overlaps
                     # Push apart symmetrically with visible padding
-                    shift = max(overlap, 0) / 2 + 0.008
+                    shift = max(overlap, 0) / 2 + 0.012
                     positions[j][1] = upper_y + shift
                     positions[j + 1][1] = lower_y - shift
                     changed = True
