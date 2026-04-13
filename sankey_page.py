@@ -459,40 +459,39 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
 
     # ── Compute aggregations for Period A and Period B ──
     #
-    # Period A uses the sk_Ya / sk_Yb split via _aggregate_multi_year:
-    #   sk_Ya buttons (cur_qs) → main_fy = fy_a
-    #   sk_Yb buttons (prev_qs) → main_fy - 1 = fy_a - 1
-    #   Example: Period A=2026, sk_Yb_q4 → FY2025 Q4  ✓
+    # Both periods use _aggregate_multi_year with the SAME cur_qs / prev_qs
+    # split.  This preserves the year-spanning structure:
+    #   cur_qs (sk_Ya) → main_fy,  prev_qs (sk_Yb) → main_fy - 1
     #
-    # Period B does NOT mirror the year-spanning split.  The sk_Ya/sk_Yb
-    # distinction is an artefact of how Period A maps quarters across two
-    # calendar years.  When the user picks Period B = 2021, they expect
-    # ALL selected quarters to come from FY2021 directly — never FY2020.
-    # So Period B combines all selected quarters into one list and calls
-    # _aggregate_partial_year with fy_b.
-    _b_all_qs = sorted(set(_cur_qs) | set(_prev_qs))  # combined quarters
+    # Example: Period A=2025, cur_qs=[1,2,3], prev_qs=[4]
+    #   Period A: FY2025 Q1-Q3 + FY2024 Q4
+    #   Period B (=2024): FY2024 Q1-Q3 + FY2023 Q4   ✓ same 12-month window
+    #
+    # Special case — 2026 / no-data migration: all Qs moved to sk_Yb
+    #   (cur_qs=[], prev_qs=[4]).  Period B must bump main_fy by +1 so
+    #   main_fy-1 lands on fy_b.  E.g. Period B=2021 → main_fy=2022 →
+    #   prev_qs aggregates FY2021 Q4.
+    _fy_b_eff = fy_b
+    if _prev_qs and not _cur_qs:
+        _fy_b_eff = fy_b + 1
 
     # Store effective fy_b so labels can use the correct year
     import streamlit as _st_eff
-    _st_eff.session_state["_fy_b_eff"] = fy_b
+    _st_eff.session_state["_fy_b_eff"] = _fy_b_eff
 
-    # ── Period A: year-spanning aggregation ──
+    # ── Period A ──
     ser_a, ts_a = _aggregate_multi_year(qtr_df, fy_a, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
 
-    # ── Period B: direct single-year aggregation ──
-    # Combine all selected quarters and aggregate against fy_b directly.
-    if fy_a == fy_b and _cur_qs == list(_b_all_qs) and not _prev_qs:
-        # Same year, same quarters → duplicate for guaranteed 0% delta
+    # ── Period B: same year-spanning pattern, shifted to fy_b ──
+    if fy_a == _fy_b_eff:
+        # Same effective year → duplicate for guaranteed 0% delta
         if ser_a is not None:
             ser_b = ser_a.copy()
             ts_b = ts_a
         else:
             ser_b, ts_b = None, None
     else:
-        if _b_all_qs:
-            ser_b, ts_b = _aggregate_partial_year(qtr_df, fy_b, _b_all_qs, fy_end, is_balance_sheet)
-        else:
-            ser_b, ts_b = None, None
+        ser_b, ts_b = _aggregate_multi_year(qtr_df, _fy_b_eff, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
 
     # ── NEVER return raw quarterly DF — it has many columns and _safe/_safe_prev
     # would read two DIFFERENT quarters, producing completely wrong deltas.
@@ -4172,15 +4171,14 @@ def render_sankey_page():
     if _partial_year and _pa and _pb and _pa != _pb:
         _fy_a_int = int(_pa)
         _fy_b_int = int(_pb)
-        # Period A label uses the sk_Ya/sk_Yb split (year-spanning)
+        _fy_b_eff_label = st.session_state.get("_fy_b_eff", _fy_b_int)
+        # Both labels use the same year-spanning structure
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
-        # Period B label: all selected quarters come from fy_b directly
-        _b_combined_qs = sorted(set(_qa_qs) | set(_qb_qs))
-        _label_b = f"FY{_fy_b_int}{_build_q_tag(_b_combined_qs)}" if not _sq2 else _pb
+        _label_b = _build_period_label(_fy_b_eff_label, _qa_qs, _qb_qs) if not _sq2 else _pb
         if _swapped_periods:
             # Period A fell back to closest available; Period B kept as-is
             _fb_fy_used = st.session_state.get("_fallback_fy", int(_pb))
-            _fb_label = f"FY{_fb_fy_used}{_build_q_tag(_b_combined_qs)}" if not _sq2 else f"FY{_fb_fy_used}"
+            _fb_label = _build_period_label(_fb_fy_used, _qa_qs, _qb_qs) if not _sq2 else f"FY{_fb_fy_used}"
             _compare_label = f"vs {_pb}"
             _compare_note = f"Comparing {_fb_label} vs {_label_b} (FY{_pa} not yet filed)"
         else:
