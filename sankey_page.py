@@ -4804,13 +4804,20 @@ def render_sankey_page():
                         _footnotes_used.append((_fn_counter, row_name, derived_rows[row_name]))
                         _fn_counter += 1
 
+                # Convert to object dtype so we can store strings
+                result = result.astype(object)
+
                 # Format all numbers, appending *n for derived rows
                 for col in result.columns:
                     for row_name in result.index:
                         val = result.at[row_name, col]
-                        if pd.notna(val) and val != 0:
-                            formatted = f"${val:,.0f}"
-                        else:
+                        try:
+                            fval = float(val)
+                            if pd.notna(fval) and fval != 0:
+                                formatted = f"${fval:,.0f}"
+                            else:
+                                formatted = "—"
+                        except (ValueError, TypeError):
                             formatted = "—"
                         if row_name in _footnote_map and formatted != "—":
                             formatted = f"{formatted} *{_footnote_map[row_name]}"
@@ -4862,12 +4869,17 @@ def render_sankey_page():
                     _bs_footnotes.append((_bs_fn_ctr, row_name, _derived_bal[row_name]))
                     _bs_fn_ctr += 1
             _disp_balance.columns = [str(c) for c in _disp_balance.columns]
+            _disp_balance = _disp_balance.astype(object)
             for col in _disp_balance.columns:
                 for row_name in _disp_balance.index:
                     val = _disp_balance.at[row_name, col]
-                    if pd.notna(val) and val != 0:
-                        formatted = f"${val:,.0f}"
-                    else:
+                    try:
+                        fval = float(val)
+                        if pd.notna(fval) and fval != 0:
+                            formatted = f"${fval:,.0f}"
+                        else:
+                            formatted = "—"
+                    except (ValueError, TypeError):
                         formatted = "—"
                     if row_name in _bs_fn_map and formatted != "—":
                         formatted = f"{formatted} *{_bs_fn_map[row_name]}"
