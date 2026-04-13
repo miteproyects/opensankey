@@ -4633,20 +4633,39 @@ def render_sankey_page():
         oi_prev      = _safe_prev(income_df, "Operating Income")
         ni_prev      = _safe_prev(income_df, "Net Income")
         # Compute derived Gross Profit when XBRL tag is missing
-        if gross_profit == 0 and revenue > 0 and cogs_kpi > 0:
-            gross_profit = revenue - cogs_kpi
+        # (matches Sankey reconciliation: GP = Revenue − COGS; when COGS=0, GP = Revenue)
+        if gross_profit == 0 and revenue > 0:
+            gross_profit = revenue - cogs_kpi  # cogs_kpi may be 0 → GP = Revenue
         if gp_prev == 0 and rev_prev > 0:
             cogs_prev = abs(_safe_prev(income_df, "Cost Of Revenue"))
-            if cogs_prev > 0:
-                gp_prev = rev_prev - cogs_prev
+            gp_prev = rev_prev - cogs_prev  # cogs_prev may be 0 → GP_prev = Rev_prev
+
+        # Derive Operating Income when missing (same as Sankey reconciliation)
+        if op_income == 0 and gross_profit > 0:
+            _rd = abs(_safe(income_df, "Research And Development"))
+            _sga = abs(_safe(income_df, "Selling General And Administration"))
+            _da = abs(_safe(income_df, "Reconciled Depreciation"))
+            if _da == 0:
+                _da = abs(_safe(income_df, "Depreciation And Amortization"))
+            _oe = abs(_safe(income_df, "Other Operating Expense"))
+            op_income = max(0, gross_profit - _rd - _sga - _da - _oe)
+        if oi_prev == 0 and gp_prev > 0:
+            _rd_p = abs(_safe_prev(income_df, "Research And Development"))
+            _sga_p = abs(_safe_prev(income_df, "Selling General And Administration"))
+            _da_p = abs(_safe_prev(income_df, "Reconciled Depreciation"))
+            if _da_p == 0:
+                _da_p = abs(_safe_prev(income_df, "Depreciation And Amortization"))
+            _oe_p = abs(_safe_prev(income_df, "Other Operating Expense"))
+            oi_prev = max(0, gp_prev - _rd_p - _sga_p - _da_p - _oe_p)
 
         # Build adaptive KPI cards — only show metrics that have data
         _kpi_items = []
         if revenue != 0:
             _kpi_items.append(("Revenue", revenue, rev_prev))
-        if gross_profit != 0:
+        if gross_profit != 0 and gross_profit != revenue:
+            # Show Gross Profit only when it differs from Revenue (i.e. COGS > 0)
             _kpi_items.append(("Gross Profit", gross_profit, gp_prev))
-        if op_income != 0 or (revenue == 0 and net_income != 0):
+        if op_income != 0:
             _kpi_items.append(("Operating Income", op_income, oi_prev))
         if net_income != 0 or op_income != 0:
             _kpi_items.append(("Net Income", net_income, ni_prev))
