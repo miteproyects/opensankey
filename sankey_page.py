@@ -3466,14 +3466,15 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
+    _empty_labels = [""] * len(nodes)  # no visible built-in text
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         orientation="h",
-        textfont=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
-                      color="rgba(0,0,0,0)"),
+        textfont=dict(size=1, color="rgba(0,0,0,0)"),
         node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
-                  label=nodes, color=node_colors, x=node_x, y=node_y,
-                  hovertemplate="<b>%{label}</b><extra></extra>"),
+                  label=_empty_labels, color=node_colors, x=node_x, y=node_y,
+                  customdata=nodes,
+                  hovertemplate="<b>%{customdata}</b><extra></extra>"),
         link=dict(source=srcs, target=tgts, value=vals, color=lcolors,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
         domain=dict(y=[0.04, 0.96]),
@@ -3722,6 +3723,9 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         else:
             eq_items.append(("Total Equity", equity, C["equity"]))
 
+    # Wide X spacing — text is placed via annotations (not built-in labels)
+    X1, X2, X3, X4 = 0.01, 0.22, 0.44, 0.66
+
     groups = []
     if ca_items: groups.append(("Current Assets", None, ca_items, X3))
     if nca_items: groups.append(("Non-Current Assets", None, nca_items, X3))
@@ -3739,8 +3743,6 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     slot_height = 0.96 / max(total_slots, 1)
     slot_idx = 0
     group_y_ranges = []
-    # Wide X spacing — text is placed via annotations (not built-in labels)
-    X1, X2, X3, X4 = 0.01, 0.22, 0.44, 0.66
 
     for g_idx, (col2_parent, col3_parent, items, x_col) in enumerate(groups):
         y_first = 0.02 + slot_idx * slot_height
@@ -3814,14 +3816,15 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
+    _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         orientation="h",
-        textfont=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
-                      color="rgba(0,0,0,0)"),
+        textfont=dict(size=1, color="rgba(0,0,0,0)"),
         node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
-                  label=nodes, color=node_colors_list, x=node_x, y=node_y,
-                  hovertemplate="<b>%{label}</b><extra></extra>"),
+                  label=_empty_labels, color=node_colors_list, x=node_x, y=node_y,
+                  customdata=nodes,
+                  hovertemplate="<b>%{customdata}</b><extra></extra>"),
         link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
         domain=dict(y=[0.04, 0.96]),
