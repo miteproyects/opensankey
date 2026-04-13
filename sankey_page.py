@@ -4662,8 +4662,7 @@ def render_sankey_page():
         _kpi_items = []
         if revenue != 0:
             _kpi_items.append(("Revenue", revenue, rev_prev))
-        if gross_profit != 0 and gross_profit != revenue:
-            # Show Gross Profit only when it differs from Revenue (i.e. COGS > 0)
+        if gross_profit != 0:
             _kpi_items.append(("Gross Profit", gross_profit, gp_prev))
         if op_income != 0:
             _kpi_items.append(("Operating Income", op_income, oi_prev))
