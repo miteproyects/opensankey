@@ -471,6 +471,10 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
         # Only sk_Yb selected: bump so main_fy-1 = fy_b → main_fy = fy_b+1
         _fy_b_eff = fy_b + 1
 
+    # Store effective fy_b so labels can use the correct year
+    import streamlit as _st_eff
+    _st_eff.session_state["_fy_b_eff"] = _fy_b_eff
+
     # ── CRITICAL: same-period optimization ──
     # When both periods resolve to same data, duplicate → guaranteed 0% delta.
     if fy_a == _fy_b_eff:
@@ -4159,8 +4163,10 @@ def render_sankey_page():
     if _partial_year and _pa and _pb and _pa != _pb:
         _fy_a_int = int(_pa)
         _fy_b_int = int(_pb)
+        # Use effective fy_b for Period B label (accounts for sk_Yb bump)
+        _fy_b_label = st.session_state.get("_fy_b_eff", _fy_b_int)
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
-        _label_b = _build_period_label(_fy_b_int, _qa_qs, _qb_qs) if not _sq2 else _pb
+        _label_b = _build_period_label(_fy_b_label, _qa_qs, _qb_qs) if not _sq2 else _pb
         if _swapped_periods:
             # Period A fell back to closest available; Period B kept as-is
             _fb_fy_used = st.session_state.get("_fallback_fy", int(_pb))
