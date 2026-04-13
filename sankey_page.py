@@ -237,6 +237,76 @@ def _fix_bar_gaps(node_x, node_y, node_val_raw, chart_height, min_gap_px=2):
                                 min(0.99 - bar_half[j], node_y[i]))
 
 
+def _fix_text_gaps(node_x, node_y, node_row2, font_sz, chart_height, min_gap_px=2):
+    """Ensure minimum pixel gap between adjacent TEXT label edges in each column.
+
+    Each node's 3-row (or 2-row) annotation is centered at node_y (yanchor=middle).
+    The text extends text_h/2 above and below the center.  This function checks
+    if adjacent text labels overlap and pushes node_y apart if gap < min_gap_px.
+
+    Runs AFTER _fix_bar_gaps so that bars are already separated.
+    Operates in node_y space (0=top, 1=bottom).  Mutates node_y in-place.
+    """
+    from collections import defaultdict
+
+    dom_span = 0.92  # domain [0.04, 0.96]
+    avail_px = chart_height * dom_span
+
+    # Rendered line height: Plotly HTML annotations with <b>, <br>, <span>
+    # render taller than plain CSS line-height.  2.0× font_sz is a safe estimate.
+    line_h_px = font_sz * 2.0
+
+    def _text_h_px(has_r2):
+        return line_h_px * (3 if has_r2 else 2)
+
+    # Convert min_gap_px to node_y units
+    min_gap_ny = min_gap_px / avail_px
+
+    # Group nodes by column
+    columns = defaultdict(list)
+    for i in range(len(node_x)):
+        col_key = round(node_x[i], 3)
+        columns[col_key].append(i)
+
+    for col_key, col_idxs in columns.items():
+        if len(col_idxs) <= 1:
+            continue
+
+        # Sort by node_y ascending (top to bottom on screen)
+        col_idxs.sort(key=lambda i: node_y[i])
+
+        # Compute text half-heights in node_y units
+        text_half = []
+        for i in col_idxs:
+            th_px = _text_h_px(bool(node_row2[i]))
+            text_half.append((th_px / avail_px) / 2)
+
+        # Multiple passes to push apart
+        for _pass in range(20):
+            changed = False
+            for j in range(len(col_idxs) - 1):
+                i_upper = col_idxs[j]
+                i_lower = col_idxs[j + 1]
+
+                upper_text_bottom = node_y[i_upper] + text_half[j]
+                lower_text_top = node_y[i_lower] - text_half[j + 1]
+
+                gap = lower_text_top - upper_text_bottom
+                if gap < min_gap_ny:
+                    push = (min_gap_ny - gap) / 2 + 0.0001
+                    node_y[i_upper] = node_y[i_upper] - push
+                    node_y[i_lower] = node_y[i_lower] + push
+                    changed = True
+
+            if not changed:
+                break
+
+            # Clamp to [0.01, 0.99]
+            for j, i in enumerate(col_idxs):
+                node_y[i] = max(0.01 + text_half[j],
+                                min(0.99 - text_half[j], node_y[i]))
+
+
 def _fmt(val):
     """Format a number as $XXB or $XXM."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
@@ -3694,6 +3764,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     # This adjusts node_y IN-PLACE before the figure is created, so both
     # bars and annotations move together.
     _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
 
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
@@ -4228,6 +4299,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     # ── Fix bar gaps: ensure ≥2px between adjacent bar edges ────────────
     _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
