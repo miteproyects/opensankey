@@ -5468,9 +5468,9 @@ def render_sankey_page():
         _qp_metric = st.query_params.get("open_metric", "")
         _qp_section = st.query_params.get("metric_section", "")
         if _qp_metric and _qp_section == "income" and _qp_metric in metric_options:
-            st.query_params.pop("open_metric", None)
-            st.query_params.pop("metric_section", None)
             st.session_state["income_metric_pill"] = _qp_metric
+            st.query_params.clear()
+            st.rerun()
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill")
@@ -5536,9 +5536,9 @@ def render_sankey_page():
         _qp_metric = st.query_params.get("open_metric", "")
         _qp_section = st.query_params.get("metric_section", "")
         if _qp_metric and _qp_section == "balance" and _qp_metric in metric_options:
-            st.query_params.pop("open_metric", None)
-            st.query_params.pop("metric_section", None)
             st.session_state["balance_metric_pill"] = _qp_metric
+            st.query_params.clear()
+            st.rerun()
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="balance_metric_pill")
