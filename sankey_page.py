@@ -454,9 +454,26 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
                 combined = combined.add(s, fill_value=0)
             return combined, last_ts
 
+    # ── Compute fy values for aggregation ──
+    # sk_Ya buttons (qa_nums/cur_qs) map to main_fy directly.
+    # sk_Yb buttons (qb_nums/prev_qs) map to main_fy - 1.
+    #
+    # For Period A: main_fy = fy_a (from Period A dropdown).
+    #   sk_Ya_q4 with fy_a=2026 → FY2026 Q4, sk_Yb_q4 → FY2025 Q4  ✓
+    #
+    # For Period B: the sk_Yb buttons represent absolute FYs relative to
+    # Period A, not Period B.  sk_Yb_q4 = FY(Period_A - 1) Q4.
+    # So Period B's main_fy must be fy_b + (fy_a - fy_b) = fy_a when
+    # only qb_nums are selected, to land on the same absolute FY.
+    # More precisely: bump fy_b by +1 per qb_nums so main_fy-1 = fy_b.
+    _fy_b_eff = fy_b
+    if _prev_qs and not _cur_qs:
+        # Only sk_Yb selected: bump so main_fy-1 = fy_b → main_fy = fy_b+1
+        _fy_b_eff = fy_b + 1
+
     # ── CRITICAL: same-period optimization ──
-    # When fy_a == fy_b, aggregate once and duplicate → guaranteed 0% delta.
-    if fy_a == fy_b:
+    # When both periods resolve to same data, duplicate → guaranteed 0% delta.
+    if fy_a == _fy_b_eff:
         ser_a, ts_a = _aggregate_multi_year(qtr_df, fy_a, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
         if ser_a is not None:
             ser_b = ser_a.copy()
@@ -465,7 +482,7 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
             ser_b, ts_b = None, None
     else:
         ser_a, ts_a = _aggregate_multi_year(qtr_df, fy_a, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
-        ser_b, ts_b = _aggregate_multi_year(qtr_df, fy_b, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
+        ser_b, ts_b = _aggregate_multi_year(qtr_df, _fy_b_eff, _cur_qs, _prev_qs, fy_end, is_balance_sheet)
 
     # ── NEVER return raw quarterly DF — it has many columns and _safe/_safe_prev
     # would read two DIFFERENT quarters, producing completely wrong deltas.
