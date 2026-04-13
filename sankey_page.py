@@ -3498,7 +3498,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
         # Columns 1 & 2 (X1, X2) → 2-row format; others → single line
-        if node_x[i] <= X2 + 0.01:
+        if node_x[i] <= X3 + 0.01:
             r2 = node_row2[i]
             if r2:
                 txt = (f"<b>{node_row1[i]}</b><br>"
@@ -3932,7 +3932,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
         # Columns 1 & 2 (X1, X2) → 2-row format; others → single line
-        if node_x[i] <= X2 + 0.01:
+        if node_x[i] <= X3 + 0.01:
             r2 = node_row2[i]
             if r2:
                 txt = (f"<b>{node_row1[i]}</b><br>"
