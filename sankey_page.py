@@ -422,8 +422,11 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
     Column 0 = Period A, Column 1 = Period B.
     """
     # Determine per-year quarter lists
-    _cur_qs = qa_nums if qa_nums else quarter_list
-    _prev_qs = qb_nums if qb_nums else []
+    # IMPORTANT: use `is not None` — an explicit empty list [] means
+    # "no sk_Ya/sk_Yb buttons selected", which is different from None
+    # (meaning "use the default quarter_list").
+    _cur_qs = qa_nums if qa_nums is not None else quarter_list
+    _prev_qs = qb_nums if qb_nums is not None else []
 
     def _aggregate_multi_year(qtr_df, main_fy, cur_qs, prev_qs, fy_end, is_bs):
         """Aggregate quarters across main_fy (cur_qs) and main_fy-1 (prev_qs)."""
@@ -4091,8 +4094,11 @@ def render_sankey_page():
             return " (" + " · ".join(parts) + ")" if parts else ""
 
         if _period_a_missing:
-            _qs_tag = "+".join(f"Q{q}" for q in sorted(st.session_state.get("_sankey_qa_nums", [1])))
-            _fb_qs = sorted(st.session_state.get("_sankey_qa_nums", [1]))
+            # Use whichever quarters are selected (sk_Ya or sk_Yb)
+            _fb_qa = st.session_state.get("_sankey_qa_nums", [])
+            _fb_qb = st.session_state.get("_sankey_qb_nums", [])
+            _fb_qs = sorted(_fb_qa or _fb_qb or [1])
+            _qs_tag = "+".join(f"Q{q}" for q in _fb_qs)
             _fy_end_m = st.session_state.get("_fy_end_month", 12)
             _pa_int = int(_pa) if _pa else 2026
 
