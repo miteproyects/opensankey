@@ -3321,20 +3321,31 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_y.append(y)
 
     # ── Pre-count nodes per column to compute dynamic chart height ──────
-    # Col1: 1 (Revenue), Col2: 1-2 (COGS+GP), Col3: up to ~8 (expenses+OI),
-    # Col4: 2-3 (IntExp+NonOp+Pretax), Col5: 1-2 (Tax+NI)
+    # Nodes in col3/col4/col5 are confined within parent sub-bands, so compute
+    # "effective full-chart density" = n_items / band_fraction for each sub-band.
     _c2_n = 2 if cogs > 0 else 1
     _c3_n = sum(1 for v in [rd_expense, sga_expense, dep_amort, other_opex] if v > 0) + 1  # +OI
     _c4_n = sum(1 for v in [interest_exp, other_nonop] if v > 0) + 1  # +Pretax
     _c5_n = (1 if tax > 0 else 0) + 1  # +NI
-    _max_col_n = max(_c2_n, _c3_n, _c4_n, _c5_n)
+
+    # Effective density accounting for sub-band confinement:
+    # Col3 items live inside GP band (fraction = gross_profit / revenue)
+    _gp_frac = max(gross_profit / revenue, 0.1) if revenue > 0 else 1.0
+    _c3_eff = _c3_n / _gp_frac
+    # Col4 items live inside OI band (fraction ≈ oi / revenue)
+    _oi_val = max(operating_income, 1)
+    _oi_frac = max(_oi_val / revenue, 0.05) if revenue > 0 else 1.0
+    _c4_eff = _c4_n / _oi_frac
+    # Col5 items live inside Pretax band (similar fraction to OI)
+    _c5_eff = _c5_n / _oi_frac
 
     # Compute font size early (need it for text height calc)
     _n_nodes_est = 1 + _c2_n + _c3_n + _c4_n + _c5_n
     _font_sz_est = 11 if _n_nodes_est <= 12 else (10 if _n_nodes_est <= 16 else 9)
 
-    # Dynamic chart height: ensure tallest column has room for all text labels
-    _h = _compute_dynamic_height([_c2_n, _c3_n, _c4_n, _c5_n], _font_sz_est)
+    # Use worst effective density for chart height
+    _worst_eff = max(int(c + 0.99) for c in [_c2_n, _c3_eff, _c4_eff, _c5_eff])
+    _h = _compute_dynamic_height([_worst_eff], _font_sz_est)
 
     # Minimum band height per node (paper coords): ensures text fits
     _min_text_band = _min_band_for_text(_font_sz_est, _h, has_row2=True)
@@ -3952,25 +3963,42 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     if not col2_items:
         return None
 
-    # ── Count nodes per column from col2_items for dynamic chart height ──
+    # ── Count nodes per sub-band for dynamic chart height ──────────────
+    # Balance sheet nodes are confined within sub-bands (CA items within CA band,
+    # etc.), so we compute "effective full-chart density" per sub-band:
+    #   effective_n = n_items / band_fraction
+    # where band_fraction = parent_value / total_assets.
+    # The chart must be tall enough for the densest sub-band.
     _bs_c2_n = len(col2_items)
-    _bs_c3_n = 0
-    _bs_c4_n = 0
-    for _, _, _, children, _, _ in col2_items:
+    _bs_total_val = sum(item[1] for item in col2_items) or 1
+    _effective_counts = [_bs_c2_n]  # col2 spans full band
+
+    for _, val, _, children, _, _ in col2_items:
+        band_frac = max(val / _bs_total_val, 0.05)  # floor at 5%
         has_nested = any(len(ch) == 4 for ch in children)
         if has_nested:
-            _bs_c3_n += len(children)  # intermediate CL/NCL nodes
+            # Liabilities: intermediate CL/NCL at col3, sub-items at col4
+            n_col3 = len(children)
+            _effective_counts.append(n_col3 / band_frac)
             for ch in children:
                 if len(ch) == 4:
-                    _bs_c4_n += len(ch[3])  # sub-items
+                    ch_val = ch[1]
+                    ch_frac = max(ch_val / _bs_total_val, 0.03)
+                    _effective_counts.append(len(ch[3]) / ch_frac)
         else:
-            _bs_c3_n += len(children)  # direct sub-items (CA/NCA/Equity)
+            n_children = len(children)
+            _effective_counts.append(n_children / band_frac)
 
-    _bs_n_nodes_est = 1 + _bs_c2_n + _bs_c3_n + _bs_c4_n
+    _bs_n_nodes_est = 1 + sum(
+        len(ch) if not any(len(c) == 4 for c in ch)
+        else len(ch) + sum(len(c[3]) for c in ch if len(c) == 4)
+        for _, _, _, ch, _, _ in col2_items
+    ) + _bs_c2_n
     _bs_font_sz_est = 11 if _bs_n_nodes_est <= 12 else (10 if _bs_n_nodes_est <= 16 else 9)
 
-    # Dynamic chart height for balance sheet
-    _h = _compute_dynamic_height([_bs_c2_n, _bs_c3_n, _bs_c4_n], _bs_font_sz_est)
+    # Use the worst effective density (rounded up) for chart height
+    _worst_effective = max(int(c + 0.99) for c in _effective_counts) if _effective_counts else 4
+    _h = _compute_dynamic_height([_worst_effective], _bs_font_sz_est)
     _bs_min_text_band = _min_band_for_text(_bs_font_sz_est, _h, has_row2=True)
 
     def _split_band_bs(values, band_top, band_bot):
