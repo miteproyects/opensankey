@@ -1979,6 +1979,10 @@ def _inject_pill_hover_js(metric_map, color_map):
             }});
         }}
 
+        function extractLabel(raw) {{
+            return (raw || '').split(/  /)[0].replace(/\u2605\\s*/g, '').trim();
+        }}
+
         function highlightSankey(pillLabel, color) {{
             var plots = parentDoc.querySelectorAll('.js-plotly-plot');
             plots.forEach(function(plotDiv) {{
@@ -1993,27 +1997,26 @@ def _inject_pill_hover_js(metric_map, color_map):
                 var links = sankeyEl.querySelectorAll('.sankey-link');
                 links.forEach(function(lnk) {{ lnk.style.opacity = '0.08'; lnk.style.transition = 'opacity 0.25s ease'; }});
 
+                /* Use customdata (actual labels) instead of SVG text (empty) */
                 var matchIdx = -1;
-                nodeLabels.forEach(function(l, i) {{
-                    var txt = (l.textContent || '').split(/\\n/)[0].trim().split(/  /)[0].replace(/\u2605\\s*/g, '').trim();
-                    if (txt === pillLabel) {{
-                        matchIdx = i;
-                        l.style.opacity = '1';
-                        l.style.fontWeight = '700';
-                    }}
-                }});
+                var cd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
+                for (var i = 0; i < cd.length; i++) {{
+                    if (extractLabel(cd[i]) === pillLabel) {{ matchIdx = i; break; }}
+                }}
+
                 if (matchIdx >= 0 && nodeRects[matchIdx]) {{
                     nodeRects[matchIdx].style.opacity = '1';
                     nodeRects[matchIdx].style.filter = 'drop-shadow(0 0 8px ' + color + ')';
                 }}
-
                 if (matchIdx >= 0 && nodeLabels[matchIdx]) {{
+                    nodeLabels[matchIdx].style.opacity = '1';
+                    nodeLabels[matchIdx].style.fontWeight = '700';
                     nodeLabels[matchIdx].querySelectorAll('.delta-suffix').forEach(function(ds) {{
                         ds.setAttribute('font-weight', '700');
                     }});
                 }}
 
-                if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].link) {{
+                if (matchIdx >= 0 && plotDiv.data[0].link) {{
                     var linkData = plotDiv.data[0].link;
                     links.forEach(function(lnk, li) {{
                         if (linkData.source[li] === matchIdx || linkData.target[li] === matchIdx) {{
@@ -2355,24 +2358,25 @@ def _inject_node_hover_js(metric_map, color_map):
                 }}
                 if (plotDiv._nodeHoverBound2) return;
 
-                // Build label-to-index map from SVG text
-                var nodeLabels = sankeyEl.querySelectorAll('.node-label');
+                // Build label-to-index map from customdata (SVG labels are empty)
+                var cd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
                 var labelMap = {{}};
-                nodeLabels.forEach(function(lbl, idx) {{
-                    var txt = extractLabel(lbl.textContent);
-                    if (txt && COLORS[txt]) labelMap[txt] = idx;
-                }});
+                for (var ci = 0; ci < cd.length; ci++) {{
+                    var txt = extractLabel(cd[ci]);
+                    if (txt && COLORS[txt]) labelMap[txt] = ci;
+                }}
 
                 // Use Plotly hover/unhover events (reliable for Sankey)
                 plotDiv.on('plotly_hover', function(data) {{
                     if (!data || !data.points || !data.points[0]) return;
                     var pt = data.points[0];
-                    var raw = pt.label || '';
-                    var label = extractLabel(raw);
+                    var idx = pt.pointNumber;
+                    if (typeof idx !== 'number') return;
+                    // Get label from customdata
+                    var curCd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
+                    var label = extractLabel(curCd[idx] || '');
                     var color = COLORS[label];
                     if (!label || !color) return;
-                    var idx = (typeof pt.pointNumber === 'number') ? pt.pointNumber : labelMap[label];
-                    if (idx === undefined) return;
                     // Re-query sankeyEl in case SVG was rebuilt
                     var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
                     highlightSankeyAndPill(idx, label, color, currentSankey, plotDiv);
@@ -2526,6 +2530,10 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map):
             return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
         }}
 
+        function extractLabel(raw) {{
+            return (raw || '').split(/  /)[0].replace(/\u2605\\s*/g, '').trim();
+        }}
+
         function highlightSankey(nodeLabel, color) {{
             var plots = parentDoc.querySelectorAll('.js-plotly-plot');
             plots.forEach(function(plotDiv) {{
@@ -2537,23 +2545,26 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map):
                 nodeLabels.forEach(function(l) {{ l.style.opacity = '0.2'; l.style.transition = 'opacity 0.25s ease'; }});
                 var links = sankeyEl.querySelectorAll('.sankey-link');
                 links.forEach(function(lnk) {{ lnk.style.opacity = '0.08'; lnk.style.transition = 'opacity 0.25s ease'; }});
+
+                /* Use customdata (actual labels) instead of SVG text (empty) */
                 var matchIdx = -1;
-                nodeLabels.forEach(function(l, i) {{
-                    var txt = (l.textContent || '').split(/\\n/)[0].trim().split(/  /)[0].replace(/\u2605\\s*/g, '').trim();
-                    if (txt === nodeLabel) {{
-                        matchIdx = i;
-                        l.style.opacity = '1';
-                        l.style.fontWeight = '700';
-                        l.querySelectorAll('.delta-suffix').forEach(function(ds) {{
-                            ds.setAttribute('font-weight', '700');
-                        }});
-                    }}
-                }});
+                var cd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
+                for (var i = 0; i < cd.length; i++) {{
+                    if (extractLabel(cd[i]) === nodeLabel) {{ matchIdx = i; break; }}
+                }}
+
                 if (matchIdx >= 0 && nodeRects[matchIdx]) {{
                     nodeRects[matchIdx].style.opacity = '1';
                     nodeRects[matchIdx].style.filter = 'drop-shadow(0 0 8px ' + color + ')';
                 }}
-                if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].link) {{
+                if (matchIdx >= 0 && nodeLabels[matchIdx]) {{
+                    nodeLabels[matchIdx].style.opacity = '1';
+                    nodeLabels[matchIdx].style.fontWeight = '700';
+                    nodeLabels[matchIdx].querySelectorAll('.delta-suffix').forEach(function(ds) {{
+                        ds.setAttribute('font-weight', '700');
+                    }});
+                }}
+                if (matchIdx >= 0 && plotDiv.data[0].link) {{
                     var linkData = plotDiv.data[0].link;
                     links.forEach(function(lnk, li) {{
                         if (linkData.source[li] === matchIdx || linkData.target[li] === matchIdx) {{
@@ -2693,16 +2704,14 @@ def _inject_link_hover_js(color_map):
             var tgtIdx = linkData.target[linkIdx];
 
             /* Highlight only the TARGET node */
+            var cd = (plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
             [tgtIdx].forEach(function(nIdx) {{
                 if (nIdx === undefined || nIdx === null) return;
                 if (nodeRects[nIdx]) {{
                     nodeRects[nIdx].style.opacity = '1';
-                    var lbl = nodeLabels[nIdx];
-                    if (lbl) {{
-                        var txt = extractLabel(lbl.textContent);
-                        var color = COLORS[txt];
-                        if (color) nodeRects[nIdx].style.filter = 'drop-shadow(0 0 8px ' + color + ')';
-                    }}
+                    var txt = extractLabel(cd[nIdx] || '');
+                    var color = COLORS[txt];
+                    if (color) nodeRects[nIdx].style.filter = 'drop-shadow(0 0 8px ' + color + ')';
                 }}
                 if (nodeLabels[nIdx]) {{
                     nodeLabels[nIdx].style.opacity = '1';
@@ -2726,8 +2735,8 @@ def _inject_link_hover_js(color_map):
             var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
             var kpiCards = parentDoc.querySelectorAll('[data-testid="stMetric"]');
             [tgtIdx].forEach(function(nIdx) {{
-                if (nIdx === undefined || nIdx === null || !nodeLabels[nIdx]) return;
-                var txt = extractLabel(nodeLabels[nIdx].textContent);
+                if (nIdx === undefined || nIdx === null) return;
+                var txt = extractLabel(cd[nIdx] || '');
                 var color = COLORS[txt];
                 if (!txt || !color) return;
                 btns.forEach(function(btn) {{
