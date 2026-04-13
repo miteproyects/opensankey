@@ -3015,8 +3015,15 @@ with st.sidebar:
 
                 # Enforce min 1 across both years
                 if not _qa_nums and not _qb_nums:
-                    _qa_nums = [_default_q]
-                    st.session_state[f"sk_Ya_q{_default_q}"] = True
+                    # Use sk_Ya if Period A has available Qs, else sk_Yb
+                    _sel_pa_fy = int(st.session_state.get("sk_pa", _years_with_data[0]))
+                    _cq_sel = _completed_qs_in_fy(_sel_pa_fy, _fy_m_sk)
+                    if _cq_sel >= _default_q:
+                        _qa_nums = [_default_q]
+                        st.session_state[f"sk_Ya_q{_default_q}"] = True
+                    else:
+                        _qb_nums = [_default_q]
+                        st.session_state[f"sk_Yb_q{_default_q}"] = True
 
                 _selected_qs = sorted(set(_qa_nums + _qb_nums))
                 st.session_state["_sankey_annual_match_qs"] = _selected_qs
