@@ -3367,13 +3367,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
 
         Each child's band height = max(proportional_height, _min_text_band)
         so that the 3-row text label always fits within the node's allocated slot.
-
-        Args:
-            values: list of numeric values (one per child)
-            band_top: parent band top Y
-            band_bot: parent band bottom Y
-        Returns:
-            list of (centre_y, sub_band_top, sub_band_bot) per child
+        When the parent band is too small for all children at minimum text height,
+        items overflow the parent band (centered) rather than compressing and overlapping.
         """
         n = len(values)
         if n == 0:
@@ -3384,8 +3379,13 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             return [(cy, band_top, band_bot)]
         total = sum(values)
         if total <= 0:
-            step = span / n
-            return [(band_top + step * (i + 0.5), band_top + step * i, band_top + step * (i + 1)) for i in range(n)]
+            step = max(span / n, _min_text_band)
+            needed = step * n
+            start = band_top + (span - needed) / 2
+            start = max(Y_MIN, min(start, Y_MAX - needed))
+            return [(round(max(Y_MIN, min(Y_MAX, start + step * (i + 0.5))), 4),
+                     round(max(Y_MIN, start + step * i), 4),
+                     round(min(Y_MAX, start + step * (i + 1)), 4)) for i in range(n)]
 
         # Compute proportional sub-bands, enforcing text-height minimum
         results = []
@@ -3396,25 +3396,32 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             results.append((cursor, band_h))
             cursor += band_h
 
-        # Rescale if we overflowed (preserving minimums)
+        # Rescale if we overflowed
         actual_span = sum(h for _, h in results)
         if actual_span > span + 0.001:
-            # Scale only the excess above minimums
-            excess_total = sum(max(0, h - _min_text_band) for _, h in results)
-            target_excess = span - n * _min_text_band
-            if target_excess > 0 and excess_total > 0:
-                scale = target_excess / excess_total
-                results2, cursor = [], band_top
-                for _, h in results:
-                    above = max(0, h - _min_text_band)
-                    h2 = _min_text_band + above * scale
-                    results2.append((cursor, h2))
-                    cursor += h2
-                results = results2
+            needed_at_min = n * _min_text_band
+            if needed_at_min <= span:
+                # Band can fit all items at minimum — scale only excess above minimums
+                excess_total = sum(max(0, h - _min_text_band) for _, h in results)
+                target_excess = span - needed_at_min
+                if excess_total > 0:
+                    scale = target_excess / excess_total
+                    results2, cursor = [], band_top
+                    for _, h in results:
+                        above = max(0, h - _min_text_band)
+                        h2 = _min_text_band + above * scale
+                        results2.append((cursor, h2))
+                        cursor += h2
+                    results = results2
+                else:
+                    step = span / n
+                    results = [(band_top + step * i, step) for i in range(n)]
             else:
-                # All items at minimum — distribute evenly
-                step = span / n
-                results = [(band_top + step * i, step) for i in range(n)]
+                # Band too small — overflow centered, each item gets _min_text_band
+                mid = (band_top + band_bot) / 2
+                start = mid - needed_at_min / 2
+                start = max(Y_MIN, min(start, Y_MAX - needed_at_min))
+                results = [(start + _min_text_band * i, _min_text_band) for i in range(n)]
 
         # Build (centre, top, bot) tuples
         out = []
@@ -4006,6 +4013,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
         Each child's band height = max(proportional_height, _bs_min_text_band)
         so that the 3-row text label always fits within the node's allocated slot.
+        When the parent band is too small for all children at minimum text height,
+        items overflow the parent band (centered) rather than compressing and overlapping.
         """
         n = len(values)
         if n == 0:
@@ -4016,8 +4025,13 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             return [(cy, band_top, band_bot)]
         total = sum(values)
         if total <= 0:
-            step = span / n
-            return [(band_top + step * (i + 0.5), band_top + step * i, band_top + step * (i + 1)) for i in range(n)]
+            step = max(span / n, _bs_min_text_band)
+            needed = step * n
+            start = band_top + (span - needed) / 2
+            start = max(Y_MIN, min(start, Y_MAX - needed))
+            return [(round(max(Y_MIN, min(Y_MAX, start + step * (i + 0.5))), 4),
+                     round(max(Y_MIN, start + step * i), 4),
+                     round(min(Y_MAX, start + step * (i + 1)), 4)) for i in range(n)]
 
         # Compute proportional sub-bands, enforcing text-height minimum
         results = []
@@ -4028,23 +4042,32 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             results.append((cursor, band_h))
             cursor += band_h
 
-        # Rescale if we overflowed (preserving minimums)
+        # Rescale if we overflowed
         actual_span = sum(h for _, h in results)
         if actual_span > span + 0.001:
-            excess_total = sum(max(0, h - _bs_min_text_band) for _, h in results)
-            target_excess = span - n * _bs_min_text_band
-            if target_excess > 0 and excess_total > 0:
-                scale = target_excess / excess_total
-                results2, cursor = [], band_top
-                for _, h in results:
-                    above = max(0, h - _bs_min_text_band)
-                    h2 = _bs_min_text_band + above * scale
-                    results2.append((cursor, h2))
-                    cursor += h2
-                results = results2
+            needed_at_min = n * _bs_min_text_band
+            if needed_at_min <= span:
+                # Band can fit all items at minimum — scale only excess above minimums
+                excess_total = sum(max(0, h - _bs_min_text_band) for _, h in results)
+                target_excess = span - needed_at_min
+                if excess_total > 0:
+                    scale = target_excess / excess_total
+                    results2, cursor = [], band_top
+                    for _, h in results:
+                        above = max(0, h - _bs_min_text_band)
+                        h2 = _bs_min_text_band + above * scale
+                        results2.append((cursor, h2))
+                        cursor += h2
+                    results = results2
+                else:
+                    step = span / n
+                    results = [(band_top + step * i, step) for i in range(n)]
             else:
-                step = span / n
-                results = [(band_top + step * i, step) for i in range(n)]
+                # Band too small — overflow centered, each item gets _bs_min_text_band
+                mid = (band_top + band_bot) / 2
+                start = mid - needed_at_min / 2
+                start = max(Y_MIN, min(start, Y_MAX - needed_at_min))
+                results = [(start + _bs_min_text_band * i, _bs_min_text_band) for i in range(n)]
 
         # Build (centre, top, bot) tuples
         out = []
