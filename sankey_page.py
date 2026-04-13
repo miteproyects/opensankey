@@ -307,6 +307,146 @@ def _fix_text_gaps(node_x, node_y, node_row2, font_sz, chart_height, min_gap_px=
                                 min(0.99 - text_half[j], node_y[i]))
 
 
+def _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
+                           node_val_str, node_row2, font_sz, chart_height,
+                           thickness, min_gap_px=2):
+    """Prevent horizontal text overlap between nodes in adjacent columns.
+
+    Text labels extend to the RIGHT of each node bar.  When two nodes in
+    neighbouring columns sit at similar Y positions, the left column's text
+    can collide with the right column's text.
+
+    For every node, we build a text bounding box (Y-center ± text_half_h,
+    X-left → X-right).  Then for each pair of adjacent columns we find
+    nodes whose text boxes overlap on BOTH axes.  For each conflict, the
+    node with the smaller bar value is nudged up or down (whichever
+    direction is shorter) by the minimum amount to eliminate the Y overlap.
+
+    Each node looks at BOTH the column to its left and right, so fixing
+    columns 2↔3 won't silently break 3↔4.
+
+    The Y shift is capped at max_shift_ny so text never drifts too far
+    from its bar.
+
+    Runs AFTER _fix_bar_gaps and _fix_text_gaps.  Mutates node_y in-place.
+    """
+    from collections import defaultdict
+
+    dom_span = 0.92
+    avail_px = chart_height * dom_span
+
+    # ── Text height (Y extent) ──────────────────────────────────────────
+    line_h_px = font_sz * 2.0
+
+    def _text_h_ny(has_r2):
+        px = line_h_px * (3 if has_r2 else 2)
+        return px / avail_px
+
+    # ── Text width (X extent) ───────────────────────────────────────────
+    # Approximate rendered character width for Inter font at font_sz
+    char_w = font_sz * 0.62          # average char width in px
+    bar_half_x = (thickness / 2 + 1)  # xshift used in annotations (px)
+
+    # Chart usable width in px (margin l=6, r=6)
+    chart_w_px = max(300, 600)  # estimate; use_container_width makes it variable
+    # We work in paper-X units [0,1], so convert px → paper
+    px_to_paper_x = 1.0 / chart_w_px
+
+    def _text_width_paper(idx):
+        """Estimate the text label width in paper-X coords."""
+        # Find the longest row among name, value, row2
+        name_len = len(node_name_list[idx])
+        val_len = len(node_val_str[idx])
+        r2_len = len(node_row2[idx]) if node_row2[idx] else 0
+        max_chars = max(name_len, val_len, r2_len)
+        w_px = max_chars * char_w + bar_half_x
+        return w_px * px_to_paper_x
+
+    # ── Build bounding boxes ────────────────────────────────────────────
+    # Each bbox: (x_left_paper, x_right_paper, y_top_ny, y_bot_ny)
+    n = len(node_x)
+    text_half_h = [_text_h_ny(bool(node_row2[i])) / 2 for i in range(n)]
+    text_w = [_text_width_paper(i) for i in range(n)]
+
+    # x_left in paper coords = node_x[i]  (bar center; text starts at bar right edge)
+    # x_right = node_x[i] + text_w[i]
+
+    # ── Group nodes by column (sorted left to right) ────────────────────
+    columns = defaultdict(list)
+    for i in range(n):
+        col_key = round(node_x[i], 3)
+        columns[col_key].append(i)
+    sorted_col_keys = sorted(columns.keys())
+
+    # Maximum Y shift allowed (in node_y units) — cap so text stays near bar
+    max_shift_ny = 30.0 / avail_px  # 30 px max drift
+
+    # ── Iterative global passes ─────────────────────────────────────────
+    for _pass in range(15):
+        any_conflict = False
+
+        # Check every pair of adjacent columns
+        for ci in range(len(sorted_col_keys) - 1):
+            left_key = sorted_col_keys[ci]
+            right_key = sorted_col_keys[ci + 1]
+
+            for li in columns[left_key]:
+                # Left node text box
+                l_x_left = node_x[li]
+                l_x_right = node_x[li] + text_w[li]
+                l_y_top = node_y[li] - text_half_h[li]
+                l_y_bot = node_y[li] + text_half_h[li]
+
+                for ri in columns[right_key]:
+                    # Right node text box
+                    r_x_left = node_x[ri]
+                    r_x_right = node_x[ri] + text_w[ri]
+                    r_y_top = node_y[ri] - text_half_h[ri]
+                    r_y_bot = node_y[ri] + text_half_h[ri]
+
+                    # Check X overlap: left text extends into right column?
+                    if l_x_right <= r_x_left:
+                        continue  # no horizontal overlap
+                    # Check Y overlap
+                    if l_y_bot <= r_y_top or r_y_bot <= l_y_top:
+                        continue  # no vertical overlap
+
+                    # ── Conflict found — compute minimal Y shift ────────
+                    any_conflict = True
+
+                    # Vertical overlap amount
+                    y_overlap = min(l_y_bot, r_y_bot) - max(l_y_top, r_y_top)
+                    min_gap_ny = min_gap_px / avail_px
+                    needed = y_overlap + min_gap_ny
+
+                    # Decide which node to move (prefer moving smaller value)
+                    # and which direction (up or down, whichever is shorter)
+                    if node_val_raw[li] <= node_val_raw[ri]:
+                        mover = li
+                    else:
+                        mover = ri
+
+                    # Try moving mover UP vs DOWN — pick direction that
+                    # creates distance with less shift
+                    other = ri if mover == li else li
+                    if node_y[mover] <= node_y[other]:
+                        # mover is above other → move mover UP (decrease node_y)
+                        shift = min(needed, max_shift_ny)
+                        node_y[mover] = node_y[mover] - shift
+                    else:
+                        # mover is below other → move mover DOWN (increase node_y)
+                        shift = min(needed, max_shift_ny)
+                        node_y[mover] = node_y[mover] + shift
+
+                    # Clamp
+                    node_y[mover] = max(0.01 + text_half_h[mover],
+                                        min(0.99 - text_half_h[mover],
+                                            node_y[mover]))
+
+        if not any_conflict:
+            break
+
+
 def _fmt(val):
     """Format a number as $XXB or $XXM."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
@@ -3765,6 +3905,9 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     # bars and annotations move together.
     _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
     _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
+    _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
+                           node_val_str, node_row2, _font_sz, _h, _thickness,
+                           min_gap_px=2)
 
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
@@ -4300,6 +4443,9 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     # ── Fix bar gaps: ensure ≥2px between adjacent bar edges ────────────
     _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
     _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
+    _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
+                           node_val_str, node_row2, _font_sz, _h, _thickness,
+                           min_gap_px=2)
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
