@@ -3212,8 +3212,9 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     node_colors = []
     node_x = []
     node_y = []
-    node_row1 = []   # "Name  $xB" (for 2-row annotations)
-    node_row2 = []   # "↑+15.2% +$68.30B" (for 2-row annotations)
+    node_name_list = []  # "Revenue" (for 3-row annotations)
+    node_val_str = []    # "$68.30B" (for 3-row annotations)
+    node_row2 = []       # "↑+15.2% +$68.30B" (for 3-row annotations)
     imap = {}
     def add(name, val, color_idx, x, y, prev_val=None, expandable=False):
         y = round(max(0.01, min(0.99, y)), 4)
@@ -3234,7 +3235,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             arrow = "\u2191" if diff >= 0 else "\u2193"
             pct_suffix = f"  {arrow}{delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
-        node_row1.append(f"{display_name}:  {_fmt(val)}")
+        node_name_list.append(display_name)
+        node_val_str.append(_fmt(val))
         node_row2.append(pct_suffix.strip() if pct_suffix.strip() else "")
         node_colors.append(colors[color_idx])
         node_x.append(x)
@@ -3500,16 +3502,15 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         # Convert Sankey node coords → paper coords
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
-        # Columns 1 & 2 (X1, X2) → 2-row format; others → single line
-        if node_x[i] <= X3 + 0.01:
-            r2 = node_row2[i]
-            if r2:
-                txt = (f"<b>{node_row1[i]}</b><br>"
-                       f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
-            else:
-                txt = f"<b>{node_row1[i]}</b>"
+        # 3-row format for ALL columns: Name / $Value / ↑% +$delta
+        r2 = node_row2[i]
+        if r2:
+            txt = (f"<b>{node_name_list[i]}</b><br>"
+                   f"<b>{node_val_str[i]}</b><br>"
+                   f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
         else:
-            txt = nodes[i]
+            txt = (f"<b>{node_name_list[i]}</b><br>"
+                   f"<b>{node_val_str[i]}</b>")
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
@@ -3647,7 +3648,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     C = BS_COLORS
     nodes, node_colors_list, node_x, node_y = [], [], [], []
-    node_row1, node_row2 = [], []
+    node_name_list, node_val_str, node_row2 = [], [], []
     links_src, links_tgt, links_val, links_col = [], [], [], []
     imap = {}
 
@@ -3672,7 +3673,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             arrow = "\u2191" if diff >= 0 else "\u2193"
             pct_suffix = f"  {arrow}{delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
-        node_row1.append(f"{display_name}:  {_fmt(val)}")
+        node_name_list.append(display_name)
+        node_val_str.append(_fmt(val))
         node_row2.append(pct_suffix.strip() if pct_suffix.strip() else "")
         node_colors_list.append(color)
         node_x.append(x)
@@ -3948,16 +3950,15 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     for i in range(len(nodes)):
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
-        # Columns 1 & 2 (X1, X2) → 2-row format; others → single line
-        if node_x[i] <= X3 + 0.01:
-            r2 = node_row2[i]
-            if r2:
-                txt = (f"<b>{node_row1[i]}</b><br>"
-                       f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
-            else:
-                txt = f"<b>{node_row1[i]}</b>"
+        # 3-row format for ALL columns: Name / $Value / ↑% +$delta
+        r2 = node_row2[i]
+        if r2:
+            txt = (f"<b>{node_name_list[i]}</b><br>"
+                   f"<b>{node_val_str[i]}</b><br>"
+                   f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
         else:
-            txt = nodes[i]
+            txt = (f"<b>{node_name_list[i]}</b><br>"
+                   f"<b>{node_val_str[i]}</b>")
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
