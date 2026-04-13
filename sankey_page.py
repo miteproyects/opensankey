@@ -3229,18 +3229,69 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_x.append(x)
         node_y.append(y)
 
-    add("Revenue", revenue, 0, X1, 0.42, p_revenue)
-    if cogs > 0:
-        add("Cost of Revenue", cogs, 1, X2, 0.18, p_cogs)
-    add("Gross Profit", gross_profit, 2, X2, 0.56 if cogs > 0 else 0.42, p_gross_profit)
+    # ── Proportional Y-positioning ──────────────────────────────────────
+    # Each node's vertical centre is placed proportionally to its value
+    # relative to Revenue, so thick flows always get enough visual space.
+    # The usable Y band is [Y_MIN .. Y_MAX].  Within each column (X1..X5)
+    # the "top" child sits near Y_MIN and the "bottom" child near Y_MAX,
+    # with spacing proportional to value.
+    Y_MIN, Y_MAX = 0.04, 0.96
+    Y_SPAN = Y_MAX - Y_MIN
+    MIN_GAP = 0.06  # minimum gap between adjacent nodes in same column
 
-    # --- Fetch sub-breakdown data for ALL expandable nodes (to check if breakdown exists) ---
+    def _proportional_ys(items, parent_y=None):
+        """Given [(label, value, ...)] return list of y positions.
+
+        Distributes nodes so that each node's vertical band is proportional
+        to its value, with a guaranteed minimum gap between neighbours.
+        If parent_y is given, the weighted centre gravitates toward it.
+        """
+        if not items:
+            return []
+        if len(items) == 1:
+            return [parent_y if parent_y else (Y_MIN + Y_MAX) / 2]
+        total = sum(v for _, v, *_ in items)
+        if total == 0:
+            # equal spacing fallback
+            step = Y_SPAN / (len(items) + 1)
+            return [Y_MIN + step * (i + 1) for i in range(len(items))]
+        # Assign proportional band then take centre of each band
+        raw = []
+        cursor = Y_MIN
+        for _, v, *_ in items:
+            band = max((v / total) * Y_SPAN, MIN_GAP)
+            raw.append(cursor + band / 2)
+            cursor += band
+        # If we overflowed past Y_MAX, rescale
+        if cursor > Y_MAX + 0.01:
+            scale = Y_SPAN / (cursor - Y_MIN)
+            raw = [Y_MIN + (r - Y_MIN) * scale for r in raw]
+        # Enforce minimum gap
+        for i in range(1, len(raw)):
+            if raw[i] - raw[i - 1] < MIN_GAP:
+                raw[i] = raw[i - 1] + MIN_GAP
+        # Final clamp
+        raw = [max(Y_MIN, min(Y_MAX, r)) for r in raw]
+        return raw
+
+    # --- Column 1: Revenue (single node, centred) ---
+    add("Revenue", revenue, 0, X1, 0.42, p_revenue)
+
+    # --- Column 2: COGS + Gross Profit ---
+    if cogs > 0:
+        col2 = [("cogs", cogs), ("gp", gross_profit)]
+        c2y = _proportional_ys(col2, parent_y=0.42)
+        add("Cost of Revenue", cogs, 1, X2, c2y[0], p_cogs)
+        add("Gross Profit", gross_profit, 2, X2, c2y[1], p_gross_profit)
+    else:
+        add("Gross Profit", gross_profit, 2, X2, 0.42, p_gross_profit)
+
+    # --- Fetch sub-breakdown data for ALL expandable nodes ---
     _sub_cache = {}
     if ticker:
         for exp_name, cfg in EXPANDABLE_INCOME_NODES.items():
             _sub_cache[exp_name] = _fetch_sub_values(ticker, cfg["children"])
 
-    # Pre-check which nodes actually have 2+ children for a real breakdown
     _can_expand = set()
     for exp_name, sub in _sub_cache.items():
         if exp_name not in EXPANDABLE_INCOME_NODES:
@@ -3249,15 +3300,13 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         if n_children >= 2:
             _can_expand.add(exp_name)
 
-    exp_y = 0.15
-    exp_gap = 0.10
-    n_exp = 0
-    # Track which expense nodes are expanded (for linking later)
-    _expanded_children = {}  # parent_label -> [(child_label, child_val, color_idx)]
+    # --- Column 3: Expenses + Operating Income ---
+    # Collect all expense items and OI, then position proportionally
+    _expanded_children = {}
+    col3_items = []  # [(label, value, color_idx, prev_val, expandable, is_oi)]
 
     if rd_expense > 0:
-        add("R&D", rd_expense, 3, X3, exp_y + n_exp * exp_gap, p_rd_expense)
-        n_exp += 1
+        col3_items.append(("R&D", rd_expense, 3, p_rd_expense, False, False))
 
     if sga_expense > 0:
         _sga_expandable = "SG&A" in _can_expand
@@ -3269,15 +3318,13 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                 if ch_val > 0:
                     children.append((ch["label"], ch_val, ch["color_idx"]))
             ch_sum = sum(v for _, v, _ in children)
-            scale = sga_expense / ch_sum
+            scale = sga_expense / ch_sum if ch_sum > 0 else 1
             children = [(l, round(v * scale), ci) for l, v, ci in children]
             _expanded_children["SG&A"] = children
             for ch_label, ch_val, ch_ci in children:
-                add(ch_label, ch_val, ch_ci, X3, exp_y + n_exp * exp_gap)
-                n_exp += 1
+                col3_items.append((ch_label, ch_val, ch_ci, None, False, False))
         else:
-            add("SG&A", sga_expense, 4, X3, exp_y + n_exp * exp_gap, p_sga_expense, expandable=_sga_expandable)
-            n_exp += 1
+            col3_items.append(("SG&A", sga_expense, 4, p_sga_expense, _sga_expandable, False))
 
     if dep_amort > 0:
         _da_expandable = "D&A" in _can_expand
@@ -3289,43 +3336,47 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                 if ch_val > 0:
                     children.append((ch["label"], ch_val, ch["color_idx"]))
             ch_sum = sum(v for _, v, _ in children)
-            scale = dep_amort / ch_sum
+            scale = dep_amort / ch_sum if ch_sum > 0 else 1
             children = [(l, round(v * scale), ci) for l, v, ci in children]
             _expanded_children["D&A"] = children
             for ch_label, ch_val, ch_ci in children:
-                add(ch_label, ch_val, ch_ci, X3, exp_y + n_exp * exp_gap)
-                n_exp += 1
+                col3_items.append((ch_label, ch_val, ch_ci, None, False, False))
         else:
-            add("D&A", dep_amort, 5, X3, exp_y + n_exp * exp_gap, p_dep_amort, expandable=_da_expandable)
-            n_exp += 1
+            col3_items.append(("D&A", dep_amort, 5, p_dep_amort, _da_expandable, False))
 
     if other_opex > 0:
-        add("Other OpEx", other_opex, 5, X3, exp_y + n_exp * exp_gap, p_other_opex)
-        n_exp += 1
+        col3_items.append(("Other OpEx", other_opex, 5, p_other_opex, False, False))
 
-    oi_y = max(exp_y + n_exp * exp_gap + 0.08, 0.55)
-    add("Operating Income", operating_inc, 6, X3, oi_y, p_operating_inc)
+    col3_items.append(("Operating Income", operating_inc, 6, p_operating_inc, False, True))
 
-    # Place non-op nodes — spread them dynamically
-    n_nonop = int(interest_exp > 0) + int(other_nonop > 0)
-    nonop_y = max(oi_y - 0.12, 0.30)
-    nonop_gap = 0.10
-    n_no = 0
+    # Compute proportional Y for column 3
+    col3_ys = _proportional_ys(col3_items, parent_y=0.42)
+    for i, (lbl, val, ci, pv, expandable, is_oi) in enumerate(col3_items):
+        add(lbl, val, ci, X3, col3_ys[i], pv, expandable=expandable)
+    oi_y = col3_ys[-1]  # Operating Income is always last
+
+    # --- Column 4: Interest Exp + Other Non-Op + Pretax Income ---
+    col4_items = []
     if interest_exp > 0:
-        add("Interest Exp.", interest_exp, 7, X4, nonop_y + n_no * nonop_gap, p_interest_exp)
-        n_no += 1
+        col4_items.append(("Interest Exp.", interest_exp, 7, p_interest_exp))
     if other_nonop > 0:
-        add("Other Non-Op", other_nonop, 7, X4, nonop_y + n_no * nonop_gap, p_other_nonop)
-        n_no += 1
-    pt_y = min(max(nonop_y + n_no * nonop_gap + 0.08, oi_y + 0.10), 0.74)
-    add("Pretax Income", pretax_income, 8, X4, pt_y, p_pretax_income)
+        col4_items.append(("Other Non-Op", other_nonop, 7, p_other_nonop))
+    col4_items.append(("Pretax Income", pretax_income, 8, p_pretax_income))
 
-    tax_y = min(pt_y + 0.08, 0.80)
-    net_y = min(pt_y + 0.18, 0.88)
+    col4_ys = _proportional_ys(col4_items, parent_y=oi_y)
+    for i, (lbl, val, ci, pv) in enumerate(col4_items):
+        add(lbl, val, ci, X4, col4_ys[i], pv)
+    pt_y = col4_ys[-1]  # Pretax Income is always last
+
+    # --- Column 5: Tax + Net Income ---
+    col5_items = []
     if tax > 0:
-        add("Income Tax", tax, 9, X5, tax_y, p_tax)
-        net_y = min(tax_y + 0.10, 0.88)
-    add("Net Income", net_income, 10, X5, net_y, p_net_income)
+        col5_items.append(("Income Tax", tax, 9, p_tax))
+    col5_items.append(("Net Income", net_income, 10, p_net_income))
+
+    col5_ys = _proportional_ys(col5_items, parent_y=pt_y)
+    for i, (lbl, val, ci, pv) in enumerate(col5_items):
+        add(lbl, val, ci, X5, col5_ys[i], pv)
 
     srcs, tgts, vals, lcolors = [], [], [], []
 
