@@ -2094,21 +2094,25 @@ def _inject_sankey_click_js(metric_map, section="income"):
         const SECTION = "{section}";
         const parentDoc = window.parent.document;
 
-        /* Guard against double-fire: direct SVG handlers + plotly_click both trigger */
+        /* Guard against double-fire */
         var _clickGuard = false;
         function clickPill(label) {{
             if (_clickGuard) return;
             _clickGuard = true;
             setTimeout(function() {{ _clickGuard = false; }}, 2000);
-            /* Inject a script into the parent document that navigates in
-               the parent context — avoids SecurityError from sandboxed iframe. */
+            /* Find the matching pill button in the parent and click it directly.
+               This triggers Streamlit's internal widget update via WebSocket —
+               NO page refresh, unlike window.location.href navigation. */
             var safeLabel = label.replace(/'/g, "\\'");
             var s = window.parent.document.createElement('script');
             s.textContent = "(function(){{" +
-                "var u=new URL(window.location.href);" +
-                "u.searchParams.set('open_metric','" + safeLabel + "');" +
-                "u.searchParams.set('metric_section','" + SECTION + "');" +
-                "window.location.href=u.toString();" +
+                "var btns=document.querySelectorAll('[data-testid=\"stBaseButton-pills\"]');" +
+                "for(var i=0;i<btns.length;i++){{" +
+                "  if(btns[i].textContent.trim()==='" + safeLabel + "'){{" +
+                "    btns[i].click();" +
+                "    return;" +
+                "  }}" +
+                "}}" +
                 "}})();";
             window.parent.document.head.appendChild(s);
             s.remove();
@@ -2651,15 +2655,17 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
             if (_clickGuard) return;
             _clickGuard = true;
             setTimeout(function() {{ _clickGuard = false; }}, 2000);
-            /* Inject a script into the parent document that navigates in
-               the parent context — avoids SecurityError from sandboxed iframe. */
+            /* Find the matching pill button in the parent and click it directly. */
             var safeLabel = label.replace(/'/g, "\\'");
             var s = window.parent.document.createElement('script');
             s.textContent = "(function(){{" +
-                "var u=new URL(window.location.href);" +
-                "u.searchParams.set('open_metric','" + safeLabel + "');" +
-                "u.searchParams.set('metric_section','" + SECTION + "');" +
-                "window.location.href=u.toString();" +
+                "var btns=document.querySelectorAll('[data-testid=\"stBaseButton-pills\"]');" +
+                "for(var i=0;i<btns.length;i++){{" +
+                "  if(btns[i].textContent.trim()==='" + safeLabel + "'){{" +
+                "    btns[i].click();" +
+                "    return;" +
+                "  }}" +
+                "}}" +
                 "}})();";
             window.parent.document.head.appendChild(s);
             s.remove();
@@ -5464,14 +5470,6 @@ def render_sankey_page():
             _skip_pills.add("Gross Profit")
         metric_options = [k for k in INCOME_NODE_METRICS.keys() if k not in _skip_pills]
 
-        # ── Query-param bridge: node/KPI click sets ?open_metric=X ──
-        _qp_metric = st.query_params.get("open_metric", "")
-        _qp_section = st.query_params.get("metric_section", "")
-        if _qp_metric and _qp_section == "income" and _qp_metric in metric_options:
-            st.session_state["income_metric_pill"] = _qp_metric
-            st.query_params.clear()
-            st.rerun()
-
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill")
         if sel:
@@ -5532,14 +5530,6 @@ def render_sankey_page():
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
         st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div></div></div>', unsafe_allow_html=True)
-        # ── Query-param bridge: node/KPI click sets ?open_metric=X ──
-        _qp_metric = st.query_params.get("open_metric", "")
-        _qp_section = st.query_params.get("metric_section", "")
-        if _qp_metric and _qp_section == "balance" and _qp_metric in metric_options:
-            st.session_state["balance_metric_pill"] = _qp_metric
-            st.query_params.clear()
-            st.rerun()
-
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="balance_metric_pill")
         if sel:
