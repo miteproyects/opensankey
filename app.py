@@ -3007,7 +3007,8 @@ with st.sidebar:
                             if st.session_state.get(f"sk_Ya_q{_qi}", False):
                                 st.session_state[f"sk_Yb_q{_qi}"] = True
                                 st.session_state[f"sk_Ya_q{_qi}"] = False
-                    st.session_state[_prev_pa_key] = _cur_pa
+                # Always persist current Period A so next rerun can detect changes
+                st.session_state[_prev_pa_key] = _cur_pa
 
                 # Read current toggle state
                 _qa_nums = sorted([q for q in range(1, 5) if st.session_state.get(f"sk_Ya_q{q}", False)])
@@ -3145,7 +3146,12 @@ with st.sidebar:
                         _changed = True
                 # Enforce min 1
                 if not _on_keys:
-                    _def_key = f"sk_Ya_q{_default_q}"
+                    _sel_pa_fy2 = int(st.session_state.get("sk_pa", _years_with_data[0]))
+                    _cq_sel2 = _completed_qs_in_fy(_sel_pa_fy2, _fy_m_sk)
+                    if _cq_sel2 >= _default_q:
+                        _def_key = f"sk_Ya_q{_default_q}"
+                    else:
+                        _def_key = f"sk_Yb_q{_default_q}"
                     st.session_state[_def_key] = True
                     _on_keys = [_def_key]
 
@@ -3290,14 +3296,14 @@ with st.sidebar:
                             _days = _days_until_q(_qi_i, _fy_i)
                             st.button(
                                 f"FY{_fy_i} - Q{_qi_i} — filing ~{_days}d",
-                                key=_bid, use_container_width=True,
+                                key=_bid, use_container_width=True, disabled=True,
                                 help=f"Quarter ended, SEC filing pending (~45 days after quarter end) — [subscribe](https://quartercharts.com/pricing) to get notified",
                             )
                         else:
                             _days = _days_until_q(_qi_i, _fy_i)
                             st.button(
                                 f"FY{_fy_i} - Q{_qi_i} — in {_days}d",
-                                key=_bid, use_container_width=True,
+                                key=_bid, use_container_width=True, disabled=True,
                                 help=_tip,
                             )
                     elif _on:
