@@ -3009,8 +3009,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     p_revenue       = _safe_prev(income_df, "Total Revenue")
     p_cogs          = abs(_safe_prev(income_df, "Cost Of Revenue"))
     p_gross_profit  = _safe_prev(income_df, "Gross Profit")
-    if p_gross_profit == 0 and p_revenue > 0 and p_cogs > 0:
-        p_gross_profit = p_revenue - p_cogs
+    if p_gross_profit == 0 and p_revenue > 0:
+        p_gross_profit = p_revenue - p_cogs  # works for p_cogs=0 too (financial cos)
     p_rd_expense    = abs(_safe_prev(income_df, "Research And Development"))
     p_sga_expense   = abs(_safe_prev(income_df, "Selling General And Administration"))
     p_dep_amort     = abs(_safe_prev(income_df, "Reconciled Depreciation"))
@@ -3030,10 +3030,14 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     if p_pretax_income == 0 and p_operating_inc > 0:
         p_pretax_income = max(0, p_operating_inc - p_interest_exp)
     # Derive previous-period other_nonop if there's a gap
-    if p_operating_inc > 0 and p_interest_exp > 0:
+    p_other_nonop = 0
+    if p_operating_inc > 0 and p_pretax_income > 0:
         p_gap = p_operating_inc - p_pretax_income
-        if p_gap > p_interest_exp * 1.5:
-            p_other_nonop = p_gap - p_interest_exp
+        if p_gap >= 0:
+            if p_interest_exp > 0 and p_gap > p_interest_exp * 1.5:
+                p_other_nonop = p_gap - p_interest_exp
+            elif p_interest_exp == 0:
+                p_other_nonop = p_gap
     if p_net_income == 0 and p_pretax_income > 0:
         p_net_income = max(0, p_pretax_income - p_tax)
 
@@ -3079,7 +3083,6 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
 
     # Level 3: Operating Income = Interest + Other Non-Op + Pretax Income
     other_nonop = 0
-    p_other_nonop = 0
     if pretax_income == 0:
         pretax_income = operating_inc - interest_exp
     if interest_exp + pretax_income != operating_inc and operating_inc > 0:
@@ -3218,16 +3221,16 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         star = "\u2605 " if expandable else ""
         display_name = f"{star}{name}"
         pct = _yoy(val, prev_val)
-        delta_str = _fmt_delta(val, prev_val) if prev_val else None
+        delta_str = _fmt_delta(val, prev_val) if prev_val is not None else None
         pct_suffix = ""
         if pct is not None:
-            diff = val - prev_val if prev_val else 0
+            diff = val - prev_val if prev_val is not None else 0
             arrow = "\u2191" if diff >= 0 else "\u2193"
             pct_suffix = f"  {arrow}{pct:+.1f}%"
             if delta_str:
                 pct_suffix += f" {delta_str}"
         elif delta_str:
-            diff = val - prev_val if prev_val else 0
+            diff = val - prev_val if prev_val is not None else 0
             arrow = "\u2191" if diff >= 0 else "\u2193"
             pct_suffix = f"  {arrow}{delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
@@ -3578,6 +3581,20 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         "Investments": _p("Investments And Advances") or _p("Long Term Equity Investment"),
         "Deferred Revenue": _p("Current Deferred Revenue"),
     }
+    # Derive prev CA/NCA from sub-items when reported as 0 (financial companies)
+    if prev_map.get("Current Assets", 0) == 0:
+        _pca = sum(prev_map.get(k, 0) for k in ["Cash", "ST Investments", "Receivables", "Inventory"])
+        if _pca > 0:
+            prev_map["Current Assets"] = _pca
+    if prev_map.get("Non-Current Assets", 0) == 0:
+        _pnca = sum(prev_map.get(k, 0) for k in ["PP&E", "Goodwill", "Intangibles", "Investments"])
+        if _pnca > 0:
+            prev_map["Non-Current Assets"] = _pnca
+    if prev_map.get("Non-Current Liab.", 0) == 0 and prev_map.get("Total Liabilities", 0) > 0:
+        _pcl = prev_map.get("Current Liab.", 0)
+        _pncl = prev_map["Total Liabilities"] - _pcl
+        if _pncl > 0:
+            prev_map["Non-Current Liab."] = _pncl
     # Compute residual "Other" prev values
     _kca = sum(prev_map.get(k, 0) for k in ["Cash", "ST Investments", "Receivables", "Inventory"])
     prev_map["Other Current"] = max(0, prev_map.get("Current Assets", 0) - _kca)
@@ -3642,16 +3659,16 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         display_name = f"{star}{name}"
         pv = prev_map.get(name, 0)
         pct = _yoy(val, pv)
-        delta_str = _fmt_delta(val, pv) if pv else None
+        delta_str = _fmt_delta(val, pv)
         pct_suffix = ""
         if pct is not None:
-            diff = val - pv if pv else 0
+            diff = val - pv
             arrow = "\u2191" if diff >= 0 else "\u2193"
             pct_suffix = f"  {arrow}{pct:+.1f}%"
             if delta_str:
                 pct_suffix += f" {delta_str}"
         elif delta_str:
-            diff = val - pv if pv else 0
+            diff = val - pv
             arrow = "\u2191" if diff >= 0 else "\u2193"
             pct_suffix = f"  {arrow}{delta_str}"
         nodes.append(f"{display_name}  {_fmt(val)}{pct_suffix}")
