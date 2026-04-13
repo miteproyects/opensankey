@@ -116,9 +116,19 @@ def _text_height_px(font_sz, has_row2=True):
     """Return the pixel height of a 3-row or 2-row annotation label.
 
     Row layout:  <b>Name</b>  <b>$Value</b>  [<span>↑+X% +$delta</span>]
-    Line height ≈ font_size × 2.4 (Plotly HTML annotations with <b>,
-    <br>, and <span> tags render with significantly more vertical
-    spacing than standard CSS line-height).
+    Line height ≈ font_size × 1.45 (for layout/spacing calculations).
+    For visual overlap detection, use _text_height_px_visual() instead.
+    """
+    line_h = font_sz * 1.45
+    return line_h * (3 if has_row2 else 2)
+
+
+def _text_height_px_visual(font_sz, has_row2=True):
+    """Return the RENDERED pixel height of a Plotly HTML annotation.
+
+    Plotly annotations with <b>, <br>, <span> tags render with significantly
+    more vertical spacing than standard CSS line-height. This larger estimate
+    is used only for post-layout overlap detection, NOT for chart height calc.
     """
     line_h = font_sz * 2.4
     return line_h * (3 if has_row2 else 2)
@@ -169,9 +179,9 @@ def _fix_annotation_overlaps(node_x, node_y, node_row2, font_sz, chart_height):
     dom_y0, dom_y1 = 0.04, 0.96
     dom_span = dom_y1 - dom_y0
 
-    # Text height in paper coordinates
-    text_h_3row = _text_height_px(font_sz, has_row2=True) / (chart_height * dom_span) * dom_span
-    text_h_2row = _text_height_px(font_sz, has_row2=False) / (chart_height * dom_span) * dom_span
+    # Text height in paper coordinates — use visual (rendered) height for overlap detection
+    text_h_3row = _text_height_px_visual(font_sz, has_row2=True) / (chart_height * dom_span) * dom_span
+    text_h_2row = _text_height_px_visual(font_sz, has_row2=False) / (chart_height * dom_span) * dom_span
 
     # Group nodes by column (x coordinate, rounded to avoid float issues)
     from collections import defaultdict
