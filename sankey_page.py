@@ -112,71 +112,40 @@ def _rgba(hex_color, alpha=0.42):
     return f"rgba({r},{g},{b},{alpha})"
 
 
-def _resolve_annotation_overlaps(positions, min_gap=0.06):
-    """Push apart annotation y-positions within the same x-column to avoid overlap.
+def _text_height_px(font_sz, has_row2=True):
+    """Return the pixel height of a 3-row or 2-row annotation label.
 
-    Args:
-        positions: list of (index, x_paper, y_paper, has_row2) tuples
-        min_gap: minimum vertical distance between annotation centres (paper coords).
-                 3-row annotations are taller, so we use a larger gap for those.
-    Returns:
-        tuple: (dict mapping index → adjusted y_paper,
-                set of indices that should use compact 2-row format)
+    Row layout:  <b>Name</b>  <b>$Value</b>  [<span>↑+X% +$delta</span>]
+    Line height ≈ font_size × 1.45 (accounts for inter-line spacing).
     """
-    from collections import defaultdict
-    # Group by x column (round to nearest 0.05 to bucket same-column nodes)
-    cols = defaultdict(list)
-    for idx, xp, yp, has_r2 in positions:
-        col_key = round(xp * 20) / 20  # bucket to 0.05 precision
-        cols[col_key].append((idx, yp, has_r2))
+    line_h = font_sz * 1.45
+    return line_h * (3 if has_row2 else 2)
 
-    adjusted = {}
-    compact_set = set()  # indices that should use 2-row (no YoY) format
-    for col_key, items in cols.items():
-        if len(items) <= 1:
-            for idx, yp, _ in items:
-                adjusted[idx] = yp
+
+def _compute_dynamic_height(column_node_counts, font_sz, node_gap_px=10, base_height=460):
+    """Compute the chart height so that the tallest column has room for all labels.
+
+    For each column, the minimum pixel height needed is:
+        n_nodes × text_height_px + (n_nodes - 1) × node_gap_px
+    The chart's drawable area is  height × (dom_y1 - dom_y0) = height × 0.92.
+    So chart height = max(base_height, worst_col_min_px / 0.92 + margin).
+    """
+    text_h = _text_height_px(font_sz, has_row2=True)  # worst case: 3-row
+    needed = base_height
+    for n in column_node_counts:
+        if n <= 1:
             continue
+        col_px = n * text_h + (n - 1) * node_gap_px
+        chart_px = col_px / 0.92 + 30  # 30px for top/bottom margin
+        needed = max(needed, chart_px)
+    return int(min(needed, 900))  # cap at 900px to stay reasonable
 
-        n = len(items)
-        # For crowded columns (5+ items), use compact 2-row format
-        use_compact = n >= 5
-        if use_compact:
-            for idx, _, _ in items:
-                compact_set.add(idx)
 
-        # Adaptive gap: 3-row ≈ 0.10, 2-row ≈ 0.07, scale down for very crowded columns
-        avail = 0.94  # paper range [0.03, 0.97]
-        if use_compact:
-            base_gap = min(min_gap, avail / (n + 0.5))
-        else:
-            base_gap = min(min_gap * 1.3, avail / (n + 0.5))
-
-        # Sort by y position (top to bottom in paper coords = high to low)
-        items.sort(key=lambda t: -t[1])  # highest y first (top of chart)
-        ys = [(idx, yp, has_r2) for idx, yp, has_r2 in items]
-
-        # Iterative push-apart: ensure min gap between consecutive annotations
-        for _pass in range(8):  # more passes for convergence
-            changed = False
-            for i in range(len(ys) - 1):
-                idx_a, ya, r2_a = ys[i]
-                idx_b, yb, r2_b = ys[i + 1]
-                gap = base_gap * (1.2 if (r2_a or r2_b) and not use_compact else 1.0)
-                if ya - yb < gap:
-                    mid = (ya + yb) / 2
-                    new_a = mid + gap / 2
-                    new_b = mid - gap / 2
-                    new_a = min(0.97, max(0.03, new_a))
-                    new_b = min(0.97, max(0.03, new_b))
-                    ys[i] = (idx_a, new_a, r2_a)
-                    ys[i + 1] = (idx_b, new_b, r2_b)
-                    changed = True
-            if not changed:
-                break
-        for idx, yp, _ in ys:
-            adjusted[idx] = yp
-    return adjusted, compact_set
+def _min_band_for_text(font_sz, chart_height, has_row2=True):
+    """Convert text pixel height to paper-coordinate band height."""
+    text_px = _text_height_px(font_sz, has_row2)
+    dom_span = 0.92  # domain [0.04, 0.96]
+    return text_px / (chart_height * dom_span)
 
 
 def _fmt(val):
@@ -3351,6 +3320,25 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_x.append(x)
         node_y.append(y)
 
+    # ── Pre-count nodes per column to compute dynamic chart height ──────
+    # Col1: 1 (Revenue), Col2: 1-2 (COGS+GP), Col3: up to ~8 (expenses+OI),
+    # Col4: 2-3 (IntExp+NonOp+Pretax), Col5: 1-2 (Tax+NI)
+    _c2_n = 2 if cogs > 0 else 1
+    _c3_n = sum(1 for v in [rd_expense, sga_expense, dep_amort, other_opex] if v > 0) + 1  # +OI
+    _c4_n = sum(1 for v in [interest_exp, other_nonop] if v > 0) + 1  # +Pretax
+    _c5_n = (1 if tax > 0 else 0) + 1  # +NI
+    _max_col_n = max(_c2_n, _c3_n, _c4_n, _c5_n)
+
+    # Compute font size early (need it for text height calc)
+    _n_nodes_est = 1 + _c2_n + _c3_n + _c4_n + _c5_n
+    _font_sz_est = 11 if _n_nodes_est <= 12 else (10 if _n_nodes_est <= 16 else 9)
+
+    # Dynamic chart height: ensure tallest column has room for all text labels
+    _h = _compute_dynamic_height([_c2_n, _c3_n, _c4_n, _c5_n], _font_sz_est)
+
+    # Minimum band height per node (paper coords): ensures text fits
+    _min_text_band = _min_band_for_text(_font_sz_est, _h, has_row2=True)
+
     # ── Band-confined proportional Y-positioning ────────────────────────
     # Key principle: each column's children are confined WITHIN the
     # vertical band of their parent node.  This guarantees zero crossings.
@@ -3362,10 +3350,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     #   Col 5:   Tax + Net Income  split Pretax's band
     #
     Y_MIN, Y_MAX = 0.04, 0.96
-    MIN_GAP = 0.05  # minimum gap between adjacent nodes in same column
 
     def _split_band(values, band_top, band_bot):
         """Split a vertical band into sub-bands proportional to values.
+
+        Each child's band height = max(proportional_height, _min_text_band)
+        so that the 3-row text label always fits within the node's allocated slot.
 
         Args:
             values: list of numeric values (one per child)
@@ -3386,27 +3376,34 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             step = span / n
             return [(band_top + step * (i + 0.5), band_top + step * i, band_top + step * (i + 1)) for i in range(n)]
 
-        # Compute proportional sub-bands
-        min_band = max(MIN_GAP, span * 0.04)  # each child gets at least 4% of parent or MIN_GAP
+        # Compute proportional sub-bands, enforcing text-height minimum
         results = []
         cursor = band_top
         for v in values:
             raw_band = (v / total) * span
-            band_h = max(raw_band, min_band)
+            band_h = max(raw_band, _min_text_band)
             results.append((cursor, band_h))
             cursor += band_h
 
-        # Rescale if we overflowed
+        # Rescale if we overflowed (preserving minimums)
         actual_span = sum(h for _, h in results)
         if actual_span > span + 0.001:
-            scale = span / actual_span
-            results2 = []
-            cursor = band_top
-            for _, h in results:
-                h2 = h * scale
-                results2.append((cursor, h2))
-                cursor += h2
-            results = results2
+            # Scale only the excess above minimums
+            excess_total = sum(max(0, h - _min_text_band) for _, h in results)
+            target_excess = span - n * _min_text_band
+            if target_excess > 0 and excess_total > 0:
+                scale = target_excess / excess_total
+                results2, cursor = [], band_top
+                for _, h in results:
+                    above = max(0, h - _min_text_band)
+                    h2 = _min_text_band + above * scale
+                    results2.append((cursor, h2))
+                    cursor += h2
+                results = results2
+            else:
+                # All items at minimum — distribute evenly
+                step = span / n
+                results = [(band_top + step * i, step) for i in range(n)]
 
         # Build (centre, top, bot) tuples
         out = []
@@ -3416,13 +3413,6 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             out.append((round(max(Y_MIN, min(Y_MAX, centre)), 4),
                          round(max(Y_MIN, top_y), 4),
                          round(min(Y_MAX, bot_y), 4)))
-
-        # Enforce minimum gap between centres
-        for i in range(1, len(out)):
-            if out[i][0] - out[i - 1][0] < MIN_GAP:
-                new_c = out[i - 1][0] + MIN_GAP
-                new_c = min(new_c, Y_MAX)
-                out[i] = (new_c, out[i][1], out[i][2])
         return out
 
     # --- Column 1: Revenue (full band) ---
@@ -3586,14 +3576,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         return None
 
     _n_nodes = len(nodes)
-    # Scale node padding & thickness to fit within fixed 460px height
+    # Scale node padding & thickness
     _pad = max(8, min(22, int(320 / max(_n_nodes, 1))))
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
-    _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
+    _font_sz = _font_sz_est  # use pre-computed value (same formula)
 
-    # Hide built-in node labels — we use annotations instead so text
-    # renders ON TOP of all nodes (separate SVG layer).
-    _empty_labels = [""] * len(nodes)  # no visible built-in text
+    _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
         arrangement="fixed",
         orientation="h",
@@ -3606,35 +3594,28 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
         domain=dict(y=[0.04, 0.96]),
     ))
-    _h = 460
+    # _h already computed dynamically above (before layout)
     _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
 
-    # ── Annotation-based labels (render above all nodes) ──────────────
+    # ── Annotation-based labels ──────────────────────────────────────────
+    # Layout already ensures each node's band ≥ text height, so no
+    # collision avoidance needed — just place at the band centre.
     _dom_y0, _dom_y1 = 0.04, 0.96
     _small_sz = max(8, _font_sz - 2)
-    # Compute raw positions and resolve overlaps
-    _ann_positions = []
     for i in range(len(nodes)):
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
-        _ann_positions.append((i, x_paper, y_paper, bool(node_row2[i])))
-    _adj_y, _compact = _resolve_annotation_overlaps(_ann_positions, min_gap=0.09)
-
-    for i in range(len(nodes)):
-        x_paper = node_x[i]
-        y_paper = _adj_y.get(i, _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i]))
         r2 = node_row2[i]
-        # Compact mode: drop YoY row for crowded columns (5+ nodes)
-        if i in _compact or not r2:
-            txt = (f"<b>{node_name_list[i]}</b><br>"
-                   f"<b>{node_val_str[i]}</b>")
-        else:
+        if r2:
             txt = (f"<b>{node_name_list[i]}</b><br>"
                    f"<b>{node_val_str[i]}</b><br>"
                    f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
+        else:
+            txt = (f"<b>{node_name_list[i]}</b><br>"
+                   f"<b>{node_val_str[i]}</b>")
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
@@ -3908,50 +3889,6 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     # ── Band-confined proportional Y-positioning (same as income Sankey) ──
     Y_MIN, Y_MAX = 0.04, 0.96
-    MIN_GAP = 0.05
-
-    def _split_band_bs(values, band_top, band_bot):
-        """Split a vertical band into sub-bands proportional to values."""
-        n = len(values)
-        if n == 0:
-            return []
-        span = band_bot - band_top
-        if n == 1:
-            cy = (band_top + band_bot) / 2
-            return [(cy, band_top, band_bot)]
-        total = sum(values)
-        if total <= 0:
-            step = span / n
-            return [(band_top + step * (i + 0.5), band_top + step * i, band_top + step * (i + 1)) for i in range(n)]
-        min_band = max(MIN_GAP, span * 0.04)
-        results = []
-        cursor = band_top
-        for v in values:
-            raw_band = (v / total) * span
-            band_h = max(raw_band, min_band)
-            results.append((cursor, band_h))
-            cursor += band_h
-        actual_span = sum(h for _, h in results)
-        if actual_span > span + 0.001:
-            scale = span / actual_span
-            results2, cursor = [], band_top
-            for _, h in results:
-                h2 = h * scale
-                results2.append((cursor, h2))
-                cursor += h2
-            results = results2
-        out = []
-        for top_y, h in results:
-            bot_y = top_y + h
-            centre = top_y + h / 2
-            out.append((round(max(Y_MIN, min(Y_MAX, centre)), 4),
-                         round(max(Y_MIN, top_y), 4),
-                         round(min(Y_MAX, bot_y), 4)))
-        for i in range(1, len(out)):
-            if out[i][0] - out[i - 1][0] < MIN_GAP:
-                new_c = min(out[i - 1][0] + MIN_GAP, Y_MAX)
-                out[i] = (new_c, out[i][1], out[i][2])
-        return out
 
     # ── Build the LEFT side (Assets) and RIGHT side (Liab + Equity) ──
     # Column 1: Total Assets (full band)
@@ -4015,6 +3952,82 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     if not col2_items:
         return None
 
+    # ── Count nodes per column from col2_items for dynamic chart height ──
+    _bs_c2_n = len(col2_items)
+    _bs_c3_n = 0
+    _bs_c4_n = 0
+    for _, _, _, children, _, _ in col2_items:
+        has_nested = any(len(ch) == 4 for ch in children)
+        if has_nested:
+            _bs_c3_n += len(children)  # intermediate CL/NCL nodes
+            for ch in children:
+                if len(ch) == 4:
+                    _bs_c4_n += len(ch[3])  # sub-items
+        else:
+            _bs_c3_n += len(children)  # direct sub-items (CA/NCA/Equity)
+
+    _bs_n_nodes_est = 1 + _bs_c2_n + _bs_c3_n + _bs_c4_n
+    _bs_font_sz_est = 11 if _bs_n_nodes_est <= 12 else (10 if _bs_n_nodes_est <= 16 else 9)
+
+    # Dynamic chart height for balance sheet
+    _h = _compute_dynamic_height([_bs_c2_n, _bs_c3_n, _bs_c4_n], _bs_font_sz_est)
+    _bs_min_text_band = _min_band_for_text(_bs_font_sz_est, _h, has_row2=True)
+
+    def _split_band_bs(values, band_top, band_bot):
+        """Split a vertical band into sub-bands proportional to values.
+
+        Each child's band height = max(proportional_height, _bs_min_text_band)
+        so that the 3-row text label always fits within the node's allocated slot.
+        """
+        n = len(values)
+        if n == 0:
+            return []
+        span = band_bot - band_top
+        if n == 1:
+            cy = (band_top + band_bot) / 2
+            return [(cy, band_top, band_bot)]
+        total = sum(values)
+        if total <= 0:
+            step = span / n
+            return [(band_top + step * (i + 0.5), band_top + step * i, band_top + step * (i + 1)) for i in range(n)]
+
+        # Compute proportional sub-bands, enforcing text-height minimum
+        results = []
+        cursor = band_top
+        for v in values:
+            raw_band = (v / total) * span
+            band_h = max(raw_band, _bs_min_text_band)
+            results.append((cursor, band_h))
+            cursor += band_h
+
+        # Rescale if we overflowed (preserving minimums)
+        actual_span = sum(h for _, h in results)
+        if actual_span > span + 0.001:
+            excess_total = sum(max(0, h - _bs_min_text_band) for _, h in results)
+            target_excess = span - n * _bs_min_text_band
+            if target_excess > 0 and excess_total > 0:
+                scale = target_excess / excess_total
+                results2, cursor = [], band_top
+                for _, h in results:
+                    above = max(0, h - _bs_min_text_band)
+                    h2 = _bs_min_text_band + above * scale
+                    results2.append((cursor, h2))
+                    cursor += h2
+                results = results2
+            else:
+                step = span / n
+                results = [(band_top + step * i, step) for i in range(n)]
+
+        # Build (centre, top, bot) tuples
+        out = []
+        for top_y, h in results:
+            bot_y = top_y + h
+            centre = top_y + h / 2
+            out.append((round(max(Y_MIN, min(Y_MAX, centre)), 4),
+                         round(max(Y_MIN, top_y), 4),
+                         round(min(Y_MAX, bot_y), 4)))
+        return out
+
     # ── Column 1: Total Assets → full band ──
     ta_band = (Y_MIN, Y_MAX)
     ta_y = (Y_MIN + Y_MAX) / 2
@@ -4059,7 +4072,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         return None
 
     _n_nodes = len(nodes)
-    # Scale node padding & thickness to fit within fixed 460px height
+    # Scale node padding & thickness to fit within dynamic _h height
     _pad = max(8, min(22, int(320 / max(_n_nodes, 1))))
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
@@ -4079,7 +4092,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
         domain=dict(y=[0.04, 0.96]),
     ))
-    _h = 460
+    # _h already computed dynamically above (via _compute_dynamic_height)
     _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
@@ -4088,26 +4101,17 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     # ── Annotation-based labels (render above all nodes) ──────────────
     _dom_y0, _dom_y1 = 0.04, 0.96
     _small_sz = max(8, _font_sz - 2)
-    # Compute raw positions and resolve overlaps
-    _ann_positions = []
     for i in range(len(nodes)):
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
-        _ann_positions.append((i, x_paper, y_paper, bool(node_row2[i])))
-    _adj_y, _compact = _resolve_annotation_overlaps(_ann_positions, min_gap=0.09)
-
-    for i in range(len(nodes)):
-        x_paper = node_x[i]
-        y_paper = _adj_y.get(i, _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i]))
         r2 = node_row2[i]
-        # Compact mode: drop YoY row for crowded columns (5+ nodes)
-        if i in _compact or not r2:
-            txt = (f"<b>{node_name_list[i]}</b><br>"
-                   f"<b>{node_val_str[i]}</b>")
-        else:
+        if r2:
             txt = (f"<b>{node_name_list[i]}</b><br>"
                    f"<b>{node_val_str[i]}</b><br>"
                    f"<span style='font-size:{_small_sz}px;color:#64748b'>{r2}</span>")
+        else:
+            txt = (f"<b>{node_name_list[i]}</b><br>"
+                   f"<b>{node_val_str[i]}</b>")
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
