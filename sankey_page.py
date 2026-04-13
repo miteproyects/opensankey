@@ -148,6 +148,84 @@ def _min_band_for_text(font_sz, chart_height, has_row2=True):
     return text_px / (chart_height * dom_span)
 
 
+def _fix_annotation_overlaps(node_x, node_y, node_row2, font_sz, chart_height):
+    """Post-layout pass: push apart annotation Y positions so text never overlaps.
+
+    For each column (group of nodes sharing the same x), sort nodes by y,
+    then check adjacent pairs. Each node occupies a vertical extent defined
+    by the LARGER of:
+      - its Sankey bar band height (from node_y spacing), and
+      - its 3-row (or 2-row) text label height (in paper coords).
+
+    If two adjacent nodes' extents overlap, they are pushed apart symmetrically.
+    The adjusted Y positions are returned as a dict {node_index: new_y_paper}.
+
+    All coordinates are in paper space where y increases upward, but
+    node_y in Plotly Sankey increases downward (node_y=0 is top).
+    Annotations use: y_paper = dom_y0 + dom_span * (1 - node_y).
+    """
+    dom_y0, dom_y1 = 0.04, 0.96
+    dom_span = dom_y1 - dom_y0
+
+    # Text height in paper coordinates
+    text_h_3row = _text_height_px(font_sz, has_row2=True) / (chart_height * dom_span) * dom_span
+    text_h_2row = _text_height_px(font_sz, has_row2=False) / (chart_height * dom_span) * dom_span
+
+    # Group nodes by column (x coordinate, rounded to avoid float issues)
+    from collections import defaultdict
+    columns = defaultdict(list)
+    for i in range(len(node_x)):
+        col_key = round(node_x[i], 3)
+        y_paper = dom_y0 + dom_span * (1.0 - node_y[i])
+        has_r2 = bool(node_row2[i])
+        th = text_h_3row if has_r2 else text_h_2row
+        columns[col_key].append((i, y_paper, th))
+
+    adjusted = {}
+    for col_key, col_nodes in columns.items():
+        if len(col_nodes) <= 1:
+            continue
+
+        # Sort by y_paper descending (top of chart = higher y_paper)
+        col_nodes.sort(key=lambda t: -t[1])
+
+        # Extract mutable y positions
+        positions = [[idx, yp, th] for idx, yp, th in col_nodes]
+
+        # Multiple passes to resolve all overlaps
+        for _pass in range(10):
+            changed = False
+            for j in range(len(positions) - 1):
+                upper_idx, upper_y, upper_th = positions[j]
+                lower_idx, lower_y, lower_th = positions[j + 1]
+
+                # Upper node bottom edge = upper_y - upper_th / 2
+                # Lower node top edge = lower_y + lower_th / 2
+                upper_bottom = upper_y - upper_th / 2
+                lower_top = lower_y + lower_th / 2
+
+                overlap = lower_top - upper_bottom
+                if overlap > 0.001:
+                    # Push apart symmetrically
+                    shift = overlap / 2 + 0.002  # small extra padding
+                    positions[j][1] = upper_y + shift
+                    positions[j + 1][1] = lower_y - shift
+                    changed = True
+
+            if not changed:
+                break
+
+            # Clamp to [dom_y0, dom_y1]
+            for p in positions:
+                p[1] = max(dom_y0 + p[2] / 2, min(dom_y1 - p[2] / 2, p[1]))
+
+        # Store adjusted positions
+        for idx, yp, th in positions:
+            adjusted[idx] = yp
+
+    return adjusted
+
+
 def _fmt(val):
     """Format a number as $XXB or $XXM."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
@@ -3619,13 +3697,13 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     fig.update_layout(**_layout)
 
     # ── Annotation-based labels ──────────────────────────────────────────
-    # Layout already ensures each node's band ≥ text height, so no
-    # collision avoidance needed — just place at the band centre.
+    # Post-layout pass: fix any remaining text overlaps per column
+    _adj_y = _fix_annotation_overlaps(node_x, node_y, node_row2, _font_sz, _h)
     _dom_y0, _dom_y1 = 0.04, 0.96
     _small_sz = max(8, _font_sz - 2)
     for i in range(len(nodes)):
         x_paper = node_x[i]
-        y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
+        y_paper = _adj_y.get(i, _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i]))
         r2 = node_row2[i]
         if r2:
             txt = (f"<b>{node_name_list[i]}</b><br>"
@@ -4151,11 +4229,13 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     fig.update_layout(**_layout)
 
     # ── Annotation-based labels (render above all nodes) ──────────────
+    # Post-layout pass: fix any remaining text overlaps per column
+    _adj_y = _fix_annotation_overlaps(node_x, node_y, node_row2, _font_sz, _h)
     _dom_y0, _dom_y1 = 0.04, 0.96
     _small_sz = max(8, _font_sz - 2)
     for i in range(len(nodes)):
         x_paper = node_x[i]
-        y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
+        y_paper = _adj_y.get(i, _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i]))
         r2 = node_row2[i]
         if r2:
             txt = (f"<b>{node_name_list[i]}</b><br>"
