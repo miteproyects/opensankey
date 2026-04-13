@@ -3122,6 +3122,37 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             net_income = 0
             tax = pretax_income
 
+    # ── Store reconciled Sankey values for audit panel ──
+    import streamlit as _st_rec
+    _st_rec.session_state["_sankey_reconciled"] = {
+        "Revenue": revenue,
+        "COGS": cogs,
+        "Gross Profit": gross_profit,
+        "R&D": rd_expense,
+        "SG&A": sga_expense,
+        "D&A": dep_amort,
+        "Other OpEx": other_opex,
+        "Operating Income": operating_inc,
+        "Interest Exp.": interest_exp,
+        "Pretax Income": pretax_income,
+        "Tax": tax,
+        "Net Income": net_income,
+    }
+    _st_rec.session_state["_sankey_reconciled_prev"] = {
+        "Revenue": p_revenue,
+        "COGS": p_cogs,
+        "Gross Profit": p_gross_profit,
+        "R&D": p_rd_expense,
+        "SG&A": p_sga_expense,
+        "D&A": p_dep_amort,
+        "Other OpEx": p_other_opex,
+        "Operating Income": p_operating_inc,
+        "Interest Exp.": p_interest_exp,
+        "Pretax Income": p_pretax_income,
+        "Tax": p_tax,
+        "Net Income": p_net_income,
+    }
+
     X1, X2, X3, X4, X5 = 0.02, 0.22, 0.48, 0.70, 0.88
     colors = VIVID
     nodes = []
@@ -4926,7 +4957,135 @@ def render_sankey_page():
         else:
             st.info("Cross-validation not available (raw quarterly data needed)")
 
-        # ── Section 6: Sankey Metrics (Single Source of Truth) ──
+        # ── Section 6: Sankey Flow Reconciliation ──
+        st.markdown("---")
+        st.markdown(f'<p class="audit-header">⚖️ Sankey Flow Reconciliation (Values & Percentages)</p>', unsafe_allow_html=True)
+        _sr = st.session_state.get("_sankey_reconciled", {})
+        _sr_prev = st.session_state.get("_sankey_reconciled_prev", {})
+        if _sr and _sr.get("Revenue", 0) > 0:
+            def _fmt_v(v):
+                if v is None or v == 0:
+                    return "—"
+                if abs(v) >= 1e9:
+                    return f"${v/1e9:,.2f}B"
+                if abs(v) >= 1e6:
+                    return f"${v/1e6:,.0f}M"
+                return f"${v:,.0f}"
+
+            def _pct_of(part, whole):
+                if whole and whole != 0:
+                    return f"{(part / whole) * 100:.1f}%"
+                return "—"
+
+            def _yoy_pct(cur, prev):
+                if prev and prev != 0:
+                    return f"{((cur - prev) / abs(prev)) * 100:+.1f}%"
+                return "N/A"
+
+            _rev = _sr.get("Revenue", 0)
+            _cogs = _sr.get("COGS", 0)
+            _gp = _sr.get("Gross Profit", 0)
+            _rd = _sr.get("R&D", 0)
+            _sga = _sr.get("SG&A", 0)
+            _da = _sr.get("D&A", 0)
+            _oox = _sr.get("Other OpEx", 0)
+            _oi = _sr.get("Operating Income", 0)
+            _int = _sr.get("Interest Exp.", 0)
+            _pt = _sr.get("Pretax Income", 0)
+            _tx = _sr.get("Tax", 0)
+            _ni = _sr.get("Net Income", 0)
+
+            # Level checks
+            _l1_sum = _cogs + _gp
+            _l2_sum = _rd + _sga + _da + _oox + _oi
+            _l3_sum = _int + _pt
+            _l4_sum = _tx + _ni
+
+            _l1_ok = abs(_l1_sum - _rev) < 1
+            _l2_ok = abs(_l2_sum - _gp) < 1
+            _l3_ok = abs(_l3_sum - _oi) < 1
+            _l4_ok = abs(_l4_sum - _pt) < 1
+
+            _flow_rows = [
+                {"Level": "1", "Check": "Revenue = COGS + Gross Profit",
+                 "Left Side": _fmt_v(_rev), "Right Side": f"{_fmt_v(_cogs)} + {_fmt_v(_gp)} = {_fmt_v(_l1_sum)}",
+                 "Diff": _fmt_v(_rev - _l1_sum), "Status": "✅" if _l1_ok else "❌"},
+                {"Level": "2", "Check": "Gross Profit = R&D + SG&A + D&A + Other + OpInc",
+                 "Left Side": _fmt_v(_gp), "Right Side": f"{_fmt_v(_rd)}+{_fmt_v(_sga)}+{_fmt_v(_da)}+{_fmt_v(_oox)}+{_fmt_v(_oi)} = {_fmt_v(_l2_sum)}",
+                 "Diff": _fmt_v(_gp - _l2_sum), "Status": "✅" if _l2_ok else "❌"},
+                {"Level": "3", "Check": "Operating Income = Interest + Pretax",
+                 "Left Side": _fmt_v(_oi), "Right Side": f"{_fmt_v(_int)} + {_fmt_v(_pt)} = {_fmt_v(_l3_sum)}",
+                 "Diff": _fmt_v(_oi - _l3_sum), "Status": "✅" if _l3_ok else "❌"},
+                {"Level": "4", "Check": "Pretax Income = Tax + Net Income",
+                 "Left Side": _fmt_v(_pt), "Right Side": f"{_fmt_v(_tx)} + {_fmt_v(_ni)} = {_fmt_v(_l4_sum)}",
+                 "Diff": _fmt_v(_pt - _l4_sum), "Status": "✅" if _l4_ok else "❌"},
+            ]
+            st.dataframe(pd.DataFrame(_flow_rows), use_container_width=True, hide_index=True)
+
+            # ── Percentage breakdown table ──
+            st.markdown(f'<p class="audit-header" style="font-size:1rem;margin-top:12px;">📐 Margins & YoY Changes</p>', unsafe_allow_html=True)
+            _pct_rows = [
+                {"Metric": "Revenue", "Value": _fmt_v(_rev), "% of Revenue": "100.0%",
+                 "Previous": _fmt_v(_sr_prev.get("Revenue", 0)), "YoY %": _yoy_pct(_rev, _sr_prev.get("Revenue", 0))},
+                {"Metric": "COGS", "Value": _fmt_v(_cogs), "% of Revenue": _pct_of(_cogs, _rev),
+                 "Previous": _fmt_v(_sr_prev.get("COGS", 0)), "YoY %": _yoy_pct(_cogs, _sr_prev.get("COGS", 0))},
+                {"Metric": "Gross Profit", "Value": _fmt_v(_gp), "% of Revenue": _pct_of(_gp, _rev),
+                 "Previous": _fmt_v(_sr_prev.get("Gross Profit", 0)), "YoY %": _yoy_pct(_gp, _sr_prev.get("Gross Profit", 0))},
+                {"Metric": "R&D", "Value": _fmt_v(_rd), "% of Revenue": _pct_of(_rd, _rev),
+                 "Previous": _fmt_v(_sr_prev.get("R&D", 0)), "YoY %": _yoy_pct(_rd, _sr_prev.get("R&D", 0))},
+                {"Metric": "SG&A", "Value": _fmt_v(_sga), "% of Revenue": _pct_of(_sga, _rev),
+                 "Previous": _fmt_v(_sr_prev.get("SG&A", 0)), "YoY %": _yoy_pct(_sga, _sr_prev.get("SG&A", 0))},
+                {"Metric": "D&A", "Value": _fmt_v(_da), "% of Revenue": _pct_of(_da, _rev),
+                 "Previous": _fmt_v(_sr_prev.get("D&A", 0)), "YoY %": _yoy_pct(_da, _sr_prev.get("D&A", 0))},
+                {"Metric": "Other OpEx", "Value": _fmt_v(_oox), "% of Revenue": _pct_of(_oox, _rev),
+                 "Previous": _fmt_v(_sr_prev.get("Other OpEx", 0)), "YoY %": _yoy_pct(_oox, _sr_prev.get("Other OpEx", 0))},
+                {"Metric": "Operating Income", "Value": _fmt_v(_oi), "% of Revenue": _pct_of(_oi, _rev),
+                 "Previous": _fmt_v(_sr_prev.get("Operating Income", 0)), "YoY %": _yoy_pct(_oi, _sr_prev.get("Operating Income", 0))},
+                {"Metric": "Interest Exp.", "Value": _fmt_v(_int), "% of Revenue": _pct_of(_int, _rev),
+                 "Previous": _fmt_v(_sr_prev.get("Interest Exp.", 0)), "YoY %": _yoy_pct(_int, _sr_prev.get("Interest Exp.", 0))},
+                {"Metric": "Pretax Income", "Value": _fmt_v(_pt), "% of Revenue": _pct_of(_pt, _rev),
+                 "Previous": _fmt_v(_sr_prev.get("Pretax Income", 0)), "YoY %": _yoy_pct(_pt, _sr_prev.get("Pretax Income", 0))},
+                {"Metric": "Tax", "Value": _fmt_v(_tx), "% of Revenue": _pct_of(_tx, _rev),
+                 "Previous": _fmt_v(_sr_prev.get("Tax", 0)), "YoY %": _yoy_pct(_tx, _sr_prev.get("Tax", 0))},
+                {"Metric": "Net Income", "Value": _fmt_v(_ni), "% of Revenue": _pct_of(_ni, _rev),
+                 "Previous": _fmt_v(_sr_prev.get("Net Income", 0)), "YoY %": _yoy_pct(_ni, _sr_prev.get("Net Income", 0))},
+            ]
+            st.dataframe(pd.DataFrame(_pct_rows), use_container_width=True, hide_index=True)
+
+            # ── Margin verification (recomputed vs displayed) ──
+            st.markdown(f'<p class="audit-header" style="font-size:1rem;margin-top:12px;">🧮 Margin Cross-Check (Value ÷ Revenue)</p>', unsafe_allow_html=True)
+            _margin_checks = []
+            _margin_items = [
+                ("Gross Margin", _gp, _rev),
+                ("Operating Margin", _oi, _rev),
+                ("Pretax Margin", _pt, _rev),
+                ("Net Margin", _ni, _rev),
+                ("COGS %", _cogs, _rev),
+                ("R&D %", _rd, _rev),
+                ("SG&A %", _sga, _rev),
+            ]
+            for name, numerator, denominator in _margin_items:
+                calc_pct = (numerator / denominator * 100) if denominator > 0 else 0
+                prev_num = _sr_prev.get(name.replace(" Margin", "").replace(" %", ""), 0)
+                prev_rev = _sr_prev.get("Revenue", 0)
+                # Map name back to _sr_prev keys
+                _key_map = {"Gross Margin": "Gross Profit", "Operating Margin": "Operating Income",
+                            "Pretax Margin": "Pretax Income", "Net Margin": "Net Income",
+                            "COGS %": "COGS", "R&D %": "R&D", "SG&A %": "SG&A"}
+                prev_num = _sr_prev.get(_key_map.get(name, ""), 0)
+                prev_pct = (prev_num / prev_rev * 100) if prev_rev > 0 else 0
+                change = calc_pct - prev_pct
+                _margin_checks.append({
+                    "Margin": name,
+                    "Current": f"{calc_pct:.1f}%",
+                    "Previous": f"{prev_pct:.1f}%",
+                    "Change (pp)": f"{change:+.1f}pp",
+                })
+            st.dataframe(pd.DataFrame(_margin_checks), use_container_width=True, hide_index=True)
+        else:
+            st.info("Sankey reconciliation data not available.")
+
+        # ── Section 7: Sankey Metrics (Single Source of Truth) ──
         st.markdown("---")
         st.markdown(f'<p class="audit-header">📊 Pandas Metrics (Single Source of Truth)</p>', unsafe_allow_html=True)
         _sm = st.session_state.get("_sankey_metrics", {})
