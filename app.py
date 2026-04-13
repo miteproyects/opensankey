@@ -2377,6 +2377,11 @@ with st.sidebar:
             submitted = st.form_submit_button("GO")
 
     if submitted and new_ticker and new_ticker != st.session_state.ticker:
+        # Auto-convert dot notation to dash (e.g. BRK.B → BRK-B)
+        # NYSE uses dots for share classes, but Yahoo Finance / SEC APIs use dashes
+        _original_input = new_ticker
+        if "." in new_ticker:
+            new_ticker = new_ticker.replace(".", "-")
         if validate_ticker(new_ticker):
             # ── Ticker access gating ──
             _blocked = False
@@ -2402,7 +2407,12 @@ with st.sidebar:
             st.query_params.update(_ticker_params)
             st.rerun()
         else:
-            st.error(f"'{new_ticker}' not found.")
+            _hint = ""
+            if "." in _original_input:
+                _hint = f" Try using a dash instead: **{_original_input.replace('.', '-')}**"
+            elif "-" in new_ticker:
+                _hint = " Tickers with share classes use a dash (e.g. BRK-B, BRK-A)."
+            st.error(f"'{_original_input}' not found.{_hint}")
 
     ticker = st.session_state.ticker
 
