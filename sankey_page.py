@@ -4202,10 +4202,15 @@ def render_sankey_page():
         income_df = _reorder_df_for_comparison(income_df, _pa, _pb, _sq2)
         balance_df = _reorder_df_for_comparison(balance_df, _pa, _pb, _sq2)
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa} vs {_pb}"
+        # Always show quarter tags in compare note (even for full year)
+        _all_sel_qs = sorted(set(_qa_qs) | set(_qb_qs)) if (_qa_qs or _qb_qs) else []
+        _full_q_tag = _build_q_tag(_all_sel_qs) if _all_sel_qs and not _sq2 else ""
+        _compare_note = f"Comparing FY{_pa}{_full_q_tag} vs FY{_pb}{_full_q_tag}"
     elif _pa and _pb and _pa == _pb:
         _compare_label = f"vs {_pb}"
-        _compare_note = f"Comparing {_pa} vs {_pb}"
+        _all_sel_qs = sorted(set(_qa_qs) | set(_qb_qs)) if (_qa_qs or _qb_qs) else []
+        _full_q_tag = _build_q_tag(_all_sel_qs) if _all_sel_qs and not _sq2 else ""
+        _compare_note = f"Comparing FY{_pa}{_full_q_tag} vs FY{_pb}{_full_q_tag}"
         _same_period = True
     else:
         _compare_label = "YoY"
