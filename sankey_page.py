@@ -2012,11 +2012,14 @@ def _inject_pill_hover_js(metric_map, color_map):
                     nodeLabels[matchIdx].style.opacity = '1';
                     nodeLabels[matchIdx].style.fontWeight = '700';
                 }}
-                /* Bold the matching annotation text */
+                /* Bold the matching annotation text (text + all tspans) */
                 var annots = plotDiv.querySelectorAll('.annotation');
                 if (matchIdx >= 0 && annots[matchIdx]) {{
                     var atxt = annots[matchIdx].querySelector('text');
-                    if (atxt) atxt.setAttribute('font-weight', '700');
+                    if (atxt) {{
+                        atxt.setAttribute('font-weight', '700');
+                        atxt.querySelectorAll('tspan').forEach(function(ts) {{ ts.setAttribute('font-weight', '700'); }});
+                    }}
                 }}
 
                 if (matchIdx >= 0 && plotDiv.data[0].link) {{
@@ -2047,9 +2050,10 @@ def _inject_pill_hover_js(metric_map, color_map):
                 sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
                     lnk.style.opacity = '';
                 }});
-                /* Unbold all annotations */
+                /* Unbold all annotations (text + tspans) */
                 plotDiv.querySelectorAll('.annotation text').forEach(function(atxt) {{
                     atxt.setAttribute('font-weight', '400');
+                    atxt.querySelectorAll('tspan').forEach(function(ts) {{ ts.setAttribute('font-weight', '400'); }});
                 }});
             }});
             resetKpis();
@@ -2090,7 +2094,12 @@ def _inject_sankey_click_js(metric_map, section="income"):
         const SECTION = "{section}";
         const parentDoc = window.parent.document;
 
+        /* Guard against double-fire: direct SVG handlers + plotly_click both trigger */
+        var _clickGuard = false;
         function clickPill(label) {{
+            if (_clickGuard) return;
+            _clickGuard = true;
+            setTimeout(function() {{ _clickGuard = false; }}, 2000);
             /* Inject a script into the parent document that navigates in
                the parent context — avoids SecurityError from sandboxed iframe. */
             var safeLabel = label.replace(/'/g, "\\'");
@@ -2134,34 +2143,6 @@ def _inject_sankey_click_js(metric_map, section="income"):
                     if (txt && VALID.has(txt)) idxToLabel[ci] = txt;
                 }}
 
-                plotDiv.on('plotly_click', function(data) {{
-                    if (!data || !data.points || !data.points[0]) return;
-                    var pt = data.points[0];
-                    // Node click: get label from customdata
-                    var curCd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
-                    var idx = pt.pointNumber;
-                    var label = (typeof idx === 'number' && curCd[idx]) ? extractLabel(curCd[idx]) : '';
-                    if (label && VALID.has(label)) {{
-                        clickPill(label);
-                        return;
-                    }}
-                    // Link click: use target node label
-                    if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].link) {{
-                        var linkIdx = pt.pointNumber;
-                        if (linkIdx !== undefined && linkIdx !== null) {{
-                            var tgtIdx = plotDiv.data[0].link.target[linkIdx];
-                            var tgtLabel = idxToLabel[tgtIdx];
-                            if (tgtLabel) {{
-                                clickPill(tgtLabel);
-                                return;
-                            }}
-                            var srcIdx = plotDiv.data[0].link.source[linkIdx];
-                            var srcLabel = idxToLabel[srcIdx];
-                            if (srcLabel) clickPill(srcLabel);
-                        }}
-                    }}
-                }});
-
                 // Make annotation overlays pass-through so clicks reach node-rects
                 var annots = plotDiv.querySelectorAll('.annotation');
                 annots.forEach(function(a) {{ a.style.pointerEvents = 'none'; }});
@@ -2192,7 +2173,6 @@ def _inject_sankey_click_js(metric_map, section="income"):
                 }});
 
                 // Attach click handlers to link SVG paths
-                // Force pointer-events so clicks register (Plotly may set pointer-events:none)
                 var links = sankeyEl.querySelectorAll('.sankey-link');
                 links.forEach(function(lnk, li) {{
                     lnk.style.cursor = 'pointer';
@@ -2324,11 +2304,14 @@ def _inject_node_hover_js(metric_map, color_map):
                 nodeLabels[nodeIdx].style.opacity = '1';
                 nodeLabels[nodeIdx].style.fontWeight = '700';
             }}
-            /* Bold the matching annotation */
+            /* Bold the matching annotation (text + all tspans) */
             var annots = plotDiv.querySelectorAll('.annotation');
             if (annots[nodeIdx]) {{
                 var atxt = annots[nodeIdx].querySelector('text');
-                if (atxt) atxt.setAttribute('font-weight', '700');
+                if (atxt) {{
+                    atxt.setAttribute('font-weight', '700');
+                    atxt.querySelectorAll('tspan').forEach(function(ts) {{ ts.setAttribute('font-weight', '700'); }});
+                }}
             }}
             if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].link) {{
                 var linkData = plotDiv.data[0].link;
@@ -2350,10 +2333,11 @@ def _inject_node_hover_js(metric_map, color_map):
             sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
                 lnk.style.opacity = '';
             }});
-            /* Unbold all annotations */
+            /* Unbold all annotations (text + tspans) */
             var plotDiv = sankeyEl.closest('.js-plotly-plot');
             if (plotDiv) plotDiv.querySelectorAll('.annotation text').forEach(function(atxt) {{
                 atxt.setAttribute('font-weight', '400');
+                atxt.querySelectorAll('tspan').forEach(function(ts) {{ ts.setAttribute('font-weight', '400'); }});
             }});
             resetKpis();
         }}
@@ -2408,6 +2392,24 @@ def _inject_node_hover_js(metric_map, color_map):
                     resetPills();
                     var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
                     resetSankey(currentSankey);
+                }});
+
+                /* Direct mouseenter/mouseleave on node-rects for reliable bold */
+                var nodeRects = sankeyEl.querySelectorAll('.node-rect');
+                nodeRects.forEach(function(r, ri) {{
+                    r.addEventListener('mouseenter', function() {{
+                        var curCd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
+                        var label = extractLabel(curCd[ri] || '');
+                        var color = COLORS[label];
+                        if (!label || !color) return;
+                        var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
+                        highlightSankeyAndPill(ri, label, color, currentSankey, plotDiv);
+                    }});
+                    r.addEventListener('mouseleave', function() {{
+                        resetPills();
+                        var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
+                        resetSankey(currentSankey);
+                    }});
                 }});
 
                 plotDiv._nodeHoverBound2 = true;
@@ -2584,11 +2586,14 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
                     nodeLabels[matchIdx].style.opacity = '1';
                     nodeLabels[matchIdx].style.fontWeight = '700';
                 }}
-                /* Bold matching annotation */
+                /* Bold matching annotation (text + all tspans) */
                 var annots = plotDiv.querySelectorAll('.annotation');
                 if (matchIdx >= 0 && annots[matchIdx]) {{
                     var atxt = annots[matchIdx].querySelector('text');
-                    if (atxt) atxt.setAttribute('font-weight', '700');
+                    if (atxt) {{
+                        atxt.setAttribute('font-weight', '700');
+                        atxt.querySelectorAll('tspan').forEach(function(ts) {{ ts.setAttribute('font-weight', '700'); }});
+                    }}
                 }}
                 if (matchIdx >= 0 && plotDiv.data[0].link) {{
                     var linkData = plotDiv.data[0].link;
@@ -2625,9 +2630,10 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
                 sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
                     lnk.style.opacity = '';
                 }});
-                /* Unbold all annotations */
+                /* Unbold all annotations (text + tspans) */
                 plotDiv.querySelectorAll('.annotation text').forEach(function(atxt) {{
                     atxt.setAttribute('font-weight', '400');
+                    atxt.querySelectorAll('tspan').forEach(function(ts) {{ ts.setAttribute('font-weight', '400'); }});
                 }});
             }});
             var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
@@ -2639,7 +2645,12 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
             }});
         }}
 
+        /* Guard against double-fire */
+        var _clickGuard = false;
         function clickPill(label) {{
+            if (_clickGuard) return;
+            _clickGuard = true;
+            setTimeout(function() {{ _clickGuard = false; }}, 2000);
             /* Inject a script into the parent document that navigates in
                the parent context — avoids SecurityError from sandboxed iframe. */
             var safeLabel = label.replace(/'/g, "\\'");
@@ -2763,10 +2774,13 @@ def _inject_link_hover_js(color_map):
                     nodeLabels[nIdx].style.opacity = '1';
                     nodeLabels[nIdx].style.fontWeight = '700';
                 }}
-                /* Bold matching annotation */
+                /* Bold matching annotation (text + all tspans) */
                 if (annots[nIdx]) {{
                     var atxt = annots[nIdx].querySelector('text');
-                    if (atxt) atxt.setAttribute('font-weight', '700');
+                    if (atxt) {{
+                        atxt.setAttribute('font-weight', '700');
+                        atxt.querySelectorAll('tspan').forEach(function(ts) {{ ts.setAttribute('font-weight', '700'); }});
+                    }}
                 }}
             }});
 
@@ -2817,10 +2831,11 @@ def _inject_link_hover_js(color_map):
             sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
                 lnk.style.opacity = '';
             }});
-            /* Unbold all annotations */
+            /* Unbold all annotations (text + tspans) */
             var plotDiv = sankeyEl.closest('.js-plotly-plot');
             if (plotDiv) plotDiv.querySelectorAll('.annotation text').forEach(function(atxt) {{
                 atxt.setAttribute('font-weight', '400');
+                atxt.querySelectorAll('tspan').forEach(function(ts) {{ ts.setAttribute('font-weight', '400'); }});
             }});
             var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
             btns.forEach(function(btn) {{
