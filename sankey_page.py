@@ -2715,7 +2715,8 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
 
                 # ââ Build nodes: (label, value, x, y_center, color) ââ
                 # Layout: 5 columns matching the Plotly Sankey
-                X1, X2, X3, X4, X5 = 0.02, 0.22, 0.48, 0.70, 0.88
+                # All X < 0.50 so Plotly places text labels to the RIGHT of each node
+                X1, X2, X3, X4, X5 = 0.01, 0.10, 0.22, 0.34, 0.46
                 nodes = []
                 nmap = {}
 
@@ -3199,7 +3200,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         "Net Income": p_net_income,
     }
 
-    X1, X2, X3, X4, X5 = 0.02, 0.22, 0.48, 0.70, 0.88
+    # All X < 0.50 so Plotly places text labels to the RIGHT of each node
+    X1, X2, X3, X4, X5 = 0.01, 0.10, 0.22, 0.34, 0.46
     colors = VIVID
     nodes = []
     node_colors = []
@@ -3473,7 +3475,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         domain=dict(y=[0.04, 0.96]),
     ))
     _h = 460
-    _layout = dict(height=_h, margin=dict(l=10, r=120, t=30, b=10),
+    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
@@ -3698,11 +3700,11 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
             eq_items.append(("Total Equity", equity, C["equity"]))
 
     groups = []
-    if ca_items: groups.append(("Current Assets", None, ca_items, 0.55))
-    if nca_items: groups.append(("Non-Current Assets", None, nca_items, 0.55))
-    if cl_items: groups.append(("Total Liabilities", "Current Liab.", cl_items, 0.78))
-    if ncl_items: groups.append(("Total Liabilities", "Non-Current Liab.", ncl_items, 0.78))
-    if eq_items: groups.append(("Equity", None, eq_items, 0.55))
+    if ca_items: groups.append(("Current Assets", None, ca_items, X3))
+    if nca_items: groups.append(("Non-Current Assets", None, nca_items, X3))
+    if cl_items: groups.append(("Total Liabilities", "Current Liab.", cl_items, X4))
+    if ncl_items: groups.append(("Total Liabilities", "Non-Current Liab.", ncl_items, X4))
+    if eq_items: groups.append(("Equity", None, eq_items, X3))
 
     if not groups:
         return None
@@ -3714,7 +3716,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     slot_height = 0.96 / max(total_slots, 1)
     slot_idx = 0
     group_y_ranges = []
-    X1, X2, X3, X4 = 0.01, 0.22, 0.50, 0.78
+    # All X < 0.50 so Plotly places text labels to the RIGHT of each node
+    X1, X2, X3, X4 = 0.01, 0.12, 0.26, 0.40
 
     for g_idx, (col2_parent, col3_parent, items, x_col) in enumerate(groups):
         y_first = 0.02 + slot_idx * slot_height
@@ -3798,7 +3801,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         domain=dict(y=[0.04, 0.96]),
     ))
     _h = 460
-    _layout = dict(height=_h, margin=dict(l=10, r=120, t=30, b=10),
+    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
