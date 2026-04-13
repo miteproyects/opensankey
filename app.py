@@ -3007,6 +3007,15 @@ with st.sidebar:
                             if st.session_state.get(f"sk_Ya_q{_qi}", False):
                                 st.session_state[f"sk_Yb_q{_qi}"] = True
                                 st.session_state[f"sk_Ya_q{_qi}"] = False
+                    else:
+                        # New year HAS data — reverse-migrate sk_Yb → sk_Ya
+                        # so quarters map to the selected year, not year-1
+                        for _qi in range(1, 5):
+                            if st.session_state.get(f"sk_Yb_q{_qi}", False):
+                                if _qi <= _cq_new:
+                                    # Quarter is available in new year → move to sk_Ya
+                                    st.session_state[f"sk_Ya_q{_qi}"] = True
+                                    st.session_state[f"sk_Yb_q{_qi}"] = False
                 # Always persist current Period A so next rerun can detect changes
                 st.session_state[_prev_pa_key] = _cur_pa
 
