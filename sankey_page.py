@@ -3229,62 +3229,94 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         node_x.append(x)
         node_y.append(y)
 
-    # ── Proportional Y-positioning ──────────────────────────────────────
-    # Each node's vertical centre is placed proportionally to its value
-    # relative to Revenue, so thick flows always get enough visual space.
-    # The usable Y band is [Y_MIN .. Y_MAX].  Within each column (X1..X5)
-    # the "top" child sits near Y_MIN and the "bottom" child near Y_MAX,
-    # with spacing proportional to value.
+    # ── Band-confined proportional Y-positioning ────────────────────────
+    # Key principle: each column's children are confined WITHIN the
+    # vertical band of their parent node.  This guarantees zero crossings.
+    #
+    #   Revenue  occupies full [Y_MIN, Y_MAX]
+    #   Col 2:   COGS + GP  split Revenue's band
+    #   Col 3:   Expenses + OI  split GP's band
+    #   Col 4:   IntExp + NonOp + Pretax  split OI's band
+    #   Col 5:   Tax + Net Income  split Pretax's band
+    #
     Y_MIN, Y_MAX = 0.04, 0.96
-    Y_SPAN = Y_MAX - Y_MIN
-    MIN_GAP = 0.06  # minimum gap between adjacent nodes in same column
+    MIN_GAP = 0.05  # minimum gap between adjacent nodes in same column
 
-    def _proportional_ys(items, parent_y=None):
-        """Given [(label, value, ...)] return list of y positions.
+    def _split_band(values, band_top, band_bot):
+        """Split a vertical band into sub-bands proportional to values.
 
-        Distributes nodes so that each node's vertical band is proportional
-        to its value, with a guaranteed minimum gap between neighbours.
-        If parent_y is given, the weighted centre gravitates toward it.
+        Args:
+            values: list of numeric values (one per child)
+            band_top: parent band top Y
+            band_bot: parent band bottom Y
+        Returns:
+            list of (centre_y, sub_band_top, sub_band_bot) per child
         """
-        if not items:
+        n = len(values)
+        if n == 0:
             return []
-        if len(items) == 1:
-            return [parent_y if parent_y else (Y_MIN + Y_MAX) / 2]
-        total = sum(v for _, v, *_ in items)
-        if total == 0:
-            # equal spacing fallback
-            step = Y_SPAN / (len(items) + 1)
-            return [Y_MIN + step * (i + 1) for i in range(len(items))]
-        # Assign proportional band then take centre of each band
-        raw = []
-        cursor = Y_MIN
-        for _, v, *_ in items:
-            band = max((v / total) * Y_SPAN, MIN_GAP)
-            raw.append(cursor + band / 2)
-            cursor += band
-        # If we overflowed past Y_MAX, rescale
-        if cursor > Y_MAX + 0.01:
-            scale = Y_SPAN / (cursor - Y_MIN)
-            raw = [Y_MIN + (r - Y_MIN) * scale for r in raw]
-        # Enforce minimum gap
-        for i in range(1, len(raw)):
-            if raw[i] - raw[i - 1] < MIN_GAP:
-                raw[i] = raw[i - 1] + MIN_GAP
-        # Final clamp
-        raw = [max(Y_MIN, min(Y_MAX, r)) for r in raw]
-        return raw
+        span = band_bot - band_top
+        if n == 1:
+            cy = (band_top + band_bot) / 2
+            return [(cy, band_top, band_bot)]
+        total = sum(values)
+        if total <= 0:
+            step = span / n
+            return [(band_top + step * (i + 0.5), band_top + step * i, band_top + step * (i + 1)) for i in range(n)]
 
-    # --- Column 1: Revenue (single node, centred) ---
-    add("Revenue", revenue, 0, X1, 0.42, p_revenue)
+        # Compute proportional sub-bands
+        min_band = max(MIN_GAP, span * 0.04)  # each child gets at least 4% of parent or MIN_GAP
+        results = []
+        cursor = band_top
+        for v in values:
+            raw_band = (v / total) * span
+            band_h = max(raw_band, min_band)
+            results.append((cursor, band_h))
+            cursor += band_h
 
-    # --- Column 2: COGS + Gross Profit ---
+        # Rescale if we overflowed
+        actual_span = sum(h for _, h in results)
+        if actual_span > span + 0.001:
+            scale = span / actual_span
+            results2 = []
+            cursor = band_top
+            for _, h in results:
+                h2 = h * scale
+                results2.append((cursor, h2))
+                cursor += h2
+            results = results2
+
+        # Build (centre, top, bot) tuples
+        out = []
+        for top_y, h in results:
+            bot_y = top_y + h
+            centre = top_y + h / 2
+            out.append((round(max(Y_MIN, min(Y_MAX, centre)), 4),
+                         round(max(Y_MIN, top_y), 4),
+                         round(min(Y_MAX, bot_y), 4)))
+
+        # Enforce minimum gap between centres
+        for i in range(1, len(out)):
+            if out[i][0] - out[i - 1][0] < MIN_GAP:
+                new_c = out[i - 1][0] + MIN_GAP
+                new_c = min(new_c, Y_MAX)
+                out[i] = (new_c, out[i][1], out[i][2])
+        return out
+
+    # --- Column 1: Revenue (full band) ---
+    rev_band = (Y_MIN, Y_MAX)
+    rev_y = (Y_MIN + Y_MAX) / 2
+    add("Revenue", revenue, 0, X1, rev_y, p_revenue)
+
+    # --- Column 2: COGS + Gross Profit (split Revenue's band) ---
     if cogs > 0:
-        col2 = [("cogs", cogs), ("gp", gross_profit)]
-        c2y = _proportional_ys(col2, parent_y=0.42)
-        add("Cost of Revenue", cogs, 1, X2, c2y[0], p_cogs)
-        add("Gross Profit", gross_profit, 2, X2, c2y[1], p_gross_profit)
+        c2 = _split_band([cogs, gross_profit], *rev_band)
+        add("Cost of Revenue", cogs, 1, X2, c2[0][0], p_cogs)
+        add("Gross Profit", gross_profit, 2, X2, c2[1][0], p_gross_profit)
+        gp_band = (c2[1][1], c2[1][2])  # GP's sub-band → parent for col 3
     else:
-        add("Gross Profit", gross_profit, 2, X2, 0.42, p_gross_profit)
+        add("Gross Profit", gross_profit, 2, X2, rev_y, p_gross_profit)
+        gp_band = rev_band  # GP == Revenue, inherits full band
 
     # --- Fetch sub-breakdown data for ALL expandable nodes ---
     _sub_cache = {}
@@ -3300,13 +3332,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         if n_children >= 2:
             _can_expand.add(exp_name)
 
-    # --- Column 3: Expenses + Operating Income ---
-    # Collect all expense items and OI, then position proportionally
+    # --- Column 3: Expenses + Operating Income (split GP's band) ---
     _expanded_children = {}
-    col3_items = []  # [(label, value, color_idx, prev_val, expandable, is_oi)]
+    col3_items = []  # [(label, value, color_idx, prev_val, expandable)]
 
     if rd_expense > 0:
-        col3_items.append(("R&D", rd_expense, 3, p_rd_expense, False, False))
+        col3_items.append(("R&D", rd_expense, 3, p_rd_expense, False))
 
     if sga_expense > 0:
         _sga_expandable = "SG&A" in _can_expand
@@ -3322,9 +3353,9 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             children = [(l, round(v * scale), ci) for l, v, ci in children]
             _expanded_children["SG&A"] = children
             for ch_label, ch_val, ch_ci in children:
-                col3_items.append((ch_label, ch_val, ch_ci, None, False, False))
+                col3_items.append((ch_label, ch_val, ch_ci, None, False))
         else:
-            col3_items.append(("SG&A", sga_expense, 4, p_sga_expense, _sga_expandable, False))
+            col3_items.append(("SG&A", sga_expense, 4, p_sga_expense, _sga_expandable))
 
     if dep_amort > 0:
         _da_expandable = "D&A" in _can_expand
@@ -3340,22 +3371,23 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
             children = [(l, round(v * scale), ci) for l, v, ci in children]
             _expanded_children["D&A"] = children
             for ch_label, ch_val, ch_ci in children:
-                col3_items.append((ch_label, ch_val, ch_ci, None, False, False))
+                col3_items.append((ch_label, ch_val, ch_ci, None, False))
         else:
-            col3_items.append(("D&A", dep_amort, 5, p_dep_amort, _da_expandable, False))
+            col3_items.append(("D&A", dep_amort, 5, p_dep_amort, _da_expandable))
 
     if other_opex > 0:
-        col3_items.append(("Other OpEx", other_opex, 5, p_other_opex, False, False))
+        col3_items.append(("Other OpEx", other_opex, 5, p_other_opex, False))
 
-    col3_items.append(("Operating Income", operating_inc, 6, p_operating_inc, False, True))
+    col3_items.append(("Operating Income", operating_inc, 6, p_operating_inc, False))
 
-    # Compute proportional Y for column 3
-    col3_ys = _proportional_ys(col3_items, parent_y=0.42)
-    for i, (lbl, val, ci, pv, expandable, is_oi) in enumerate(col3_items):
-        add(lbl, val, ci, X3, col3_ys[i], pv, expandable=expandable)
-    oi_y = col3_ys[-1]  # Operating Income is always last
+    c3_vals = [v for _, v, *_ in col3_items]
+    c3 = _split_band(c3_vals, *gp_band)
+    for i, (lbl, val, ci, pv, expandable) in enumerate(col3_items):
+        add(lbl, val, ci, X3, c3[i][0], pv, expandable=expandable)
+    oi_y = c3[-1][0]
+    oi_band = (c3[-1][1], c3[-1][2])  # OI's sub-band → parent for col 4
 
-    # --- Column 4: Interest Exp + Other Non-Op + Pretax Income ---
+    # --- Column 4: Interest Exp + Other Non-Op + Pretax Income (split OI's band) ---
     col4_items = []
     if interest_exp > 0:
         col4_items.append(("Interest Exp.", interest_exp, 7, p_interest_exp))
@@ -3363,20 +3395,23 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         col4_items.append(("Other Non-Op", other_nonop, 7, p_other_nonop))
     col4_items.append(("Pretax Income", pretax_income, 8, p_pretax_income))
 
-    col4_ys = _proportional_ys(col4_items, parent_y=oi_y)
+    c4_vals = [v for _, v, *_ in col4_items]
+    c4 = _split_band(c4_vals, *oi_band)
     for i, (lbl, val, ci, pv) in enumerate(col4_items):
-        add(lbl, val, ci, X4, col4_ys[i], pv)
-    pt_y = col4_ys[-1]  # Pretax Income is always last
+        add(lbl, val, ci, X4, c4[i][0], pv)
+    pt_y = c4[-1][0]
+    pt_band = (c4[-1][1], c4[-1][2])  # Pretax's sub-band → parent for col 5
 
-    # --- Column 5: Tax + Net Income ---
+    # --- Column 5: Tax + Net Income (split Pretax's band) ---
     col5_items = []
     if tax > 0:
         col5_items.append(("Income Tax", tax, 9, p_tax))
     col5_items.append(("Net Income", net_income, 10, p_net_income))
 
-    col5_ys = _proportional_ys(col5_items, parent_y=pt_y)
+    c5_vals = [v for _, v, *_ in col5_items]
+    c5 = _split_band(c5_vals, *pt_band)
     for i, (lbl, val, ci, pv) in enumerate(col5_items):
-        add(lbl, val, ci, X5, col5_ys[i], pv)
+        add(lbl, val, ci, X5, c5[i][0], pv)
 
     srcs, tgts, vals, lcolors = [], [], [], []
 
