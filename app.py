@@ -2963,10 +2963,22 @@ with st.sidebar:
             )
 
             if _compare_mode == "Annual":
-                # ── Read per-year quarter toggle-button state ──
+                # ── Build year lists first (needed for defaults) ──
+                # Always include current FY (even if no Qs filed yet)
+                # so the user sees greyed-out buttons for pending Qs.
+                _years = [str(_cur_fy)]
+                _years_with_data = []  # subset: only years with ≥1 filed Q
+                _cq_cur = _completed_qs_in_fy(_cur_fy, _fy_m_sk)
+                if _cq_cur >= 1:
+                    _years_with_data.append(str(_cur_fy))
+                for _y in range(_cur_fy - 1, _cur_fy - 11, -1):
+                    if _completed_qs_in_fy(_y, _fy_m_sk) >= 1:
+                        _years.append(str(_y))
+                        _years_with_data.append(str(_y))
+                if not _years_with_data:
+                    _years_with_data = [str(_cur_fy - 1)]
 
-                # Find the default Q: most recent quarter with filed data.
-                # Period A defaults to latest year with data, so sk_Ya always works.
+                # ── Find default Q: most recent quarter with filed data ──
                 _default_pa_fy = int(_years_with_data[0])
                 _cq_default = _completed_qs_in_fy(_default_pa_fy, _fy_m_sk)
                 _default_q = max(1, _cq_default)
@@ -2996,18 +3008,6 @@ with st.sidebar:
 
                 _max_sel_q = max(_selected_qs)
 
-                # Build year list: always include current FY (even if no Qs
-                # filed yet) so the user sees greyed-out buttons for pending Qs.
-                # Then add prior years that have ≥1 completed quarter.
-                _years = [str(_cur_fy)]
-                _years_with_data = []  # subset: only years with ≥1 filed Q
-                if _cq_cur >= 1:
-                    _years_with_data.append(str(_cur_fy))
-                for _y in range(_cur_fy - 1, _cur_fy - 11, -1):
-                    if _completed_qs_in_fy(_y, _fy_m_sk) >= 1:
-                        _years.append(str(_y))
-                        _years_with_data.append(str(_y))
-
                 def _q_tag():
                     if _selected_qs == [1, 2, 3, 4]:
                         return "Q1-Q4"
@@ -3022,8 +3022,6 @@ with st.sidebar:
 
                 if not _years:
                     _years = [str(_cur_fy - 1)]
-                if not _years_with_data:
-                    _years_with_data = [str(_cur_fy - 1)]
 
                 # Initialise selectbox keys: default Period A to latest year
                 # with filed data (e.g. FY2025 when FY2026 has no Qs yet)
