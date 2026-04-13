@@ -2011,9 +2011,12 @@ def _inject_pill_hover_js(metric_map, color_map):
                 if (matchIdx >= 0 && nodeLabels[matchIdx]) {{
                     nodeLabels[matchIdx].style.opacity = '1';
                     nodeLabels[matchIdx].style.fontWeight = '700';
-                    nodeLabels[matchIdx].querySelectorAll('.delta-suffix').forEach(function(ds) {{
-                        ds.setAttribute('font-weight', '700');
-                    }});
+                }}
+                /* Bold the matching annotation text */
+                var annots = plotDiv.querySelectorAll('.annotation');
+                if (matchIdx >= 0 && annots[matchIdx]) {{
+                    var atxt = annots[matchIdx].querySelector('text');
+                    if (atxt) atxt.setAttribute('font-weight', '700');
                 }}
 
                 if (matchIdx >= 0 && plotDiv.data[0].link) {{
@@ -2041,11 +2044,12 @@ def _inject_pill_hover_js(metric_map, color_map):
                     l.style.opacity = '';
                     l.style.fontWeight = '';
                 }});
-                sankeyEl.querySelectorAll('.delta-suffix').forEach(function(ds) {{
-                    ds.setAttribute('font-weight', '400');
-                }});
                 sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
                     lnk.style.opacity = '';
+                }});
+                /* Unbold all annotations */
+                plotDiv.querySelectorAll('.annotation text').forEach(function(atxt) {{
+                    atxt.setAttribute('font-weight', '400');
                 }});
             }});
             resetKpis();
@@ -2093,16 +2097,17 @@ def _inject_sankey_click_js(metric_map):
                 '[data-testid="stPills"] button',
                 'button[kind="pills"]'
             ];
+            /* Use parent window's MouseEvent so React recognises the instance */
+            var Evt = parentDoc.defaultView.MouseEvent;
             for (var s = 0; s < selectors.length; s++) {{
                 var btns = parentDoc.querySelectorAll(selectors[s]);
                 for (var i = 0; i < btns.length; i++) {{
                     if (btns[i].textContent.trim() === label) {{
                         var btn = btns[i];
-                        /* Full mouse event sequence for React compat */
                         var opts = {{bubbles: true, cancelable: true, view: parentDoc.defaultView}};
-                        btn.dispatchEvent(new MouseEvent('mousedown', opts));
-                        btn.dispatchEvent(new MouseEvent('mouseup', opts));
-                        btn.dispatchEvent(new MouseEvent('click', opts));
+                        btn.dispatchEvent(new Evt('mousedown', opts));
+                        btn.dispatchEvent(new Evt('mouseup', opts));
+                        btn.dispatchEvent(new Evt('click', opts));
                         btn.click();
                         return;
                     }}
@@ -2329,9 +2334,12 @@ def _inject_node_hover_js(metric_map, color_map):
             if (nodeLabels[nodeIdx]) {{
                 nodeLabels[nodeIdx].style.opacity = '1';
                 nodeLabels[nodeIdx].style.fontWeight = '700';
-                nodeLabels[nodeIdx].querySelectorAll('.delta-suffix').forEach(function(ds) {{
-                    ds.setAttribute('font-weight', '700');
-                }});
+            }}
+            /* Bold the matching annotation */
+            var annots = plotDiv.querySelectorAll('.annotation');
+            if (annots[nodeIdx]) {{
+                var atxt = annots[nodeIdx].querySelector('text');
+                if (atxt) atxt.setAttribute('font-weight', '700');
             }}
             if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].link) {{
                 var linkData = plotDiv.data[0].link;
@@ -2350,11 +2358,13 @@ def _inject_node_hover_js(metric_map, color_map):
             sankeyEl.querySelectorAll('.node-label').forEach(function(l) {{
                 l.style.opacity = ''; l.style.fontWeight = '';
             }});
-            sankeyEl.querySelectorAll('.delta-suffix').forEach(function(ds) {{
-                ds.setAttribute('font-weight', '400');
-            }});
             sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
                 lnk.style.opacity = '';
+            }});
+            /* Unbold all annotations */
+            var plotDiv = sankeyEl.closest('.js-plotly-plot');
+            if (plotDiv) plotDiv.querySelectorAll('.annotation text').forEach(function(atxt) {{
+                atxt.setAttribute('font-weight', '400');
             }});
             resetKpis();
         }}
@@ -2583,9 +2593,12 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map):
                 if (matchIdx >= 0 && nodeLabels[matchIdx]) {{
                     nodeLabels[matchIdx].style.opacity = '1';
                     nodeLabels[matchIdx].style.fontWeight = '700';
-                    nodeLabels[matchIdx].querySelectorAll('.delta-suffix').forEach(function(ds) {{
-                        ds.setAttribute('font-weight', '700');
-                    }});
+                }}
+                /* Bold matching annotation */
+                var annots = plotDiv.querySelectorAll('.annotation');
+                if (matchIdx >= 0 && annots[matchIdx]) {{
+                    var atxt = annots[matchIdx].querySelector('text');
+                    if (atxt) atxt.setAttribute('font-weight', '700');
                 }}
                 if (matchIdx >= 0 && plotDiv.data[0].link) {{
                     var linkData = plotDiv.data[0].link;
@@ -2619,11 +2632,12 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map):
                 sankeyEl.querySelectorAll('.node-label').forEach(function(l) {{
                     l.style.opacity = ''; l.style.fontWeight = '';
                 }});
-                sankeyEl.querySelectorAll('.delta-suffix').forEach(function(ds) {{
-                    ds.setAttribute('font-weight', '400');
-                }});
                 sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
                     lnk.style.opacity = '';
+                }});
+                /* Unbold all annotations */
+                plotDiv.querySelectorAll('.annotation text').forEach(function(atxt) {{
+                    atxt.setAttribute('font-weight', '400');
                 }});
             }});
             var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
@@ -2642,15 +2656,16 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map):
                 '[data-testid="stPills"] button',
                 'button[kind="pills"]'
             ];
+            var Evt = parentDoc.defaultView.MouseEvent;
             for (var s = 0; s < selectors.length; s++) {{
                 var btns = parentDoc.querySelectorAll(selectors[s]);
                 for (var i = 0; i < btns.length; i++) {{
                     if (btns[i].textContent.trim() === label) {{
                         var btn = btns[i];
                         var opts = {{bubbles: true, cancelable: true, view: parentDoc.defaultView}};
-                        btn.dispatchEvent(new MouseEvent('mousedown', opts));
-                        btn.dispatchEvent(new MouseEvent('mouseup', opts));
-                        btn.dispatchEvent(new MouseEvent('click', opts));
+                        btn.dispatchEvent(new Evt('mousedown', opts));
+                        btn.dispatchEvent(new Evt('mouseup', opts));
+                        btn.dispatchEvent(new Evt('click', opts));
                         btn.click();
                         return;
                     }}
@@ -2754,6 +2769,7 @@ def _inject_link_hover_js(color_map):
 
             /* Highlight only the TARGET node */
             var cd = (plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
+            var annots = plotDiv.querySelectorAll('.annotation');
             [tgtIdx].forEach(function(nIdx) {{
                 if (nIdx === undefined || nIdx === null) return;
                 if (nodeRects[nIdx]) {{
@@ -2765,9 +2781,11 @@ def _inject_link_hover_js(color_map):
                 if (nodeLabels[nIdx]) {{
                     nodeLabels[nIdx].style.opacity = '1';
                     nodeLabels[nIdx].style.fontWeight = '700';
-                    nodeLabels[nIdx].querySelectorAll('.delta-suffix').forEach(function(ds) {{
-                        ds.setAttribute('font-weight', '700');
-                    }});
+                }}
+                /* Bold matching annotation */
+                if (annots[nIdx]) {{
+                    var atxt = annots[nIdx].querySelector('text');
+                    if (atxt) atxt.setAttribute('font-weight', '700');
                 }}
             }});
 
@@ -2815,11 +2833,13 @@ def _inject_link_hover_js(color_map):
             sankeyEl.querySelectorAll('.node-label').forEach(function(l) {{
                 l.style.opacity = ''; l.style.fontWeight = '';
             }});
-            sankeyEl.querySelectorAll('.delta-suffix').forEach(function(ds) {{
-                ds.setAttribute('font-weight', '400');
-            }});
             sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
                 lnk.style.opacity = '';
+            }});
+            /* Unbold all annotations */
+            var plotDiv = sankeyEl.closest('.js-plotly-plot');
+            if (plotDiv) plotDiv.querySelectorAll('.annotation text').forEach(function(atxt) {{
+                atxt.setAttribute('font-weight', '400');
             }});
             var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
             btns.forEach(function(btn) {{
@@ -3991,12 +4011,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                 _r2_color = "#dc2626"
             else:
                 _r2_color = "#64748b"
-            txt = (f"<b>{node_name_list[i]}</b><br>"
-                   f"<b>{node_val_str[i]}</b><br>"
+            txt = (f"{node_name_list[i]}<br>"
+                   f"{node_val_str[i]}<br>"
                    f"<span style='font-size:{_small_sz}px;color:{_r2_color}'>{r2}</span>")
         else:
-            txt = (f"<b>{node_name_list[i]}</b><br>"
-                   f"<b>{node_val_str[i]}</b>")
+            txt = (f"{node_name_list[i]}<br>"
+                   f"{node_val_str[i]}")
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
@@ -4538,12 +4558,12 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                 _r2_color = "#dc2626"
             else:
                 _r2_color = "#64748b"
-            txt = (f"<b>{node_name_list[i]}</b><br>"
-                   f"<b>{node_val_str[i]}</b><br>"
+            txt = (f"{node_name_list[i]}<br>"
+                   f"{node_val_str[i]}<br>"
                    f"<span style='font-size:{_small_sz}px;color:{_r2_color}'>{r2}</span>")
         else:
-            txt = (f"<b>{node_name_list[i]}</b><br>"
-                   f"<b>{node_val_str[i]}</b>")
+            txt = (f"{node_name_list[i]}<br>"
+                   f"{node_val_str[i]}")
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
