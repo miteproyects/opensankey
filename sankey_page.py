@@ -2072,11 +2072,11 @@ def _inject_pill_hover_js(metric_map, color_map):
 
 
 
-def _inject_sankey_click_js(metric_map):
-    """Inject JS that bridges Sankey node clicks to the matching pill button.
+def _inject_sankey_click_js(metric_map, section="income"):
+    """Inject JS that bridges Sankey node clicks to Streamlit via query params.
 
-    When a user clicks a Sankey node, the JS extracts the node label,
-    finds the corresponding pill button in the parent document, and clicks it.
+    When a user clicks a Sankey node, the JS sets ?open_metric=<label>&metric_section=<section>
+    in the parent URL, which triggers a Streamlit rerun that opens the dialog.
     This triggers the existing st.pills â st.dialog flow.
     """
     # Build a JS set of valid pill labels for fast lookup
@@ -2087,32 +2087,15 @@ def _inject_sankey_click_js(metric_map):
     <script>
     (function() {{
         const VALID = new Set([{labels_js}]);
+        const SECTION = "{section}";
         const parentDoc = window.parent.document;
 
         function clickPill(label) {{
-            /* Try multiple selectors — Streamlit versions differ */
-            var selectors = [
-                '[data-testid="stBaseButton-pills"]',
-                '[role="radiogroup"] button',
-                '[data-testid="stPills"] button',
-                'button[kind="pills"]'
-            ];
-            /* Use parent window's MouseEvent so React recognises the instance */
-            var Evt = parentDoc.defaultView.MouseEvent;
-            for (var s = 0; s < selectors.length; s++) {{
-                var btns = parentDoc.querySelectorAll(selectors[s]);
-                for (var i = 0; i < btns.length; i++) {{
-                    if (btns[i].textContent.trim() === label) {{
-                        var btn = btns[i];
-                        var opts = {{bubbles: true, cancelable: true, view: parentDoc.defaultView}};
-                        btn.dispatchEvent(new Evt('mousedown', opts));
-                        btn.dispatchEvent(new Evt('mouseup', opts));
-                        btn.dispatchEvent(new Evt('click', opts));
-                        btn.click();
-                        return;
-                    }}
-                }}
-            }}
+            /* Set query params to trigger Streamlit rerun with metric selection */
+            var url = new URL(window.parent.location.href);
+            url.searchParams.set('open_metric', label);
+            url.searchParams.set('metric_section', SECTION);
+            window.parent.location.href = url.toString();
         }}
 
         function extractLabel(raw) {{
@@ -2539,7 +2522,7 @@ def _inject_delta_color_js():
     components.html(js, height=0)
 
 
-def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map):
+def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
     """Inject JS that highlights matching Sankey node + pill when hovering a KPI metric card.
 
     kpi_labels_to_nodes: dict mapping KPI card label (e.g. "Revenue") to Sankey node name
@@ -2554,6 +2537,7 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map):
     (function() {{
         const KPI_MAP = {map_js};
         const COLORS = {colors_js};
+        const SECTION = "{section}";
         const parentDoc = window.parent.document;
 
         function hexToRgba(hex, alpha) {{
@@ -2650,27 +2634,10 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map):
         }}
 
         function clickPill(label) {{
-            var selectors = [
-                '[data-testid="stBaseButton-pills"]',
-                '[role="radiogroup"] button',
-                '[data-testid="stPills"] button',
-                'button[kind="pills"]'
-            ];
-            var Evt = parentDoc.defaultView.MouseEvent;
-            for (var s = 0; s < selectors.length; s++) {{
-                var btns = parentDoc.querySelectorAll(selectors[s]);
-                for (var i = 0; i < btns.length; i++) {{
-                    if (btns[i].textContent.trim() === label) {{
-                        var btn = btns[i];
-                        var opts = {{bubbles: true, cancelable: true, view: parentDoc.defaultView}};
-                        btn.dispatchEvent(new Evt('mousedown', opts));
-                        btn.dispatchEvent(new Evt('mouseup', opts));
-                        btn.dispatchEvent(new Evt('click', opts));
-                        btn.click();
-                        return;
-                    }}
-                }}
-            }}
+            var url = new URL(window.parent.location.href);
+            url.searchParams.set('open_metric', label);
+            url.searchParams.set('metric_section', SECTION);
+            window.parent.location.href = url.toString();
         }}
 
         function setupKpiHovers() {{
@@ -5468,6 +5435,14 @@ def render_sankey_page():
             _skip_pills.add("Gross Profit")
         metric_options = [k for k in INCOME_NODE_METRICS.keys() if k not in _skip_pills]
 
+        # ── Query-param bridge: node/KPI click sets ?open_metric=X ──
+        _qp_metric = st.query_params.get("open_metric", "")
+        _qp_section = st.query_params.get("metric_section", "")
+        if _qp_metric and _qp_section == "income" and _qp_metric in metric_options:
+            st.query_params.pop("open_metric", None)
+            st.query_params.pop("metric_section", None)
+            st.session_state["income_metric_pill"] = _qp_metric
+
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill")
         if sel:
@@ -5533,13 +5508,13 @@ def render_sankey_page():
                 st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
-            _inject_sankey_click_js(INCOME_NODE_METRICS)
+            _inject_sankey_click_js(INCOME_NODE_METRICS, section="income")
             _inject_pill_hover_js(INCOME_NODE_METRICS, INCOME_PILL_COLORS)
             _inject_node_hover_js(INCOME_NODE_METRICS, INCOME_PILL_COLORS)
             _inject_kpi_hover_js(
                 {"Revenue": "Revenue", "Gross Profit": "Gross Profit",
                  "Operating Income": "Operating Income", "Net Income": "Net Income"},
-                INCOME_PILL_COLORS)
+                INCOME_PILL_COLORS, section="income")
             _inject_link_hover_js(INCOME_PILL_COLORS)
             _inject_delta_color_js()
         else:
@@ -5571,6 +5546,14 @@ def render_sankey_page():
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
         st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div><div class="sankey-cta-sub">Nodes with \u2605 can be expanded into sub-breakdowns</div></div></div>', unsafe_allow_html=True)
+        # ── Query-param bridge: node/KPI click sets ?open_metric=X ──
+        _qp_metric = st.query_params.get("open_metric", "")
+        _qp_section = st.query_params.get("metric_section", "")
+        if _qp_metric and _qp_section == "balance" and _qp_metric in metric_options:
+            st.query_params.pop("open_metric", None)
+            st.query_params.pop("metric_section", None)
+            st.session_state["balance_metric_pill"] = _qp_metric
+
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="balance_metric_pill")
         if sel:
@@ -5628,13 +5611,13 @@ def render_sankey_page():
                 st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
-            _inject_sankey_click_js(BALANCE_NODE_METRICS)
+            _inject_sankey_click_js(BALANCE_NODE_METRICS, section="balance")
             _inject_pill_hover_js(BALANCE_NODE_METRICS, BALANCE_PILL_COLORS)
             _inject_node_hover_js(BALANCE_NODE_METRICS, BALANCE_PILL_COLORS)
             _inject_kpi_hover_js(
                 {"Total Assets": "Total Assets", "Total Liabilities": "Total Liabilities",
                  "Equity": "Equity", "Cash": "Cash"},
-                BALANCE_PILL_COLORS)
+                BALANCE_PILL_COLORS, section="balance")
             _inject_link_hover_js(BALANCE_PILL_COLORS)
             _inject_delta_color_js()
         else:
