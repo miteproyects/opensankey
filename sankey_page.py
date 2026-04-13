@@ -2125,20 +2125,22 @@ def _inject_sankey_click_js(metric_map):
                 }}
                 if (plotDiv._sankey_click_bound) return;
 
-                // Build index-to-label map from SVG node labels
+                // Build index-to-label map from customdata (SVG labels are empty)
                 var nodeLabels = sankeyEl.querySelectorAll('.node-label');
+                var cd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
                 var idxToLabel = {{}};
-                nodeLabels.forEach(function(lbl, idx) {{
-                    var txt = extractLabel(lbl.textContent);
-                    if (txt && VALID.has(txt)) idxToLabel[idx] = txt;
-                }});
+                for (var ci = 0; ci < cd.length; ci++) {{
+                    var txt = extractLabel(cd[ci]);
+                    if (txt && VALID.has(txt)) idxToLabel[ci] = txt;
+                }}
 
                 plotDiv.on('plotly_click', function(data) {{
                     if (!data || !data.points || !data.points[0]) return;
                     var pt = data.points[0];
-                    // Node click: pt.label is set
-                    var raw = pt.label || '';
-                    var label = extractLabel(raw);
+                    // Node click: get label from customdata
+                    var curCd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
+                    var idx = pt.pointNumber;
+                    var label = (typeof idx === 'number' && curCd[idx]) ? extractLabel(curCd[idx]) : '';
                     if (label && VALID.has(label)) {{
                         clickPill(label);
                         return;
@@ -2160,16 +2162,26 @@ def _inject_sankey_click_js(metric_map):
                     }}
                 }});
 
-                // Attach click handlers to SVG text labels and node rects
+                // Attach click handlers to SVG node rects and text labels using index
                 var rects = sankeyEl.querySelectorAll('.node-rect');
-                rects.forEach(function(r) {{ r.style.cursor = 'pointer'; r.style.pointerEvents = 'all'; }});
-                nodeLabels.forEach(function(lbl) {{
+                rects.forEach(function(r, ri) {{
+                    r.style.cursor = 'pointer';
+                    r.style.pointerEvents = 'all';
+                    r.addEventListener('click', function(e) {{
+                        var label = idxToLabel[ri];
+                        if (label) {{
+                            clickPill(label);
+                            e.stopPropagation();
+                        }}
+                    }});
+                }});
+                nodeLabels.forEach(function(lbl, li) {{
                     lbl.style.cursor = 'pointer';
                     lbl.style.pointerEvents = 'all';
                     lbl.addEventListener('click', function(e) {{
-                        var name = extractLabel(lbl.textContent);
-                        if (name && VALID.has(name)) {{
-                            clickPill(name);
+                        var label = idxToLabel[li];
+                        if (label) {{
+                            clickPill(label);
                             e.stopPropagation();
                         }}
                     }});
@@ -2612,6 +2624,24 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map):
             }});
         }}
 
+        function clickPill(label) {{
+            var selectors = [
+                '[data-testid="stBaseButton-pills"]',
+                '[role="radiogroup"] button',
+                '[data-testid="stPills"] button',
+                'button[kind="pills"]'
+            ];
+            for (var s = 0; s < selectors.length; s++) {{
+                var btns = parentDoc.querySelectorAll(selectors[s]);
+                for (var i = 0; i < btns.length; i++) {{
+                    if (btns[i].textContent.trim() === label) {{
+                        btns[i].dispatchEvent(new MouseEvent('click', {{bubbles: true, cancelable: true}}));
+                        return;
+                    }}
+                }}
+            }}
+        }}
+
         function setupKpiHovers() {{
             /* st.metric renders [data-testid="stMetric"] containers.
                Each has a [data-testid="stMetricLabel"] with the label text. */
@@ -2640,6 +2670,9 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map):
                     card.style.boxShadow = '';
                     card.style.transform = '';
                     resetAll();
+                }});
+                card.addEventListener('click', function() {{
+                    clickPill(nodeLabel);
                 }});
             }});
             return bound;
@@ -3594,8 +3627,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     def add(name, val, color_idx, x, y, prev_val=None, expandable=False):
         y = round(max(0.01, min(0.99, y)), 4)
         imap[name] = len(nodes)
-        star = "\u2605 " if expandable else ""
-        display_name = f"{star}{name}"
+        display_name = name
         pct = _yoy(val, prev_val)
         delta_str = _fmt_delta(val, prev_val) if prev_val is not None else None
         pct_suffix = ""
@@ -4108,8 +4140,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         y = round(max(0.01, min(0.99, y)), 4)
         x = round(max(0.01, min(0.99, x)), 4)
         imap[name] = len(nodes)
-        star = "\u2605 " if expandable else ""
-        display_name = f"{star}{name}"
+        display_name = name
         pv = prev_map.get(name, 0)
         pct = _yoy(val, pv)
         delta_str = _fmt_delta(val, pv)
