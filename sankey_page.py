@@ -3832,12 +3832,16 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     rev_y = (Y_MIN + Y_MAX) / 2
     add("Revenue", revenue, 0, X1, rev_y, p_revenue)
 
-    # --- Column 2: COGS + Gross Profit (split Revenue's band) ---
+    # --- Column 2: COGS + Gross Profit (split Revenue's band, high→low) ---
     if cogs > 0:
-        c2 = _split_band([cogs, gross_profit], *rev_band)
-        add("Cost of Revenue", cogs, 1, X2, c2[0][0], p_cogs)
-        add("Gross Profit", gross_profit, 2, X2, c2[1][0], p_gross_profit)
-        gp_band = (c2[1][1], c2[1][2])  # GP's sub-band → parent for col 3
+        _c2_items = [("Cost of Revenue", cogs, 1, p_cogs),
+                     ("Gross Profit", gross_profit, 2, p_gross_profit)]
+        _c2_items.sort(key=lambda t: t[1], reverse=True)
+        c2 = _split_band([it[1] for it in _c2_items], *rev_band)
+        for _ci2, (lbl, val, ci, pv) in enumerate(_c2_items):
+            add(lbl, val, ci, X2, c2[_ci2][0], pv)
+        _gp_ci2 = next(i for i, it in enumerate(_c2_items) if it[0] == "Gross Profit")
+        gp_band = (c2[_gp_ci2][1], c2[_gp_ci2][2])
     else:
         add("Gross Profit", gross_profit, 2, X2, rev_y, p_gross_profit)
         gp_band = rev_band  # GP == Revenue, inherits full band
@@ -3912,12 +3916,15 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
 
     col3_items.append(("Operating Income", operating_inc, 6, p_operating_inc, False))
 
+    # Sort col3 high → low
+    col3_items.sort(key=lambda t: t[1], reverse=True)
     c3_vals = [v for _, v, *_ in col3_items]
     c3 = _split_band(c3_vals, *gp_band)
     for i, (lbl, val, ci, pv, expandable) in enumerate(col3_items):
         add(lbl, val, ci, X3, c3[i][0], pv, expandable=expandable)
-    oi_y = c3[-1][0]
-    oi_band = (c3[-1][1], c3[-1][2])  # OI's sub-band → parent for col 4
+    _oi_idx3 = next(i for i, it in enumerate(col3_items) if it[0] == "Operating Income")
+    oi_y = c3[_oi_idx3][0]
+    oi_band = (c3[_oi_idx3][1], c3[_oi_idx3][2])  # OI's sub-band → parent for col 4
 
     # --- Column 4: Interest Exp + Other Non-Op + Pretax Income (split OI's band) ---
     col4_items = []
@@ -3927,12 +3934,15 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         col4_items.append(("Other Non-Op", other_nonop, 7, p_other_nonop))
     col4_items.append(("Pretax Income", pretax_income, 8, p_pretax_income))
 
+    # Sort col4 high → low
+    col4_items.sort(key=lambda t: t[1], reverse=True)
     c4_vals = [v for _, v, *_ in col4_items]
     c4 = _split_band(c4_vals, *oi_band)
     for i, (lbl, val, ci, pv) in enumerate(col4_items):
         add(lbl, val, ci, X4, c4[i][0], pv)
-    pt_y = c4[-1][0]
-    pt_band = (c4[-1][1], c4[-1][2])  # Pretax's sub-band → parent for col 5
+    _pt_idx4 = next(i for i, it in enumerate(col4_items) if it[0] == "Pretax Income")
+    pt_y = c4[_pt_idx4][0]
+    pt_band = (c4[_pt_idx4][1], c4[_pt_idx4][2])  # Pretax's sub-band → parent for col 5
 
     # --- Column 5: Tax + Net Income (split Pretax's band) ---
     col5_items = []
@@ -3940,6 +3950,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         col5_items.append(("Income Tax", tax, 9, p_tax))
     col5_items.append(("Net Income", net_income, 10, p_net_income))
 
+    # Sort col5 high → low
+    col5_items.sort(key=lambda t: t[1], reverse=True)
     c5_vals = [v for _, v, *_ in col5_items]
     c5 = _split_band(c5_vals, *pt_band)
     for i, (lbl, val, ci, pv) in enumerate(col5_items):
@@ -4315,6 +4327,13 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         else:
             eq_items.append(("Total Equity", equity, C["equity"]))
 
+    # ── Sort all child lists high → low ────────────────────────────────
+    ca_items.sort(key=lambda t: t[1], reverse=True)
+    nca_items.sort(key=lambda t: t[1], reverse=True)
+    cl_items.sort(key=lambda t: t[1], reverse=True)
+    ncl_items.sort(key=lambda t: t[1], reverse=True)
+    eq_items.sort(key=lambda t: t[1], reverse=True)
+
     # Wide X spacing — text is placed via annotations (not built-in labels)
     # Col1/Col2 use 2-row labels (shorter) so can be closer together
     X1, X2, X3, X4 = 0.01, 0.16, 0.38, 0.62
@@ -4383,6 +4402,14 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     if not col2_items:
         return None
+
+    # Sort col2 high → low
+    col2_items.sort(key=lambda t: t[1], reverse=True)
+    # Also sort nested liab children (CL/NCL) high → low
+    for i, (name, val, color, children, x_ch, exp) in enumerate(col2_items):
+        if any(len(ch) == 4 for ch in children):
+            children_sorted = sorted(children, key=lambda ch: ch[1], reverse=True)
+            col2_items[i] = (name, val, color, children_sorted, x_ch, exp)
 
     # ── Count nodes per sub-band for dynamic chart height ──────────────
     # Balance sheet nodes are confined within sub-bands (CA items within CA band,
