@@ -5671,18 +5671,19 @@ def render_sankey_page():
             if _pd_m and _pd_m in metric_options:
                 st.session_state['_income_pill_clicked'] = _pd_m
 
-        # on_change fires only on actual user click
-        def _on_income_pill():
-            v = st.session_state.get('income_metric_pill')
-            st.session_state['_income_pill_clicked'] = v
+        # Use a unique key each rerun so the pill never persists its selection.
+        # The on_change callback captures the click into a separate state key.
+        _ipill_seq = st.session_state.get('_ipill_seq', 0)
 
-        # If no fresh click pending, force pill to None before rendering
-        _has_click = '_income_pill_clicked' in st.session_state
-        if not _has_click:
-            st.session_state['income_metric_pill'] = None
+        def _on_income_pill():
+            v = st.session_state.get(f'income_metric_pill_{_ipill_seq}')
+            if v:
+                st.session_state['_income_pill_clicked'] = v
+            # Increment sequence so next render gets a fresh pill
+            st.session_state['_ipill_seq'] = _ipill_seq + 1
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
-                       key="income_metric_pill", on_change=_on_income_pill)
+                       key=f"income_metric_pill_{_ipill_seq}", on_change=_on_income_pill)
 
         _clicked = st.session_state.pop('_income_pill_clicked', None)
         if _clicked:
@@ -5751,16 +5752,16 @@ def render_sankey_page():
             if _pd_m and _pd_m in metric_options:
                 st.session_state['_balance_pill_clicked'] = _pd_m
 
-        def _on_balance_pill():
-            v = st.session_state.get('balance_metric_pill')
-            st.session_state['_balance_pill_clicked'] = v
+        _bpill_seq = st.session_state.get('_bpill_seq', 0)
 
-        _has_click = '_balance_pill_clicked' in st.session_state
-        if not _has_click:
-            st.session_state['balance_metric_pill'] = None
+        def _on_balance_pill():
+            v = st.session_state.get(f'balance_metric_pill_{_bpill_seq}')
+            if v:
+                st.session_state['_balance_pill_clicked'] = v
+            st.session_state['_bpill_seq'] = _bpill_seq + 1
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
-                       key="balance_metric_pill", on_change=_on_balance_pill)
+                       key=f"balance_metric_pill_{_bpill_seq}", on_change=_on_balance_pill)
 
         _clicked = st.session_state.pop('_balance_pill_clicked', None)
         if _clicked:
