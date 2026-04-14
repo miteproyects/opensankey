@@ -2100,33 +2100,29 @@ def _inject_sankey_click_js(metric_map, section="income"):
             if (_clickGuard) return;
             _clickGuard = true;
             setTimeout(function() {{ _clickGuard = false; }}, 2000);
-            /* Trigger the pill button via React's internal fiber onClick.
-               .click() / dispatchEvent create untrusted events that Streamlit
-               ignores.  Calling the React handler directly bypasses that. */
-            var safeLabel = label.replace(/'/g, "\\'");
-            var s = window.parent.document.createElement('script');
-            s.textContent = "(function(){{" +
-                "var btns=document.querySelectorAll('[data-testid=\\\"stBaseButton-pills\\\"]');" +
-                "for(var i=0;i<btns.length;i++){{" +
-                "  if(btns[i].textContent.trim()==='" + safeLabel + "'){{" +
-                "    var fk=Object.keys(btns[i]).find(function(k){{return k.startsWith('__reactFiber$')||k.startsWith('__reactInternalInstance$')}});" +
-                "    if(fk){{" +
-                "      var f=btns[i][fk];" +
-                "      while(f){{" +
-                "        if(f.memoizedProps&&typeof f.memoizedProps.onClick==='function'){{" +
-                "          f.memoizedProps.onClick(new MouseEvent('click',{{bubbles:true}}));" +
-                "          return;" +
-                "        }}" +
-                "        f=f.return;" +
-                "      }}" +
-                "    }}" +
-                "    btns[i].click();" +
-                "    return;" +
-                "  }}" +
-                "}}" +
-                "}})();";
-            window.parent.document.head.appendChild(s);
-            s.remove();
+            /* Trigger the pill button via React fiber onClick directly from
+               iframe context.  Script injection updates React state but does
+               NOT trigger a Streamlit server rerun; direct fiber access does. */
+            var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
+            for (var i = 0; i < btns.length; i++) {{
+                if (btns[i].textContent.trim() === label) {{
+                    var fk = Object.keys(btns[i]).find(function(k) {{
+                        return k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$');
+                    }});
+                    if (fk) {{
+                        var f = btns[i][fk];
+                        while (f) {{
+                            if (f.memoizedProps && typeof f.memoizedProps.onClick === 'function') {{
+                                f.memoizedProps.onClick(new MouseEvent('click', {{bubbles: true}}));
+                                return;
+                            }}
+                            f = f.return;
+                        }}
+                    }}
+                    btns[i].click();
+                    return;
+                }}
+            }}
         }}
 
         function extractLabel(raw) {{
@@ -2666,31 +2662,29 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
             if (_clickGuard) return;
             _clickGuard = true;
             setTimeout(function() {{ _clickGuard = false; }}, 2000);
-            /* Trigger the pill button via React's internal fiber onClick. */
-            var safeLabel = label.replace(/'/g, "\\'");
-            var s = window.parent.document.createElement('script');
-            s.textContent = "(function(){{" +
-                "var btns=document.querySelectorAll('[data-testid=\\\"stBaseButton-pills\\\"]');" +
-                "for(var i=0;i<btns.length;i++){{" +
-                "  if(btns[i].textContent.trim()==='" + safeLabel + "'){{" +
-                "    var fk=Object.keys(btns[i]).find(function(k){{return k.startsWith('__reactFiber$')||k.startsWith('__reactInternalInstance$')}});" +
-                "    if(fk){{" +
-                "      var f=btns[i][fk];" +
-                "      while(f){{" +
-                "        if(f.memoizedProps&&typeof f.memoizedProps.onClick==='function'){{" +
-                "          f.memoizedProps.onClick(new MouseEvent('click',{{bubbles:true}}));" +
-                "          return;" +
-                "        }}" +
-                "        f=f.return;" +
-                "      }}" +
-                "    }}" +
-                "    btns[i].click();" +
-                "    return;" +
-                "  }}" +
-                "}}" +
-                "}})();";
-            window.parent.document.head.appendChild(s);
-            s.remove();
+            /* Trigger the pill button via React fiber onClick directly from
+               iframe context.  Script injection updates React state but does
+               NOT trigger a Streamlit server rerun; direct fiber access does. */
+            var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
+            for (var i = 0; i < btns.length; i++) {{
+                if (btns[i].textContent.trim() === label) {{
+                    var fk = Object.keys(btns[i]).find(function(k) {{
+                        return k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$');
+                    }});
+                    if (fk) {{
+                        var f = btns[i][fk];
+                        while (f) {{
+                            if (f.memoizedProps && typeof f.memoizedProps.onClick === 'function') {{
+                                f.memoizedProps.onClick(new MouseEvent('click', {{bubbles: true}}));
+                                return;
+                            }}
+                            f = f.return;
+                        }}
+                    }}
+                    btns[i].click();
+                    return;
+                }}
+            }}
         }}
 
         function setupKpiHovers() {{
