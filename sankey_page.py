@@ -422,10 +422,6 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2,
             if _fix_siblings(tree):
                 any_change = True
 
-        # Now propagate upward: re-center every non-leaf, shallowest last
-        for node_dict, depth, parent_idx in reversed(_non_leaves):
-            _center_on_children(node_dict)
-
         if not any_change:
             break
 
