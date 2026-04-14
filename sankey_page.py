@@ -5673,6 +5673,8 @@ def render_sankey_page():
                 _show_metric_popup(ticker, active_metric, "income")
             _income_popup()
 
+        st.markdown('<div style="margin-bottom:1rem"></div>', unsafe_allow_html=True)
+
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period,
                                    ticker=ticker)
         if fig:
@@ -5740,6 +5742,8 @@ def render_sankey_page():
             def _balance_popup():
                 _show_metric_popup(ticker, active_metric, "balance")
             _balance_popup()
+
+        st.markdown('<div style="margin-bottom:1rem"></div>', unsafe_allow_html=True)
 
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
                                           ticker=ticker)
