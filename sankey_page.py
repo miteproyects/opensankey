@@ -237,6 +237,181 @@ def _fix_bar_gaps(node_x, node_y, node_val_raw, chart_height, min_gap_px=2):
                                 min(0.99 - bar_half[j], node_y[i]))
 
 
+def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2):
+    """Position Sankey nodes right-to-left: leaves first, parents centered.
+
+    ``tree`` is a list of root nodes.  Each node is a dict:
+        {"idx": int, "children": [node, ...]}
+    Children lists are already sorted high→low by value.
+
+    Algorithm:
+    1. Collect ALL leaf nodes (any depth) in tree order.  Stack them
+       top-to-bottom with ``gap_px`` between each bar.
+    2. Walk non-leaf nodes from deepest to shallowest.  Center each
+       parent on the span of its children (first child bar top →
+       last child bar bottom).
+    3. After centering, check siblings for overlap.  Push apart
+       symmetrically and cascade shifts to entire subtrees.
+    4. Center the whole chart vertically in [0.01, 0.99].
+
+    Operates in node_y-unit space.  Mutates ``node_y`` in-place.
+    """
+    dom_span = 0.92
+    avail_px = chart_height * dom_span
+    from collections import defaultdict
+
+    # ── Collect all node indices ──────────────────────────────────────
+    _all_idxs = []
+
+    def _collect(node):
+        _all_idxs.append(node["idx"])
+        for ch in node.get("children", []):
+            _collect(ch)
+
+    for root in tree:
+        _collect(root)
+
+    # ── Max column sum for bar-height scaling ─────────────────────────
+    def _depth_sums(node, depth, sums):
+        sums[depth] = sums.get(depth, 0) + node_val_raw[node["idx"]]
+        for ch in node.get("children", []):
+            _depth_sums(ch, depth + 1, sums)
+
+    _dsums = {}
+    for root in tree:
+        _depth_sums(root, 0, _dsums)
+    max_col_sum = max(_dsums.values()) if _dsums else 1
+    if max_col_sum <= 0:
+        max_col_sum = 1
+
+    gap_ny = gap_px / avail_px
+
+    def _bar_half(idx):
+        return (node_val_raw[idx] / max_col_sum) / 2
+
+    # ── Step 1: Collect ALL leaves in tree-traversal order and stack ──
+    _leaves = []  # (node_dict, parent_idx)
+
+    def _collect_leaves(node, parent_idx=None):
+        if not node.get("children"):
+            _leaves.append((node, parent_idx))
+        else:
+            for ch in node["children"]:
+                _collect_leaves(ch, node["idx"])
+
+    for root in tree:
+        _collect_leaves(root)
+
+    cursor = 0.0
+    for node_dict, parent_idx in _leaves:
+        idx = node_dict["idx"]
+        bh = _bar_half(idx)
+        node_y[idx] = cursor + bh
+        cursor += bh * 2 + gap_ny
+
+    # ── Step 2: Center non-leaf nodes, deepest first ──────────────────
+    _non_leaves = []  # (node_dict, depth, parent_idx)
+
+    def _collect_non_leaves(node, depth=0, parent_idx=None):
+        if node.get("children"):
+            _non_leaves.append((node, depth, parent_idx))
+            for ch in node["children"]:
+                _collect_non_leaves(ch, depth + 1, node["idx"])
+
+    for root in tree:
+        _collect_non_leaves(root)
+
+    # Sort deepest first
+    _non_leaves.sort(key=lambda t: t[1], reverse=True)
+
+    for node_dict, depth, parent_idx in _non_leaves:
+        idx = node_dict["idx"]
+        children = node_dict["children"]
+        child_ys = [node_y[ch["idx"]] for ch in children]
+        child_bhs = [_bar_half(ch["idx"]) for ch in children]
+        span_top = min(y - b for y, b in zip(child_ys, child_bhs))
+        span_bot = max(y + b for y, b in zip(child_ys, child_bhs))
+        node_y[idx] = (span_top + span_bot) / 2
+
+    # ── Step 3: Fix overlaps between siblings, cascade to subtrees ────
+    # Group non-leaves by depth for processing deepest-first
+    _by_depth = defaultdict(list)  # depth -> [(node_dict, parent_idx)]
+    for node_dict, depth, parent_idx in _non_leaves:
+        _by_depth[depth].append((node_dict, parent_idx))
+
+    # Also need to fix leaf siblings.  Leaves are already stacked with
+    # correct gaps from step 1, but step 3 shifts from parent centering
+    # might have moved things.  We handle this by checking ALL children
+    # groups (leaf and non-leaf) at each parent.
+
+    # Build parent→children map from tree
+    _parent_children = {}  # parent_idx -> [node_dict, ...]
+
+    def _build_parent_map(node):
+        if node.get("children"):
+            _parent_children[node["idx"]] = node["children"]
+            for ch in node["children"]:
+                _build_parent_map(ch)
+
+    for root in tree:
+        _build_parent_map(root)
+
+    # Iterate: fix overlaps at each parent, cascading shifts
+    for _pass in range(50):
+        any_change = False
+        for parent_idx, siblings in _parent_children.items():
+            if len(siblings) <= 1:
+                continue
+
+            # Sort siblings by current Y
+            siblings_sorted = sorted(siblings, key=lambda n: node_y[n["idx"]])
+
+            for j in range(len(siblings_sorted) - 1):
+                upper = siblings_sorted[j]
+                lower = siblings_sorted[j + 1]
+                u_idx, l_idx = upper["idx"], lower["idx"]
+                u_bot = node_y[u_idx] + _bar_half(u_idx)
+                l_top = node_y[l_idx] - _bar_half(l_idx)
+                gap_actual = l_top - u_bot
+
+                if gap_actual < gap_ny - 0.00001:
+                    push = (gap_ny - gap_actual) / 2 + 0.00001
+                    _shift_subtree(upper, -push, node_y)
+                    _shift_subtree(lower, +push, node_y)
+                    any_change = True
+
+        # After each pass, re-center parents on their (possibly shifted) children
+        for node_dict, depth, parent_idx in _non_leaves:
+            idx = node_dict["idx"]
+            children = node_dict["children"]
+            child_ys = [node_y[ch["idx"]] for ch in children]
+            child_bhs = [_bar_half(ch["idx"]) for ch in children]
+            span_top = min(y - b for y, b in zip(child_ys, child_bhs))
+            span_bot = max(y + b for y, b in zip(child_ys, child_bhs))
+            node_y[idx] = (span_top + span_bot) / 2
+
+        if not any_change:
+            break
+
+    # ── Step 4: Center entire chart in [0.01, 0.99] ──────────────────
+    all_tops = [node_y[i] - _bar_half(i) for i in _all_idxs]
+    all_bots = [node_y[i] + _bar_half(i) for i in _all_idxs]
+    chart_top = min(all_tops)
+    chart_bot = max(all_bots)
+    current_center = (chart_top + chart_bot) / 2
+    shift = 0.50 - current_center
+
+    for i in _all_idxs:
+        node_y[i] = round(max(0.01, min(0.99, node_y[i] + shift)), 4)
+
+
+def _shift_subtree(node_dict, delta, node_y):
+    """Shift a node and all its descendants by delta in node_y."""
+    node_y[node_dict["idx"]] += delta
+    for ch in node_dict.get("children", []):
+        _shift_subtree(ch, delta, node_y)
+
+
 def _stack_bars(node_x, node_y, node_val_raw, chart_height, gap_px=2):
     """Stack node bars sequentially top-to-bottom with an exact pixel gap.
 
@@ -4069,17 +4244,46 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = _font_sz_est  # use pre-computed value (same formula)
 
-    # ── Stack bars sequentially with exact 2px gap ──────────────────────
-    # Nodes are already sorted high→low.  _stack_bars places each bar's
-    # top edge right after the previous bar's bottom edge + 2px.
-    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
-    # Text gap + cross-column fix still needed for annotation overlap
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
-    _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
-                           node_val_str, node_row2, _font_sz, _h, _thickness,
-                           min_gap_px=2)
-    # Re-stack bars after cross-column adjustments
-    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
+    # ── Right-to-left positioning: leaves first, parents centered ───────
+    # Build tree: Revenue → col2 → col3 → col4 → col5
+    # Each column's items are children of one specific parent node.
+
+    # Col5 items are leaves, children of Pretax Income
+    _pt_node = {"idx": imap["Pretax Income"], "children": [
+        {"idx": imap[lbl], "children": []} for lbl, *_ in col5_items
+    ]}
+
+    # Col4 items are children of Operating Income; Pretax Income is one of them
+    _oi_children = []
+    for lbl, *_ in col4_items:
+        if lbl == "Pretax Income":
+            _oi_children.append(_pt_node)
+        else:
+            _oi_children.append({"idx": imap[lbl], "children": []})
+    _oi_node = {"idx": imap["Operating Income"], "children": _oi_children}
+
+    # Col3 items are children of Gross Profit; Operating Income is one of them
+    _gp_children = []
+    for lbl, *_ in col3_items:
+        if lbl == "Operating Income":
+            _gp_children.append(_oi_node)
+        else:
+            _gp_children.append({"idx": imap[lbl], "children": []})
+    _gp_node = {"idx": imap["Gross Profit"], "children": _gp_children}
+
+    # Col2: COGS + GP are children of Revenue
+    _rev_children = []
+    if cogs > 0:
+        for lbl, *_ in _c2_items:
+            if lbl == "Gross Profit":
+                _rev_children.append(_gp_node)
+            else:
+                _rev_children.append({"idx": imap[lbl], "children": []})
+    else:
+        _rev_children.append(_gp_node)
+    _rev_node = {"idx": imap["Revenue"], "children": _rev_children}
+
+    _position_rtl([_rev_node], node_y, node_val_raw, _h, gap_px=2)
 
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
@@ -4633,13 +4837,25 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
-    # ── Stack bars sequentially with exact 2px gap ──────────────────────
-    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
-    _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
-                           node_val_str, node_row2, _font_sz, _h, _thickness,
-                           min_gap_px=2)
-    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
+    # ── Right-to-left positioning: leaves first, parents centered ───────
+    # Build tree for _position_rtl
+    _bs_tree_root = {"idx": imap["Total Assets"], "children": []}
+    for _name, _val, _color, _children, _x_ch, _exp in col2_items:
+        _c2_node = {"idx": imap[_name], "children": []}
+        _has_nested = any(len(_ch) == 4 for _ch in _children)
+        if _has_nested:
+            for _ch_name, _ch_val, _ch_color, _sub_items in _children:
+                _c3_node = {"idx": imap[_ch_name], "children": []}
+                for _si_name, _si_val, _si_color in _sub_items:
+                    _c3_node["children"].append({"idx": imap[_si_name], "children": []})
+                _c2_node["children"].append(_c3_node)
+        else:
+            for _ch in _children:
+                _ch_name, _ch_val, _ch_color = _ch
+                _c2_node["children"].append({"idx": imap[_ch_name], "children": []})
+        _bs_tree_root["children"].append(_c2_node)
+
+    _position_rtl([_bs_tree_root], node_y, node_val_raw, _h, gap_px=2)
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
