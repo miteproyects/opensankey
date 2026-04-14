@@ -2109,7 +2109,7 @@ def _inject_sankey_click_js(metric_map, section="income"):
             var safeLabel = label.replace(/'/g, "\\\\'");
             window.parent.eval(
                 "(function(){{" +
-                "var btns=document.querySelectorAll('[data-testid=\"stBaseButton-pills\"]');" +
+                "var btns=document.querySelectorAll('[data-testid=\\\"stBaseButton-pills\\\"]');" +
                 "for(var i=0;i<btns.length;i++){{" +
                 "  if(btns[i].textContent.trim()==='" + safeLabel + "'){{" +
                 "    var fk=Object.keys(btns[i]).find(function(k){{return k.startsWith('__reactFiber')||k.startsWith('__reactInternalInstance')}});" +
@@ -2705,7 +2705,7 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
             var safeLabel = label.replace(/'/g, "\\\\'");
             window.parent.eval(
                 "(function(){{" +
-                "var btns=document.querySelectorAll('[data-testid=\"stBaseButton-pills\"]');" +
+                "var btns=document.querySelectorAll('[data-testid=\\\"stBaseButton-pills\\\"]');" +
                 "for(var i=0;i<btns.length;i++){{" +
                 "  if(btns[i].textContent.trim()==='" + safeLabel + "'){{" +
                 "    var fk=Object.keys(btns[i]).find(function(k){{return k.startsWith('__reactFiber')||k.startsWith('__reactInternalInstance')}});" +
@@ -2974,7 +2974,7 @@ def _inject_link_hover_js(color_map):
                         var safeLabel = label.replace(/'/g, "\\\\'");
                         window.parent.eval(
                             "(function(){{" +
-                            "var btns=document.querySelectorAll('[data-testid=\"stBaseButton-pills\"]');" +
+                            "var btns=document.querySelectorAll('[data-testid=\\\"stBaseButton-pills\\\"]');" +
                             "for(var i=0;i<btns.length;i++){{" +
                             "  if(btns[i].textContent.trim()==='" + safeLabel + "'){{" +
                             "    var fk=Object.keys(btns[i]).find(function(k){{return k.startsWith('__reactFiber')||k.startsWith('__reactInternalInstance')}});" +
