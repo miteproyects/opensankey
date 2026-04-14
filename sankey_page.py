@@ -4537,21 +4537,53 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         return None
 
     _n_nodes = len(nodes)
-    # Scale node padding & thickness to fit within dynamic _h height
-    _pad = max(8, min(22, int(320 / max(_n_nodes, 1))))
-    _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
-    # ── Fix gaps: bars → text → cross-column → re-fix vertical ──────────
-    # Use min_gap_px=6 so the bottom of each node has a visible gap to the
-    # next node (user rule: "bottom of a node must have a gap to the next").
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
-    _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
-                           node_val_str, node_row2, _font_sz, _h, _thickness,
-                           min_gap_px=6)
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
+    # ── Top-aligned sequential stacking ──────────────────────────────────
+    # Rule: every column's first node aligns its top edge to a shared top Y.
+    # Subsequent nodes stack below with a mandatory gap.  This makes overlap
+    # geometrically impossible — no post-hoc fixes needed.
+    #
+    # Step 1: compute needed chart height from the tallest column.
+    _line_h_px = _font_sz * 2.6  # matches _text_height_px() multiplier
+    _gap_px = 8  # visible gap between consecutive nodes
+
+    from collections import defaultdict as _ddict
+    _bs_columns = _ddict(list)
+    for _ci in range(_n_nodes):
+        _bs_columns[round(node_x[_ci], 3)].append(_ci)
+
+    def _col_stacked_px(col_idxs):
+        """Total pixel height needed for a column when stacked sequentially."""
+        total = 0
+        for idx in col_idxs:
+            rows = 3 if node_row2[idx] else 2
+            total += _line_h_px * rows
+        total += _gap_px * max(0, len(col_idxs) - 1)
+        return total
+
+    _tallest_col_px = max(_col_stacked_px(idxs) for idxs in _bs_columns.values())
+    _h = int(max(460, _tallest_col_px / 0.92 + 40))  # 40px margin
+
+    # Step 2: position nodes — all columns share the same top Y.
+    _dom_span = 0.92
+    _avail_px = _h * _dom_span
+    _gap_ny = _gap_px / _avail_px
+    _TOP_Y = 0.01  # shared top for every column
+
+    for _col_key, _col_idxs in _bs_columns.items():
+        # Sort by current Y to preserve the logical order set by _split_band_bs
+        _col_idxs.sort(key=lambda i: node_y[i])
+        _cursor = _TOP_Y
+        for _idx in _col_idxs:
+            _rows = 3 if node_row2[_idx] else 2
+            _th_ny = (_line_h_px * _rows) / _avail_px
+            node_y[_idx] = round(max(0.01, min(0.99, _cursor + _th_ny / 2)), 4)
+            _cursor += _th_ny + _gap_ny
+
+    # Scale node padding & thickness to fit
+    _pad = max(8, min(22, int(320 / max(_n_nodes, 1))))
+    _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
@@ -4568,7 +4600,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
         domain=dict(y=[0.04, 0.96]),
     ))
-    # _h already computed dynamically above (via _compute_dynamic_height)
+    # _h computed above via top-aligned sequential stacking
     _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
