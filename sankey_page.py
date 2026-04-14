@@ -2845,10 +2845,10 @@ def _inject_link_hover_js(color_map):
             var srcIdx = linkData.source[linkIdx];
             var tgtIdx = linkData.target[linkIdx];
 
-            /* Highlight BOTH source and target nodes */
+            /* Highlight only the TARGET node */
             var cd = (plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
             var annots = plotDiv.querySelectorAll('.annotation');
-            [srcIdx, tgtIdx].forEach(function(nIdx) {{
+            [tgtIdx].forEach(function(nIdx) {{
                 if (nIdx === undefined || nIdx === null) return;
                 if (nodeRects[nIdx]) {{
                     nodeRects[nIdx].style.opacity = '1';
@@ -2870,20 +2870,19 @@ def _inject_link_hover_js(color_map):
                 }}
             }});
 
-            /* Highlight all links connected to source or target */
+            /* Highlight links connected to the TARGET node only */
             links.forEach(function(lnk, li) {{
-                if (linkData.source[li] === srcIdx || linkData.target[li] === srcIdx ||
-                    linkData.source[li] === tgtIdx || linkData.target[li] === tgtIdx) {{
+                if (linkData.source[li] === tgtIdx || linkData.target[li] === tgtIdx) {{
                     lnk.style.opacity = '0.7';
                 }}
             }});
             /* Keep hovered link brightest */
             if (links[linkIdx]) links[linkIdx].style.opacity = '0.85';
 
-            /* Highlight matching pills and KPI cards for BOTH source and target */
+            /* Highlight matching pills and KPI cards for TARGET only */
             var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
             var kpiCards = parentDoc.querySelectorAll('[data-testid="stMetric"]');
-            [srcIdx, tgtIdx].forEach(function(nIdx) {{
+            [tgtIdx].forEach(function(nIdx) {{
                 if (nIdx === undefined || nIdx === null) return;
                 var txt = extractLabel(cd[nIdx] || '');
                 var color = COLORS[txt];
