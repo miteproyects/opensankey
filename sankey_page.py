@@ -1751,7 +1751,9 @@ def _show_metric_popup(ticker, node_label, view):
         key=popup_nav_key,
     )
     if nav_sel and nav_sel != clean_label:
-        st.session_state[f"popup_active_{view}"] = nav_sel
+        # Update the outer pill to the new metric and rerun to re-open dialog
+        _pill_key = f"{view}_metric_pill"
+        st.session_state[_pill_key] = nav_sel
         st.rerun()
     freq = st.session_state[freq_key]
     period = st.session_state[period_key]
@@ -5610,17 +5612,11 @@ def render_sankey_page():
                 st.session_state['income_metric_pill'] = _pd_m
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
-                       key="income_metric_pill")
+                       key="income_metric_pill", default=None)
         if sel:
-            # Track active metric in popup (allows navigation inside dialog)
-            if f"popup_active_income" not in st.session_state or st.session_state.get("popup_trigger_income") != sel:
-                st.session_state["popup_active_income"] = sel
-                st.session_state["popup_trigger_income"] = sel
-            active_metric = st.session_state["popup_active_income"]
-
-            @st.dialog(f"{active_metric} — Historical Trend", width="large")
+            @st.dialog(f"{sel} — Historical Trend", width="large")
             def _income_popup():
-                _show_metric_popup(ticker, active_metric, "income")
+                _show_metric_popup(ticker, sel, "income")
             _income_popup()
 
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period,
@@ -5678,17 +5674,11 @@ def render_sankey_page():
                 st.session_state['balance_metric_pill'] = _pd_m
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
-                       key="balance_metric_pill")
+                       key="balance_metric_pill", default=None)
         if sel:
-            # Track active metric in popup (allows navigation inside dialog)
-            if f"popup_active_balance" not in st.session_state or st.session_state.get("popup_trigger_balance") != sel:
-                st.session_state["popup_active_balance"] = sel
-                st.session_state["popup_trigger_balance"] = sel
-            active_metric = st.session_state["popup_active_balance"]
-
-            @st.dialog(f"{active_metric} — Historical Trend", width="large")
+            @st.dialog(f"{sel} — Historical Trend", width="large")
             def _balance_popup():
-                _show_metric_popup(ticker, active_metric, "balance")
+                _show_metric_popup(ticker, sel, "balance")
             _balance_popup()
 
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
