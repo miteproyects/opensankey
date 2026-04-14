@@ -5637,19 +5637,27 @@ def render_sankey_page():
         metric_options = [k for k in INCOME_NODE_METRICS.keys() if k in _node_set]
 
         # Apply pending dialog trigger from KPI/node click (query-param flow)
+        _income_pending = False
         if st.session_state.get('_pending_dialog_section') == 'income':
             _pd_m = st.session_state.pop('_pending_dialog_metric', None)
             st.session_state.pop('_pending_dialog_section', None)
             if _pd_m and _pd_m in metric_options:
                 st.session_state['income_metric_pill'] = _pd_m
+                _income_pending = True
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill")
-        if sel:
+        # Only open dialog when selection CHANGES (new click) or pending trigger
+        _prev_income = st.session_state.get('_last_income_dialog')
+        if sel and (sel != _prev_income or _income_pending):
+            st.session_state['_last_income_dialog'] = sel
+
             @st.dialog(f"{sel} — Historical Trend", width="large")
             def _income_popup():
                 _show_metric_popup(ticker, sel, "income")
             _income_popup()
+        elif not sel:
+            st.session_state.pop('_last_income_dialog', None)
 
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
@@ -5705,19 +5713,27 @@ def render_sankey_page():
         metric_options = [k for k in BALANCE_NODE_METRICS.keys() if k in _node_set]
 
         # Apply pending dialog trigger from KPI/node click (query-param flow)
+        _balance_pending = False
         if st.session_state.get('_pending_dialog_section') == 'balance':
             _pd_m = st.session_state.pop('_pending_dialog_metric', None)
             st.session_state.pop('_pending_dialog_section', None)
             if _pd_m and _pd_m in metric_options:
                 st.session_state['balance_metric_pill'] = _pd_m
+                _balance_pending = True
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="balance_metric_pill")
-        if sel:
+        # Only open dialog when selection CHANGES (new click) or pending trigger
+        _prev_balance = st.session_state.get('_last_balance_dialog')
+        if sel and (sel != _prev_balance or _balance_pending):
+            st.session_state['_last_balance_dialog'] = sel
+
             @st.dialog(f"{sel} — Historical Trend", width="large")
             def _balance_popup():
                 _show_metric_popup(ticker, sel, "balance")
             _balance_popup()
+        elif not sel:
+            st.session_state.pop('_last_balance_dialog', None)
 
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
