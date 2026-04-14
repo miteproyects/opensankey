@@ -981,8 +981,12 @@ _XBRL_INCOME_TAGS = {
         "CostOfRevenue",
         "CostOfGoodsAndServicesSold",
         "CostOfGoodsSold",
+        "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
     ],
-    "Gross Profit": ["GrossProfit"],
+    "Gross Profit": [
+        "GrossProfit",
+        "GrossProfit",  # duplicate intentional — some filings differ in case
+    ],
     "Research And Development": [
         "ResearchAndDevelopmentExpense",
         "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost",
@@ -1803,6 +1807,30 @@ def _show_metric_popup(ticker, node_label, view):
                 series = ga
             else:
                 series = sm
+
+
+    # Fallback: Gross Profit = Revenue - Cost of Revenue
+    if (series is None or series.empty) and yf_key == "Gross Profit":
+        rev = _get_historical_series(src_df, "Total Revenue")
+        cogs = _get_historical_series(src_df, "Cost Of Revenue")
+        if rev is not None and cogs is not None:
+            common = rev.index.intersection(cogs.index)
+            if len(common) > 0:
+                computed = rev.reindex(common) - cogs.reindex(common).abs()
+                if not computed.empty and computed.sum() > 0:
+                    series = computed.sort_index()
+
+    # Fallback: Cost of Revenue = Revenue - Gross Profit
+    if (series is None or series.empty) and yf_key == "Cost Of Revenue":
+        rev = _get_historical_series(src_df, "Total Revenue")
+        gp = _get_historical_series(src_df, "Gross Profit")
+        if rev is not None and gp is not None:
+            common = rev.index.intersection(gp.index)
+            if len(common) > 0:
+                computed = rev.reindex(common) - gp.reindex(common)
+                computed = computed.clip(lower=0)
+                if not computed.empty and computed.sum() > 0:
+                    series = computed.sort_index()
 
     # ââ Fallback: compute "Other OpEx" as residual when not directly available ââ
     if (series is None or series.empty) and yf_key == "Other Operating Expenses":
@@ -5641,29 +5669,26 @@ def render_sankey_page():
             _pd_m = st.session_state.pop('_pending_dialog_metric', None)
             st.session_state.pop('_pending_dialog_section', None)
             if _pd_m and _pd_m in metric_options:
-                st.session_state['_income_open_metric'] = _pd_m
+                st.session_state['income_metric_pill'] = _pd_m
+                st.session_state['_income_dialog_shown'] = None  # force open
 
-        # on_change fires ONLY on actual user click (not on rerun)
-        def _on_income_pill_change():
-            _v = st.session_state.get('income_metric_pill')
-            if _v:
-                st.session_state['_income_open_metric'] = _v
-            else:
-                st.session_state.pop('_income_open_metric', None)
+        sel = st.pills("Trends", metric_options, label_visibility="collapsed",
+                       key="income_metric_pill")
 
-        # Clear pill highlight when no dialog is pending (dialog was closed)
-        if '_income_open_metric' not in st.session_state:
-            st.session_state.pop('income_metric_pill', None)
+        _last_shown = st.session_state.get('_income_dialog_shown')
+        if sel and sel != _last_shown:
+            # New selection — open dialog
+            st.session_state['_income_dialog_shown'] = sel
 
-        st.pills("Trends", metric_options, label_visibility="collapsed",
-                 key="income_metric_pill", on_change=_on_income_pill_change)
-
-        _open_metric = st.session_state.pop('_income_open_metric', None)
-        if _open_metric:
-            @st.dialog(f"{_open_metric} — Historical Trend", width="large")
+            @st.dialog(f"{sel} — Historical Trend", width="large")
             def _income_popup():
-                _show_metric_popup(ticker, _open_metric, "income")
+                _show_metric_popup(ticker, sel, "income")
             _income_popup()
+        elif sel and sel == _last_shown:
+            # Same pill selected on rerun after dialog close — deselect it
+            st.session_state['_income_dialog_shown'] = None
+            st.session_state.pop('income_metric_pill', None)
+            st.rerun()
 
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
@@ -5723,28 +5748,26 @@ def render_sankey_page():
             _pd_m = st.session_state.pop('_pending_dialog_metric', None)
             st.session_state.pop('_pending_dialog_section', None)
             if _pd_m and _pd_m in metric_options:
-                st.session_state['_balance_open_metric'] = _pd_m
+                st.session_state['balance_metric_pill'] = _pd_m
+                st.session_state['_balance_dialog_shown'] = None  # force open
 
-        def _on_balance_pill_change():
-            _v = st.session_state.get('balance_metric_pill')
-            if _v:
-                st.session_state['_balance_open_metric'] = _v
-            else:
-                st.session_state.pop('_balance_open_metric', None)
+        sel = st.pills("Trends", metric_options, label_visibility="collapsed",
+                       key="balance_metric_pill")
 
-        # Clear pill highlight when no dialog is pending (dialog was closed)
-        if '_balance_open_metric' not in st.session_state:
-            st.session_state.pop('balance_metric_pill', None)
+        _last_shown = st.session_state.get('_balance_dialog_shown')
+        if sel and sel != _last_shown:
+            # New selection — open dialog
+            st.session_state['_balance_dialog_shown'] = sel
 
-        st.pills("Trends", metric_options, label_visibility="collapsed",
-                 key="balance_metric_pill", on_change=_on_balance_pill_change)
-
-        _open_metric = st.session_state.pop('_balance_open_metric', None)
-        if _open_metric:
-            @st.dialog(f"{_open_metric} — Historical Trend", width="large")
+            @st.dialog(f"{sel} — Historical Trend", width="large")
             def _balance_popup():
-                _show_metric_popup(ticker, _open_metric, "balance")
+                _show_metric_popup(ticker, sel, "balance")
             _balance_popup()
+        elif sel and sel == _last_shown:
+            # Same pill selected on rerun after dialog close — deselect it
+            st.session_state['_balance_dialog_shown'] = None
+            st.session_state.pop('balance_metric_pill', None)
+            st.rerun()
 
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
