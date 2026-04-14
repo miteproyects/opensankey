@@ -237,6 +237,70 @@ def _fix_bar_gaps(node_x, node_y, node_val_raw, chart_height, min_gap_px=2):
                                 min(0.99 - bar_half[j], node_y[i]))
 
 
+def _stack_bars(node_x, node_y, node_val_raw, chart_height, gap_px=2):
+    """Stack node bars sequentially top-to-bottom with an exact pixel gap.
+
+    For each column, nodes are already sorted by value (high→low) from the
+    caller.  This function places bars so that:
+        bar_top[0] = current top of the first node's bar (unchanged)
+        bar_top[i] = bar_bottom[i-1] + gap
+        node_y[i]  = bar_top[i] + bar_half_h[i]  (center of bar)
+
+    This produces exact ``gap_px`` spacing between every pair of adjacent
+    bars, with no wasted proportional-band space.
+
+    Operates in node_y space (0=top, 1=bottom).  Mutates node_y in-place.
+    """
+    from collections import defaultdict
+
+    dom_span = 0.92  # domain [0.04, 0.96]
+    avail_px = chart_height * dom_span
+
+    columns = defaultdict(list)
+    for i in range(len(node_x)):
+        col_key = round(node_x[i], 3)
+        columns[col_key].append(i)
+
+    # Global bar-height scale (same as Plotly uses internally)
+    max_col_sum = 0
+    for col_idxs in columns.values():
+        col_sum = sum(node_val_raw[i] for i in col_idxs)
+        max_col_sum = max(max_col_sum, col_sum)
+
+    if max_col_sum <= 0:
+        return
+
+    gap_ny = gap_px / avail_px
+
+    for col_key, col_idxs in columns.items():
+        if len(col_idxs) <= 1:
+            continue
+
+        # Sort by current node_y (preserves the high→low order from caller)
+        col_idxs.sort(key=lambda i: node_y[i])
+
+        # Compute bar half-heights in node_y units
+        bar_half = []
+        for i in col_idxs:
+            bar_h_ny = (node_val_raw[i] / max_col_sum)  # fraction of avail
+            bar_half.append(bar_h_ny / 2)
+
+        # First node: keep its bar top where it is
+        first = col_idxs[0]
+        cursor = node_y[first] - bar_half[0]  # bar top of first node
+        cursor = max(0.01, cursor)
+
+        # Place each node sequentially
+        for j, idx in enumerate(col_idxs):
+            node_y[idx] = cursor + bar_half[j]
+            cursor += bar_half[j] * 2 + gap_ny  # move past bar bottom + gap
+
+        # Clamp to [0.01, 0.99]
+        for j, idx in enumerate(col_idxs):
+            node_y[idx] = max(0.01 + bar_half[j],
+                              min(0.99 - bar_half[j], node_y[idx]))
+
+
 def _fix_text_gaps(node_x, node_y, node_row2, font_sz, chart_height, min_gap_px=2):
     """Ensure minimum pixel gap between adjacent TEXT label edges in each column.
 
@@ -4005,17 +4069,17 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = _font_sz_est  # use pre-computed value (same formula)
 
-    # ── Fix gaps: bars → text → cross-column → re-fix vertical ──────────
-    # Cross-column fix moves nodes vertically, which can re-introduce
-    # vertical overlaps, so we re-run bar/text gap fixes afterward.
-    # Use min_gap_px=6 so the bottom of each node has a visible gap to the next.
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+    # ── Stack bars sequentially with exact 2px gap ──────────────────────
+    # Nodes are already sorted high→low.  _stack_bars places each bar's
+    # top edge right after the previous bar's bottom edge + 2px.
+    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
+    # Text gap + cross-column fix still needed for annotation overlap
     _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
     _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
                            node_val_str, node_row2, _font_sz, _h, _thickness,
                            min_gap_px=2)
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
+    # Re-stack bars after cross-column adjustments
+    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
 
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
@@ -4569,16 +4633,13 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
-    # ── Fix gaps: bars → text → cross-column → re-fix vertical ──────────
-    # Use min_gap_px=6 so the bottom of each node has a visible gap to the
-    # next node (user rule: "bottom of a node must have a gap to the next").
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+    # ── Stack bars sequentially with exact 2px gap ──────────────────────
+    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
     _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
     _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
                            node_val_str, node_row2, _font_sz, _h, _thickness,
                            min_gap_px=2)
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
+    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
