@@ -4114,6 +4114,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     # Annotations are placed at the same node_y (already adjusted by _fix_bar_gaps)
     _dom_y0, _dom_y1 = 0.04, 0.96
     _small_sz = max(8, _font_sz - 2)
+    _max_x = round(max(node_x), 3)  # last column X
     for i in range(len(nodes)):
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
@@ -4132,15 +4133,17 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         else:
             txt = (f"{node_name_list[i]}<br>"
                    f"{node_val_str[i]}")
+        # Last column: text to the right of bar; all others: text to the left
+        _is_last_col = round(node_x[i], 3) == _max_x
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
             text=txt,
             showarrow=False,
-            align="left",
-            xanchor="left",
+            align="left" if _is_last_col else "right",
+            xanchor="left" if _is_last_col else "right",
             yanchor="middle",
-            xshift=_thickness // 2 + 1,
+            xshift=(_thickness // 2 + 1) if _is_last_col else -(_thickness // 2 + 1),
             font=dict(size=_font_sz,
                       family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
                       color="#1e293b"),
@@ -4663,6 +4666,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     # ── Annotation-based labels (render above all nodes) ──────────────
     _dom_y0, _dom_y1 = 0.04, 0.96
     _small_sz = max(8, _font_sz - 2)
+    _max_x = round(max(node_x), 3)  # last column X
     for i in range(len(nodes)):
         x_paper = node_x[i]
         y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
@@ -4681,15 +4685,17 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         else:
             txt = (f"{node_name_list[i]}<br>"
                    f"{node_val_str[i]}")
+        # Last column: text to the right of bar; all others: text to the left
+        _is_last_col = round(node_x[i], 3) == _max_x
         fig.add_annotation(
             x=x_paper, y=y_paper,
             xref="paper", yref="paper",
             text=txt,
             showarrow=False,
-            align="left",
-            xanchor="left",
+            align="left" if _is_last_col else "right",
+            xanchor="left" if _is_last_col else "right",
             yanchor="middle",
-            xshift=_thickness // 2 + 1,
+            xshift=(_thickness // 2 + 1) if _is_last_col else -(_thickness // 2 + 1),
             font=dict(size=_font_sz,
                       family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
                       color="#1e293b"),
