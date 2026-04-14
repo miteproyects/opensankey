@@ -5669,26 +5669,26 @@ def render_sankey_page():
             _pd_m = st.session_state.pop('_pending_dialog_metric', None)
             st.session_state.pop('_pending_dialog_section', None)
             if _pd_m and _pd_m in metric_options:
-                st.session_state['income_metric_pill'] = _pd_m
-                st.session_state['_income_dialog_shown'] = None  # force open
+                st.session_state['_income_pill_clicked'] = _pd_m
+
+        # on_change fires only on actual user click
+        def _on_income_pill():
+            v = st.session_state.get('income_metric_pill')
+            st.session_state['_income_pill_clicked'] = v  # may be None (deselect)
+
+        # If no fresh click pending, clear the pill so it doesn't stay highlighted
+        if '_income_pill_clicked' not in st.session_state:
+            st.session_state.pop('income_metric_pill', None)
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
-                       key="income_metric_pill")
+                       key="income_metric_pill", on_change=_on_income_pill)
 
-        _last_shown = st.session_state.get('_income_dialog_shown')
-        if sel and sel != _last_shown:
-            # New selection — open dialog
-            st.session_state['_income_dialog_shown'] = sel
-
-            @st.dialog(f"{sel} — Historical Trend", width="large")
+        _clicked = st.session_state.pop('_income_pill_clicked', None)
+        if _clicked:
+            @st.dialog(f"{_clicked} — Historical Trend", width="large")
             def _income_popup():
-                _show_metric_popup(ticker, sel, "income")
+                _show_metric_popup(ticker, _clicked, "income")
             _income_popup()
-        elif sel and sel == _last_shown:
-            # Same pill selected on rerun after dialog close — deselect it
-            st.session_state['_income_dialog_shown'] = None
-            st.session_state.pop('income_metric_pill', None)
-            st.rerun()
 
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
@@ -5748,26 +5748,24 @@ def render_sankey_page():
             _pd_m = st.session_state.pop('_pending_dialog_metric', None)
             st.session_state.pop('_pending_dialog_section', None)
             if _pd_m and _pd_m in metric_options:
-                st.session_state['balance_metric_pill'] = _pd_m
-                st.session_state['_balance_dialog_shown'] = None  # force open
+                st.session_state['_balance_pill_clicked'] = _pd_m
+
+        def _on_balance_pill():
+            v = st.session_state.get('balance_metric_pill')
+            st.session_state['_balance_pill_clicked'] = v
+
+        if '_balance_pill_clicked' not in st.session_state:
+            st.session_state.pop('balance_metric_pill', None)
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
-                       key="balance_metric_pill")
+                       key="balance_metric_pill", on_change=_on_balance_pill)
 
-        _last_shown = st.session_state.get('_balance_dialog_shown')
-        if sel and sel != _last_shown:
-            # New selection — open dialog
-            st.session_state['_balance_dialog_shown'] = sel
-
-            @st.dialog(f"{sel} — Historical Trend", width="large")
+        _clicked = st.session_state.pop('_balance_pill_clicked', None)
+        if _clicked:
+            @st.dialog(f"{_clicked} — Historical Trend", width="large")
             def _balance_popup():
-                _show_metric_popup(ticker, sel, "balance")
+                _show_metric_popup(ticker, _clicked, "balance")
             _balance_popup()
-        elif sel and sel == _last_shown:
-            # Same pill selected on rerun after dialog close — deselect it
-            st.session_state['_balance_dialog_shown'] = None
-            st.session_state.pop('balance_metric_pill', None)
-            st.rerun()
 
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
