@@ -2099,30 +2099,12 @@ def _inject_sankey_click_js(metric_map, section="income"):
         function clickPill(label) {{
             if (_clickGuard) return;
             _clickGuard = true;
-            setTimeout(function() {{ _clickGuard = false; }}, 2000);
-            /* Trigger the pill button via React fiber onClick directly from
-               iframe context.  Script injection updates React state but does
-               NOT trigger a Streamlit server rerun; direct fiber access does. */
-            var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
-            for (var i = 0; i < btns.length; i++) {{
-                if (btns[i].textContent.trim() === label) {{
-                    var fk = Object.keys(btns[i]).find(function(k) {{
-                        return k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$');
-                    }});
-                    if (fk) {{
-                        var f = btns[i][fk];
-                        while (f) {{
-                            if (f.memoizedProps && typeof f.memoizedProps.onClick === 'function') {{
-                                f.memoizedProps.onClick(new MouseEvent('click', {{bubbles: true}}));
-                                return;
-                            }}
-                            f = f.return;
-                        }}
-                    }}
-                    btns[i].click();
-                    return;
-                }}
-            }}
+            /* Navigate with query params — Python reads them, sets pill
+               state, clears params, and opens the dialog on rerun. */
+            var url = new URL(window.parent.location.href);
+            url.searchParams.set('open_metric', label);
+            url.searchParams.set('metric_section', SECTION);
+            window.parent.location.href = url.toString();
         }}
 
         function extractLabel(raw) {{
@@ -2661,30 +2643,12 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
         function clickPill(label) {{
             if (_clickGuard) return;
             _clickGuard = true;
-            setTimeout(function() {{ _clickGuard = false; }}, 2000);
-            /* Trigger the pill button via React fiber onClick directly from
-               iframe context.  Script injection updates React state but does
-               NOT trigger a Streamlit server rerun; direct fiber access does. */
-            var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
-            for (var i = 0; i < btns.length; i++) {{
-                if (btns[i].textContent.trim() === label) {{
-                    var fk = Object.keys(btns[i]).find(function(k) {{
-                        return k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$');
-                    }});
-                    if (fk) {{
-                        var f = btns[i][fk];
-                        while (f) {{
-                            if (f.memoizedProps && typeof f.memoizedProps.onClick === 'function') {{
-                                f.memoizedProps.onClick(new MouseEvent('click', {{bubbles: true}}));
-                                return;
-                            }}
-                            f = f.return;
-                        }}
-                    }}
-                    btns[i].click();
-                    return;
-                }}
-            }}
+            /* Navigate with query params — Python reads them, sets pill
+               state, clears params, and opens the dialog on rerun. */
+            var url = new URL(window.parent.location.href);
+            url.searchParams.set('open_metric', label);
+            url.searchParams.set('metric_section', SECTION);
+            window.parent.location.href = url.toString();
         }}
 
         function setupKpiHovers() {{
@@ -5351,6 +5315,25 @@ def render_sankey_page():
         sankey_view = qp_view
         st.session_state.sankey_view = sankey_view
 
+    # ── Handle URL-triggered metric dialog (KPI card / Sankey node clicks) ──
+    _qp_metric = st.query_params.get('open_metric')
+    _qp_msection = st.query_params.get('metric_section')
+    if _qp_metric and _qp_msection:
+        # Store intent in session state so it survives the param-clearing rerun
+        st.session_state['_pending_dialog_metric'] = _qp_metric
+        st.session_state['_pending_dialog_section'] = _qp_msection
+        # Switch tab if needed
+        if _qp_msection in ('income', 'balance') and sankey_view != _qp_msection:
+            sankey_view = _qp_msection
+            st.session_state.sankey_view = sankey_view
+        # Clear trigger params from URL and rerun cleanly
+        _clean = {k: st.query_params[k] for k in st.query_params
+                  if k not in ('open_metric', 'metric_section')}
+        st.query_params.clear()
+        for _ck, _cv in _clean.items():
+            st.query_params[_ck] = _cv
+        st.rerun()
+
     view_label = "Income Statement" if sankey_view == "income" else "Balance Sheet"
 
     # ââ Header row: title (HTML) + PDF download button (st.download_button) ââ
@@ -5486,6 +5469,13 @@ def render_sankey_page():
             _skip_pills.add("Gross Profit")
         metric_options = [k for k in INCOME_NODE_METRICS.keys() if k not in _skip_pills]
 
+        # Apply pending dialog trigger from KPI/node click (query-param flow)
+        if st.session_state.get('_pending_dialog_section') == 'income':
+            _pd_m = st.session_state.pop('_pending_dialog_metric', None)
+            st.session_state.pop('_pending_dialog_section', None)
+            if _pd_m and _pd_m in metric_options:
+                st.session_state['income_metric_pill'] = _pd_m
+
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill")
         if sel:
@@ -5546,6 +5536,14 @@ def render_sankey_page():
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
         st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div></div></div>', unsafe_allow_html=True)
+
+        # Apply pending dialog trigger from KPI/node click (query-param flow)
+        if st.session_state.get('_pending_dialog_section') == 'balance':
+            _pd_m = st.session_state.pop('_pending_dialog_metric', None)
+            st.session_state.pop('_pending_dialog_section', None)
+            if _pd_m and _pd_m in metric_options:
+                st.session_state['balance_metric_pill'] = _pd_m
+
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="balance_metric_pill")
         if sel:
