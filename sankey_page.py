@@ -4549,7 +4549,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     # node_y [0,1] after the chart height is known.
 
     _line_h_px = _font_sz * 2.6  # matches _text_height_px() multiplier
-    _gap_px = 8  # visible gap between consecutive nodes
+    _gap_px = 1  # minimal gap between consecutive nodes
 
     def _th_px(idx):
         """Text height in pixels for node idx."""
