@@ -5685,19 +5685,24 @@ def render_sankey_page():
             if _pd_m and _pd_m in metric_options:
                 st.session_state['_income_show'] = _pd_m
 
-        # on_change fires ONLY on actual user click — captures the value
+        # on_change increments a counter — we detect fresh clicks by counter change
         def _on_income_pill():
-            v = st.session_state.get('_income_pill_wgt')
-            if v:
-                st.session_state['_income_show'] = v
-
-        # Always clear pill before render so it never stays highlighted
-        st.session_state['_income_pill_wgt'] = None
+            st.session_state['_income_click_count'] = st.session_state.get('_income_click_count', 0) + 1
+            st.session_state['_income_click_val'] = st.session_state.get('_income_pill_wgt')
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="_income_pill_wgt", on_change=_on_income_pill)
 
+        # Check if there's a fresh click (counter changed) or pending trigger
+        _click_count = st.session_state.get('_income_click_count', 0)
+        _last_count = st.session_state.get('_income_last_count', 0)
         _to_show = st.session_state.pop('_income_show', None)
+
+        if _click_count > _last_count:
+            # Fresh click detected
+            st.session_state['_income_last_count'] = _click_count
+            _to_show = st.session_state.pop('_income_click_val', None)
+
         if _to_show:
             @st.dialog(f"{_to_show} — Historical Trend", width="large")
             def _income_popup():
@@ -5765,16 +5770,20 @@ def render_sankey_page():
                 st.session_state['_balance_show'] = _pd_m
 
         def _on_balance_pill():
-            v = st.session_state.get('_balance_pill_wgt')
-            if v:
-                st.session_state['_balance_show'] = v
-
-        st.session_state['_balance_pill_wgt'] = None
+            st.session_state['_balance_click_count'] = st.session_state.get('_balance_click_count', 0) + 1
+            st.session_state['_balance_click_val'] = st.session_state.get('_balance_pill_wgt')
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="_balance_pill_wgt", on_change=_on_balance_pill)
 
+        _click_count = st.session_state.get('_balance_click_count', 0)
+        _last_count = st.session_state.get('_balance_last_count', 0)
         _to_show = st.session_state.pop('_balance_show', None)
+
+        if _click_count > _last_count:
+            st.session_state['_balance_last_count'] = _click_count
+            _to_show = st.session_state.pop('_balance_click_val', None)
+
         if _to_show:
             @st.dialog(f"{_to_show} — Historical Trend", width="large")
             def _balance_popup():
