@@ -2160,9 +2160,19 @@ def _inject_sankey_click_js(metric_map, section="income"):
                     if (txt && VALID.has(txt)) idxToLabel[ci] = txt;
                 }}
 
-                // Make annotation overlays pass-through so clicks reach node-rects
+                // Make annotations clickable + hoverable (not pass-through)
                 var annots = plotDiv.querySelectorAll('.annotation');
-                annots.forEach(function(a) {{ a.style.pointerEvents = 'none'; }});
+                annots.forEach(function(a, ai) {{
+                    a.style.pointerEvents = 'all';
+                    a.style.cursor = 'pointer';
+                    a.addEventListener('click', function(e) {{
+                        var label = idxToLabel[ai];
+                        if (label) {{
+                            clickPill(label);
+                            e.stopPropagation();
+                        }}
+                    }});
+                }});
 
                 // Attach click handlers to SVG node rects and text labels using index
                 var rects = sankeyEl.querySelectorAll('.node-rect');
@@ -2423,6 +2433,25 @@ def _inject_node_hover_js(metric_map, color_map):
                         highlightSankeyAndPill(ri, label, color, currentSankey, plotDiv);
                     }});
                     r.addEventListener('mouseleave', function() {{
+                        resetPills();
+                        var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
+                        resetSankey(currentSankey);
+                    }});
+                }});
+
+                /* Also hover on annotation text (3-row labels) → same glow */
+                var annots = plotDiv.querySelectorAll('.annotation');
+                annots.forEach(function(a, ai) {{
+                    a.style.cursor = 'pointer';
+                    a.addEventListener('mouseenter', function() {{
+                        var curCd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
+                        var label = extractLabel(curCd[ai] || '');
+                        var color = COLORS[label];
+                        if (!label || !color) return;
+                        var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
+                        highlightSankeyAndPill(ai, label, color, currentSankey, plotDiv);
+                    }});
+                    a.addEventListener('mouseleave', function() {{
                         resetPills();
                         var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
                         resetSankey(currentSankey);
@@ -2716,14 +2745,19 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
                 card.style.cursor = 'pointer';
                 card.style.transition = 'box-shadow 0.25s ease, transform 0.2s ease';
                 card.style.borderRadius = '8px';
+                card.style.overflow = 'visible';
+                card.style.position = 'relative';
+                card.style.zIndex = '1';
                 card.addEventListener('mouseenter', function() {{
                     card.style.boxShadow = '0 0 0 2px ' + hexToRgba(color, 0.5) + ', 0 0 16px 4px ' + hexToRgba(color, 0.3);
                     card.style.transform = 'translateY(-2px)';
+                    card.style.zIndex = '10';
                     highlightSankey(nodeLabel, color);
                 }});
                 card.addEventListener('mouseleave', function() {{
                     card.style.boxShadow = '';
                     card.style.transform = '';
+                    card.style.zIndex = '1';
                     resetAll();
                 }});
                 card.addEventListener('click', function() {{
