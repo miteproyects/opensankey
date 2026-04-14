@@ -4582,78 +4582,100 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     # node_y [0,1] after the chart height is known.
 
     _line_h_px = _font_sz * 2.6  # matches _text_height_px() multiplier
-    _gap_px = 1  # minimal gap between consecutive nodes
+    _bar_gap_px = 2  # gap between node bars
 
-    def _th_px(idx):
+    def _text_h_px(idx):
         """Text height in pixels for node idx."""
         rows = 3 if node_row2[idx] else 2
         return _line_h_px * rows
 
-    _node_top_px = {}  # idx -> top pixel position (from top=0)
+    # ── Compute bar heights so we can use max(text, bar) for spacing ──
+    # Plotly scales bars so the densest column's total value fills the
+    # available height.  We need the global scale factor.
+    from collections import defaultdict as _ddict
+    _bs_columns = _ddict(list)
+    for _ci in range(_n_nodes):
+        _bs_columns[round(node_x[_ci], 3)].append(_ci)
+    _max_col_sum = max(
+        (sum(node_val_raw[i] for i in idxs) for idxs in _bs_columns.values()),
+        default=1,
+    ) or 1
 
-    # Column 1: Total Assets starts at pixel 0
-    _ta_idx = imap["Total Assets"]
-    _node_top_px[_ta_idx] = 0.0
+    def _slot_px(idx, avail):
+        """Height this node occupies: max(text, bar) in pixels."""
+        bar_h = (node_val_raw[idx] / _max_col_sum) * avail
+        return max(_text_h_px(idx), bar_h)
 
-    # Column 2: first child top = Total Assets top = 0, rest stack below
-    _c2_cursor = 0.0
-    _c2_top_px = {}  # col2 name -> top_px
-    for _name, _val, _color, _children, _x_ch, _exp in col2_items:
-        _idx = imap[_name]
-        _node_top_px[_idx] = _c2_cursor
-        _c2_top_px[_name] = _c2_cursor
-        _c2_cursor += _th_px(_idx) + _gap_px
-
-    # Column 3 and Column 4
-    _c3_cursor = 0.0  # tracks the lowest bottom across all col3 groups
-    _c4_cursor = 0.0  # tracks the lowest bottom across all col4 groups
-
-    for _name, _val, _color, _children, _x_ch, _exp in col2_items:
-        _parent_top = _c2_top_px[_name]
-        # First child starts at max(parent top, previous group bottom)
-        _grp = max(_parent_top, _c3_cursor)
-
-        _has_nested = any(len(_ch) == 4 for _ch in _children)
-
-        if _has_nested:
-            # Liabilities: CL/NCL at col3, their sub-items at col4
-            for _ch in _children:
-                _ch_name, _ch_val, _ch_color, _sub_items = _ch
-                _ch_idx = imap[_ch_name]
-                _node_top_px[_ch_idx] = _grp
-                _ch_top = _grp
-                _grp += _th_px(_ch_idx) + _gap_px
-
-                # Col4 sub-items: first aligns with col3 parent top
-                _sub_start = max(_ch_top, _c4_cursor)
-                for _si_name, _si_val, _si_color in _sub_items:
-                    _si_idx = imap[_si_name]
-                    _node_top_px[_si_idx] = _sub_start
-                    _sub_start += _th_px(_si_idx) + _gap_px
-                _c4_cursor = _sub_start
+    # ── First pass: compute positions with a large avail to find total ──
+    # We use an iterative approach: assume avail, compute layout, derive
+    # chart height, then recompute with correct avail.
+    for _pass in range(2):
+        if _pass == 0:
+            _est_avail = 2000.0  # generous first estimate
         else:
-            # Direct children (CA, NCA, or Equity sub-items)
-            for _ch in _children:
-                _ch_name, _ch_val, _ch_color = _ch
-                _ch_idx = imap[_ch_name]
-                _node_top_px[_ch_idx] = _grp
-                _grp += _th_px(_ch_idx) + _gap_px
+            _est_avail = _h * 0.92  # use actual from previous pass
 
-        _c3_cursor = _grp
+        _node_top_px = {}  # idx -> top pixel position (from top=0)
 
-    # Chart height from the lowest bottom across all columns
-    _max_bottom_px = max(
-        _th_px(_ta_idx),                                         # col1
-        _c2_cursor - _gap_px if col2_items else 0,               # col2
-        _c3_cursor - _gap_px if _c3_cursor > 0 else 0,          # col3
-        _c4_cursor - _gap_px if _c4_cursor > 0 else 0,          # col4
-    )
-    _h = int(max(460, _max_bottom_px / 0.92 + 40))
+        # Column 1: Total Assets starts at pixel 0
+        _ta_idx = imap["Total Assets"]
+        _node_top_px[_ta_idx] = 0.0
+
+        # Column 2: first child top = Total Assets top = 0, rest stack below
+        _c2_cursor = 0.0
+        _c2_top_px = {}
+        for _name, _val, _color, _children, _x_ch, _exp in col2_items:
+            _idx = imap[_name]
+            _node_top_px[_idx] = _c2_cursor
+            _c2_top_px[_name] = _c2_cursor
+            _c2_cursor += _slot_px(_idx, _est_avail) + _bar_gap_px
+
+        # Column 3 and Column 4
+        _c3_cursor = 0.0
+        _c4_cursor = 0.0
+
+        for _name, _val, _color, _children, _x_ch, _exp in col2_items:
+            _parent_top = _c2_top_px[_name]
+            _grp = max(_parent_top, _c3_cursor)
+
+            _has_nested = any(len(_ch) == 4 for _ch in _children)
+
+            if _has_nested:
+                for _ch in _children:
+                    _ch_name, _ch_val, _ch_color, _sub_items = _ch
+                    _ch_idx = imap[_ch_name]
+                    _node_top_px[_ch_idx] = _grp
+                    _ch_top = _grp
+                    _grp += _slot_px(_ch_idx, _est_avail) + _bar_gap_px
+
+                    _sub_start = max(_ch_top, _c4_cursor)
+                    for _si_name, _si_val, _si_color in _sub_items:
+                        _si_idx = imap[_si_name]
+                        _node_top_px[_si_idx] = _sub_start
+                        _sub_start += _slot_px(_si_idx, _est_avail) + _bar_gap_px
+                    _c4_cursor = _sub_start
+            else:
+                for _ch in _children:
+                    _ch_name, _ch_val, _ch_color = _ch
+                    _ch_idx = imap[_ch_name]
+                    _node_top_px[_ch_idx] = _grp
+                    _grp += _slot_px(_ch_idx, _est_avail) + _bar_gap_px
+
+            _c3_cursor = _grp
+
+        # Chart height from the lowest bottom across all columns
+        _max_bottom_px = max(
+            _slot_px(_ta_idx, _est_avail),
+            _c2_cursor - _bar_gap_px if col2_items else 0,
+            _c3_cursor - _bar_gap_px if _c3_cursor > 0 else 0,
+            _c4_cursor - _bar_gap_px if _c4_cursor > 0 else 0,
+        )
+        _h = int(max(460, _max_bottom_px / 0.92 + 60))  # 60px margin (top+bottom)
 
     # Convert pixel positions → node_y [0.01, 0.99]
     _avail_px = _h * 0.92
     for _idx, _top_px in _node_top_px.items():
-        _center_px = _top_px + _th_px(_idx) / 2
+        _center_px = _top_px + _slot_px(_idx, _avail_px) / 2
         node_y[_idx] = round(max(0.01, min(0.99, _center_px / _avail_px)), 4)
 
     # Scale node padding & thickness to fit
@@ -4673,16 +4695,16 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                   hovertemplate="<b>%{customdata}</b><extra></extra>"),
         link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
-        domain=dict(y=[0.04, 0.96]),
+        domain=dict(y=[0.06, 0.96]),
     ))
     # _h computed above via top-aligned sequential stacking
-    _layout = dict(height=_h, margin=dict(l=6, r=6, t=50, b=6),
+    _layout = dict(height=_h, margin=dict(l=6, r=6, t=10, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
 
     # ── Annotation-based labels (render above all nodes) ──────────────
-    _dom_y0, _dom_y1 = 0.04, 0.96
+    _dom_y0, _dom_y1 = 0.06, 0.96
     _small_sz = max(8, _font_sz - 2)
     for i in range(len(nodes)):
         x_paper = node_x[i]
