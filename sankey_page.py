@@ -3598,7 +3598,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         p_net_income = max(0, p_pretax_income - p_tax)
 
     if revenue == 0:
-        return None
+        return None, []
 
     # --- Reconcile flows top-down (parent is authoritative) ---
     # Level 1: Revenue = COGS + Gross Profit
@@ -4104,7 +4104,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     link("Pretax Income", "Net Income", net_income, 10)
 
     if not vals:
-        return None
+        return None, []
 
     _n_nodes = len(nodes)
     # Scale node padding & thickness
@@ -4178,7 +4178,9 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                       family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
                       color="#1e293b"),
         )
-    return fig
+    # Return fig + list of node names that exist in the Sankey
+    _actual_nodes = [n for n in node_name_list if n in INCOME_NODE_METRICS]
+    return fig, _actual_nodes
 
 
 def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_period=False,
@@ -4275,7 +4277,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     prev_map["Total Equity"] = prev_map.get("Equity", 0)
 
     if total_assets == 0:
-        return None
+        return None, []
 
     # Reconcile: Assets = CA + NCA
     if noncurrent_assets == 0 and total_assets > 0 and current_assets > 0:
@@ -4501,7 +4503,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         col2_items.append(("Equity", equity, C["equity"], eq_items, X3, True))
 
     if not col2_items:
-        return None
+        return None, []
 
     # ── Count nodes per sub-band for dynamic chart height ──────────────
     # Balance sheet nodes are confined within sub-bands (CA items within CA band,
@@ -4653,7 +4655,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                 link(name, ch_name, ch_val, ch_color)
 
     if not links_val:
-        return None
+        return None, []
 
     _n_nodes = len(nodes)
     # Scale node padding & thickness to fit within dynamic _h height
@@ -4727,7 +4729,9 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                       family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
                       color="#1e293b"),
         )
-    return fig
+    # Return fig + list of node names that exist in the Sankey
+    _actual_nodes = [n for n in node_name_list if n in BALANCE_NODE_METRICS]
+    return fig, _actual_nodes
 
 
 def render_sankey_page():
@@ -5622,18 +5626,15 @@ def render_sankey_page():
 
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
         st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div></div></div>', unsafe_allow_html=True)
-        # Build adaptive pill tags — filter out metrics without data
-        _has_rev = revenue != 0
-        _has_gp = gross_profit != 0
-        _has_cogs = cogs_kpi != 0
-        _skip_pills = set()
-        if not _has_rev:
-            _skip_pills.add("Revenue")
-        if not _has_cogs:
-            _skip_pills.add("Cost of Revenue")
-        if not _has_gp:
-            _skip_pills.add("Gross Profit")
-        metric_options = [k for k in INCOME_NODE_METRICS.keys() if k not in _skip_pills]
+
+        # Build Sankey first to get actual node names for pills
+        _sankey_result = _build_income_sankey(income_df, info, _compare_label, _same_period,
+                                              ticker=ticker)
+        fig, _sankey_nodes = _sankey_result if _sankey_result and _sankey_result[0] else (None, [])
+
+        # Pills match exactly the Sankey nodes (preserving INCOME_NODE_METRICS order)
+        _node_set = set(_sankey_nodes)
+        metric_options = [k for k in INCOME_NODE_METRICS.keys() if k in _node_set]
 
         # Apply pending dialog trigger from KPI/node click (query-param flow)
         if st.session_state.get('_pending_dialog_section') == 'income':
@@ -5650,8 +5651,6 @@ def render_sankey_page():
                 _show_metric_popup(ticker, sel, "income")
             _income_popup()
 
-        fig = _build_income_sankey(income_df, info, _compare_label, _same_period,
-                                   ticker=ticker)
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
             with st.container(key="sankey_income_scroll"):
@@ -5676,7 +5675,6 @@ def render_sankey_page():
         st.caption(f"QuarterCharts \u00b7 SEC EDGAR data \u00b7 {ticker}" + (f" \u00b7 {_compare_note}" if _compare_note else ""))
 
     elif sankey_view == "balance":
-        metric_options = list(BALANCE_NODE_METRICS.keys())
         st.markdown(f'<div class="sankey-compare-card">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
         # ââ KPI Metric Cards for Balance Sheet ââ
@@ -5697,6 +5695,15 @@ def render_sankey_page():
         st.markdown('<div style="margin-top:1.5rem"></div>', unsafe_allow_html=True)
         st.markdown('<div class="sankey-cta-banner"><div class="sankey-cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sankey-cta-text">Click a Metric or Sankey Node to View Historical Trends</div></div></div>', unsafe_allow_html=True)
 
+        # Build Sankey first to get actual node names for pills
+        _sankey_result = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
+                                                     ticker=ticker)
+        fig, _sankey_nodes = _sankey_result if _sankey_result and _sankey_result[0] else (None, [])
+
+        # Pills match exactly the Sankey nodes (preserving BALANCE_NODE_METRICS order)
+        _node_set = set(_sankey_nodes)
+        metric_options = [k for k in BALANCE_NODE_METRICS.keys() if k in _node_set]
+
         # Apply pending dialog trigger from KPI/node click (query-param flow)
         if st.session_state.get('_pending_dialog_section') == 'balance':
             _pd_m = st.session_state.pop('_pending_dialog_metric', None)
@@ -5712,8 +5719,6 @@ def render_sankey_page():
                 _show_metric_popup(ticker, sel, "balance")
             _balance_popup()
 
-        fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
-                                          ticker=ticker)
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
             with st.container(key="sankey_balance_scroll"):
