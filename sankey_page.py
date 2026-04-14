@@ -4069,70 +4069,17 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = _font_sz_est  # use pre-computed value (same formula)
 
-    # ── Parent-aware bar stacking: 2px gap, first child aligns to parent ─
-    from collections import defaultdict as _ddict
-    _in_cols = _ddict(list)
-    for _ci in range(len(node_x)):
-        _in_cols[round(node_x[_ci], 3)].append(_ci)
-    _in_max_col_sum = max(
-        (sum(node_val_raw[i] for i in idxs) for idxs in _in_cols.values()),
-        default=1) or 1
-    _in_avail = _h * 0.92
-    _in_gap_ny = 2.0 / _in_avail
-
-    def _in_bar_half(idx):
-        return (node_val_raw[idx] / _in_max_col_sum) / 2
-
-    def _in_bar_top(idx):
-        return node_y[idx] - _in_bar_half(idx)
-
-    # Col1: Revenue — keep position
-    _rev_idx = imap["Revenue"]
-    _rev_bar_top = _in_bar_top(_rev_idx)
-
-    # Col2: first child bar top = Revenue bar top, stack down
-    _c2_cursor = _rev_bar_top
-    # _c2_items was built inline; reconstruct from sorted order
-    _c2_sorted = [it for it in _c2_items] if cogs > 0 else []
-    for _lbl, _val, _ci_c, _pv in _c2_sorted:
-        _idx = imap[_lbl]
-        _bh = _in_bar_half(_idx)
-        node_y[_idx] = _c2_cursor + _bh
-        _c2_cursor += _bh * 2 + _in_gap_ny
-
-    # Col3: first child bar top = GP bar top, stack down
-    _gp_idx = imap["Gross Profit"]
-    _gp_bar_top = node_y[_gp_idx] - _in_bar_half(_gp_idx)
-    _c3_cursor = _gp_bar_top
-    for _lbl, _val, _ci_c, _pv, _exp in col3_items:
-        _idx = imap[_lbl]
-        _bh = _in_bar_half(_idx)
-        node_y[_idx] = _c3_cursor + _bh
-        _c3_cursor += _bh * 2 + _in_gap_ny
-
-    # Col4: first child bar top = OI bar top, stack down
-    _oi_idx = imap["Operating Income"]
-    _oi_bar_top = node_y[_oi_idx] - _in_bar_half(_oi_idx)
-    _c4_cursor = _oi_bar_top
-    for _lbl, _val, _ci_c, _pv in col4_items:
-        _idx = imap[_lbl]
-        _bh = _in_bar_half(_idx)
-        node_y[_idx] = _c4_cursor + _bh
-        _c4_cursor += _bh * 2 + _in_gap_ny
-
-    # Col5: first child bar top = PT bar top, stack down
-    _pt_idx = imap["Pretax Income"]
-    _pt_bar_top = node_y[_pt_idx] - _in_bar_half(_pt_idx)
-    _c5_cursor = _pt_bar_top
-    for _lbl, _val, _ci_c, _pv in col5_items:
-        _idx = imap[_lbl]
-        _bh = _in_bar_half(_idx)
-        node_y[_idx] = _c5_cursor + _bh
-        _c5_cursor += _bh * 2 + _in_gap_ny
-
-    # Clamp all to [0.01, 0.99]
-    for _i in range(len(node_y)):
-        node_y[_i] = round(max(0.01, min(0.99, node_y[_i])), 4)
+    # ── Stack bars sequentially with exact 2px gap ──────────────────────
+    # Nodes are already sorted high→low.  _stack_bars places each bar's
+    # top edge right after the previous bar's bottom edge + 2px.
+    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
+    # Text gap + cross-column fix still needed for annotation overlap
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
+    _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
+                           node_val_str, node_row2, _font_sz, _h, _thickness,
+                           min_gap_px=2)
+    # Re-stack bars after cross-column adjustments
+    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
 
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
@@ -4686,78 +4633,13 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
-    # ── Parent-aware bar stacking: 2px gap, first child aligns to parent ─
-    # Compute bar heights in node_y units using Plotly's scaling logic.
-    from collections import defaultdict as _ddict
-    _bs_cols = _ddict(list)
-    for _ci in range(len(node_x)):
-        _bs_cols[round(node_x[_ci], 3)].append(_ci)
-    _bs_max_col_sum = max(
-        (sum(node_val_raw[i] for i in idxs) for idxs in _bs_cols.values()),
-        default=1) or 1
-    _bs_avail = _h * 0.92
-    _bs_gap_ny = 2.0 / _bs_avail  # 2px in node_y units
-
-    def _bar_half(idx):
-        return (node_val_raw[idx] / _bs_max_col_sum) / 2
-
-    def _bar_top(idx):
-        return node_y[idx] - _bar_half(idx)
-
-    # Column 1: Total Assets — keep at current position
-    _ta_idx = imap["Total Assets"]
-    _ta_bar_top = _bar_top(_ta_idx)
-
-    # Column 2: first child bar top = Total Assets bar top, rest stack below
-    _c2_cursor = _ta_bar_top
-    _c2_bar_tops = {}
-    for _name, _val, _color, _children, _x_ch, _exp in col2_items:
-        _idx = imap[_name]
-        _bh = _bar_half(_idx)
-        node_y[_idx] = _c2_cursor + _bh
-        _c2_bar_tops[_name] = _c2_cursor
-        _c2_cursor += _bh * 2 + _bs_gap_ny
-
-    # Column 3 and Column 4: first child bar top = parent bar top
-    _c3_cursor = _ta_bar_top  # global col3 bottom tracker
-    _c4_cursor = _ta_bar_top  # global col4 bottom tracker
-
-    for _name, _val, _color, _children, _x_ch, _exp in col2_items:
-        _parent_bar_top = _c2_bar_tops[_name]
-        _grp = max(_parent_bar_top, _c3_cursor)
-
-        _has_nested = any(len(_ch) == 4 for _ch in _children)
-
-        if _has_nested:
-            for _ch in _children:
-                _ch_name, _ch_val, _ch_color, _sub_items = _ch
-                _ch_idx = imap[_ch_name]
-                _bh = _bar_half(_ch_idx)
-                node_y[_ch_idx] = _grp + _bh
-                _ch_bar_top = _grp
-                _grp += _bh * 2 + _bs_gap_ny
-
-                # Col4 sub-items: first aligns with col3 parent bar top
-                _sub_cursor = max(_ch_bar_top, _c4_cursor)
-                for _si_name, _si_val, _si_color in _sub_items:
-                    _si_idx = imap[_si_name]
-                    _si_bh = _bar_half(_si_idx)
-                    node_y[_si_idx] = _sub_cursor + _si_bh
-                    _sub_cursor += _si_bh * 2 + _bs_gap_ny
-                _c4_cursor = _sub_cursor
-        else:
-            for _ch in _children:
-                _ch_name, _ch_val, _ch_color = _ch
-                _ch_idx = imap[_ch_name]
-                _bh = _bar_half(_ch_idx)
-                node_y[_ch_idx] = _grp + _bh
-                _grp += _bh * 2 + _bs_gap_ny
-
-        _c3_cursor = _grp
-
-    # Clamp all to [0.01, 0.99]
-    for _i in range(len(node_y)):
-        node_y[_i] = round(max(0.01, min(0.99, node_y[_i])), 4)
+    # ── Stack bars sequentially with exact 2px gap ──────────────────────
+    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
+    _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
+                           node_val_str, node_row2, _font_sz, _h, _thickness,
+                           min_gap_px=2)
+    _stack_bars(node_x, node_y, node_val_raw, _h, gap_px=2)
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
