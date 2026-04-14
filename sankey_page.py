@@ -4589,9 +4589,83 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         rows = 3 if node_row2[idx] else 2
         return _line_h_px * rows
 
-    # ── Compute bar heights so we can use max(text, bar) for spacing ──
-    # Plotly scales bars so the densest column's total value fills the
-    # available height.  We need the global scale factor.
+    # ── Custom bar heights: smallest node = 1px, rest proportional ────
+    # This gives us full control over bar sizing rather than letting Plotly
+    # decide.  We set chart height so Plotly's internal bar rendering
+    # matches our target exactly.
+    _positive_vals = [v for v in node_val_raw if v > 0]
+    _min_val = min(_positive_vals) if _positive_vals else 1
+
+    def _bar_h_px(idx):
+        """Bar height in pixels: smallest node = 1px, rest proportional."""
+        if node_val_raw[idx] <= 0:
+            return 1.0
+        return max(1.0, node_val_raw[idx] / _min_val)
+
+    def _slot_px(idx):
+        """Height this node occupies: max(text, bar) in pixels."""
+        return max(_text_h_px(idx), _bar_h_px(idx))
+
+    _node_top_px = {}  # idx -> top pixel position (from top=0)
+
+    # Column 1: Total Assets starts at pixel 0
+    _ta_idx = imap["Total Assets"]
+    _node_top_px[_ta_idx] = 0.0
+
+    # Column 2: first child top = Total Assets top = 0, rest stack below
+    _c2_cursor = 0.0
+    _c2_top_px = {}
+    for _name, _val, _color, _children, _x_ch, _exp in col2_items:
+        _idx = imap[_name]
+        _node_top_px[_idx] = _c2_cursor
+        _c2_top_px[_name] = _c2_cursor
+        _c2_cursor += _slot_px(_idx) + _bar_gap_px
+
+    # Column 3 and Column 4
+    _c3_cursor = 0.0
+    _c4_cursor = 0.0
+
+    for _name, _val, _color, _children, _x_ch, _exp in col2_items:
+        _parent_top = _c2_top_px[_name]
+        _grp = max(_parent_top, _c3_cursor)
+
+        _has_nested = any(len(_ch) == 4 for _ch in _children)
+
+        if _has_nested:
+            for _ch in _children:
+                _ch_name, _ch_val, _ch_color, _sub_items = _ch
+                _ch_idx = imap[_ch_name]
+                _node_top_px[_ch_idx] = _grp
+                _ch_top = _grp
+                _grp += _slot_px(_ch_idx) + _bar_gap_px
+
+                _sub_start = max(_ch_top, _c4_cursor)
+                for _si_name, _si_val, _si_color in _sub_items:
+                    _si_idx = imap[_si_name]
+                    _node_top_px[_si_idx] = _sub_start
+                    _sub_start += _slot_px(_si_idx) + _bar_gap_px
+                _c4_cursor = _sub_start
+        else:
+            for _ch in _children:
+                _ch_name, _ch_val, _ch_color = _ch
+                _ch_idx = imap[_ch_name]
+                _node_top_px[_ch_idx] = _grp
+                _grp += _slot_px(_ch_idx) + _bar_gap_px
+
+        _c3_cursor = _grp
+
+    # Chart height from stacking layout
+    _max_bottom_px = max(
+        _slot_px(_ta_idx),
+        _c2_cursor - _bar_gap_px if col2_items else 0,
+        _c3_cursor - _bar_gap_px if _c3_cursor > 0 else 0,
+        _c4_cursor - _bar_gap_px if _c4_cursor > 0 else 0,
+    )
+
+    # Also ensure chart is tall enough for Plotly's bar rendering to
+    # produce 1px for the smallest node:
+    #   1 = (min_val / max_col_sum) * avail_px
+    #   avail_px = max_col_sum / min_val
     from collections import defaultdict as _ddict
     _bs_columns = _ddict(list)
     for _ci in range(_n_nodes):
@@ -4600,86 +4674,19 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         (sum(node_val_raw[i] for i in idxs) for idxs in _bs_columns.values()),
         default=1,
     ) or 1
+    _plotly_avail = _max_col_sum / _min_val  # avail_px needed for 1px min bar
+    _h_from_plotly = int(_plotly_avail / 0.90 + 60)
 
-    def _slot_px(idx, avail):
-        """Height this node occupies: max(text, bar) in pixels."""
-        bar_h = (node_val_raw[idx] / _max_col_sum) * avail
-        return max(_text_h_px(idx), bar_h)
-
-    # ── First pass: compute positions with a large avail to find total ──
-    # We use an iterative approach: assume avail, compute layout, derive
-    # chart height, then recompute with correct avail.
-    for _pass in range(2):
-        if _pass == 0:
-            _est_avail = 2000.0  # generous first estimate
-        else:
-            _est_avail = _h * 0.92  # use actual from previous pass
-
-        _node_top_px = {}  # idx -> top pixel position (from top=0)
-
-        # Column 1: Total Assets starts at pixel 0
-        _ta_idx = imap["Total Assets"]
-        _node_top_px[_ta_idx] = 0.0
-
-        # Column 2: first child top = Total Assets top = 0, rest stack below
-        _c2_cursor = 0.0
-        _c2_top_px = {}
-        for _name, _val, _color, _children, _x_ch, _exp in col2_items:
-            _idx = imap[_name]
-            _node_top_px[_idx] = _c2_cursor
-            _c2_top_px[_name] = _c2_cursor
-            _c2_cursor += _slot_px(_idx, _est_avail) + _bar_gap_px
-
-        # Column 3 and Column 4
-        _c3_cursor = 0.0
-        _c4_cursor = 0.0
-
-        for _name, _val, _color, _children, _x_ch, _exp in col2_items:
-            _parent_top = _c2_top_px[_name]
-            _grp = max(_parent_top, _c3_cursor)
-
-            _has_nested = any(len(_ch) == 4 for _ch in _children)
-
-            if _has_nested:
-                for _ch in _children:
-                    _ch_name, _ch_val, _ch_color, _sub_items = _ch
-                    _ch_idx = imap[_ch_name]
-                    _node_top_px[_ch_idx] = _grp
-                    _ch_top = _grp
-                    _grp += _slot_px(_ch_idx, _est_avail) + _bar_gap_px
-
-                    _sub_start = max(_ch_top, _c4_cursor)
-                    for _si_name, _si_val, _si_color in _sub_items:
-                        _si_idx = imap[_si_name]
-                        _node_top_px[_si_idx] = _sub_start
-                        _sub_start += _slot_px(_si_idx, _est_avail) + _bar_gap_px
-                    _c4_cursor = _sub_start
-            else:
-                for _ch in _children:
-                    _ch_name, _ch_val, _ch_color = _ch
-                    _ch_idx = imap[_ch_name]
-                    _node_top_px[_ch_idx] = _grp
-                    _grp += _slot_px(_ch_idx, _est_avail) + _bar_gap_px
-
-            _c3_cursor = _grp
-
-        # Chart height from the lowest bottom across all columns
-        _max_bottom_px = max(
-            _slot_px(_ta_idx, _est_avail),
-            _c2_cursor - _bar_gap_px if col2_items else 0,
-            _c3_cursor - _bar_gap_px if _c3_cursor > 0 else 0,
-            _c4_cursor - _bar_gap_px if _c4_cursor > 0 else 0,
-        )
-        _h = int(max(460, _max_bottom_px / 0.92 + 60))  # 60px margin (top+bottom)
+    _h = max(460, int(_max_bottom_px / 0.90 + 60), _h_from_plotly)
 
     # Convert pixel positions → node_y [0.01, 0.99]
-    _avail_px = _h * 0.92
+    _avail_px = _h * 0.90
     for _idx, _top_px in _node_top_px.items():
-        _center_px = _top_px + _slot_px(_idx, _avail_px) / 2
+        _center_px = _top_px + _slot_px(_idx) / 2
         node_y[_idx] = round(max(0.01, min(0.99, _center_px / _avail_px)), 4)
 
-    # Scale node padding & thickness to fit
-    _pad = max(8, min(22, int(320 / max(_n_nodes, 1))))
+    # pad=0 since we control spacing; thickness for the colored bar width
+    _pad = 0
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
 
     # Hide built-in node labels — we use annotations instead so text
@@ -4695,7 +4702,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                   hovertemplate="<b>%{customdata}</b><extra></extra>"),
         link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
-        domain=dict(y=[0.06, 0.96]),
+        domain=dict(y=[0.05, 0.95]),
     ))
     # _h computed above via top-aligned sequential stacking
     _layout = dict(height=_h, margin=dict(l=6, r=6, t=10, b=6),
@@ -4704,7 +4711,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     fig.update_layout(**_layout)
 
     # ── Annotation-based labels (render above all nodes) ──────────────
-    _dom_y0, _dom_y1 = 0.06, 0.96
+    _dom_y0, _dom_y1 = 0.05, 0.95
     _small_sz = max(8, _font_sz - 2)
     for i in range(len(nodes)):
         x_paper = node_x[i]
