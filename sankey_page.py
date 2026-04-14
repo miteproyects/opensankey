@@ -237,7 +237,8 @@ def _fix_bar_gaps(node_x, node_y, node_val_raw, chart_height, min_gap_px=2):
                                 min(0.99 - bar_half[j], node_y[i]))
 
 
-def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2):
+def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2,
+                   node_row2=None, font_sz=10):
     """Position Sankey nodes right-to-left: leaves first, parents centered.
 
     ``tree`` is a list of root nodes.  Each node is a dict:
@@ -246,7 +247,9 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2):
 
     Algorithm:
     1. Collect ALL leaf nodes (any depth) in tree order.  Stack them
-       top-to-bottom with ``gap_px`` between each bar.
+       top-to-bottom with ``gap_px`` between each bar.  Each node's
+       slot = max(bar_height, text_height) so small bars still get
+       room for their text labels.
     2. Walk non-leaf nodes from deepest to shallowest.  Center each
        parent on the span of its children (first child bar top →
        last child bar bottom).
@@ -289,6 +292,18 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2):
     def _bar_half(idx):
         return (node_val_raw[idx] / max_col_sum) / 2
 
+    # Text height in node_y units for overlap-free stacking
+    _line_h_px = font_sz * 2.6
+
+    def _text_half(idx):
+        """Half of text label height in node_y units."""
+        rows = 3 if (node_row2 and node_row2[idx]) else 2
+        return (_line_h_px * rows) / avail_px / 2
+
+    def _slot_half(idx):
+        """Half of the space this node needs: max(bar, text)."""
+        return max(_bar_half(idx), _text_half(idx))
+
     # ── Step 1: Collect ALL leaves in tree-traversal order and stack ──
     _leaves = []  # (node_dict, parent_idx)
 
@@ -305,9 +320,9 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2):
     cursor = 0.0
     for node_dict, parent_idx in _leaves:
         idx = node_dict["idx"]
-        bh = _bar_half(idx)
-        node_y[idx] = cursor + bh
-        cursor += bh * 2 + gap_ny
+        sh = _slot_half(idx)
+        node_y[idx] = cursor + sh
+        cursor += sh * 2 + gap_ny
 
     # ── Step 2: Center non-leaf nodes, deepest first ──────────────────
     _non_leaves = []  # (node_dict, depth, parent_idx)
@@ -370,8 +385,8 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2):
                 upper = siblings_sorted[j]
                 lower = siblings_sorted[j + 1]
                 u_idx, l_idx = upper["idx"], lower["idx"]
-                u_bot = node_y[u_idx] + _bar_half(u_idx)
-                l_top = node_y[l_idx] - _bar_half(l_idx)
+                u_bot = node_y[u_idx] + _slot_half(u_idx)
+                l_top = node_y[l_idx] - _slot_half(l_idx)
                 gap_actual = l_top - u_bot
 
                 if gap_actual < gap_ny - 0.00001:
@@ -393,16 +408,39 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2):
         if not any_change:
             break
 
-    # ── Step 4: Center entire chart in [0.01, 0.99] ──────────────────
-    all_tops = [node_y[i] - _bar_half(i) for i in _all_idxs]
-    all_bots = [node_y[i] + _bar_half(i) for i in _all_idxs]
+    # ── Step 4: Compute needed span and center in [0.01, 0.99] ─────────
+    all_tops = [node_y[i] - _slot_half(i) for i in _all_idxs]
+    all_bots = [node_y[i] + _slot_half(i) for i in _all_idxs]
     chart_top = min(all_tops)
     chart_bot = max(all_bots)
-    current_center = (chart_top + chart_bot) / 2
+    span_ny = chart_bot - chart_top
+
+    # Needed chart height so that span_ny fits in [0.01, 0.99] with room
+    # span_ny * avail_px = total pixels needed
+    # But span_ny is in current node_y units based on initial chart_height.
+    # Convert to pixels: span_px = span_ny * avail_px
+    span_px = span_ny * avail_px
+    needed_h = int(max(460, span_px / dom_span + 40))
+
+    # Rescale node_y values if chart_height changes
+    if needed_h != chart_height:
+        new_avail = needed_h * dom_span
+        scale = avail_px / new_avail  # shrink/expand factor
+        for i in _all_idxs:
+            node_y[i] = node_y[i] * scale
+
+    # Center in [0.01, 0.99]
+    all_tops2 = [node_y[i] - _bar_half(i) for i in _all_idxs]
+    all_bots2 = [node_y[i] + _bar_half(i) for i in _all_idxs]
+    chart_top2 = min(all_tops2)
+    chart_bot2 = max(all_bots2)
+    current_center = (chart_top2 + chart_bot2) / 2
     shift = 0.50 - current_center
 
     for i in _all_idxs:
         node_y[i] = round(max(0.01, min(0.99, node_y[i] + shift)), 4)
+
+    return needed_h
 
 
 def _shift_subtree(node_dict, delta, node_y):
@@ -4283,7 +4321,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         _rev_children.append(_gp_node)
     _rev_node = {"idx": imap["Revenue"], "children": _rev_children}
 
-    _position_rtl([_rev_node], node_y, node_val_raw, _h, gap_px=2)
+    _h = _position_rtl([_rev_node], node_y, node_val_raw, _h, gap_px=2,
+                        node_row2=node_row2, font_sz=_font_sz)
 
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
@@ -4299,7 +4338,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         domain=dict(y=[0.04, 0.96]),
     ))
     # _h already computed dynamically above (before layout)
-    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
+    _layout = dict(height=_h, margin=dict(l=6, r=6, t=5, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
@@ -4855,7 +4894,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                 _c2_node["children"].append({"idx": imap[_ch_name], "children": []})
         _bs_tree_root["children"].append(_c2_node)
 
-    _position_rtl([_bs_tree_root], node_y, node_val_raw, _h, gap_px=2)
+    _h = _position_rtl([_bs_tree_root], node_y, node_val_raw, _h, gap_px=2,
+                        node_row2=node_row2, font_sz=_font_sz)
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
@@ -4872,8 +4912,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
         domain=dict(y=[0.04, 0.96]),
     ))
-    # _h already computed dynamically above (via _compute_dynamic_height)
-    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
+    # _h already computed dynamically above (via _position_rtl)
+    _layout = dict(height=_h, margin=dict(l=6, r=6, t=5, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
@@ -5841,6 +5881,7 @@ def render_sankey_page():
                 _show_metric_popup(ticker, active_metric, "income")
             _income_popup()
 
+        st.markdown('<div style="margin-bottom:5px"></div>', unsafe_allow_html=True)
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period,
                                    ticker=ticker)
         if fig:
@@ -5909,6 +5950,7 @@ def render_sankey_page():
                 _show_metric_popup(ticker, active_metric, "balance")
             _balance_popup()
 
+        st.markdown('<div style="margin-bottom:5px"></div>', unsafe_allow_html=True)
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
                                           ticker=ticker)
         if fig:
