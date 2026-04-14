@@ -237,330 +237,6 @@ def _fix_bar_gaps(node_x, node_y, node_val_raw, chart_height, min_gap_px=2):
                                 min(0.99 - bar_half[j], node_y[i]))
 
 
-def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=20,
-                   cross_parent_gap_px=20, node_row2=None, font_sz=10):
-    """Position Sankey nodes right-to-left: leaves first, parents centered.
-
-    ``tree`` is a list of root nodes.  Each node is a dict:
-        {"idx": int, "children": [node, ...]}
-    Children lists are already sorted high→low by value.
-
-    Algorithm:
-    1. Collect ALL leaf nodes (any depth) in tree order.  Stack them
-       top-to-bottom with ``gap_px`` between siblings (same parent)
-       and ``cross_parent_gap_px`` between nodes of different parents.
-       Each node's slot = max(bar_height, text_height) so small bars
-       still get room for their text labels.
-    2. Walk non-leaf nodes from deepest to shallowest.  Center each
-       parent on the span of its children (first child bar top →
-       last child bar bottom).
-    3. After centering, check siblings for overlap.  Push apart
-       symmetrically and cascade shifts to entire subtrees.
-    4. Center the whole chart vertically in [0.01, 0.99].
-
-    Operates in node_y-unit space.  Mutates ``node_y`` in-place.
-    """
-    dom_span = 0.92
-    avail_px = chart_height * dom_span
-    from collections import defaultdict
-
-    # ── Collect all node indices ──────────────────────────────────────
-    _all_idxs = []
-
-    def _collect(node):
-        _all_idxs.append(node["idx"])
-        for ch in node.get("children", []):
-            _collect(ch)
-
-    for root in tree:
-        _collect(root)
-
-    # ── Max column sum and node counts per depth for bar-height scaling ─
-    def _depth_info(node, depth, sums, counts):
-        sums[depth] = sums.get(depth, 0) + node_val_raw[node["idx"]]
-        counts[depth] = counts.get(depth, 0) + 1
-        for ch in node.get("children", []):
-            _depth_info(ch, depth + 1, sums, counts)
-
-    _dsums = {}
-    _dcounts = {}
-    for root in tree:
-        _depth_info(root, 0, _dsums, _dcounts)
-    max_col_sum = max(_dsums.values()) if _dsums else 1
-    if max_col_sum <= 0:
-        max_col_sum = 1
-
-    # Plotly deducts pad*(max_n-1) from available height before sizing bars.
-    # We need to match this so our bar edges align with Plotly's rendering.
-    # Use a reasonable pad estimate (same formula as the caller).
-    _n_total = len(_all_idxs)
-    _pad_est = max(8, min(22, int(320 / max(_n_total, 1))))
-    _max_col_n = max(_dcounts.values()) if _dcounts else 1
-    _pad_deduction_px = _pad_est * max(0, _max_col_n - 1)
-    _effective_avail_px = max(avail_px - _pad_deduction_px, avail_px * 0.3)
-
-    gap_ny = gap_px / avail_px
-    cross_gap_ny = cross_parent_gap_px / avail_px
-
-    def _bar_half(idx):
-        """Bar half-height matching Plotly's actual rendering."""
-        bar_h_px = (node_val_raw[idx] / max_col_sum) * _effective_avail_px
-        return (bar_h_px / avail_px) / 2
-
-    # Text height in node_y units for overlap-free stacking
-    _line_h_px = font_sz * 2.6
-
-    def _text_half(idx):
-        """Half of text label height in node_y units."""
-        rows = 3 if (node_row2 and node_row2[idx]) else 2
-        return (_line_h_px * rows) / avail_px / 2
-
-    def _slot_half(idx):
-        """Half of the space this node needs: max(bar, text)."""
-        return max(_bar_half(idx), _text_half(idx))
-
-    # ── Step 1: Collect ALL leaves in tree-traversal order and stack ──
-    # Use 2px gap between siblings (same parent), 5px when crossing to
-    # a different parent's children.
-    _leaves = []  # (node_dict, parent_idx)
-
-    def _collect_leaves(node, parent_idx=None):
-        if not node.get("children"):
-            _leaves.append((node, parent_idx))
-        else:
-            for ch in node["children"]:
-                _collect_leaves(ch, node["idx"])
-
-    for root in tree:
-        _collect_leaves(root)
-
-    cursor = 0.0
-    _prev_parent_idx = None
-    for node_dict, parent_idx in _leaves:
-        idx = node_dict["idx"]
-        sh = _slot_half(idx)
-        # Use cross-parent gap when switching to a different parent
-        if _prev_parent_idx is not None and parent_idx != _prev_parent_idx:
-            use_gap = cross_gap_ny
-        else:
-            use_gap = gap_ny
-        if _prev_parent_idx is not None:
-            cursor += use_gap
-        node_y[idx] = cursor + sh
-        cursor += sh * 2
-        _prev_parent_idx = parent_idx
-
-    # ── Step 2: Center non-leaf nodes, deepest first ──────────────────
-    _non_leaves = []  # (node_dict, depth, parent_idx)
-
-    def _collect_non_leaves(node, depth=0, parent_idx=None):
-        if node.get("children"):
-            _non_leaves.append((node, depth, parent_idx))
-            for ch in node["children"]:
-                _collect_non_leaves(ch, depth + 1, node["idx"])
-
-    for root in tree:
-        _collect_non_leaves(root)
-
-    # Sort deepest first
-    _non_leaves.sort(key=lambda t: t[1], reverse=True)
-
-    for node_dict, depth, parent_idx in _non_leaves:
-        idx = node_dict["idx"]
-        children = node_dict["children"]
-        child_ys = [node_y[ch["idx"]] for ch in children]
-        child_bhs = [_bar_half(ch["idx"]) for ch in children]
-        span_top = min(y - b for y, b in zip(child_ys, child_bhs))
-        span_bot = max(y + b for y, b in zip(child_ys, child_bhs))
-        node_y[idx] = (span_top + span_bot) / 2
-
-    # ── Step 3: Enforce 2px gap between sibling bars, bottom-up ─────────
-    # Process from deepest level upward.  At each level:
-    #   a) Check siblings for bar overlap (using _slot_half for min extent).
-    #   b) When overlap found, shift entire subtrees apart.
-    #   c) Re-center the PARENT on its now-shifted children.
-    # This way parent positions are always a consequence of children,
-    # never set independently — so the 2px gap is never undone.
-
-    # Collect depths present among non-leaves
-    _depths_present = sorted(set(d for _, d, _ in _non_leaves), reverse=True)
-
-    # Also include leaf-sibling groups (depth = parent's depth + 1)
-    # Build parent→node_dict map for re-centering
-    _node_dict_map = {}  # idx -> node_dict
-
-    def _build_map(node):
-        _node_dict_map[node["idx"]] = node
-        for ch in node.get("children", []):
-            _build_map(ch)
-
-    for root in tree:
-        _build_map(root)
-
-    def _center_on_children(node_dict):
-        """Set node_y to center of its children's bar span."""
-        children = node_dict.get("children", [])
-        if not children:
-            return
-        child_ys = [node_y[ch["idx"]] for ch in children]
-        child_bhs = [_bar_half(ch["idx"]) for ch in children]
-        span_top = min(y - b for y, b in zip(child_ys, child_bhs))
-        span_bot = max(y + b for y, b in zip(child_ys, child_bhs))
-        node_y[node_dict["idx"]] = (span_top + span_bot) / 2
-
-    def _fix_siblings(children_list):
-        """Enforce 2px gap between sibling bars, shifting subtrees."""
-        if len(children_list) <= 1:
-            return False
-        changed = False
-        siblings_sorted = sorted(children_list, key=lambda n: node_y[n["idx"]])
-        for j in range(len(siblings_sorted) - 1):
-            upper = siblings_sorted[j]
-            lower = siblings_sorted[j + 1]
-            u_idx, l_idx = upper["idx"], lower["idx"]
-            u_bot = node_y[u_idx] + _slot_half(u_idx)
-            l_top = node_y[l_idx] - _slot_half(l_idx)
-            gap_actual = l_top - u_bot
-            if gap_actual < gap_ny - 0.00001:
-                push = (gap_ny - gap_actual) / 2 + 0.00001
-                _shift_subtree(upper, -push, node_y)
-                _shift_subtree(lower, +push, node_y)
-                changed = True
-        return changed
-
-    # Multiple global passes to let cascading settle
-    for _pass in range(50):
-        any_change = False
-
-        # Bottom-up: process deepest parent level first
-        for depth in _depths_present:
-            parents_at_d = [(nd, pi) for nd, d, pi in _non_leaves if d == depth]
-            for node_dict, parent_idx in parents_at_d:
-                # Fix this node's children (siblings at depth+1)
-                children = node_dict.get("children", [])
-                if _fix_siblings(children):
-                    any_change = True
-                # Re-center this parent on its children
-                _center_on_children(node_dict)
-
-        # Also fix root-level siblings (the roots in `tree`)
-        if len(tree) > 1:
-            if _fix_siblings(tree):
-                any_change = True
-
-        if not any_change:
-            break
-
-    # ── Final: re-center all parents on children (deepest first) ──────
-    for node_dict, depth, parent_idx in _non_leaves:
-        _center_on_children(node_dict)
-
-    # ── Step 4: Compute needed span and center in [0.01, 0.99] ─────────
-    all_tops = [node_y[i] - _slot_half(i) for i in _all_idxs]
-    all_bots = [node_y[i] + _slot_half(i) for i in _all_idxs]
-    chart_top = min(all_tops)
-    chart_bot = max(all_bots)
-    span_ny = chart_bot - chart_top
-
-    # Needed chart height so that span_ny fits in [0.01, 0.99] with room
-    # span_ny * avail_px = total pixels needed
-    # But span_ny is in current node_y units based on initial chart_height.
-    # Convert to pixels: span_px = span_ny * avail_px
-    span_px = span_ny * avail_px
-    needed_h = int(max(460, span_px / dom_span + 40))
-
-    # Rescale node_y values if chart_height changes
-    if needed_h != chart_height:
-        new_avail = needed_h * dom_span
-        scale = avail_px / new_avail  # shrink/expand factor
-        for i in _all_idxs:
-            node_y[i] = node_y[i] * scale
-
-    # Center in [0.01, 0.99]
-    all_tops2 = [node_y[i] - _bar_half(i) for i in _all_idxs]
-    all_bots2 = [node_y[i] + _bar_half(i) for i in _all_idxs]
-    chart_top2 = min(all_tops2)
-    chart_bot2 = max(all_bots2)
-    current_center = (chart_top2 + chart_bot2) / 2
-    shift = 0.50 - current_center
-
-    for i in _all_idxs:
-        node_y[i] = round(max(0.01, min(0.99, node_y[i] + shift)), 4)
-
-    return needed_h
-
-
-def _shift_subtree(node_dict, delta, node_y):
-    """Shift a node and all its descendants by delta in node_y."""
-    node_y[node_dict["idx"]] += delta
-    for ch in node_dict.get("children", []):
-        _shift_subtree(ch, delta, node_y)
-
-
-def _stack_bars(node_x, node_y, node_val_raw, chart_height, gap_px=2):
-    """Stack node bars sequentially top-to-bottom with an exact pixel gap.
-
-    For each column, nodes are already sorted by value (high→low) from the
-    caller.  This function places bars so that:
-        bar_top[0] = current top of the first node's bar (unchanged)
-        bar_top[i] = bar_bottom[i-1] + gap
-        node_y[i]  = bar_top[i] + bar_half_h[i]  (center of bar)
-
-    This produces exact ``gap_px`` spacing between every pair of adjacent
-    bars, with no wasted proportional-band space.
-
-    Operates in node_y space (0=top, 1=bottom).  Mutates node_y in-place.
-    """
-    from collections import defaultdict
-
-    dom_span = 0.92  # domain [0.04, 0.96]
-    avail_px = chart_height * dom_span
-
-    columns = defaultdict(list)
-    for i in range(len(node_x)):
-        col_key = round(node_x[i], 3)
-        columns[col_key].append(i)
-
-    # Global bar-height scale (same as Plotly uses internally)
-    max_col_sum = 0
-    for col_idxs in columns.values():
-        col_sum = sum(node_val_raw[i] for i in col_idxs)
-        max_col_sum = max(max_col_sum, col_sum)
-
-    if max_col_sum <= 0:
-        return
-
-    gap_ny = gap_px / avail_px
-
-    for col_key, col_idxs in columns.items():
-        if len(col_idxs) <= 1:
-            continue
-
-        # Sort by current node_y (preserves the high→low order from caller)
-        col_idxs.sort(key=lambda i: node_y[i])
-
-        # Compute bar half-heights in node_y units
-        bar_half = []
-        for i in col_idxs:
-            bar_h_ny = (node_val_raw[i] / max_col_sum)  # fraction of avail
-            bar_half.append(bar_h_ny / 2)
-
-        # First node: keep its bar top where it is
-        first = col_idxs[0]
-        cursor = node_y[first] - bar_half[0]  # bar top of first node
-        cursor = max(0.01, cursor)
-
-        # Place each node sequentially
-        for j, idx in enumerate(col_idxs):
-            node_y[idx] = cursor + bar_half[j]
-            cursor += bar_half[j] * 2 + gap_ny  # move past bar bottom + gap
-
-        # Clamp to [0.01, 0.99]
-        for j, idx in enumerate(col_idxs):
-            node_y[idx] = max(0.01 + bar_half[j],
-                              min(0.99 - bar_half[j], node_y[idx]))
-
-
 def _fix_text_gaps(node_x, node_y, node_row2, font_sz, chart_height, min_gap_px=2):
     """Ensure minimum pixel gap between adjacent TEXT label edges in each column.
 
@@ -4156,16 +3832,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     rev_y = (Y_MIN + Y_MAX) / 2
     add("Revenue", revenue, 0, X1, rev_y, p_revenue)
 
-    # --- Column 2: COGS + Gross Profit (split Revenue's band, high→low) ---
+    # --- Column 2: COGS + Gross Profit (split Revenue's band) ---
     if cogs > 0:
-        _c2_items = [("Cost of Revenue", cogs, 1, p_cogs),
-                     ("Gross Profit", gross_profit, 2, p_gross_profit)]
-        _c2_items.sort(key=lambda t: t[1], reverse=True)
-        c2 = _split_band([it[1] for it in _c2_items], *rev_band)
-        for _ci2, (lbl, val, ci, pv) in enumerate(_c2_items):
-            add(lbl, val, ci, X2, c2[_ci2][0], pv)
-        _gp_ci2 = next(i for i, it in enumerate(_c2_items) if it[0] == "Gross Profit")
-        gp_band = (c2[_gp_ci2][1], c2[_gp_ci2][2])
+        c2 = _split_band([cogs, gross_profit], *rev_band)
+        add("Cost of Revenue", cogs, 1, X2, c2[0][0], p_cogs)
+        add("Gross Profit", gross_profit, 2, X2, c2[1][0], p_gross_profit)
+        gp_band = (c2[1][1], c2[1][2])  # GP's sub-band → parent for col 3
     else:
         add("Gross Profit", gross_profit, 2, X2, rev_y, p_gross_profit)
         gp_band = rev_band  # GP == Revenue, inherits full band
@@ -4240,15 +3912,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
 
     col3_items.append(("Operating Income", operating_inc, 6, p_operating_inc, False))
 
-    # Sort col3 high → low
-    col3_items.sort(key=lambda t: t[1], reverse=True)
     c3_vals = [v for _, v, *_ in col3_items]
     c3 = _split_band(c3_vals, *gp_band)
     for i, (lbl, val, ci, pv, expandable) in enumerate(col3_items):
         add(lbl, val, ci, X3, c3[i][0], pv, expandable=expandable)
-    _oi_idx3 = next(i for i, it in enumerate(col3_items) if it[0] == "Operating Income")
-    oi_y = c3[_oi_idx3][0]
-    oi_band = (c3[_oi_idx3][1], c3[_oi_idx3][2])  # OI's sub-band → parent for col 4
+    oi_y = c3[-1][0]
+    oi_band = (c3[-1][1], c3[-1][2])  # OI's sub-band → parent for col 4
 
     # --- Column 4: Interest Exp + Other Non-Op + Pretax Income (split OI's band) ---
     col4_items = []
@@ -4258,15 +3927,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         col4_items.append(("Other Non-Op", other_nonop, 7, p_other_nonop))
     col4_items.append(("Pretax Income", pretax_income, 8, p_pretax_income))
 
-    # Sort col4 high → low
-    col4_items.sort(key=lambda t: t[1], reverse=True)
     c4_vals = [v for _, v, *_ in col4_items]
     c4 = _split_band(c4_vals, *oi_band)
     for i, (lbl, val, ci, pv) in enumerate(col4_items):
         add(lbl, val, ci, X4, c4[i][0], pv)
-    _pt_idx4 = next(i for i, it in enumerate(col4_items) if it[0] == "Pretax Income")
-    pt_y = c4[_pt_idx4][0]
-    pt_band = (c4[_pt_idx4][1], c4[_pt_idx4][2])  # Pretax's sub-band → parent for col 5
+    pt_y = c4[-1][0]
+    pt_band = (c4[-1][1], c4[-1][2])  # Pretax's sub-band → parent for col 5
 
     # --- Column 5: Tax + Net Income (split Pretax's band) ---
     col5_items = []
@@ -4274,8 +3940,6 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         col5_items.append(("Income Tax", tax, 9, p_tax))
     col5_items.append(("Net Income", net_income, 10, p_net_income))
 
-    # Sort col5 high → low
-    col5_items.sort(key=lambda t: t[1], reverse=True)
     c5_vals = [v for _, v, *_ in col5_items]
     c5 = _split_band(c5_vals, *pt_band)
     for i, (lbl, val, ci, pv) in enumerate(col5_items):
@@ -4329,47 +3993,17 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = _font_sz_est  # use pre-computed value (same formula)
 
-    # ── Right-to-left positioning: leaves first, parents centered ───────
-    # Build tree: Revenue → col2 → col3 → col4 → col5
-    # Each column's items are children of one specific parent node.
-
-    # Col5 items are leaves, children of Pretax Income
-    _pt_node = {"idx": imap["Pretax Income"], "children": [
-        {"idx": imap[lbl], "children": []} for lbl, *_ in col5_items
-    ]}
-
-    # Col4 items are children of Operating Income; Pretax Income is one of them
-    _oi_children = []
-    for lbl, *_ in col4_items:
-        if lbl == "Pretax Income":
-            _oi_children.append(_pt_node)
-        else:
-            _oi_children.append({"idx": imap[lbl], "children": []})
-    _oi_node = {"idx": imap["Operating Income"], "children": _oi_children}
-
-    # Col3 items are children of Gross Profit; Operating Income is one of them
-    _gp_children = []
-    for lbl, *_ in col3_items:
-        if lbl == "Operating Income":
-            _gp_children.append(_oi_node)
-        else:
-            _gp_children.append({"idx": imap[lbl], "children": []})
-    _gp_node = {"idx": imap["Gross Profit"], "children": _gp_children}
-
-    # Col2: COGS + GP are children of Revenue
-    _rev_children = []
-    if cogs > 0:
-        for lbl, *_ in _c2_items:
-            if lbl == "Gross Profit":
-                _rev_children.append(_gp_node)
-            else:
-                _rev_children.append({"idx": imap[lbl], "children": []})
-    else:
-        _rev_children.append(_gp_node)
-    _rev_node = {"idx": imap["Revenue"], "children": _rev_children}
-
-    _h = _position_rtl([_rev_node], node_y, node_val_raw, _h, gap_px=20, cross_parent_gap_px=20,
-                        node_row2=node_row2, font_sz=_font_sz)
+    # ── Fix gaps: bars → text → cross-column → re-fix vertical ──────────
+    # Cross-column fix moves nodes vertically, which can re-introduce
+    # vertical overlaps, so we re-run bar/text gap fixes afterward.
+    # Use min_gap_px=6 so the bottom of each node has a visible gap to the next.
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
+    _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
+                           node_val_str, node_row2, _font_sz, _h, _thickness,
+                           min_gap_px=6)
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
 
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
@@ -4385,7 +4019,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         domain=dict(y=[0.04, 0.96]),
     ))
     # _h already computed dynamically above (before layout)
-    _layout = dict(height=_h, margin=dict(l=6, r=6, t=5, b=6),
+    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
@@ -4681,13 +4315,6 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         else:
             eq_items.append(("Total Equity", equity, C["equity"]))
 
-    # ── Sort all child lists high → low ────────────────────────────────
-    ca_items.sort(key=lambda t: t[1], reverse=True)
-    nca_items.sort(key=lambda t: t[1], reverse=True)
-    cl_items.sort(key=lambda t: t[1], reverse=True)
-    ncl_items.sort(key=lambda t: t[1], reverse=True)
-    eq_items.sort(key=lambda t: t[1], reverse=True)
-
     # Wide X spacing — text is placed via annotations (not built-in labels)
     # Col1/Col2 use 2-row labels (shorter) so can be closer together
     X1, X2, X3, X4 = 0.01, 0.16, 0.38, 0.62
@@ -4756,14 +4383,6 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     if not col2_items:
         return None
-
-    # Sort col2 high → low
-    col2_items.sort(key=lambda t: t[1], reverse=True)
-    # Also sort nested liab children (CL/NCL) high → low
-    for i, (name, val, color, children, x_ch, exp) in enumerate(col2_items):
-        if any(len(ch) == 4 for ch in children):
-            children_sorted = sorted(children, key=lambda ch: ch[1], reverse=True)
-            col2_items[i] = (name, val, color, children_sorted, x_ch, exp)
 
     # ── Count nodes per sub-band for dynamic chart height ──────────────
     # Balance sheet nodes are confined within sub-bands (CA items within CA band,
@@ -4923,26 +4542,16 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
-    # ── Right-to-left positioning: leaves first, parents centered ───────
-    # Build tree for _position_rtl
-    _bs_tree_root = {"idx": imap["Total Assets"], "children": []}
-    for _name, _val, _color, _children, _x_ch, _exp in col2_items:
-        _c2_node = {"idx": imap[_name], "children": []}
-        _has_nested = any(len(_ch) == 4 for _ch in _children)
-        if _has_nested:
-            for _ch_name, _ch_val, _ch_color, _sub_items in _children:
-                _c3_node = {"idx": imap[_ch_name], "children": []}
-                for _si_name, _si_val, _si_color in _sub_items:
-                    _c3_node["children"].append({"idx": imap[_si_name], "children": []})
-                _c2_node["children"].append(_c3_node)
-        else:
-            for _ch in _children:
-                _ch_name, _ch_val, _ch_color = _ch
-                _c2_node["children"].append({"idx": imap[_ch_name], "children": []})
-        _bs_tree_root["children"].append(_c2_node)
-
-    _h = _position_rtl([_bs_tree_root], node_y, node_val_raw, _h, gap_px=20, cross_parent_gap_px=20,
-                        node_row2=node_row2, font_sz=_font_sz)
+    # ── Fix gaps: bars → text → cross-column → re-fix vertical ──────────
+    # Use min_gap_px=6 so the bottom of each node has a visible gap to the
+    # next node (user rule: "bottom of a node must have a gap to the next").
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
+    _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
+                           node_val_str, node_row2, _font_sz, _h, _thickness,
+                           min_gap_px=6)
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
@@ -4959,8 +4568,8 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
         domain=dict(y=[0.04, 0.96]),
     ))
-    # _h already computed dynamically above (via _position_rtl)
-    _layout = dict(height=_h, margin=dict(l=6, r=6, t=5, b=6),
+    # _h already computed dynamically above (via _compute_dynamic_height)
+    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
@@ -5928,7 +5537,6 @@ def render_sankey_page():
                 _show_metric_popup(ticker, active_metric, "income")
             _income_popup()
 
-        st.markdown('<div style="margin-bottom:5px"></div>', unsafe_allow_html=True)
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period,
                                    ticker=ticker)
         if fig:
@@ -5997,7 +5605,6 @@ def render_sankey_page():
                 _show_metric_popup(ticker, active_metric, "balance")
             _balance_popup()
 
-        st.markdown('<div style="margin-bottom:5px"></div>', unsafe_allow_html=True)
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
                                           ticker=ticker)
         if fig:
