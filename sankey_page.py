@@ -422,6 +422,38 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2,
             if _fix_siblings(tree):
                 any_change = True
 
+        # ── Column-level compaction: re-stack ALL nodes at same depth ──
+        # with exact 2px gap regardless of parent.  This fixes cross-parent
+        # gaps (e.g. NCL children far from CL children in same column).
+        _all_by_depth = defaultdict(list)
+
+        def _collect_by_depth(node, d=0):
+            _all_by_depth[d].append(node)
+            for ch in node.get("children", []):
+                _collect_by_depth(ch, d + 1)
+
+        _all_by_depth.clear()
+        for root in tree:
+            _collect_by_depth(root)
+
+        for d, nodes_at_d in _all_by_depth.items():
+            if len(nodes_at_d) <= 1:
+                continue
+            # Sort by current Y to preserve order
+            sorted_nodes = sorted(nodes_at_d, key=lambda n: node_y[n["idx"]])
+            # Start from the first node's current position
+            first_idx = sorted_nodes[0]["idx"]
+            cursor = node_y[first_idx] - _slot_half(first_idx)
+            for nd in sorted_nodes:
+                idx = nd["idx"]
+                sh = _slot_half(idx)
+                new_y = cursor + sh
+                delta = new_y - node_y[idx]
+                if abs(delta) > 0.00001:
+                    _shift_subtree(nd, delta, node_y)
+                    any_change = True
+                cursor += sh * 2 + gap_ny
+
         if not any_change:
             break
 
