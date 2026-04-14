@@ -5642,12 +5642,9 @@ def render_sankey_page():
             st.session_state.pop('_pending_dialog_section', None)
             if _pd_m and _pd_m in metric_options:
                 st.session_state['income_metric_pill'] = _pd_m
-        else:
-            # Clear stale pill selection so closing a dialog doesn't reopen it
-            st.session_state.pop('income_metric_pill', None)
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
-                       key="income_metric_pill", default=None)
+                       key="income_metric_pill")
         if sel:
             @st.dialog(f"{sel} — Historical Trend", width="large")
             def _income_popup():
@@ -5713,12 +5710,9 @@ def render_sankey_page():
             st.session_state.pop('_pending_dialog_section', None)
             if _pd_m and _pd_m in metric_options:
                 st.session_state['balance_metric_pill'] = _pd_m
-        else:
-            # Clear stale pill selection so closing a dialog doesn't reopen it
-            st.session_state.pop('balance_metric_pill', None)
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
-                       key="balance_metric_pill", default=None)
+                       key="balance_metric_pill")
         if sel:
             @st.dialog(f"{sel} — Historical Trend", width="large")
             def _balance_popup():
