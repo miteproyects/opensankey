@@ -4009,13 +4009,13 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     # Cross-column fix moves nodes vertically, which can re-introduce
     # vertical overlaps, so we re-run bar/text gap fixes afterward.
     # Use min_gap_px=6 so the bottom of each node has a visible gap to the next.
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
     _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
                            node_val_str, node_row2, _font_sz, _h, _thickness,
-                           min_gap_px=6)
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
+                           min_gap_px=2)
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
 
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
@@ -4572,13 +4572,13 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     # ── Fix gaps: bars → text → cross-column → re-fix vertical ──────────
     # Use min_gap_px=6 so the bottom of each node has a visible gap to the
     # next node (user rule: "bottom of a node must have a gap to the next").
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
     _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
                            node_val_str, node_row2, _font_sz, _h, _thickness,
-                           min_gap_px=6)
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
+                           min_gap_px=2)
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
