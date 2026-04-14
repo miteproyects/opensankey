@@ -2749,12 +2749,11 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
                 card.style.overflow = 'visible';
                 card.style.position = 'relative';
                 card.style.zIndex = '1';
-                card.style.pointerEvents = 'auto';
-                /* Fix Streamlit column containers clipping the glow */
+                /* Fix immediate column wrapper clipping the glow — only
+                   go up 3 levels to avoid breaking the page scroll container */
                 var _p = card.parentElement;
-                for (var _pi = 0; _pi < 8 && _p; _pi++) {{
+                for (var _pi = 0; _pi < 3 && _p; _pi++) {{
                     _p.style.overflow = 'visible';
-                    _p.style.pointerEvents = 'auto';
                     _p = _p.parentElement;
                 }}
                 /* Use both mouseenter and mouseover for max compatibility */
@@ -2775,9 +2774,8 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
                 card.addEventListener('click', function() {{
                     clickPill(nodeLabel);
                 }});
-                /* Also bind on all children so hover fires even on inner text */
+                /* Also bind on all children so hover fires on inner text */
                 card.querySelectorAll('*').forEach(function(child) {{
-                    child.style.pointerEvents = 'auto';
                     child.addEventListener('mouseenter', function(e) {{
                         e.stopPropagation();
                         _doHighlight();
