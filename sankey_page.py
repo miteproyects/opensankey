@@ -149,7 +149,7 @@ def _compute_dynamic_height(column_node_counts, font_sz, node_gap_px=10, base_he
         col_px = n * text_h + (n - 1) * node_gap_px
         chart_px = col_px / 0.92 + 30  # 30px for top/bottom margin
         needed = max(needed, chart_px)
-    return int(min(needed, 1400))  # cap at 1400px for dense balance sheets
+    return int(min(needed, 1800))  # cap at 1800px for dense balance sheets (META etc.)
 
 
 def _min_band_for_text(font_sz, chart_height, has_row2=True):
@@ -253,8 +253,10 @@ def _fix_text_gaps(node_x, node_y, node_row2, font_sz, chart_height, min_gap_px=
     avail_px = chart_height * dom_span
 
     # Rendered line height: Plotly HTML annotations with <b>, <br>, <span>
-    # render taller than plain CSS line-height.  2.0× font_sz is a safe estimate.
-    line_h_px = font_sz * 2.0
+    # render taller than plain CSS line-height.  Use 2.6× font_sz to match
+    # _text_height_px() which drives the height calculation — using a smaller
+    # multiplier underestimates text extent and allows overlaps.
+    line_h_px = font_sz * 2.6
 
     def _text_h_px(has_r2):
         return line_h_px * (3 if has_r2 else 2)
@@ -333,7 +335,7 @@ def _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
     avail_px = chart_height * dom_span
 
     # ── Text height (Y extent) in node_y units ──────────────────────────
-    line_h_px = font_sz * 2.0
+    line_h_px = font_sz * 2.6  # match _text_height_px() multiplier
 
     def _text_h_ny(has_r2):
         px = line_h_px * (3 if has_r2 else 2)
@@ -364,7 +366,7 @@ def _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
 
     # Track cumulative shift per node to enforce cap
     total_shift = [0.0] * n
-    max_shift_ny = 30.0 / avail_px  # 30 px max drift
+    max_shift_ny = 50.0 / avail_px  # 50 px max drift (was 30; more room for dense balance sheets)
 
     # ── Group nodes by column (sorted left to right) ────────────────────
     columns = defaultdict(list)
@@ -2099,13 +2101,34 @@ def _inject_sankey_click_js(metric_map, section="income"):
         function clickPill(label) {{
             if (_clickGuard) return;
             _clickGuard = true;
-            /* Navigate with query params + unique nonce — Python reads them,
-               sets pill state, and opens the dialog on the fresh page load. */
-            var url = new URL(window.parent.location.href);
-            url.searchParams.set('open_metric', label);
-            url.searchParams.set('metric_section', SECTION);
-            url.searchParams.set('_mts', Date.now().toString());
-            window.parent.location.href = url.toString();
+            setTimeout(function() {{ _clickGuard = false; }}, 2000);
+            /* Use window.parent.eval() to execute React fiber onClick in the
+               parent's JS context — equivalent to running from browser console.
+               This bypasses iframe sandbox navigation restrictions and properly
+               triggers Streamlit server-side reruns. */
+            var safeLabel = label.replace(/'/g, "\\\\'");
+            window.parent.eval(
+                "(function(){{" +
+                "var btns=document.querySelectorAll('[data-testid=\"stBaseButton-pills\"]');" +
+                "for(var i=0;i<btns.length;i++){{" +
+                "  if(btns[i].textContent.trim()==='" + safeLabel + "'){{" +
+                "    var fk=Object.keys(btns[i]).find(function(k){{return k.startsWith('__reactFiber')||k.startsWith('__reactInternalInstance')}});" +
+                "    if(fk){{" +
+                "      var f=btns[i][fk];" +
+                "      while(f){{" +
+                "        if(f.memoizedProps&&typeof f.memoizedProps.onClick==='function'){{" +
+                "          f.memoizedProps.onClick(new MouseEvent('click',{{bubbles:true}}));" +
+                "          return;" +
+                "        }}" +
+                "        f=f.return;" +
+                "      }}" +
+                "    }}" +
+                "    btns[i].click();" +
+                "    return;" +
+                "  }}" +
+                "}}" +
+                "}})();"
+            );
         }}
 
         function extractLabel(raw) {{
@@ -2644,13 +2667,34 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
         function clickPill(label) {{
             if (_clickGuard) return;
             _clickGuard = true;
-            /* Navigate with query params + unique nonce — Python reads them,
-               sets pill state, and opens the dialog on the fresh page load. */
-            var url = new URL(window.parent.location.href);
-            url.searchParams.set('open_metric', label);
-            url.searchParams.set('metric_section', SECTION);
-            url.searchParams.set('_mts', Date.now().toString());
-            window.parent.location.href = url.toString();
+            setTimeout(function() {{ _clickGuard = false; }}, 2000);
+            /* Use window.parent.eval() to execute React fiber onClick in the
+               parent's JS context — equivalent to running from browser console.
+               This bypasses iframe sandbox navigation restrictions and properly
+               triggers Streamlit server-side reruns. */
+            var safeLabel = label.replace(/'/g, "\\\\'");
+            window.parent.eval(
+                "(function(){{" +
+                "var btns=document.querySelectorAll('[data-testid=\"stBaseButton-pills\"]');" +
+                "for(var i=0;i<btns.length;i++){{" +
+                "  if(btns[i].textContent.trim()==='" + safeLabel + "'){{" +
+                "    var fk=Object.keys(btns[i]).find(function(k){{return k.startsWith('__reactFiber')||k.startsWith('__reactInternalInstance')}});" +
+                "    if(fk){{" +
+                "      var f=btns[i][fk];" +
+                "      while(f){{" +
+                "        if(f.memoizedProps&&typeof f.memoizedProps.onClick==='function'){{" +
+                "          f.memoizedProps.onClick(new MouseEvent('click',{{bubbles:true}}));" +
+                "          return;" +
+                "        }}" +
+                "        f=f.return;" +
+                "      }}" +
+                "    }}" +
+                "    btns[i].click();" +
+                "    return;" +
+                "  }}" +
+                "}}" +
+                "}})();"
+            );
         }}
 
         function setupKpiHovers() {{
@@ -3952,13 +3996,14 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     # ── Fix gaps: bars → text → cross-column → re-fix vertical ──────────
     # Cross-column fix moves nodes vertically, which can re-introduce
     # vertical overlaps, so we re-run bar/text gap fixes afterward.
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
+    # Use min_gap_px=6 so the bottom of each node has a visible gap to the next.
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
     _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
                            node_val_str, node_row2, _font_sz, _h, _thickness,
-                           min_gap_px=2)
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
+                           min_gap_px=6)
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
 
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
@@ -4498,13 +4543,15 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
     # ── Fix gaps: bars → text → cross-column → re-fix vertical ──────────
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
+    # Use min_gap_px=6 so the bottom of each node has a visible gap to the
+    # next node (user rule: "bottom of a node must have a gap to the next").
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
     _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
                            node_val_str, node_row2, _font_sz, _h, _thickness,
-                           min_gap_px=2)
-    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=2)
-    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=2)
+                           min_gap_px=6)
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
