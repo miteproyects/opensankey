@@ -275,24 +275,37 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=20,
     for root in tree:
         _collect(root)
 
-    # ── Max column sum for bar-height scaling ─────────────────────────
-    def _depth_sums(node, depth, sums):
+    # ── Max column sum and node counts per depth for bar-height scaling ─
+    def _depth_info(node, depth, sums, counts):
         sums[depth] = sums.get(depth, 0) + node_val_raw[node["idx"]]
+        counts[depth] = counts.get(depth, 0) + 1
         for ch in node.get("children", []):
-            _depth_sums(ch, depth + 1, sums)
+            _depth_info(ch, depth + 1, sums, counts)
 
     _dsums = {}
+    _dcounts = {}
     for root in tree:
-        _depth_sums(root, 0, _dsums)
+        _depth_info(root, 0, _dsums, _dcounts)
     max_col_sum = max(_dsums.values()) if _dsums else 1
     if max_col_sum <= 0:
         max_col_sum = 1
+
+    # Plotly deducts pad*(max_n-1) from available height before sizing bars.
+    # We need to match this so our bar edges align with Plotly's rendering.
+    # Use a reasonable pad estimate (same formula as the caller).
+    _n_total = len(_all_idxs)
+    _pad_est = max(8, min(22, int(320 / max(_n_total, 1))))
+    _max_col_n = max(_dcounts.values()) if _dcounts else 1
+    _pad_deduction_px = _pad_est * max(0, _max_col_n - 1)
+    _effective_avail_px = max(avail_px - _pad_deduction_px, avail_px * 0.3)
 
     gap_ny = gap_px / avail_px
     cross_gap_ny = cross_parent_gap_px / avail_px
 
     def _bar_half(idx):
-        return (node_val_raw[idx] / max_col_sum) / 2
+        """Bar half-height matching Plotly's actual rendering."""
+        bar_h_px = (node_val_raw[idx] / max_col_sum) * _effective_avail_px
+        return (bar_h_px / avail_px) / 2
 
     # Text height in node_y units for overlap-free stacking
     _line_h_px = font_sz * 2.6
