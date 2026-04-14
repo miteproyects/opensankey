@@ -149,7 +149,7 @@ def _compute_dynamic_height(column_node_counts, font_sz, node_gap_px=10, base_he
         col_px = n * text_h + (n - 1) * node_gap_px
         chart_px = col_px / 0.92 + 30  # 30px for top/bottom margin
         needed = max(needed, chart_px)
-    return int(min(needed, 900))  # cap at 900px to stay reasonable
+    return int(min(needed, 1400))  # cap at 1400px for dense balance sheets
 
 
 def _min_band_for_text(font_sz, chart_height, has_row2=True):
@@ -2099,11 +2099,12 @@ def _inject_sankey_click_js(metric_map, section="income"):
         function clickPill(label) {{
             if (_clickGuard) return;
             _clickGuard = true;
-            /* Navigate with query params — Python reads them, sets pill
-               state, clears params, and opens the dialog on rerun. */
+            /* Navigate with query params + unique nonce — Python reads them,
+               sets pill state, and opens the dialog on the fresh page load. */
             var url = new URL(window.parent.location.href);
             url.searchParams.set('open_metric', label);
             url.searchParams.set('metric_section', SECTION);
+            url.searchParams.set('_mts', Date.now().toString());
             window.parent.location.href = url.toString();
         }}
 
@@ -2643,11 +2644,12 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
         function clickPill(label) {{
             if (_clickGuard) return;
             _clickGuard = true;
-            /* Navigate with query params — Python reads them, sets pill
-               state, clears params, and opens the dialog on rerun. */
+            /* Navigate with query params + unique nonce — Python reads them,
+               sets pill state, and opens the dialog on the fresh page load. */
             var url = new URL(window.parent.location.href);
             url.searchParams.set('open_metric', label);
             url.searchParams.set('metric_section', SECTION);
+            url.searchParams.set('_mts', Date.now().toString());
             window.parent.location.href = url.toString();
         }}
 
@@ -5316,23 +5318,21 @@ def render_sankey_page():
         st.session_state.sankey_view = sankey_view
 
     # ── Handle URL-triggered metric dialog (KPI card / Sankey node clicks) ──
+    # JS sets open_metric, metric_section, and a unique _mts nonce.
+    # We use the nonce to avoid re-processing the same click on subsequent reruns
+    # (params persist in URL until the next navigation).
     _qp_metric = st.query_params.get('open_metric')
     _qp_msection = st.query_params.get('metric_section')
-    if _qp_metric and _qp_msection:
-        # Store intent in session state so it survives the param-clearing rerun
+    _qp_ts = st.query_params.get('_mts', '')
+    if (_qp_metric and _qp_msection
+            and _qp_ts != st.session_state.get('_metric_click_ts', '')):
         st.session_state['_pending_dialog_metric'] = _qp_metric
         st.session_state['_pending_dialog_section'] = _qp_msection
+        st.session_state['_metric_click_ts'] = _qp_ts
         # Switch tab if needed
         if _qp_msection in ('income', 'balance') and sankey_view != _qp_msection:
             sankey_view = _qp_msection
             st.session_state.sankey_view = sankey_view
-        # Clear trigger params from URL and rerun cleanly
-        _clean = {k: st.query_params[k] for k in st.query_params
-                  if k not in ('open_metric', 'metric_section')}
-        st.query_params.clear()
-        for _ck, _cv in _clean.items():
-            st.query_params[_ck] = _cv
-        st.rerun()
 
     view_label = "Income Statement" if sankey_view == "income" else "Balance Sheet"
 
