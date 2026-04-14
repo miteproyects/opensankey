@@ -348,62 +348,83 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2,
         span_bot = max(y + b for y, b in zip(child_ys, child_bhs))
         node_y[idx] = (span_top + span_bot) / 2
 
-    # ── Step 3: Fix overlaps between siblings, cascade to subtrees ────
-    # Group non-leaves by depth for processing deepest-first
-    _by_depth = defaultdict(list)  # depth -> [(node_dict, parent_idx)]
-    for node_dict, depth, parent_idx in _non_leaves:
-        _by_depth[depth].append((node_dict, parent_idx))
+    # ── Step 3: Enforce 2px gap between sibling bars, bottom-up ─────────
+    # Process from deepest level upward.  At each level:
+    #   a) Check siblings for bar overlap (using _slot_half for min extent).
+    #   b) When overlap found, shift entire subtrees apart.
+    #   c) Re-center the PARENT on its now-shifted children.
+    # This way parent positions are always a consequence of children,
+    # never set independently — so the 2px gap is never undone.
 
-    # Also need to fix leaf siblings.  Leaves are already stacked with
-    # correct gaps from step 1, but step 3 shifts from parent centering
-    # might have moved things.  We handle this by checking ALL children
-    # groups (leaf and non-leaf) at each parent.
+    # Collect depths present among non-leaves
+    _depths_present = sorted(set(d for _, d, _ in _non_leaves), reverse=True)
 
-    # Build parent→children map from tree
-    _parent_children = {}  # parent_idx -> [node_dict, ...]
+    # Also include leaf-sibling groups (depth = parent's depth + 1)
+    # Build parent→node_dict map for re-centering
+    _node_dict_map = {}  # idx -> node_dict
 
-    def _build_parent_map(node):
-        if node.get("children"):
-            _parent_children[node["idx"]] = node["children"]
-            for ch in node["children"]:
-                _build_parent_map(ch)
+    def _build_map(node):
+        _node_dict_map[node["idx"]] = node
+        for ch in node.get("children", []):
+            _build_map(ch)
 
     for root in tree:
-        _build_parent_map(root)
+        _build_map(root)
 
-    # Iterate: fix overlaps at each parent, cascading shifts
+    def _center_on_children(node_dict):
+        """Set node_y to center of its children's bar span."""
+        children = node_dict.get("children", [])
+        if not children:
+            return
+        child_ys = [node_y[ch["idx"]] for ch in children]
+        child_bhs = [_bar_half(ch["idx"]) for ch in children]
+        span_top = min(y - b for y, b in zip(child_ys, child_bhs))
+        span_bot = max(y + b for y, b in zip(child_ys, child_bhs))
+        node_y[node_dict["idx"]] = (span_top + span_bot) / 2
+
+    def _fix_siblings(children_list):
+        """Enforce 2px gap between sibling bars, shifting subtrees."""
+        if len(children_list) <= 1:
+            return False
+        changed = False
+        siblings_sorted = sorted(children_list, key=lambda n: node_y[n["idx"]])
+        for j in range(len(siblings_sorted) - 1):
+            upper = siblings_sorted[j]
+            lower = siblings_sorted[j + 1]
+            u_idx, l_idx = upper["idx"], lower["idx"]
+            u_bot = node_y[u_idx] + _slot_half(u_idx)
+            l_top = node_y[l_idx] - _slot_half(l_idx)
+            gap_actual = l_top - u_bot
+            if gap_actual < gap_ny - 0.00001:
+                push = (gap_ny - gap_actual) / 2 + 0.00001
+                _shift_subtree(upper, -push, node_y)
+                _shift_subtree(lower, +push, node_y)
+                changed = True
+        return changed
+
+    # Multiple global passes to let cascading settle
     for _pass in range(50):
         any_change = False
-        for parent_idx, siblings in _parent_children.items():
-            if len(siblings) <= 1:
-                continue
 
-            # Sort siblings by current Y
-            siblings_sorted = sorted(siblings, key=lambda n: node_y[n["idx"]])
-
-            for j in range(len(siblings_sorted) - 1):
-                upper = siblings_sorted[j]
-                lower = siblings_sorted[j + 1]
-                u_idx, l_idx = upper["idx"], lower["idx"]
-                u_bot = node_y[u_idx] + _slot_half(u_idx)
-                l_top = node_y[l_idx] - _slot_half(l_idx)
-                gap_actual = l_top - u_bot
-
-                if gap_actual < gap_ny - 0.00001:
-                    push = (gap_ny - gap_actual) / 2 + 0.00001
-                    _shift_subtree(upper, -push, node_y)
-                    _shift_subtree(lower, +push, node_y)
+        # Bottom-up: process deepest parent level first
+        for depth in _depths_present:
+            parents_at_d = [(nd, pi) for nd, d, pi in _non_leaves if d == depth]
+            for node_dict, parent_idx in parents_at_d:
+                # Fix this node's children (siblings at depth+1)
+                children = node_dict.get("children", [])
+                if _fix_siblings(children):
                     any_change = True
+                # Re-center this parent on its children
+                _center_on_children(node_dict)
 
-        # After each pass, re-center parents on their (possibly shifted) children
-        for node_dict, depth, parent_idx in _non_leaves:
-            idx = node_dict["idx"]
-            children = node_dict["children"]
-            child_ys = [node_y[ch["idx"]] for ch in children]
-            child_bhs = [_bar_half(ch["idx"]) for ch in children]
-            span_top = min(y - b for y, b in zip(child_ys, child_bhs))
-            span_bot = max(y + b for y, b in zip(child_ys, child_bhs))
-            node_y[idx] = (span_top + span_bot) / 2
+        # Also fix root-level siblings (the roots in `tree`)
+        if len(tree) > 1:
+            if _fix_siblings(tree):
+                any_change = True
+
+        # Now propagate upward: re-center every non-leaf, shallowest last
+        for node_dict, depth, parent_idx in reversed(_non_leaves):
+            _center_on_children(node_dict)
 
         if not any_change:
             break
