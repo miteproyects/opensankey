@@ -238,7 +238,7 @@ def _fix_bar_gaps(node_x, node_y, node_val_raw, chart_height, min_gap_px=2):
 
 
 def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2,
-                   node_row2=None, font_sz=10):
+                   cross_parent_gap_px=5, node_row2=None, font_sz=10):
     """Position Sankey nodes right-to-left: leaves first, parents centered.
 
     ``tree`` is a list of root nodes.  Each node is a dict:
@@ -247,9 +247,10 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2,
 
     Algorithm:
     1. Collect ALL leaf nodes (any depth) in tree order.  Stack them
-       top-to-bottom with ``gap_px`` between each bar.  Each node's
-       slot = max(bar_height, text_height) so small bars still get
-       room for their text labels.
+       top-to-bottom with ``gap_px`` between siblings (same parent)
+       and ``cross_parent_gap_px`` between nodes of different parents.
+       Each node's slot = max(bar_height, text_height) so small bars
+       still get room for their text labels.
     2. Walk non-leaf nodes from deepest to shallowest.  Center each
        parent on the span of its children (first child bar top →
        last child bar bottom).
@@ -288,6 +289,7 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2,
         max_col_sum = 1
 
     gap_ny = gap_px / avail_px
+    cross_gap_ny = cross_parent_gap_px / avail_px
 
     def _bar_half(idx):
         return (node_val_raw[idx] / max_col_sum) / 2
@@ -305,6 +307,8 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2,
         return max(_bar_half(idx), _text_half(idx))
 
     # ── Step 1: Collect ALL leaves in tree-traversal order and stack ──
+    # Use 2px gap between siblings (same parent), 5px when crossing to
+    # a different parent's children.
     _leaves = []  # (node_dict, parent_idx)
 
     def _collect_leaves(node, parent_idx=None):
@@ -318,11 +322,20 @@ def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2,
         _collect_leaves(root)
 
     cursor = 0.0
+    _prev_parent_idx = None
     for node_dict, parent_idx in _leaves:
         idx = node_dict["idx"]
         sh = _slot_half(idx)
+        # Use cross-parent gap when switching to a different parent
+        if _prev_parent_idx is not None and parent_idx != _prev_parent_idx:
+            use_gap = cross_gap_ny
+        else:
+            use_gap = gap_ny
+        if _prev_parent_idx is not None:
+            cursor += use_gap
         node_y[idx] = cursor + sh
-        cursor += sh * 2 + gap_ny
+        cursor += sh * 2
+        _prev_parent_idx = parent_idx
 
     # ── Step 2: Center non-leaf nodes, deepest first ──────────────────
     _non_leaves = []  # (node_dict, depth, parent_idx)
