@@ -5704,9 +5704,16 @@ def render_sankey_page():
             _to_show = st.session_state.pop('_income_click_val', None)
 
         if _to_show:
-            @st.dialog(f"{_to_show} — Historical Trend", width="large")
+            st.session_state['_income_dialog_metric'] = _to_show
+            st.session_state['_income_dialog_ticker'] = ticker
+
+            @st.dialog(f"Historical Trend", width="large")
             def _income_popup():
-                _show_metric_popup(ticker, _to_show, "income")
+                _m = st.session_state.get('_income_dialog_metric', '')
+                _t = st.session_state.get('_income_dialog_ticker', '')
+                if _m and _t:
+                    st.subheader(f"{_m}")
+                    _show_metric_popup(_t, _m, "income")
             _income_popup()
 
         if fig:
@@ -5785,9 +5792,16 @@ def render_sankey_page():
             _to_show = st.session_state.pop('_balance_click_val', None)
 
         if _to_show:
-            @st.dialog(f"{_to_show} — Historical Trend", width="large")
+            st.session_state['_balance_dialog_metric'] = _to_show
+            st.session_state['_balance_dialog_ticker'] = ticker
+
+            @st.dialog(f"Historical Trend", width="large")
             def _balance_popup():
-                _show_metric_popup(ticker, _to_show, "balance")
+                _m = st.session_state.get('_balance_dialog_metric', '')
+                _t = st.session_state.get('_balance_dialog_ticker', '')
+                if _m and _t:
+                    st.subheader(f"{_m}")
+                    _show_metric_popup(_t, _m, "balance")
             _balance_popup()
 
         if fig:
