@@ -2344,7 +2344,8 @@ def _inject_node_hover_js(metric_map, color_map):
                 var linkData = plotDiv.data[0].link;
                 links.forEach(function(lnk, li) {{
                     if (linkData.source[li] === nodeIdx || linkData.target[li] === nodeIdx) {{
-                        lnk.style.opacity = '0.7';
+                        lnk.style.opacity = '0.85';
+                        lnk.style.filter = 'brightness(1.1)';
                     }}
                 }});
             }}
@@ -2358,7 +2359,7 @@ def _inject_node_hover_js(metric_map, color_map):
                 l.style.opacity = ''; l.style.fontWeight = '';
             }});
             sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{
-                lnk.style.opacity = '';
+                lnk.style.opacity = ''; lnk.style.filter = '';
             }});
             /* Unbold all annotations (text + tspans) */
             var plotDiv = sankeyEl.closest('.js-plotly-plot');
@@ -2748,26 +2749,39 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
                 card.style.overflow = 'visible';
                 card.style.position = 'relative';
                 card.style.zIndex = '1';
+                card.style.pointerEvents = 'auto';
                 /* Fix Streamlit column containers clipping the glow */
                 var _p = card.parentElement;
-                for (var _pi = 0; _pi < 6 && _p; _pi++) {{
+                for (var _pi = 0; _pi < 8 && _p; _pi++) {{
                     _p.style.overflow = 'visible';
+                    _p.style.pointerEvents = 'auto';
                     _p = _p.parentElement;
                 }}
-                card.addEventListener('mouseenter', function() {{
+                /* Use both mouseenter and mouseover for max compatibility */
+                function _doHighlight() {{
                     card.style.boxShadow = '0 0 0 2px ' + hexToRgba(color, 0.5) + ', 0 0 16px 4px ' + hexToRgba(color, 0.3);
                     card.style.transform = 'translateY(-2px)';
                     card.style.zIndex = '10';
                     highlightSankey(nodeLabel, color);
-                }});
-                card.addEventListener('mouseleave', function() {{
+                }}
+                function _doReset() {{
                     card.style.boxShadow = '';
                     card.style.transform = '';
                     card.style.zIndex = '1';
                     resetAll();
-                }});
+                }}
+                card.addEventListener('mouseenter', _doHighlight);
+                card.addEventListener('mouseleave', _doReset);
                 card.addEventListener('click', function() {{
                     clickPill(nodeLabel);
+                }});
+                /* Also bind on all children so hover fires even on inner text */
+                card.querySelectorAll('*').forEach(function(child) {{
+                    child.style.pointerEvents = 'auto';
+                    child.addEventListener('mouseenter', function(e) {{
+                        e.stopPropagation();
+                        _doHighlight();
+                    }});
                 }});
             }});
             return bound;
@@ -2831,10 +2845,10 @@ def _inject_link_hover_js(color_map):
             var srcIdx = linkData.source[linkIdx];
             var tgtIdx = linkData.target[linkIdx];
 
-            /* Highlight only the TARGET node */
+            /* Highlight BOTH source and target nodes */
             var cd = (plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
             var annots = plotDiv.querySelectorAll('.annotation');
-            [tgtIdx].forEach(function(nIdx) {{
+            [srcIdx, tgtIdx].forEach(function(nIdx) {{
                 if (nIdx === undefined || nIdx === null) return;
                 if (nodeRects[nIdx]) {{
                     nodeRects[nIdx].style.opacity = '1';
@@ -2856,19 +2870,20 @@ def _inject_link_hover_js(color_map):
                 }}
             }});
 
-            /* Also highlight all other links connected to the TARGET node only */
+            /* Highlight all links connected to source or target */
             links.forEach(function(lnk, li) {{
-                if (linkData.source[li] === tgtIdx || linkData.target[li] === tgtIdx) {{
+                if (linkData.source[li] === srcIdx || linkData.target[li] === srcIdx ||
+                    linkData.source[li] === tgtIdx || linkData.target[li] === tgtIdx) {{
                     lnk.style.opacity = '0.7';
                 }}
             }});
             /* Keep hovered link brightest */
             if (links[linkIdx]) links[linkIdx].style.opacity = '0.85';
 
-            /* Highlight matching pills and KPI cards for TARGET only */
+            /* Highlight matching pills and KPI cards for BOTH source and target */
             var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
             var kpiCards = parentDoc.querySelectorAll('[data-testid="stMetric"]');
-            [tgtIdx].forEach(function(nIdx) {{
+            [srcIdx, tgtIdx].forEach(function(nIdx) {{
                 if (nIdx === undefined || nIdx === null) return;
                 var txt = extractLabel(cd[nIdx] || '');
                 var color = COLORS[txt];
