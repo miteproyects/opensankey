@@ -990,29 +990,45 @@ _XBRL_INCOME_TAGS = {
     "Selling General And Administration": [
         "SellingGeneralAndAdministrativeExpense",
     ],
+    # Companies like META report G&A and Selling separately; fetched as
+    # individual rows so the SG&A fallback in _show_metric_popup can sum them.
+    "General And Administrative Expense": [
+        "GeneralAndAdministrativeExpense",
+    ],
+    "Selling And Marketing Expense": [
+        "SellingAndMarketingExpense",
+        "SellingExpense",
+        "MarketingExpense",
+    ],
     "Reconciled Depreciation": [
         "DepreciationDepletionAndAmortization",
         "DepreciationAndAmortization",
         "Depreciation",
+        "AmortizationOfIntangibleAssets",
     ],
     "Other Operating Expenses": [
         "OtherOperatingIncomeExpenseNet",
         "OtherCostAndExpenseOperating",
+        "OtherNonoperatingIncomeExpense",
     ],
     "Operating Income": [
         "OperatingIncomeLoss",
+        "IncomeLossFromOperations",
     ],
     "Interest Expense": [
         "InterestExpense",
         "InterestExpenseDebt",
+        "InterestExpenseNonoperating",
         "InterestIncomeExpenseNonoperatingNet",
     ],
     "Pretax Income": [
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic",
     ],
     "Tax Provision": [
         "IncomeTaxExpenseBenefit",
+        "IncomeTaxesPaid",
     ],
     "Net Income": [
         "NetIncomeLoss",
@@ -1772,6 +1788,21 @@ def _show_metric_popup(ticker, node_label, view):
         tick_dt = "M12"
 
     series = _get_historical_series(src_df, yf_key)
+
+
+    # Fallback: SG&A = G&A + Selling/Marketing when combined tag is missing
+    if (series is None or series.empty) and yf_key == "Selling General And Administration":
+        ga = _get_historical_series(src_df, "General And Administrative Expense")
+        sm = _get_historical_series(src_df, "Selling And Marketing Expense")
+        if ga is not None or sm is not None:
+            if ga is not None and sm is not None:
+                common = ga.index.intersection(sm.index)
+                if len(common) > 0:
+                    series = (ga.reindex(common, fill_value=0) + sm.reindex(common, fill_value=0)).sort_index()
+            elif ga is not None:
+                series = ga
+            else:
+                series = sm
 
     # ââ Fallback: compute "Other OpEx" as residual when not directly available ââ
     if (series is None or series.empty) and yf_key == "Other Operating Expenses":
