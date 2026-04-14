@@ -4312,7 +4312,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
 
     _n_nodes = len(nodes)
     # Scale node padding & thickness
-    _pad = 0  # We control spacing via _position_rtl; pad=0 prevents Plotly interference
+    _pad = max(8, min(22, int(320 / max(_n_nodes, 1))))
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = _font_sz_est  # use pre-computed value (same formula)
 
@@ -4906,7 +4906,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     _n_nodes = len(nodes)
     # Scale node padding & thickness to fit within dynamic _h height
-    _pad = 0  # We control spacing via _position_rtl; pad=0 prevents Plotly interference
+    _pad = max(8, min(22, int(320 / max(_n_nodes, 1))))
     _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
