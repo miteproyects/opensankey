@@ -237,8 +237,8 @@ def _fix_bar_gaps(node_x, node_y, node_val_raw, chart_height, min_gap_px=2):
                                 min(0.99 - bar_half[j], node_y[i]))
 
 
-def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=2,
-                   cross_parent_gap_px=5, node_row2=None, font_sz=10):
+def _position_rtl(tree, node_y, node_val_raw, chart_height, gap_px=5,
+                   cross_parent_gap_px=10, node_row2=None, font_sz=10):
     """Position Sankey nodes right-to-left: leaves first, parents centered.
 
     ``tree`` is a list of root nodes.  Each node is a dict:
@@ -4355,7 +4355,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         _rev_children.append(_gp_node)
     _rev_node = {"idx": imap["Revenue"], "children": _rev_children}
 
-    _h = _position_rtl([_rev_node], node_y, node_val_raw, _h, gap_px=2,
+    _h = _position_rtl([_rev_node], node_y, node_val_raw, _h, gap_px=5, cross_parent_gap_px=10,
                         node_row2=node_row2, font_sz=_font_sz)
 
     _empty_labels = [""] * len(nodes)
@@ -4928,7 +4928,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                 _c2_node["children"].append({"idx": imap[_ch_name], "children": []})
         _bs_tree_root["children"].append(_c2_node)
 
-    _h = _position_rtl([_bs_tree_root], node_y, node_val_raw, _h, gap_px=2,
+    _h = _position_rtl([_bs_tree_root], node_y, node_val_raw, _h, gap_px=5, cross_parent_gap_px=10,
                         node_row2=node_row2, font_sz=_font_sz)
 
     # Hide built-in node labels — we use annotations instead so text
