@@ -5685,16 +5685,14 @@ def render_sankey_page():
             if _pd_m and _pd_m in metric_options:
                 st.session_state['_income_show'] = _pd_m
 
-        # Pill click → set _income_show via on_change
+        # on_change fires ONLY on actual user click — captures the value
         def _on_income_pill():
             v = st.session_state.get('_income_pill_wgt')
             if v:
                 st.session_state['_income_show'] = v
-                st.session_state['_income_clear_pill'] = True
 
-        # Clear pill from previous dialog close
-        if st.session_state.pop('_income_clear_pill', False):
-            st.session_state['_income_pill_wgt'] = None
+        # Always clear pill before render so it never stays highlighted
+        st.session_state['_income_pill_wgt'] = None
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="_income_pill_wgt", on_change=_on_income_pill)
@@ -5770,10 +5768,8 @@ def render_sankey_page():
             v = st.session_state.get('_balance_pill_wgt')
             if v:
                 st.session_state['_balance_show'] = v
-                st.session_state['_balance_clear_pill'] = True
 
-        if st.session_state.pop('_balance_clear_pill', False):
-            st.session_state['_balance_pill_wgt'] = None
+        st.session_state['_balance_pill_wgt'] = None
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="_balance_pill_wgt", on_change=_on_balance_pill)
