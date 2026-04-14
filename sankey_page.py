@@ -2790,9 +2790,23 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
         }}
 
         function setupKpiHovers() {{
-            /* st.metric renders [data-testid="stMetric"] containers.
-               Each has a [data-testid="stMetricLabel"] with the label text. */
+            /* Reset any stale glow/highlight from previous session */
             var metrics = parentDoc.querySelectorAll('[data-testid="stMetric"]');
+            metrics.forEach(function(card) {{
+                card.style.boxShadow = '';
+                card.style.transform = '';
+            }});
+            var plots = parentDoc.querySelectorAll('.js-plotly-plot');
+            plots.forEach(function(plotDiv) {{
+                var sankeyEl = plotDiv.querySelector('.sankey');
+                if (!sankeyEl) return;
+                sankeyEl.querySelectorAll('.node-rect').forEach(function(r) {{ r.style.opacity = ''; r.style.filter = ''; }});
+                sankeyEl.querySelectorAll('.node-label').forEach(function(l) {{ l.style.opacity = ''; l.style.fontWeight = ''; }});
+                sankeyEl.querySelectorAll('.sankey-link').forEach(function(lnk) {{ lnk.style.opacity = ''; lnk.style.filter = ''; }});
+            }});
+            var btns = parentDoc.querySelectorAll('[data-testid="stBaseButton-pills"]');
+            btns.forEach(function(btn) {{ btn.style.background = ''; btn.style.borderColor = ''; btn.style.boxShadow = ''; btn.style.color = ''; }});
+
             if (!metrics.length) return false;
             var bound = false;
             metrics.forEach(function(card) {{
@@ -5664,32 +5678,30 @@ def render_sankey_page():
         _node_set = set(_sankey_nodes)
         metric_options = [k for k in INCOME_NODE_METRICS.keys() if k in _node_set]
 
-        # Apply pending dialog trigger from KPI/node click (query-param flow)
+        # Apply pending dialog trigger from KPI/node click
         if st.session_state.get('_pending_dialog_section') == 'income':
             _pd_m = st.session_state.pop('_pending_dialog_metric', None)
             st.session_state.pop('_pending_dialog_section', None)
             if _pd_m and _pd_m in metric_options:
-                st.session_state['_income_pill_clicked'] = _pd_m
+                st.session_state['_income_show'] = _pd_m
 
-        # Use a unique key each rerun so the pill never persists its selection.
-        # The on_change callback captures the click into a separate state key.
-        _ipill_seq = st.session_state.get('_ipill_seq', 0)
-
+        # Pill click → set _income_show, then rerun to open dialog fresh
         def _on_income_pill():
-            v = st.session_state.get(f'income_metric_pill_{_ipill_seq}')
+            v = st.session_state.get('_income_pill_wgt')
             if v:
-                st.session_state['_income_pill_clicked'] = v
-            # Increment sequence so next render gets a fresh pill
-            st.session_state['_ipill_seq'] = _ipill_seq + 1
+                st.session_state['_income_show'] = v
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
-                       key=f"income_metric_pill_{_ipill_seq}", on_change=_on_income_pill)
+                       key="_income_pill_wgt", on_change=_on_income_pill)
 
-        _clicked = st.session_state.pop('_income_pill_clicked', None)
-        if _clicked:
-            @st.dialog(f"{_clicked} — Historical Trend", width="large")
+        _to_show = st.session_state.pop('_income_show', None)
+        if _to_show:
+            # Clear the pill widget so it deselects after dialog closes
+            st.session_state['_income_pill_wgt'] = None
+
+            @st.dialog(f"{_to_show} — Historical Trend", width="large")
             def _income_popup():
-                _show_metric_popup(ticker, _clicked, "income")
+                _show_metric_popup(ticker, _to_show, "income")
             _income_popup()
 
         if fig:
@@ -5745,29 +5757,28 @@ def render_sankey_page():
         _node_set = set(_sankey_nodes)
         metric_options = [k for k in BALANCE_NODE_METRICS.keys() if k in _node_set]
 
-        # Apply pending dialog trigger from KPI/node click (query-param flow)
+        # Apply pending dialog trigger from KPI/node click
         if st.session_state.get('_pending_dialog_section') == 'balance':
             _pd_m = st.session_state.pop('_pending_dialog_metric', None)
             st.session_state.pop('_pending_dialog_section', None)
             if _pd_m and _pd_m in metric_options:
-                st.session_state['_balance_pill_clicked'] = _pd_m
-
-        _bpill_seq = st.session_state.get('_bpill_seq', 0)
+                st.session_state['_balance_show'] = _pd_m
 
         def _on_balance_pill():
-            v = st.session_state.get(f'balance_metric_pill_{_bpill_seq}')
+            v = st.session_state.get('_balance_pill_wgt')
             if v:
-                st.session_state['_balance_pill_clicked'] = v
-            st.session_state['_bpill_seq'] = _bpill_seq + 1
+                st.session_state['_balance_show'] = v
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
-                       key=f"balance_metric_pill_{_bpill_seq}", on_change=_on_balance_pill)
+                       key="_balance_pill_wgt", on_change=_on_balance_pill)
 
-        _clicked = st.session_state.pop('_balance_pill_clicked', None)
-        if _clicked:
-            @st.dialog(f"{_clicked} — Historical Trend", width="large")
+        _to_show = st.session_state.pop('_balance_show', None)
+        if _to_show:
+            st.session_state['_balance_pill_wgt'] = None
+
+            @st.dialog(f"{_to_show} — Historical Trend", width="large")
             def _balance_popup():
-                _show_metric_popup(ticker, _clicked, "balance")
+                _show_metric_popup(ticker, _to_show, "balance")
             _balance_popup()
 
         if fig:
