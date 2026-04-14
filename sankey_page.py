@@ -5685,20 +5685,22 @@ def render_sankey_page():
             if _pd_m and _pd_m in metric_options:
                 st.session_state['_income_show'] = _pd_m
 
-        # Pill click → set _income_show, then rerun to open dialog fresh
+        # Pill click → set _income_show via on_change
         def _on_income_pill():
             v = st.session_state.get('_income_pill_wgt')
             if v:
                 st.session_state['_income_show'] = v
+                st.session_state['_income_clear_pill'] = True
+
+        # Clear pill from previous dialog close
+        if st.session_state.pop('_income_clear_pill', False):
+            st.session_state['_income_pill_wgt'] = None
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="_income_pill_wgt", on_change=_on_income_pill)
 
         _to_show = st.session_state.pop('_income_show', None)
         if _to_show:
-            # Clear the pill widget so it deselects after dialog closes
-            st.session_state['_income_pill_wgt'] = None
-
             @st.dialog(f"{_to_show} — Historical Trend", width="large")
             def _income_popup():
                 _show_metric_popup(ticker, _to_show, "income")
@@ -5768,14 +5770,16 @@ def render_sankey_page():
             v = st.session_state.get('_balance_pill_wgt')
             if v:
                 st.session_state['_balance_show'] = v
+                st.session_state['_balance_clear_pill'] = True
+
+        if st.session_state.pop('_balance_clear_pill', False):
+            st.session_state['_balance_pill_wgt'] = None
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="_balance_pill_wgt", on_change=_on_balance_pill)
 
         _to_show = st.session_state.pop('_balance_show', None)
         if _to_show:
-            st.session_state['_balance_pill_wgt'] = None
-
             @st.dialog(f"{_to_show} — Historical Trend", width="large")
             def _balance_popup():
                 _show_metric_popup(ticker, _to_show, "balance")
