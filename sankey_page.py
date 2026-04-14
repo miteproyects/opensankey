@@ -5674,11 +5674,12 @@ def render_sankey_page():
         # on_change fires only on actual user click
         def _on_income_pill():
             v = st.session_state.get('income_metric_pill')
-            st.session_state['_income_pill_clicked'] = v  # may be None (deselect)
+            st.session_state['_income_pill_clicked'] = v
 
-        # If no fresh click pending, clear the pill so it doesn't stay highlighted
-        if '_income_pill_clicked' not in st.session_state:
-            st.session_state.pop('income_metric_pill', None)
+        # If no fresh click pending, force pill to None before rendering
+        _has_click = '_income_pill_clicked' in st.session_state
+        if not _has_click:
+            st.session_state['income_metric_pill'] = None
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="income_metric_pill", on_change=_on_income_pill)
@@ -5754,8 +5755,9 @@ def render_sankey_page():
             v = st.session_state.get('balance_metric_pill')
             st.session_state['_balance_pill_clicked'] = v
 
-        if '_balance_pill_clicked' not in st.session_state:
-            st.session_state.pop('balance_metric_pill', None)
+        _has_click = '_balance_pill_clicked' in st.session_state
+        if not _has_click:
+            st.session_state['balance_metric_pill'] = None
 
         sel = st.pills("Trends", metric_options, label_visibility="collapsed",
                        key="balance_metric_pill", on_change=_on_balance_pill)
