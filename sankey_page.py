@@ -3833,17 +3833,11 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     add("Revenue", revenue, 0, X1, rev_y, p_revenue)
 
     # --- Column 2: COGS + Gross Profit (split Revenue's band) ---
-    # Sort by value descending (biggest at top)
     if cogs > 0:
-        _c2_items = [("Cost of Revenue", cogs, 1, p_cogs),
-                     ("Gross Profit", gross_profit, 2, p_gross_profit)]
-        _c2_items.sort(key=lambda t: t[1], reverse=True)
-        c2 = _split_band([it[1] for it in _c2_items], *rev_band)
-        for _ci2, (lbl, val, ci, pv) in enumerate(_c2_items):
-            add(lbl, val, ci, X2, c2[_ci2][0], pv)
-        # GP band: find which index GP ended up at
-        _gp_ci2 = next(i for i, it in enumerate(_c2_items) if it[0] == "Gross Profit")
-        gp_band = (c2[_gp_ci2][1], c2[_gp_ci2][2])
+        c2 = _split_band([cogs, gross_profit], *rev_band)
+        add("Cost of Revenue", cogs, 1, X2, c2[0][0], p_cogs)
+        add("Gross Profit", gross_profit, 2, X2, c2[1][0], p_gross_profit)
+        gp_band = (c2[1][1], c2[1][2])  # GP's sub-band → parent for col 3
     else:
         add("Gross Profit", gross_profit, 2, X2, rev_y, p_gross_profit)
         gp_band = rev_band  # GP == Revenue, inherits full band
@@ -3918,16 +3912,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
 
     col3_items.append(("Operating Income", operating_inc, 6, p_operating_inc, False))
 
-    # Sort col3 by value descending (biggest at top)
-    col3_items.sort(key=lambda t: t[1], reverse=True)
     c3_vals = [v for _, v, *_ in col3_items]
     c3 = _split_band(c3_vals, *gp_band)
     for i, (lbl, val, ci, pv, expandable) in enumerate(col3_items):
         add(lbl, val, ci, X3, c3[i][0], pv, expandable=expandable)
-    # Find Operating Income index after sort (it may not be last anymore)
-    _oi_idx = next(i for i, it in enumerate(col3_items) if it[0] == "Operating Income")
-    oi_y = c3[_oi_idx][0]
-    oi_band = (c3[_oi_idx][1], c3[_oi_idx][2])  # OI's sub-band → parent for col 4
+    oi_y = c3[-1][0]
+    oi_band = (c3[-1][1], c3[-1][2])  # OI's sub-band → parent for col 4
 
     # --- Column 4: Interest Exp + Other Non-Op + Pretax Income (split OI's band) ---
     col4_items = []
@@ -3937,16 +3927,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         col4_items.append(("Other Non-Op", other_nonop, 7, p_other_nonop))
     col4_items.append(("Pretax Income", pretax_income, 8, p_pretax_income))
 
-    # Sort col4 by value descending (biggest at top)
-    col4_items.sort(key=lambda t: t[1], reverse=True)
     c4_vals = [v for _, v, *_ in col4_items]
     c4 = _split_band(c4_vals, *oi_band)
     for i, (lbl, val, ci, pv) in enumerate(col4_items):
         add(lbl, val, ci, X4, c4[i][0], pv)
-    # Find Pretax Income index after sort
-    _pt_idx = next(i for i, it in enumerate(col4_items) if it[0] == "Pretax Income")
-    pt_y = c4[_pt_idx][0]
-    pt_band = (c4[_pt_idx][1], c4[_pt_idx][2])  # Pretax's sub-band → parent for col 5
+    pt_y = c4[-1][0]
+    pt_band = (c4[-1][1], c4[-1][2])  # Pretax's sub-band → parent for col 5
 
     # --- Column 5: Tax + Net Income (split Pretax's band) ---
     col5_items = []
@@ -3954,8 +3940,6 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         col5_items.append(("Income Tax", tax, 9, p_tax))
     col5_items.append(("Net Income", net_income, 10, p_net_income))
 
-    # Sort col5 by value descending (biggest at top)
-    col5_items.sort(key=lambda t: t[1], reverse=True)
     c5_vals = [v for _, v, *_ in col5_items]
     c5 = _split_band(c5_vals, *pt_band)
     for i, (lbl, val, ci, pv) in enumerate(col5_items):
@@ -4035,7 +4019,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         domain=dict(y=[0.04, 0.96]),
     ))
     # _h already computed dynamically above (before layout)
-    _layout = dict(height=_h, margin=dict(l=6, r=6, t=50, b=6),
+    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
@@ -4331,13 +4315,6 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         else:
             eq_items.append(("Total Equity", equity, C["equity"]))
 
-    # ── Sort all child lists by value descending (biggest at top) ──────
-    ca_items.sort(key=lambda t: t[1], reverse=True)
-    nca_items.sort(key=lambda t: t[1], reverse=True)
-    cl_items.sort(key=lambda t: t[1], reverse=True)
-    ncl_items.sort(key=lambda t: t[1], reverse=True)
-    eq_items.sort(key=lambda t: t[1], reverse=True)
-
     # Wide X spacing — text is placed via annotations (not built-in labels)
     # Col1/Col2 use 2-row labels (shorter) so can be closer together
     X1, X2, X3, X4 = 0.01, 0.16, 0.38, 0.62
@@ -4406,16 +4383,6 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     if not col2_items:
         return None
-
-    # Sort col2 by value descending (biggest at top)
-    col2_items.sort(key=lambda t: t[1], reverse=True)
-
-    # Also sort nested liab children (CL/NCL) by value descending
-    for i, (name, val, color, children, x_ch, exp) in enumerate(col2_items):
-        has_nested = any(len(ch) == 4 for ch in children)
-        if has_nested:
-            children_sorted = sorted(children, key=lambda ch: ch[1], reverse=True)
-            col2_items[i] = (name, val, color, children_sorted, x_ch, exp)
 
     # ── Count nodes per sub-band for dynamic chart height ──────────────
     # Balance sheet nodes are confined within sub-bands (CA items within CA band,
@@ -4570,124 +4537,21 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         return None
 
     _n_nodes = len(nodes)
+    # Scale node padding & thickness to fit within dynamic _h height
+    _pad = max(8, min(22, int(320 / max(_n_nodes, 1))))
+    _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
     _font_sz = 11 if _n_nodes <= 12 else (10 if _n_nodes <= 16 else 9)
 
-    # ── Top-aligned parent-anchored sequential stacking ──────────────────
-    # Rule: for each parent in the left column, its first child in the right
-    # column aligns its top edge with the parent's top edge.  Remaining
-    # children stack below with a mandatory gap.  The chart only grows
-    # downward — overlap is geometrically impossible.
-    #
-    # Positions are computed in PIXELS from top=0, then converted to
-    # node_y [0,1] after the chart height is known.
-
-    _line_h_px = _font_sz * 2.6  # matches _text_height_px() multiplier
-    _bar_gap_px = 2  # gap between node bars
-
-    def _text_h_px(idx):
-        """Text height in pixels for node idx."""
-        rows = 3 if node_row2[idx] else 2
-        return _line_h_px * rows
-
-    # ── Custom bar heights: smallest node = 1px, rest proportional ────
-    # This gives us full control over bar sizing rather than letting Plotly
-    # decide.  We set chart height so Plotly's internal bar rendering
-    # matches our target exactly.
-    _positive_vals = [v for v in node_val_raw if v > 0]
-    _min_val = min(_positive_vals) if _positive_vals else 1
-
-    def _bar_h_px(idx):
-        """Bar height in pixels: smallest node = 1px, rest proportional."""
-        if node_val_raw[idx] <= 0:
-            return 1.0
-        return max(1.0, node_val_raw[idx] / _min_val)
-
-    def _slot_px(idx):
-        """Height this node occupies: max(text, bar) in pixels."""
-        return max(_text_h_px(idx), _bar_h_px(idx))
-
-    _node_top_px = {}  # idx -> top pixel position (from top=0)
-
-    # Column 1: Total Assets starts at pixel 0
-    _ta_idx = imap["Total Assets"]
-    _node_top_px[_ta_idx] = 0.0
-
-    # Column 2: first child top = Total Assets top = 0, rest stack below
-    _c2_cursor = 0.0
-    _c2_top_px = {}
-    for _name, _val, _color, _children, _x_ch, _exp in col2_items:
-        _idx = imap[_name]
-        _node_top_px[_idx] = _c2_cursor
-        _c2_top_px[_name] = _c2_cursor
-        _c2_cursor += _slot_px(_idx) + _bar_gap_px
-
-    # Column 3 and Column 4
-    _c3_cursor = 0.0
-    _c4_cursor = 0.0
-
-    for _name, _val, _color, _children, _x_ch, _exp in col2_items:
-        _parent_top = _c2_top_px[_name]
-        _grp = max(_parent_top, _c3_cursor)
-
-        _has_nested = any(len(_ch) == 4 for _ch in _children)
-
-        if _has_nested:
-            for _ch in _children:
-                _ch_name, _ch_val, _ch_color, _sub_items = _ch
-                _ch_idx = imap[_ch_name]
-                _node_top_px[_ch_idx] = _grp
-                _ch_top = _grp
-                _grp += _slot_px(_ch_idx) + _bar_gap_px
-
-                _sub_start = max(_ch_top, _c4_cursor)
-                for _si_name, _si_val, _si_color in _sub_items:
-                    _si_idx = imap[_si_name]
-                    _node_top_px[_si_idx] = _sub_start
-                    _sub_start += _slot_px(_si_idx) + _bar_gap_px
-                _c4_cursor = _sub_start
-        else:
-            for _ch in _children:
-                _ch_name, _ch_val, _ch_color = _ch
-                _ch_idx = imap[_ch_name]
-                _node_top_px[_ch_idx] = _grp
-                _grp += _slot_px(_ch_idx) + _bar_gap_px
-
-        _c3_cursor = _grp
-
-    # Chart height from stacking layout
-    _max_bottom_px = max(
-        _slot_px(_ta_idx),
-        _c2_cursor - _bar_gap_px if col2_items else 0,
-        _c3_cursor - _bar_gap_px if _c3_cursor > 0 else 0,
-        _c4_cursor - _bar_gap_px if _c4_cursor > 0 else 0,
-    )
-
-    # Also ensure chart is tall enough for Plotly's bar rendering to
-    # produce 1px for the smallest node:
-    #   1 = (min_val / max_col_sum) * avail_px
-    #   avail_px = max_col_sum / min_val
-    from collections import defaultdict as _ddict
-    _bs_columns = _ddict(list)
-    for _ci in range(_n_nodes):
-        _bs_columns[round(node_x[_ci], 3)].append(_ci)
-    _max_col_sum = max(
-        (sum(node_val_raw[i] for i in idxs) for idxs in _bs_columns.values()),
-        default=1,
-    ) or 1
-    _plotly_avail = _max_col_sum / _min_val  # avail_px needed for 1px min bar
-    _h_from_plotly = int(_plotly_avail / 0.90 + 60)
-
-    _h = max(460, int(_max_bottom_px / 0.90 + 60), _h_from_plotly)
-
-    # Convert pixel positions → node_y [0.01, 0.99]
-    _avail_px = _h * 0.90
-    for _idx, _top_px in _node_top_px.items():
-        _center_px = _top_px + _slot_px(_idx) / 2
-        node_y[_idx] = round(max(0.01, min(0.99, _center_px / _avail_px)), 4)
-
-    # pad=0 since we control spacing; thickness for the colored bar width
-    _pad = 0
-    _thickness = max(10, min(18, int(200 / max(_n_nodes, 1))))
+    # ── Fix gaps: bars → text → cross-column → re-fix vertical ──────────
+    # Use min_gap_px=6 so the bottom of each node has a visible gap to the
+    # next node (user rule: "bottom of a node must have a gap to the next").
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
+    _fix_cross_column_text(node_x, node_y, node_val_raw, node_name_list,
+                           node_val_str, node_row2, _font_sz, _h, _thickness,
+                           min_gap_px=6)
+    _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
+    _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
 
     # Hide built-in node labels — we use annotations instead so text
     # renders ON TOP of all nodes (separate SVG layer).
@@ -4702,16 +4566,16 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
                   hovertemplate="<b>%{customdata}</b><extra></extra>"),
         link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
                   hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
-        domain=dict(y=[0.05, 0.95]),
+        domain=dict(y=[0.04, 0.96]),
     ))
-    # _h computed above via top-aligned sequential stacking
-    _layout = dict(height=_h, margin=dict(l=6, r=6, t=10, b=6),
+    # _h already computed dynamically above (via _compute_dynamic_height)
+    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
 
     # ── Annotation-based labels (render above all nodes) ──────────────
-    _dom_y0, _dom_y1 = 0.05, 0.95
+    _dom_y0, _dom_y1 = 0.04, 0.96
     _small_sz = max(8, _font_sz - 2)
     for i in range(len(nodes)):
         x_paper = node_x[i]
@@ -5673,8 +5537,6 @@ def render_sankey_page():
                 _show_metric_popup(ticker, active_metric, "income")
             _income_popup()
 
-        st.markdown('<div style="margin-bottom:1rem"></div>', unsafe_allow_html=True)
-
         fig = _build_income_sankey(income_df, info, _compare_label, _same_period,
                                    ticker=ticker)
         if fig:
@@ -5742,8 +5604,6 @@ def render_sankey_page():
             def _balance_popup():
                 _show_metric_popup(ticker, active_metric, "balance")
             _balance_popup()
-
-        st.markdown('<div style="margin-bottom:1rem"></div>', unsafe_allow_html=True)
 
         fig = _build_balance_sheet_sankey(balance_df, info, _compare_label, _same_period,
                                           ticker=ticker)
