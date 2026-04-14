@@ -1751,9 +1751,10 @@ def _show_metric_popup(ticker, node_label, view):
         key=popup_nav_key,
     )
     if nav_sel and nav_sel != clean_label:
-        # Update the outer pill to the new metric and rerun to re-open dialog
-        _pill_key = f"{view}_metric_pill"
-        st.session_state[_pill_key] = nav_sel
+        # Use pending dialog mechanism — sets pill value BEFORE widget is
+        # instantiated on the next rerun, avoiding StreamlitAPIException.
+        st.session_state['_pending_dialog_metric'] = nav_sel
+        st.session_state['_pending_dialog_section'] = view
         st.rerun()
     freq = st.session_state[freq_key]
     period = st.session_state[period_key]
