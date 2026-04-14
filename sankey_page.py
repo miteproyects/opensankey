@@ -2748,6 +2748,12 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
                 card.style.overflow = 'visible';
                 card.style.position = 'relative';
                 card.style.zIndex = '1';
+                /* Fix Streamlit column containers clipping the glow */
+                var _p = card.parentElement;
+                for (var _pi = 0; _pi < 6 && _p; _pi++) {{
+                    _p.style.overflow = 'visible';
+                    _p = _p.parentElement;
+                }}
                 card.addEventListener('mouseenter', function() {{
                     card.style.boxShadow = '0 0 0 2px ' + hexToRgba(color, 0.5) + ', 0 0 16px 4px ' + hexToRgba(color, 0.3);
                     card.style.transform = 'translateY(-2px)';
@@ -2931,6 +2937,7 @@ def _inject_link_hover_js(color_map):
                 if (plotDiv._linkHoverBound) return;
 
                 var links = sankeyEl.querySelectorAll('.sankey-link');
+                var cd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
                 links.forEach(function(lnk, li) {{
                     lnk.style.cursor = 'pointer';
                     lnk.style.pointerEvents = 'all';
@@ -2941,6 +2948,38 @@ def _inject_link_hover_js(color_map):
                     lnk.addEventListener('mouseleave', function() {{
                         var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
                         resetAll(currentSankey);
+                    }});
+                    /* Click link → open Historical Trend for TARGET node */
+                    lnk.addEventListener('click', function(e) {{
+                        if (!plotDiv.data || !plotDiv.data[0] || !plotDiv.data[0].link) return;
+                        var tgtIdx = plotDiv.data[0].link.target[li];
+                        var curCd = (plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
+                        var label = extractLabel(curCd[tgtIdx] || '');
+                        if (!label) return;
+                        var safeLabel = label.replace(/'/g, "\\\\'");
+                        window.parent.eval(
+                            "(function(){{" +
+                            "var btns=document.querySelectorAll('[data-testid=\"stBaseButton-pills\"]');" +
+                            "for(var i=0;i<btns.length;i++){{" +
+                            "  if(btns[i].textContent.trim()==='" + safeLabel + "'){{" +
+                            "    var fk=Object.keys(btns[i]).find(function(k){{return k.startsWith('__reactFiber')||k.startsWith('__reactInternalInstance')}});" +
+                            "    if(fk){{" +
+                            "      var f=btns[i][fk];" +
+                            "      while(f){{" +
+                            "        if(f.memoizedProps&&typeof f.memoizedProps.onClick==='function'){{" +
+                            "          f.memoizedProps.onClick(new MouseEvent('click',{{bubbles:true}}));" +
+                            "          return;" +
+                            "        }}" +
+                            "        f=f.return;" +
+                            "      }}" +
+                            "    }}" +
+                            "    btns[i].click();" +
+                            "    return;" +
+                            "  }}" +
+                            "}}" +
+                            "}})();"
+                        );
+                        e.stopPropagation();
                     }});
                 }});
 
