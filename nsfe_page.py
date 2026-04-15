@@ -7,7 +7,7 @@ import streamlit as st
 import os
 import json
 from datetime import datetime
-from agent_bugs import render_agent_bugs
+from super_bug_agent import render_super_bug_agent
 
 # ── Config ──────────────────────────────────────────────────────────────
 _PASSWORD = "nppQC091011"
@@ -3608,7 +3608,7 @@ def render_nsfe_page():
         _render_device_preview()
 
     with tab13:
-        render_agent_bugs()
+        render_super_bug_agent()
 
     # Footer
     st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
