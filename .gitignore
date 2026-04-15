@@ -11,6 +11,19 @@ dist/
 build/
 .streamlit/secrets.toml
 
+# Security — never commit these
+*.pem
+*.key
+credentials*
+*credentials*.json
+service-account*.json
+*.p12
+
 .DS_Store
 LIVE_TS
 BUILD_TS
+
+# Audit history (local-only)
+super_audit_history.json
+audit_history.json
+watchlist_names_cache.json

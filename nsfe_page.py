@@ -90,8 +90,8 @@ STEPS = [
         "substeps": [
             {"id": "6A", "name": "Stripe Integration",       "status": "deferred",
              "details": "Stripe Checkout, Customer Portal, webhooks, link to company record, plan enforcement"},
-            {"id": "6B", "name": "Pricing Tiers",            "status": "deferred",
-             "details": "Free (1 user) \u00b7 Basic ($X/mo, 5 users) \u00b7 Pro ($X/mo, 25 users) \u00b7 Enterprise (unlimited)"},
+            {"id": "6B", "name": "Pricing Tiers",            "status": "done",
+             "details": "4 tiers (No Login, Free, Pro, Enterprise) · DB-driven pricing page · Ticker gating · Blocked charts per plan · NSFE spreadsheet editor"},
             {"id": "6C", "name": "Implementation Files",     "status": "deferred",
              "details": "billing.py \u00b7 billing_page.py \u00b7 webhooks.py \u00b7 DB updates \u00b7 RBAC plan gating"},
             {"id": "6D", "name": "Future Options",            "status": "future",
@@ -158,38 +158,42 @@ STEPS = [
 def _compute_step_status(step):
     """Derive step status and progress from substep statuses.
 
-    Rules:
-      - ALL substeps done               -> done / 100%
-      - ALL substeps deferred or future  -> deferred / 0%
-      - ALL substeps pending/future      -> pending / 0%
+    Rules (excludes "future" substeps from calculation since they are aspirational):
+      - ALL actionable substeps done     -> done / 100%
+      - ALL deferred                     -> deferred / 0%
+      - ALL pending                      -> pending / 0%
       - Some done                        -> partial / proportional %
     """
     subs = step.get("substeps", [])
     if not subs:
         return "pending", 0
 
+    # Exclude "future" substeps — they are aspirational, not blockers
+    actionable = [s for s in subs if s["status"] != "future"]
+    if not actionable:
+        return "done", 100  # Only future items = step is effectively complete
+
     counts = {}
-    for s in subs:
+    for s in actionable:
         st_ = s["status"]
         counts[st_] = counts.get(st_, 0) + 1
 
-    total = len(subs)
+    total = len(actionable)
     done   = counts.get("done", 0)
     partial_c = counts.get("partial", 0)
     pending_c = counts.get("pending", 0)
     deferred_c = counts.get("deferred", 0)
-    future_c = counts.get("future", 0)
 
     if done == total:
         return "done", 100
-    if deferred_c + future_c == total:
+    if deferred_c == total:
         return "deferred", 0
-    if pending_c + future_c == total:
+    if pending_c == total:
         return "pending", 0
 
-    # Weighted progress: done=100, partial=50, pending/deferred/future=0
-    weight = {"done": 100, "partial": 50, "pending": 0, "deferred": 0, "future": 0}
-    pct = sum(weight.get(s["status"], 0) for s in subs) // total
+    # Weighted progress: done=100, partial=50, pending/deferred=0
+    weight = {"done": 100, "partial": 50, "pending": 0, "deferred": 0}
+    pct = sum(weight.get(s["status"], 0) for s in actionable) // total
     return "partial", pct
 
 
