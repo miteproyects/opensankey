@@ -7,6 +7,7 @@ import streamlit as st
 import os
 import json
 from datetime import datetime
+from agent_bugs import render_agent_bugs
 
 # ── Config ──────────────────────────────────────────────────────────────
 _PASSWORD = "nppQC091011"
@@ -3565,11 +3566,11 @@ def render_nsfe_page():
     # ── Main Menu (Streamlit tabs) ──
     _sync_steps()
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13 = st.tabs([
         "📋 Dashboard", "🛡️ Security", "⚙️ Settings",
         "🛡️ Certifications", "🏗️ Infrastructure",
         "👥 Team & Admin", "🔍 SEO", "💳 Pricing", "👤 Users", "📊 Analytics", "🧠 Memory",
-        "📱 Device Preview",
+        "📱 Device Preview", "🐛 Agent Bugs",
     ])
 
     with tab1:
@@ -3605,6 +3606,9 @@ def render_nsfe_page():
 
     with tab12:
         _render_device_preview()
+
+    with tab13:
+        render_agent_bugs()
 
     # Footer
     st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
