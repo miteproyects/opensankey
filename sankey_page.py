@@ -3630,7 +3630,6 @@ def _inject_drag_persist_js(ticker, view):
     """Inject JS that:
     1. Saves node Y positions to localStorage after user drags a node.
     2. Restores saved positions on page load.
-    3. Adds a Reset button (top-right of chart) to clear saved positions.
     Node labels are built-in (not annotations), so they follow drag automatically.
     """
     storage_key = f"{ticker}_{view}_node_y"
@@ -3676,41 +3675,7 @@ def _inject_drag_persist_js(ticker, view):
             }}
         }}
 
-        function addResetButton(plotDiv) {{
-            if (plotDiv._resetBtnAdded) return;
-            var container = plotDiv.parentElement;
-            if (!container) return;
-            container.style.position = 'relative';
-            var btn = parentDoc.createElement('button');
-            btn.innerHTML = '<span style="display:inline-block;margin-right:5px;font-size:14px;line-height:1">&#x21BA;</span>Reset';
-            btn.style.cssText = 'position:absolute;top:10px;right:10px;z-index:100;' +
-                'display:inline-flex;align-items:center;' +
-                'padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;' +
-                'background:rgba(255,255,255,0.85);color:#475569;' +
-                'border:1px solid rgba(203,213,225,0.6);border-radius:8px;' +
-                'font-family:Inter,-apple-system,sans-serif;' +
-                'backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);' +
-                'box-shadow:0 1px 3px rgba(0,0,0,0.06);' +
-                'transition:all 0.2s ease;letter-spacing:0.01em;';
-            btn.addEventListener('mouseenter', function() {{
-                btn.style.background = 'rgba(241,245,249,0.95)';
-                btn.style.borderColor = '#94a3b8';
-                btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)';
-                btn.style.color = '#1e293b';
-            }});
-            btn.addEventListener('mouseleave', function() {{
-                btn.style.background = 'rgba(255,255,255,0.85)';
-                btn.style.borderColor = 'rgba(203,213,225,0.6)';
-                btn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
-                btn.style.color = '#475569';
-            }});
-            btn.addEventListener('click', function() {{
-                try {{ localStorage.removeItem(STORAGE_KEY); }} catch(e) {{}}
-                window.parent.location.reload();
-            }});
-            container.appendChild(btn);
-            plotDiv._resetBtnAdded = true;
-        }}
+        /* Reset button removed — user requested removal */
 
         function positionLabelsRight(plotDiv) {{
             /* Force ALL node-label SVG text to the right of their node-rect bar.
@@ -3792,7 +3757,7 @@ def _inject_drag_persist_js(ticker, view):
                 setTimeout(function() {{ positionLabelsRight(plotDiv); }}, 100);
             }});
 
-            addResetButton(plotDiv);
+            /* addResetButton removed */
             plotDiv._dragPersistBound = true;
             return true;
         }}
@@ -5821,15 +5786,27 @@ def render_sankey_page():
                 st.button("PDF", key=f"gen_pdf_sankey_{sankey_view}",
                           disabled=True)
 
-    _auth_qs = get_auth_params()  # "&_sid=..." if logged in, else ""
-    st.markdown(f"""
-    <div class="sankey-tab-container">
-        <a class="sankey-tab {'active' if sankey_view == 'income' else ''}"
-           href="?page=sankey&ticker={ticker}&view=income{_auth_qs}" target="_self">Income Statement</a>
-        <a class="sankey-tab {'active' if sankey_view == 'balance' else ''}"
-           href="?page=sankey&ticker={ticker}&view=balance{_auth_qs}" target="_self">Balance Sheet</a>
-    </div>
-    """, unsafe_allow_html=True)
+    # ── Income / Balance tab selector ──
+    # Uses st.session_state + rerun instead of <a href> navigation to preserve
+    # Q selector state. The old <a href> approach caused a full page reload
+    # which reset the quarter checkboxes to defaults.
+    _tab_col1, _tab_col2, _tab_col3 = st.columns([1, 2, 1])
+    with _tab_col2:
+        _tc1, _tc2 = st.columns(2)
+        with _tc1:
+            if st.button("Income Statement", use_container_width=True,
+                         type="primary" if sankey_view == "income" else "secondary",
+                         key="_sankey_tab_income"):
+                st.session_state.sankey_view = "income"
+                st.query_params["view"] = "income"
+                st.rerun()
+        with _tc2:
+            if st.button("Balance Sheet", use_container_width=True,
+                         type="primary" if sankey_view == "balance" else "secondary",
+                         key="_sankey_tab_balance"):
+                st.session_state.sankey_view = "balance"
+                st.query_params["view"] = "balance"
+                st.rerun()
 
     if sankey_view == "income":
         # ââ Historical trend selector (popup) ââ
