@@ -3067,6 +3067,16 @@ with st.sidebar:
                     st.session_state["sk_pa"] = _years_with_data[0]
                 if "sk_pb" not in st.session_state or st.session_state["sk_pb"] not in _years:
                     st.session_state["sk_pb"] = _years_with_data[min(1, len(_years_with_data) - 1)]
+
+                # ── Guard: if Period A has 0 filed Qs, redirect to latest year with data ──
+                _pa_fy_check = int(st.session_state.get("sk_pa", _years_with_data[0]))
+                _pa_cq_check = _completed_qs_in_fy(_pa_fy_check, _fy_m_sk)
+                if _pa_cq_check == 0 and _years_with_data:
+                    _fallback_fy = _years_with_data[0]
+                    st.session_state["sk_pa"] = _fallback_fy
+                    st.session_state["_qbtn_toast"] = (
+                        f"FY{_pa_fy_check} has no filed quarters yet — switched to FY{_fallback_fy}"
+                    )
                 # Allow same year for both Period A and Period B (e.g. 2020 vs 2020)
 
                 # ── Period A & B selectors ──

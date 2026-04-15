@@ -5647,6 +5647,20 @@ def render_sankey_page():
         st.warning(f"⚠️ Cross-validation: {_xv_msg}")
 
     # ═══════════════════════════════════════════════════════════════════════
+    # GUARD: detect all-zero data (e.g. future year with no filings)
+    # ═══════════════════════════════════════════════════════════════════════
+    if income_df is not None and not income_df.empty and not using_demo:
+        _guard_rev = _safe(income_df, "Total Revenue")
+        _guard_ni = _safe(income_df, "Net Income")
+        if _guard_rev == 0 and _guard_ni == 0 and not _swapped_periods:
+            _sel_pa = st.session_state.get("sk_pa", "?")
+            st.warning(
+                f"⚠️ No financial data available for the selected period (FY{_sel_pa}). "
+                f"SEC filings may not have been published yet. "
+                f"Try selecting an earlier year in the sidebar."
+            )
+
+    # ═══════════════════════════════════════════════════════════════════════
     # LIVE DATA VALIDATION — runs automatically on every ticker load
     # ═══════════════════════════════════════════════════════════════════════
     _validation_results = []
