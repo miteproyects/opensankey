@@ -88,20 +88,28 @@ BS_COLORS = {
 INCOME_PILL_COLORS = {
     "Revenue": VIVID[0], "Cost of Revenue": VIVID[1], "Gross Profit": VIVID[2],
     "R&D": VIVID[3], "SG&A": VIVID[4], "D&A": VIVID[5], "Other OpEx": VIVID[5],
-    "Operating Income": VIVID[6], "Interest Exp.": VIVID[7],
+    "Operating Income": VIVID[6], "Interest Exp.": VIVID[7], "Other Non-Op": VIVID[7],
     "Pretax Income": VIVID[8], "Income Tax": VIVID[9], "Net Income": VIVID[10],
+    # Expanded sub-components (SG&A / D&A children)
+    "Selling & Marketing": VIVID[4], "General & Admin": VIVID[4],
+    "Stock-Based Comp": VIVID[4], "Depreciation": VIVID[5], "Amortization": VIVID[5],
 }
 BALANCE_PILL_COLORS = {
     "Total Assets": BS_COLORS["asset"], "Current Assets": BS_COLORS["asset"],
     "Non-Current Assets": BS_COLORS["asset2"], "Cash": BS_COLORS["cash"],
     "ST Investments": BS_COLORS["invest"], "Receivables": BS_COLORS["asset"],
-    "Inventory": BS_COLORS["asset"], "PPE": BS_COLORS["asset2"],
+    "Inventory": BS_COLORS["asset"], "Other Current": BS_COLORS["other"],
+    "PP&E": BS_COLORS["asset2"], "PPE": BS_COLORS["asset2"],
     "Goodwill": BS_COLORS["asset2"], "Intangibles": BS_COLORS["asset2"],
-    "Investments": BS_COLORS["invest"], "Total Liabilities": BS_COLORS["liability"],
+    "Investments": BS_COLORS["invest"], "Other Non-Current": BS_COLORS["other"],
+    "Total Liabilities": BS_COLORS["liability"],
     "Current Liab.": BS_COLORS["liability"], "Non-Current Liab.": BS_COLORS["liability"],
     "Accounts Payable": BS_COLORS["payable"], "Short-Term Debt": BS_COLORS["debt"],
-    "Deferred Revenue": BS_COLORS["liability"], "Long-Term Debt": BS_COLORS["debt"],
+    "Deferred Revenue": BS_COLORS["liability"], "Other CL": BS_COLORS["other"],
+    "Long-Term Debt": BS_COLORS["debt"], "Deposits": BS_COLORS["liability"],
+    "Other LT Liab.": BS_COLORS["other"],
     "Equity": BS_COLORS["equity"], "Retained Earnings": BS_COLORS["retained"],
+    "Other Equity": BS_COLORS["other"], "Total Equity": BS_COLORS["equity"],
 }
 
 
@@ -1684,6 +1692,33 @@ def _fetch_annual_data(ticker: str):
         return pd.DataFrame(), pd.DataFrame()
 
 
+def _show_metric_dialog(metric, ticker, view):
+    """Open the Historical Trend dialog for the given metric.
+
+    Sets session state and triggers a rerun so the dialog renders fresh
+    with the correct metric (avoids Streamlit's @st.dialog caching).
+    """
+    _prev = st.session_state.get('_dialog_metric')
+    st.session_state['_dialog_metric'] = metric
+    st.session_state['_dialog_ticker'] = ticker
+    st.session_state['_dialog_view'] = view
+    # Force rerun if metric changed so dialog fragment re-renders
+    if _prev is not None and _prev != metric:
+        st.session_state['_dialog_open_pending'] = True
+        st.rerun()
+    _open_metric_dialog()
+
+
+@st.dialog("Historical Trend", width="large")
+def _open_metric_dialog():
+    _m = st.session_state.get('_dialog_metric', '')
+    _t = st.session_state.get('_dialog_ticker', '')
+    _v = st.session_state.get('_dialog_view', 'income')
+    if _m and _t:
+        st.markdown(f"### {_m} — Historical Trend")
+        _show_metric_popup(_t, _m, _v)
+
+
 def _show_metric_popup(ticker, node_label, view):
     """Show a popup (dialog) with historical chart + Quarterly/Annual & period selectors."""
 
@@ -2471,8 +2506,8 @@ def _inject_node_hover_js(metric_map, color_map):
                     // Get label from customdata
                     var curCd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
                     var label = extractLabel(curCd[idx] || '');
-                    var color = COLORS[label];
-                    if (!label || !color) return;
+                    var color = COLORS[label] || '#64748b';
+                    if (!label) return;
                     // Re-query sankeyEl in case SVG was rebuilt
                     var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
                     highlightSankeyAndPill(idx, label, color, currentSankey, plotDiv);
@@ -2490,8 +2525,8 @@ def _inject_node_hover_js(metric_map, color_map):
                     r.addEventListener('mouseenter', function() {{
                         var curCd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
                         var label = extractLabel(curCd[ri] || '');
-                        var color = COLORS[label];
-                        if (!label || !color) return;
+                        var color = COLORS[label] || '#64748b';
+                        if (!label) return;
                         var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
                         highlightSankeyAndPill(ri, label, color, currentSankey, plotDiv);
                     }});
@@ -2509,8 +2544,8 @@ def _inject_node_hover_js(metric_map, color_map):
                     a.addEventListener('mouseenter', function() {{
                         var curCd = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) ? plotDiv.data[0].node.customdata : [];
                         var label = extractLabel(curCd[ai] || '');
-                        var color = COLORS[label];
-                        if (!label || !color) return;
+                        var color = COLORS[label] || '#64748b';
+                        if (!label) return;
                         var currentSankey = plotDiv.querySelector('.sankey') || sankeyEl;
                         highlightSankeyAndPill(ai, label, color, currentSankey, plotDiv);
                     }});
@@ -2550,7 +2585,7 @@ def _inject_delta_color_js():
       green (#16a34a) for positive (\u2191)
       red   (#dc2626) for negative (\u2193)
     """
-    js = """
+    js = r"""
     <script>
     (function() {
         const UP = '\u2191', DOWN = '\u2193';
@@ -3574,6 +3609,290 @@ def _fetch_sankey_data(ticker: str, quarterly: bool = False):
         return pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
 
 
+def _inject_drag_persist_js(ticker, view):
+    """Inject JS that:
+    1. Makes annotations pass-through for drag (pointer-events:none during drag).
+    2. Repositions annotations after node drag to follow the node bars.
+    3. Saves node Y positions to localStorage after user drags a node.
+    4. Restores saved positions on page load.
+    5. Adds a Reset button (top-right of chart) to clear saved positions.
+    """
+    storage_key = f"{ticker}_{view}_node_y"
+
+    js = f"""
+    <script>
+    (function() {{
+        const STORAGE_KEY = "{storage_key}";
+        const parentDoc = window.parent.document;
+
+        function getPlot() {{
+            var plots = parentDoc.querySelectorAll('.js-plotly-plot');
+            for (var i = 0; i < plots.length; i++) {{
+                if (plots[i].querySelector('.sankey')) return plots[i];
+            }}
+            return null;
+        }}
+
+        function savePositions(plotDiv) {{
+            if (!plotDiv || !plotDiv.data || !plotDiv.data[0] || !plotDiv.data[0].node) return;
+            var node = plotDiv.data[0].node;
+            var yArr = [];
+            for (var i = 0; i < node.y.length; i++) {{
+                yArr.push(node.y[i]);
+            }}
+            try {{
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(yArr));
+            }} catch(e) {{}}
+        }}
+
+        function repositionAnnotations(plotDiv) {{
+            /* Move annotation DOM elements to match current node-rect SVG positions.
+               Then resolve text overlaps by pushing apart annotations that collide. */
+            var sankeyEl = plotDiv.querySelector('.sankey');
+            if (!sankeyEl) return;
+            var rects = sankeyEl.querySelectorAll('.node-rect');
+            var annots = plotDiv.querySelectorAll('.annotation');
+            if (rects.length !== annots.length) return;
+
+            /* Step 1: Clear ALL transforms */
+            for (var i = 0; i < annots.length; i++) {{
+                annots[i].style.transform = 'translateY(0px)';
+            }}
+            void plotDiv.offsetHeight;
+
+            /* Step 2: Compute target Y (node-rect center) for each annotation */
+            var targets = [];  /* {{idx, x, targetY, height, offset}} */
+            for (var i = 0; i < rects.length; i++) {{
+                var r = rects[i];
+                var a = annots[i];
+                if (!r || !a) {{ targets.push(null); continue; }}
+
+                var rBounds = r.getBoundingClientRect();
+                var nodeCenterY = rBounds.top + rBounds.height / 2;
+                var nodeX = rBounds.left;
+
+                var aBounds = a.getBoundingClientRect();
+                var annotCenterY = aBounds.top + aBounds.height / 2;
+                var annotH = aBounds.height;
+
+                var offset = nodeCenterY - annotCenterY;
+                targets.push({{
+                    idx: i,
+                    x: nodeX,
+                    targetY: nodeCenterY,
+                    height: annotH,
+                    offset: offset
+                }});
+            }}
+
+            /* Step 3: Resolve ALL overlapping annotations regardless of column.
+               Annotations extend to the right of their node bar, so text from
+               column N can overlap text from column N+1 at similar Y positions. */
+            var valid = targets.filter(function(t) {{ return t !== null; }});
+            valid.sort(function(a, b) {{ return a.targetY - b.targetY; }});
+
+            var MIN_GAP = 4;
+            for (var pass = 0; pass < 30; pass++) {{
+                var changed = false;
+                for (var j = 0; j < valid.length - 1; j++) {{
+                    var upper = valid[j];
+                    var lower = valid[j + 1];
+                    var upperBot = upper.targetY + upper.height / 2;
+                    var lowerTop = lower.targetY - lower.height / 2;
+                    var gap = lowerTop - upperBot;
+                    if (gap < MIN_GAP) {{
+                        var push = (MIN_GAP - gap) / 2 + 0.5;
+                        upper.targetY -= push;
+                        upper.offset -= push;
+                        lower.targetY += push;
+                        lower.offset += push;
+                        changed = true;
+                    }}
+                }}
+                if (!changed) break;
+            }}
+
+            /* Step 4: Clamp annotations within chart boundaries */
+            var plotArea = plotDiv.querySelector('.plot-container .svg-container');
+            if (plotArea) {{
+                var plotBounds = plotArea.getBoundingClientRect();
+                var chartTop = plotBounds.top;
+                var chartBot = plotBounds.bottom;
+                for (var i = 0; i < valid.length; i++) {{
+                    var t = valid[i];
+                    var annotTop = t.targetY - t.height / 2;
+                    var annotBot = t.targetY + t.height / 2;
+                    if (annotTop < chartTop) {{
+                        var shift = chartTop - annotTop + 2;
+                        t.targetY += shift;
+                        t.offset += shift;
+                    }}
+                    if (annotBot > chartBot) {{
+                        var shift = annotBot - chartBot + 2;
+                        t.targetY -= shift;
+                        t.offset -= shift;
+                    }}
+                }}
+            }}
+
+            /* Step 5: Apply final offsets */
+            for (var i = 0; i < targets.length; i++) {{
+                if (!targets[i]) continue;
+                annots[targets[i].idx].style.transform = 'translateY(' + targets[i].offset + 'px)';
+            }}
+        }}
+
+        function restorePositions(plotDiv) {{
+            try {{
+                var saved = localStorage.getItem(STORAGE_KEY);
+                if (!saved) return false;
+                var yArr = JSON.parse(saved);
+                if (!Array.isArray(yArr) || yArr.length === 0) return false;
+                if (!plotDiv || !plotDiv.data || !plotDiv.data[0] || !plotDiv.data[0].node) return false;
+                var node = plotDiv.data[0].node;
+                if (yArr.length !== node.y.length) return false;
+                Plotly.restyle(plotDiv, {{'node.y': [yArr]}}, [0]);
+                /* Reposition annotations to match restored positions */
+                setTimeout(function() {{ repositionAnnotations(plotDiv); }}, 200);
+                return true;
+            }} catch(e) {{
+                return false;
+            }}
+        }}
+
+        function addResetButton(plotDiv) {{
+            if (plotDiv._resetBtnAdded) return;
+            var container = plotDiv.parentElement;
+            if (!container) return;
+            container.style.position = 'relative';
+            var btn = parentDoc.createElement('button');
+            btn.innerHTML = '<span style="display:inline-block;margin-right:5px;font-size:14px;line-height:1">&#x21BA;</span>Reset';
+            btn.style.cssText = 'position:absolute;top:10px;right:10px;z-index:100;' +
+                'display:inline-flex;align-items:center;' +
+                'padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;' +
+                'background:rgba(255,255,255,0.85);color:#475569;' +
+                'border:1px solid rgba(203,213,225,0.6);border-radius:8px;' +
+                'font-family:Inter,-apple-system,sans-serif;' +
+                'backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);' +
+                'box-shadow:0 1px 3px rgba(0,0,0,0.06);' +
+                'transition:all 0.2s ease;letter-spacing:0.01em;';
+            btn.addEventListener('mouseenter', function() {{
+                btn.style.background = 'rgba(241,245,249,0.95)';
+                btn.style.borderColor = '#94a3b8';
+                btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)';
+                btn.style.color = '#1e293b';
+            }});
+            btn.addEventListener('mouseleave', function() {{
+                btn.style.background = 'rgba(255,255,255,0.85)';
+                btn.style.borderColor = 'rgba(203,213,225,0.6)';
+                btn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
+                btn.style.color = '#475569';
+            }});
+            btn.addEventListener('click', function() {{
+                try {{ localStorage.removeItem(STORAGE_KEY); }} catch(e) {{}}
+                /* Reload to get a clean default state */
+                window.parent.location.reload();
+            }});
+            container.appendChild(btn);
+            plotDiv._resetBtnAdded = true;
+        }}
+
+        function setup() {{
+            var plotDiv = getPlot();
+            if (!plotDiv) return false;
+            if (plotDiv._dragPersistBound) return true;
+
+            // Store original Y positions for reset
+            if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) {{
+                var origY = [];
+                for (var i = 0; i < plotDiv.data[0].node.y.length; i++) {{
+                    origY.push(plotDiv.data[0].node.y[i]);
+                }}
+                plotDiv.setAttribute('data-original-y', JSON.stringify(origY));
+            }}
+
+            // Make annotations pass-through during drag so node bars are draggable
+            var sankeyEl = plotDiv.querySelector('.sankey');
+            var _isDragging = false;
+            var _rafId = null;
+
+            function syncAnnotationsLoop() {{
+                /* Continuously reposition annotations to follow node bars during drag */
+                if (!_isDragging) return;
+                repositionAnnotations(plotDiv);
+                _rafId = requestAnimationFrame(syncAnnotationsLoop);
+            }}
+
+            if (sankeyEl) {{
+                var rects = sankeyEl.querySelectorAll('.node-rect');
+                rects.forEach(function(r) {{
+                    r.style.cursor = 'grab';
+                }});
+                // On mousedown: disable annotation pointer-events + start real-time sync
+                sankeyEl.addEventListener('mousedown', function() {{
+                    _isDragging = true;
+                    plotDiv.querySelectorAll('.annotation').forEach(function(a) {{
+                        a.style.pointerEvents = 'none';
+                    }});
+                    syncAnnotationsLoop();
+                }});
+                parentDoc.addEventListener('mouseup', function() {{
+                    _isDragging = false;
+                    if (_rafId) cancelAnimationFrame(_rafId);
+                    // Re-enable after drag ends
+                    setTimeout(function() {{
+                        plotDiv.querySelectorAll('.annotation').forEach(function(a) {{
+                            a.style.pointerEvents = 'all';
+                        }});
+                        repositionAnnotations(plotDiv);
+                        savePositions(plotDiv);
+                    }}, 100);
+                }});
+            }}
+
+            // Restore saved positions (if any)
+            restorePositions(plotDiv);
+
+            // Initial sync: reposition annotations repeatedly during first 3s
+            // to match where Plotly actually rendered nodes (snap mode moves them).
+            // Multiple runs needed because Plotly renders asynchronously.
+            var _initSyncTimes = [100, 300, 500, 1000, 1500, 2000, 3000];
+            _initSyncTimes.forEach(function(ms) {{
+                setTimeout(function() {{ repositionAnnotations(plotDiv); }}, ms);
+            }});
+
+            // Listen for ALL Plotly events that indicate node positions changed
+            function _onPlotChange() {{
+                savePositions(plotDiv);
+                setTimeout(function() {{ repositionAnnotations(plotDiv); }}, 50);
+                setTimeout(function() {{ repositionAnnotations(plotDiv); }}, 200);
+            }}
+            plotDiv.on('plotly_restyle', _onPlotChange);
+            plotDiv.on('plotly_update', _onPlotChange);
+            plotDiv.on('plotly_afterplot', function() {{
+                setTimeout(function() {{ repositionAnnotations(plotDiv); }}, 50);
+            }});
+            plotDiv.on('plotly_relayout', _onPlotChange);
+
+            addResetButton(plotDiv);
+            plotDiv._dragPersistBound = true;
+            return true;
+        }}
+
+        var _deb = null;
+        var obs = new MutationObserver(function() {{
+            clearTimeout(_deb);
+            _deb = setTimeout(function() {{ setup(); }}, 300);
+        }});
+        obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+        setup();
+        setInterval(function() {{ setup(); }}, 3000);
+    }})();
+    </script>
+    """
+    components.html(js, height=0)
+
+
 def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False,
                          expanded_nodes=None, ticker=None):
     """Build income statement Sankey with fixed positions and vivid nodes.
@@ -3993,12 +4312,16 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     rev_y = (Y_MIN + Y_MAX) / 2
     add("Revenue", revenue, 0, X1, rev_y, p_revenue)
 
-    # --- Column 2: COGS + Gross Profit (split Revenue's band) ---
+    # --- Column 2: COGS + Gross Profit (split Revenue's band, high→low) ---
     if cogs > 0:
-        c2 = _split_band([cogs, gross_profit], *rev_band)
-        add("Cost of Revenue", cogs, 1, X2, c2[0][0], p_cogs)
-        add("Gross Profit", gross_profit, 2, X2, c2[1][0], p_gross_profit)
-        gp_band = (c2[1][1], c2[1][2])  # GP's sub-band → parent for col 3
+        _c2_items = [("Cost of Revenue", cogs, 1, p_cogs),
+                     ("Gross Profit", gross_profit, 2, p_gross_profit)]
+        _c2_items.sort(key=lambda t: t[1], reverse=True)
+        c2 = _split_band([it[1] for it in _c2_items], *rev_band)
+        for _ci2, (lbl, val, ci, pv) in enumerate(_c2_items):
+            add(lbl, val, ci, X2, c2[_ci2][0], pv)
+        _gp_ci2 = next(i for i, it in enumerate(_c2_items) if it[0] == "Gross Profit")
+        gp_band = (c2[_gp_ci2][1], c2[_gp_ci2][2])
     else:
         add("Gross Profit", gross_profit, 2, X2, rev_y, p_gross_profit)
         gp_band = rev_band  # GP == Revenue, inherits full band
@@ -4073,12 +4396,15 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
 
     col3_items.append(("Operating Income", operating_inc, 6, p_operating_inc, False))
 
+    # Sort col3 high → low
+    col3_items.sort(key=lambda t: t[1], reverse=True)
     c3_vals = [v for _, v, *_ in col3_items]
     c3 = _split_band(c3_vals, *gp_band)
     for i, (lbl, val, ci, pv, expandable) in enumerate(col3_items):
         add(lbl, val, ci, X3, c3[i][0], pv, expandable=expandable)
-    oi_y = c3[-1][0]
-    oi_band = (c3[-1][1], c3[-1][2])  # OI's sub-band → parent for col 4
+    _oi_idx3 = next(i for i, it in enumerate(col3_items) if it[0] == "Operating Income")
+    oi_y = c3[_oi_idx3][0]
+    oi_band = (c3[_oi_idx3][1], c3[_oi_idx3][2])
 
     # --- Column 4: Interest Exp + Other Non-Op + Pretax Income (split OI's band) ---
     col4_items = []
@@ -4088,12 +4414,15 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         col4_items.append(("Other Non-Op", other_nonop, 7, p_other_nonop))
     col4_items.append(("Pretax Income", pretax_income, 8, p_pretax_income))
 
+    # Sort col4 high → low
+    col4_items.sort(key=lambda t: t[1], reverse=True)
     c4_vals = [v for _, v, *_ in col4_items]
     c4 = _split_band(c4_vals, *oi_band)
     for i, (lbl, val, ci, pv) in enumerate(col4_items):
         add(lbl, val, ci, X4, c4[i][0], pv)
-    pt_y = c4[-1][0]
-    pt_band = (c4[-1][1], c4[-1][2])  # Pretax's sub-band → parent for col 5
+    _pt_idx4 = next(i for i, it in enumerate(col4_items) if it[0] == "Pretax Income")
+    pt_y = c4[_pt_idx4][0]
+    pt_band = (c4[_pt_idx4][1], c4[_pt_idx4][2])
 
     # --- Column 5: Tax + Net Income (split Pretax's band) ---
     col5_items = []
@@ -4101,6 +4430,8 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
         col5_items.append(("Income Tax", tax, 9, p_tax))
     col5_items.append(("Net Income", net_income, 10, p_net_income))
 
+    # Sort col5 high → low
+    col5_items.sort(key=lambda t: t[1], reverse=True)
     c5_vals = [v for _, v, *_ in col5_items]
     c5 = _split_band(c5_vals, *pt_band)
     for i, (lbl, val, ci, pv) in enumerate(col5_items):
@@ -4168,7 +4499,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
 
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
-        arrangement="fixed",
+        arrangement="snap",
         orientation="h",
         textfont=dict(size=1, color="rgba(0,0,0,0)"),
         node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
@@ -4478,6 +4809,13 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
         else:
             eq_items.append(("Total Equity", equity, C["equity"]))
 
+    # ── Sort all child lists by value descending (biggest at top) ──────
+    ca_items.sort(key=lambda t: t[1], reverse=True)
+    nca_items.sort(key=lambda t: t[1], reverse=True)
+    cl_items.sort(key=lambda t: t[1], reverse=True)
+    ncl_items.sort(key=lambda t: t[1], reverse=True)
+    eq_items.sort(key=lambda t: t[1], reverse=True)
+
     # Wide X spacing — text is placed via annotations (not built-in labels)
     # Col1/Col2 use 2-row labels (shorter) so can be closer together
     X1, X2, X3, X4 = 0.01, 0.16, 0.38, 0.62
@@ -4546,6 +4884,14 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
 
     if not col2_items:
         return None, []
+
+    # Sort col2 by value descending (biggest at top)
+    col2_items.sort(key=lambda t: t[1], reverse=True)
+    # Sort nested liab children (CL/NCL) by value descending
+    for i, (name, val, color, children, x_ch, exp) in enumerate(col2_items):
+        if any(len(ch) == 4 for ch in children):
+            children_sorted = sorted(children, key=lambda ch: ch[1], reverse=True)
+            col2_items[i] = (name, val, color, children_sorted, x_ch, exp)
 
     # ── Count nodes per sub-band for dynamic chart height ──────────────
     # Balance sheet nodes are confined within sub-bands (CA items within CA band,
@@ -4720,7 +5066,7 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     # renders ON TOP of all nodes (separate SVG layer).
     _empty_labels = [""] * len(nodes)
     fig = go.Figure(go.Sankey(
-        arrangement="fixed",
+        arrangement="snap",
         orientation="h",
         textfont=dict(size=1, color="rgba(0,0,0,0)"),
         node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
@@ -5703,18 +6049,12 @@ def render_sankey_page():
             st.session_state['_income_last_count'] = _click_count
             _to_show = st.session_state.pop('_income_click_val', None)
 
-        if _to_show:
-            st.session_state['_income_dialog_metric'] = _to_show
-            st.session_state['_income_dialog_ticker'] = ticker
+        # Check for pending dialog from st.rerun() (metric switch)
+        if not _to_show and st.session_state.pop('_dialog_open_pending', False):
+            _to_show = st.session_state.get('_dialog_metric')
 
-            @st.dialog(f"Historical Trend", width="large")
-            def _income_popup():
-                _m = st.session_state.get('_income_dialog_metric', '')
-                _t = st.session_state.get('_income_dialog_ticker', '')
-                if _m and _t:
-                    st.subheader(f"{_m}")
-                    _show_metric_popup(_t, _m, "income")
-            _income_popup()
+        if _to_show:
+            _show_metric_dialog(_to_show, ticker, "income")
 
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
@@ -5731,6 +6071,7 @@ def render_sankey_page():
                 INCOME_PILL_COLORS, section="income")
             _inject_link_hover_js(INCOME_PILL_COLORS)
             _inject_delta_color_js()
+            _inject_drag_persist_js(ticker, "income")
         else:
             if revenue == 0 and (op_income != 0 or net_income != 0):
                 st.info(f"Sankey diagram requires revenue data. {ticker} is a pre-revenue company — use the pill tags above to explore individual metrics.")
@@ -5791,18 +6132,11 @@ def render_sankey_page():
             st.session_state['_balance_last_count'] = _click_count
             _to_show = st.session_state.pop('_balance_click_val', None)
 
-        if _to_show:
-            st.session_state['_balance_dialog_metric'] = _to_show
-            st.session_state['_balance_dialog_ticker'] = ticker
+        if not _to_show and st.session_state.pop('_dialog_open_pending', False):
+            _to_show = st.session_state.get('_dialog_metric')
 
-            @st.dialog(f"Historical Trend", width="large")
-            def _balance_popup():
-                _m = st.session_state.get('_balance_dialog_metric', '')
-                _t = st.session_state.get('_balance_dialog_ticker', '')
-                if _m and _t:
-                    st.subheader(f"{_m}")
-                    _show_metric_popup(_t, _m, "balance")
-            _balance_popup()
+        if _to_show:
+            _show_metric_dialog(_to_show, ticker, "balance")
 
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
@@ -5819,6 +6153,7 @@ def render_sankey_page():
                 BALANCE_PILL_COLORS, section="balance")
             _inject_link_hover_js(BALANCE_PILL_COLORS)
             _inject_delta_color_js()
+            _inject_drag_persist_js(ticker, "balance")
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
 
