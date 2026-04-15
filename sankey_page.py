@@ -49,7 +49,24 @@ def _get_demo_data(ticker: str):
     income_df.columns = cols
     balance_df = pd.DataFrame(demo_balance, index=["2025", "2024"]).T
     balance_df.columns = cols
-    info = {"shortName": ticker.upper(), "longName": f"{ticker.upper()} Corporation"}
+    # Use real company names for common tickers when SEC EDGAR is down
+    _TICKER_NAMES = {
+        "AAPL": "APPLE INC", "MSFT": "MICROSOFT CORP", "GOOG": "ALPHABET INC",
+        "GOOGL": "ALPHABET INC", "AMZN": "AMAZON.COM INC", "META": "META PLATFORMS INC",
+        "NVDA": "NVIDIA CORP", "TSLA": "TESLA INC", "AVGO": "BROADCOM INC",
+        "TSM": "TAIWAN SEMICONDUCTOR", "JPM": "JPMORGAN CHASE & CO",
+        "V": "VISA INC", "WMT": "WALMART INC", "NFLX": "NETFLIX INC",
+        "KO": "COCA-COLA CO", "PEP": "PEPSICO INC", "DIS": "WALT DISNEY CO",
+        "AMD": "ADVANCED MICRO DEVICES", "INTC": "INTEL CORP",
+        "CRM": "SALESFORCE INC", "ADBE": "ADOBE INC", "ORCL": "ORACLE CORP",
+        "CSCO": "CISCO SYSTEMS INC", "NKE": "NIKE INC", "BA": "BOEING CO",
+        "IBM": "IBM CORP", "QCOM": "QUALCOMM INC", "PYPL": "PAYPAL HOLDINGS",
+        "UBER": "UBER TECHNOLOGIES", "ABNB": "AIRBNB INC",
+        "BAC": "BANK OF AMERICA CORP", "WFC": "WELLS FARGO & CO",
+        "GS": "GOLDMAN SACHS GROUP", "MS": "MORGAN STANLEY",
+    }
+    name = _TICKER_NAMES.get(ticker.upper(), ticker.upper())
+    info = {"shortName": name, "longName": name}
     return income_df, balance_df, info
 
 

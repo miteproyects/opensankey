@@ -8,15 +8,41 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ── Persistence ───────────────────────────────────────────────────────────
 
-_WATCHLIST_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "watchlist_data.json"
-)
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+_WATCHLIST_FILE = os.path.join(_BASE_DIR, "watchlist_data.json")
+_NAME_CACHE_FILE = os.path.join(_BASE_DIR, "watchlist_names_cache.json")
 
 _MAX_COMPANIES = 20
+
+
+# ── Company name cache ────────────────────────────────────────────────────
+# Company names rarely change, so we cache them on disk to avoid repeated
+# slow yfinance .info calls that are prone to rate-limiting.
+
+def _load_name_cache() -> dict:
+    """Load cached company names from disk."""
+    if os.path.exists(_NAME_CACHE_FILE):
+        try:
+            with open(_NAME_CACHE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def _save_name_cache(cache: dict):
+    """Save company name cache to disk."""
+    try:
+        with open(_NAME_CACHE_FILE, "w") as f:
+            json.dump(cache, f)
+    except Exception:
+        pass
 
 
 def _load_watchlist() -> list:
@@ -238,9 +264,10 @@ def _fetch_single_ticker(sym: str) -> dict:
         }
 
 
-def _fetch_ticker_all(sym: str) -> dict:
+def _fetch_ticker_all(sym: str, name_cache: dict | None = None) -> dict:
     """Fetch ALL data for one ticker: price, name, P/E, market cap, earnings.
-    Uses fast_info first (quick), then info dict only if needed."""
+    Uses fast_info first (quick), then info dict only if needed.
+    Accepts a name_cache dict to avoid redundant .info calls for names."""
     try:
         import yfinance as yf
         t = yf.Ticker(sym)
@@ -256,11 +283,18 @@ def _fetch_ticker_all(sym: str) -> dict:
             pass
 
         # ── info dict: name, P/E, fallback price ──
+        # Only call t.info if we actually need data from it (name or P/E).
+        # This is the slow call that gets rate-limited.
         info = {}
-        try:
-            info = t.info or {}
-        except Exception:
-            pass
+        cached_name = (name_cache or {}).get(sym)
+        need_info = not cached_name  # only fetch info if name not cached
+        if need_info:
+            try:
+                info = t.info or {}
+            except Exception:
+                pass
+            # Small delay to reduce rate-limiting
+            time.sleep(0.15)
 
         if not price:
             price = info.get("regularMarketPrice") or info.get("currentPrice") or 0
@@ -270,10 +304,28 @@ def _fetch_ticker_all(sym: str) -> dict:
             market_cap = info.get("marketCap") or 0
 
         change_pct = ((price - prev_close) / prev_close * 100) if prev_close else 0.0
-        pe = info.get("trailingPE") or info.get("forwardPE")
-        name = info.get("shortName") or info.get("longName") or sym
 
-        # ── earnings date ──
+        # ── P/E ratio: try multiple sources ──
+        pe = None
+        try:
+            pe = info.get("trailingPE") or info.get("forwardPE")
+        except Exception:
+            pass
+        if pe is None and not need_info:
+            # We skipped info earlier; try a targeted fetch for P/E
+            try:
+                quick_info = t.info or {}
+                pe = quick_info.get("trailingPE") or quick_info.get("forwardPE")
+                # Also grab name if we didn't have it
+                if not cached_name:
+                    cached_name = quick_info.get("shortName") or quick_info.get("longName")
+            except Exception:
+                pass
+
+        # ── Company name: use cache first, then info dict ──
+        name = cached_name or info.get("shortName") or info.get("longName") or sym
+
+        # ── earnings date: try get_earnings_dates() (more reliable) ──
         earnings_date = None
         try:
             cal = t.calendar
@@ -282,9 +334,32 @@ def _fetch_ticker_all(sym: str) -> dict:
                 if isinstance(edate, list) and edate:
                     edate = edate[0]
                 if edate is not None:
-                    earnings_date = edate.strftime("%m/%d/%Y") if hasattr(edate, "strftime") else str(edate)[:10]
+                    if hasattr(edate, "strftime"):
+                        earnings_date = edate.strftime("%m/%d/%Y")
+                    elif isinstance(edate, (int, float)):
+                        # Handle UNIX timestamps
+                        from datetime import datetime
+                        earnings_date = datetime.fromtimestamp(edate).strftime("%m/%d/%Y")
+                    else:
+                        earnings_date = str(edate)[:10]
         except Exception:
             pass
+
+        # Fallback: try get_earnings_dates if calendar failed
+        if not earnings_date:
+            try:
+                edates = t.get_earnings_dates(limit=4)
+                if edates is not None and not edates.empty:
+                    from datetime import datetime
+                    now = datetime.now()
+                    future_dates = edates.index[edates.index >= pd.Timestamp(now)]
+                    if len(future_dates) > 0:
+                        earnings_date = future_dates[0].strftime("%m/%d/%Y")
+                    else:
+                        # Show the most recent past date
+                        earnings_date = edates.index[0].strftime("%m/%d/%Y")
+            except Exception:
+                pass
 
         return {
             "symbol": sym, "name": name, "marketCap": market_cap,
@@ -293,8 +368,8 @@ def _fetch_ticker_all(sym: str) -> dict:
         }
     except Exception:
         return {
-            "symbol": sym, "name": sym, "marketCap": 0,
-            "price": 0, "change_pct": 0, "pe": None,
+            "symbol": sym, "name": (name_cache or {}).get(sym, sym),
+            "marketCap": 0, "price": 0, "change_pct": 0, "pe": None,
             "earnings_date": "N/A",
         }
 
@@ -302,13 +377,19 @@ def _fetch_ticker_all(sym: str) -> dict:
 @st.cache_data(ttl=1800, show_spinner=False)
 def _fetch_watchlist_data(tickers_tuple: tuple) -> pd.DataFrame:
     """Fetch live market data for all watchlist tickers in parallel.
-    Cached for 30 minutes to avoid repeated slow API calls."""
+    Cached for 30 minutes to avoid repeated slow API calls.
+    Uses a persistent name cache to avoid rate-limiting on .info calls."""
     if not tickers_tuple:
         return pd.DataFrame()
 
+    # Load name cache — company names rarely change
+    name_cache = _load_name_cache()
+
     result_map = {}
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {executor.submit(_fetch_ticker_all, sym): sym
+    # Use max_workers=3 to reduce Yahoo Finance rate-limiting.
+    # yfinance's .info is not fully thread-safe at high concurrency.
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(_fetch_ticker_all, sym, name_cache): sym
                    for sym in tickers_tuple}
         for future in as_completed(futures):
             sym = futures[future]
@@ -316,14 +397,24 @@ def _fetch_watchlist_data(tickers_tuple: tuple) -> pd.DataFrame:
                 result_map[sym] = future.result()
             except Exception:
                 result_map[sym] = {
-                    "symbol": sym, "name": sym, "marketCap": 0,
-                    "price": 0, "change_pct": 0, "pe": None,
-                    "earnings_date": "N/A",
+                    "symbol": sym, "name": name_cache.get(sym, sym),
+                    "marketCap": 0, "price": 0, "change_pct": 0,
+                    "pe": None, "earnings_date": "N/A",
                 }
+
+    # Update name cache with any new names we fetched
+    updated = False
+    for sym, data in result_map.items():
+        fetched_name = data.get("name", sym)
+        if fetched_name and fetched_name != sym and name_cache.get(sym) != fetched_name:
+            name_cache[sym] = fetched_name
+            updated = True
+    if updated:
+        _save_name_cache(name_cache)
 
     # Preserve original order
     rows = [result_map.get(sym, {
-        "symbol": sym, "name": sym, "marketCap": 0,
+        "symbol": sym, "name": name_cache.get(sym, sym), "marketCap": 0,
         "price": 0, "change_pct": 0, "pe": None,
         "earnings_date": "N/A",
     }) for sym in tickers_tuple]
