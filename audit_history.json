@@ -1,0 +1,436 @@
+[
+  {
+    "timestamp": "2026-04-15T00:57:27.848421",
+    "layers": [
+      "Performance",
+      "SEO",
+      "Security",
+      "API Health",
+      "Accessibility"
+    ],
+    "overall_score": 96,
+    "scores": {
+      "Performance": 100,
+      "SEO": 100,
+      "Security": 100,
+      "API Health": 80,
+      "Accessibility": 100
+    },
+    "counts": {
+      "critical": 0,
+      "warning": 0,
+      "info": 1,
+      "pass": 60
+    },
+    "findings": [
+      {
+        "page": "Home",
+        "url": "https://quartercharts.com/?page=home",
+        "status_code": 200,
+        "load_time": 0.38,
+        "size_kb": 11.2,
+        "severity": "pass",
+        "message": "Fast: 0.38s",
+        "layer": "Performance"
+      },
+      {
+        "page": "Charts (NVDA)",
+        "url": "https://quartercharts.com/?page=charts&ticker=NVDA",
+        "status_code": 200,
+        "load_time": 0.29,
+        "size_kb": 11.2,
+        "severity": "pass",
+        "message": "Fast: 0.29s",
+        "layer": "Performance"
+      },
+      {
+        "page": "Sankey (NVDA)",
+        "url": "https://quartercharts.com/?page=sankey&ticker=NVDA",
+        "status_code": 200,
+        "load_time": 0.31,
+        "size_kb": 11.2,
+        "severity": "pass",
+        "message": "Fast: 0.31s",
+        "layer": "Performance"
+      },
+      {
+        "page": "Sankey (GOOG)",
+        "url": "https://quartercharts.com/?page=sankey&ticker=GOOG",
+        "status_code": 200,
+        "load_time": 0.24,
+        "size_kb": 11.2,
+        "severity": "pass",
+        "message": "Fast: 0.24s",
+        "layer": "Performance"
+      },
+      {
+        "page": "Profile (NVDA)",
+        "url": "https://quartercharts.com/?page=profile&ticker=NVDA",
+        "status_code": 200,
+        "load_time": 0.24,
+        "size_kb": 11.2,
+        "severity": "pass",
+        "message": "Fast: 0.24s",
+        "layer": "Performance"
+      },
+      {
+        "page": "Earnings",
+        "url": "https://quartercharts.com/?page=earnings",
+        "status_code": 200,
+        "load_time": 0.23,
+        "size_kb": 11.2,
+        "severity": "pass",
+        "message": "Fast: 0.23s",
+        "layer": "Performance"
+      },
+      {
+        "page": "Watchlist",
+        "url": "https://quartercharts.com/?page=watchlist",
+        "status_code": 200,
+        "load_time": 0.29,
+        "size_kb": 11.2,
+        "severity": "pass",
+        "message": "Fast: 0.29s",
+        "layer": "Performance"
+      },
+      {
+        "page": "Pricing",
+        "url": "https://quartercharts.com/?page=pricing",
+        "status_code": 200,
+        "load_time": 0.24,
+        "size_kb": 11.2,
+        "severity": "pass",
+        "message": "Fast: 0.24s",
+        "layer": "Performance"
+      },
+      {
+        "page": "Terms",
+        "url": "https://quartercharts.com/?page=terms",
+        "status_code": 200,
+        "load_time": 0.31,
+        "size_kb": 11.2,
+        "severity": "pass",
+        "message": "Fast: 0.31s",
+        "layer": "Performance"
+      },
+      {
+        "page": "Privacy",
+        "url": "https://quartercharts.com/?page=privacy",
+        "status_code": 200,
+        "load_time": 0.3,
+        "size_kb": 11.2,
+        "severity": "pass",
+        "message": "Fast: 0.3s",
+        "layer": "Performance"
+      },
+      {
+        "page": "Home",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Title OK: 'QuarterCharts.com \u00e2\u0080\u0094 Stock Charts, Sankey Diagram'"
+      },
+      {
+        "page": "Home",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Meta description present"
+      },
+      {
+        "page": "Charts (NVDA)",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Title OK: 'QuarterCharts.com \u00e2\u0080\u0094 Stock Charts, Sankey Diagram'"
+      },
+      {
+        "page": "Charts (NVDA)",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Meta description present"
+      },
+      {
+        "page": "Sankey (NVDA)",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Title OK: 'QuarterCharts.com \u00e2\u0080\u0094 Stock Charts, Sankey Diagram'"
+      },
+      {
+        "page": "Sankey (NVDA)",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Meta description present"
+      },
+      {
+        "page": "Sankey (GOOG)",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Title OK: 'QuarterCharts.com \u00e2\u0080\u0094 Stock Charts, Sankey Diagram'"
+      },
+      {
+        "page": "Sankey (GOOG)",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Meta description present"
+      },
+      {
+        "page": "Profile (NVDA)",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Title OK: 'QuarterCharts.com \u00e2\u0080\u0094 Stock Charts, Sankey Diagram'"
+      },
+      {
+        "page": "Profile (NVDA)",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Meta description present"
+      },
+      {
+        "page": "Earnings",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Title OK: 'QuarterCharts.com \u00e2\u0080\u0094 Stock Charts, Sankey Diagram'"
+      },
+      {
+        "page": "Earnings",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Meta description present"
+      },
+      {
+        "page": "Watchlist",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Title OK: 'QuarterCharts.com \u00e2\u0080\u0094 Stock Charts, Sankey Diagram'"
+      },
+      {
+        "page": "Watchlist",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Meta description present"
+      },
+      {
+        "page": "Pricing",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Title OK: 'QuarterCharts.com \u00e2\u0080\u0094 Stock Charts, Sankey Diagram'"
+      },
+      {
+        "page": "Pricing",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Meta description present"
+      },
+      {
+        "page": "Terms",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Title OK: 'QuarterCharts.com \u00e2\u0080\u0094 Stock Charts, Sankey Diagram'"
+      },
+      {
+        "page": "Terms",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Meta description present"
+      },
+      {
+        "page": "Privacy",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Title OK: 'QuarterCharts.com \u00e2\u0080\u0094 Stock Charts, Sankey Diagram'"
+      },
+      {
+        "page": "Privacy",
+        "severity": "pass",
+        "layer": "SEO",
+        "message": "Meta description present"
+      },
+      {
+        "page": "Home",
+        "severity": "pass",
+        "layer": "Security",
+        "message": "HTTPS enforced"
+      },
+      {
+        "page": "Home",
+        "severity": "pass",
+        "layer": "Security",
+        "message": "X-Frame-Options header present"
+      },
+      {
+        "page": "Home",
+        "severity": "pass",
+        "layer": "Security",
+        "message": "X-Content-Type-Options header present"
+      },
+      {
+        "page": "Home",
+        "severity": "pass",
+        "layer": "Security",
+        "message": "HSTS header present"
+      },
+      {
+        "page": "Home",
+        "severity": "pass",
+        "layer": "Security",
+        "message": "Content-Security-Policy header present"
+      },
+      {
+        "page": "Home",
+        "severity": "pass",
+        "layer": "Security",
+        "message": "Referrer-Policy header present"
+      },
+      {
+        "page": "API: SEC EDGAR (NVDA)",
+        "severity": "pass",
+        "layer": "API Health",
+        "message": "SEC EDGAR OK for NVDA (1.13s)"
+      },
+      {
+        "page": "API: SEC EDGAR (GOOG)",
+        "severity": "pass",
+        "layer": "API Health",
+        "message": "SEC EDGAR OK for GOOG (0.59s)"
+      },
+      {
+        "page": "API: SEC EDGAR (META)",
+        "severity": "pass",
+        "layer": "API Health",
+        "message": "SEC EDGAR OK for META (0.34s)"
+      },
+      {
+        "page": "API: SEC EDGAR (TSLA)",
+        "severity": "pass",
+        "layer": "API Health",
+        "message": "SEC EDGAR OK for TSLA (0.44s)"
+      },
+      {
+        "page": "API: Price Daemon",
+        "severity": "info",
+        "layer": "API Health",
+        "message": "Price API not reachable (may be internal-only port)"
+      },
+      {
+        "page": "Home",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "HTML lang attribute present"
+      },
+      {
+        "page": "Home",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "Viewport meta tag present"
+      },
+      {
+        "page": "Charts (NVDA)",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "HTML lang attribute present"
+      },
+      {
+        "page": "Charts (NVDA)",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "Viewport meta tag present"
+      },
+      {
+        "page": "Sankey (NVDA)",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "HTML lang attribute present"
+      },
+      {
+        "page": "Sankey (NVDA)",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "Viewport meta tag present"
+      },
+      {
+        "page": "Sankey (GOOG)",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "HTML lang attribute present"
+      },
+      {
+        "page": "Sankey (GOOG)",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "Viewport meta tag present"
+      },
+      {
+        "page": "Profile (NVDA)",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "HTML lang attribute present"
+      },
+      {
+        "page": "Profile (NVDA)",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "Viewport meta tag present"
+      },
+      {
+        "page": "Earnings",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "HTML lang attribute present"
+      },
+      {
+        "page": "Earnings",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "Viewport meta tag present"
+      },
+      {
+        "page": "Watchlist",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "HTML lang attribute present"
+      },
+      {
+        "page": "Watchlist",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "Viewport meta tag present"
+      },
+      {
+        "page": "Pricing",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "HTML lang attribute present"
+      },
+      {
+        "page": "Pricing",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "Viewport meta tag present"
+      },
+      {
+        "page": "Terms",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "HTML lang attribute present"
+      },
+      {
+        "page": "Terms",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "Viewport meta tag present"
+      },
+      {
+        "page": "Privacy",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "HTML lang attribute present"
+      },
+      {
+        "page": "Privacy",
+        "severity": "pass",
+        "layer": "Accessibility",
+        "message": "Viewport meta tag present"
+      }
+    ],
+    "pages_checked": 10,
+    "total_findings": 61
+  }
+]

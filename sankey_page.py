@@ -3628,11 +3628,10 @@ def _fetch_sankey_data(ticker: str, quarterly: bool = False):
 
 def _inject_drag_persist_js(ticker, view):
     """Inject JS that:
-    1. Makes annotations pass-through for drag (pointer-events:none during drag).
-    2. Repositions annotations after node drag to follow the node bars.
-    3. Saves node Y positions to localStorage after user drags a node.
-    4. Restores saved positions on page load.
-    5. Adds a Reset button (top-right of chart) to clear saved positions.
+    1. Saves node Y positions to localStorage after user drags a node.
+    2. Restores saved positions on page load.
+    3. Adds a Reset button (top-right of chart) to clear saved positions.
+    Node labels are built-in (not annotations), so they follow drag automatically.
     """
     storage_key = f"{ticker}_{view}_node_y"
 
@@ -3662,103 +3661,6 @@ def _inject_drag_persist_js(ticker, view):
             }} catch(e) {{}}
         }}
 
-        function repositionAnnotations(plotDiv) {{
-            /* Move annotation DOM elements to match current node-rect SVG positions.
-               Then resolve text overlaps by pushing apart annotations that collide. */
-            var sankeyEl = plotDiv.querySelector('.sankey');
-            if (!sankeyEl) return;
-            var rects = sankeyEl.querySelectorAll('.node-rect');
-            var annots = plotDiv.querySelectorAll('.annotation');
-            if (rects.length !== annots.length) return;
-
-            /* Step 1: Clear ALL transforms */
-            for (var i = 0; i < annots.length; i++) {{
-                annots[i].style.transform = 'translateY(0px)';
-            }}
-            void plotDiv.offsetHeight;
-
-            /* Step 2: Compute target Y (node-rect center) for each annotation */
-            var targets = [];  /* {{idx, x, targetY, height, offset}} */
-            for (var i = 0; i < rects.length; i++) {{
-                var r = rects[i];
-                var a = annots[i];
-                if (!r || !a) {{ targets.push(null); continue; }}
-
-                var rBounds = r.getBoundingClientRect();
-                var nodeCenterY = rBounds.top + rBounds.height / 2;
-                var nodeX = rBounds.left;
-
-                var aBounds = a.getBoundingClientRect();
-                var annotCenterY = aBounds.top + aBounds.height / 2;
-                var annotH = aBounds.height;
-
-                var offset = nodeCenterY - annotCenterY;
-                targets.push({{
-                    idx: i,
-                    x: nodeX,
-                    targetY: nodeCenterY,
-                    height: annotH,
-                    offset: offset
-                }});
-            }}
-
-            /* Step 3: Resolve ALL overlapping annotations regardless of column.
-               Annotations extend to the right of their node bar, so text from
-               column N can overlap text from column N+1 at similar Y positions. */
-            var valid = targets.filter(function(t) {{ return t !== null; }});
-            valid.sort(function(a, b) {{ return a.targetY - b.targetY; }});
-
-            var MIN_GAP = 4;
-            for (var pass = 0; pass < 30; pass++) {{
-                var changed = false;
-                for (var j = 0; j < valid.length - 1; j++) {{
-                    var upper = valid[j];
-                    var lower = valid[j + 1];
-                    var upperBot = upper.targetY + upper.height / 2;
-                    var lowerTop = lower.targetY - lower.height / 2;
-                    var gap = lowerTop - upperBot;
-                    if (gap < MIN_GAP) {{
-                        var push = (MIN_GAP - gap) / 2 + 0.5;
-                        upper.targetY -= push;
-                        upper.offset -= push;
-                        lower.targetY += push;
-                        lower.offset += push;
-                        changed = true;
-                    }}
-                }}
-                if (!changed) break;
-            }}
-
-            /* Step 4: Clamp annotations within chart boundaries */
-            var plotArea = plotDiv.querySelector('.plot-container .svg-container');
-            if (plotArea) {{
-                var plotBounds = plotArea.getBoundingClientRect();
-                var chartTop = plotBounds.top;
-                var chartBot = plotBounds.bottom;
-                for (var i = 0; i < valid.length; i++) {{
-                    var t = valid[i];
-                    var annotTop = t.targetY - t.height / 2;
-                    var annotBot = t.targetY + t.height / 2;
-                    if (annotTop < chartTop) {{
-                        var shift = chartTop - annotTop + 2;
-                        t.targetY += shift;
-                        t.offset += shift;
-                    }}
-                    if (annotBot > chartBot) {{
-                        var shift = annotBot - chartBot + 2;
-                        t.targetY -= shift;
-                        t.offset -= shift;
-                    }}
-                }}
-            }}
-
-            /* Step 5: Apply final offsets */
-            for (var i = 0; i < targets.length; i++) {{
-                if (!targets[i]) continue;
-                annots[targets[i].idx].style.transform = 'translateY(' + targets[i].offset + 'px)';
-            }}
-        }}
-
         function restorePositions(plotDiv) {{
             try {{
                 var saved = localStorage.getItem(STORAGE_KEY);
@@ -3766,11 +3668,8 @@ def _inject_drag_persist_js(ticker, view):
                 var yArr = JSON.parse(saved);
                 if (!Array.isArray(yArr) || yArr.length === 0) return false;
                 if (!plotDiv || !plotDiv.data || !plotDiv.data[0] || !plotDiv.data[0].node) return false;
-                var node = plotDiv.data[0].node;
-                if (yArr.length !== node.y.length) return false;
+                if (yArr.length !== plotDiv.data[0].node.y.length) return false;
                 Plotly.restyle(plotDiv, {{'node.y': [yArr]}}, [0]);
-                /* Reposition annotations to match restored positions */
-                setTimeout(function() {{ repositionAnnotations(plotDiv); }}, 200);
                 return true;
             }} catch(e) {{
                 return false;
@@ -3807,11 +3706,35 @@ def _inject_drag_persist_js(ticker, view):
             }});
             btn.addEventListener('click', function() {{
                 try {{ localStorage.removeItem(STORAGE_KEY); }} catch(e) {{}}
-                /* Reload to get a clean default state */
                 window.parent.location.reload();
             }});
             container.appendChild(btn);
             plotDiv._resetBtnAdded = true;
+        }}
+
+        function positionLabelsRight(plotDiv) {{
+            /* Force ALL node-label SVG text to the right of their node-rect bar.
+               Directly modifies the SVG transform attribute. */
+            var sankeyEl = parentDoc.querySelector('.sankey');
+            if (!sankeyEl) return;
+            var groups = sankeyEl.querySelectorAll('.sankey-node');
+            groups.forEach(function(g) {{
+                var r = g.querySelector('.node-rect');
+                var l = g.querySelector('.node-label');
+                if (!r || !l) return;
+                var rw = parseFloat(r.getAttribute('width')) || 18;
+                var t = l.getAttribute('transform') || '';
+                var parts = t.replace('translate(', '').replace(')', '').split(',');
+                var curX = parseFloat(parts[0]) || 0;
+                if (curX < rw) {{
+                    var curY = parseFloat(parts[1]) || 0;
+                    l.setAttribute('transform', 'translate(' + (rw + 4) + ',' + curY + ')');
+                    l.setAttribute('text-anchor', 'start');
+                    l.querySelectorAll('tspan').forEach(function(ts) {{
+                        ts.setAttribute('text-anchor', 'start');
+                    }});
+                }}
+            }});
         }}
 
         function setup() {{
@@ -3819,77 +3742,55 @@ def _inject_drag_persist_js(ticker, view):
             if (!plotDiv) return false;
             if (plotDiv._dragPersistBound) return true;
 
-            // Store original Y positions for reset
-            if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].node) {{
-                var origY = [];
-                for (var i = 0; i < plotDiv.data[0].node.y.length; i++) {{
-                    origY.push(plotDiv.data[0].node.y[i]);
-                }}
-                plotDiv.setAttribute('data-original-y', JSON.stringify(origY));
-            }}
-
-            // Make annotations pass-through during drag so node bars are draggable
+            // Set grab cursor on node bars
             var sankeyEl = plotDiv.querySelector('.sankey');
-            var _isDragging = false;
-            var _rafId = null;
-
-            function syncAnnotationsLoop() {{
-                /* Continuously reposition annotations to follow node bars during drag */
-                if (!_isDragging) return;
-                repositionAnnotations(plotDiv);
-                _rafId = requestAnimationFrame(syncAnnotationsLoop);
-            }}
-
             if (sankeyEl) {{
-                var rects = sankeyEl.querySelectorAll('.node-rect');
-                rects.forEach(function(r) {{
+                sankeyEl.querySelectorAll('.node-rect').forEach(function(r) {{
                     r.style.cursor = 'grab';
                 }});
-                // On mousedown: disable annotation pointer-events + start real-time sync
-                sankeyEl.addEventListener('mousedown', function() {{
-                    _isDragging = true;
-                    plotDiv.querySelectorAll('.annotation').forEach(function(a) {{
-                        a.style.pointerEvents = 'none';
-                    }});
-                    syncAnnotationsLoop();
-                }});
-                parentDoc.addEventListener('mouseup', function() {{
-                    _isDragging = false;
-                    if (_rafId) cancelAnimationFrame(_rafId);
-                    // Re-enable after drag ends
-                    setTimeout(function() {{
-                        plotDiv.querySelectorAll('.annotation').forEach(function(a) {{
-                            a.style.pointerEvents = 'all';
-                        }});
-                        repositionAnnotations(plotDiv);
-                        savePositions(plotDiv);
-                    }}, 100);
-                }});
             }}
+
+            // Save positions + reposition labels after any drag
+            parentDoc.addEventListener('mouseup', function() {{
+                setTimeout(function() {{
+                    savePositions(plotDiv);
+                    positionLabelsRight(plotDiv);
+                }}, 200);
+            }});
 
             // Restore saved positions (if any)
             restorePositions(plotDiv);
 
-            // Initial sync: reposition annotations repeatedly during first 3s
-            // to match where Plotly actually rendered nodes (snap mode moves them).
-            // Multiple runs needed because Plotly renders asynchronously.
-            var _initSyncTimes = [100, 300, 500, 1000, 1500, 2000, 3000];
-            _initSyncTimes.forEach(function(ms) {{
-                setTimeout(function() {{ repositionAnnotations(plotDiv); }}, ms);
+            // Position labels to right of bars — run repeatedly and watch for changes
+            var _syncTimes = [100, 300, 600, 1000, 2000, 3000, 5000];
+            _syncTimes.forEach(function(ms) {{
+                setTimeout(function() {{ positionLabelsRight(plotDiv); }}, ms);
             }});
-
-            // Listen for ALL Plotly events that indicate node positions changed
-            function _onPlotChange() {{
-                savePositions(plotDiv);
-                setTimeout(function() {{ repositionAnnotations(plotDiv); }}, 50);
-                setTimeout(function() {{ repositionAnnotations(plotDiv); }}, 200);
+            // Watch for Plotly resetting label positions (e.g. after hover)
+            if (sankeyEl) {{
+                var _labelFixing = false;
+                var _labelObs = new MutationObserver(function() {{
+                    if (_labelFixing) return;  /* prevent infinite loop */
+                    _labelFixing = true;
+                    setTimeout(function() {{
+                        positionLabelsRight(plotDiv);
+                        _labelFixing = false;
+                    }}, 50);
+                }});
+                _labelObs.observe(sankeyEl, {{
+                    attributes: true, subtree: true, attributeFilter: ['transform']
+                }});
             }}
-            plotDiv.on('plotly_restyle', _onPlotChange);
-            plotDiv.on('plotly_update', _onPlotChange);
-            plotDiv.on('plotly_afterplot', function() {{
-                setTimeout(function() {{ repositionAnnotations(plotDiv); }}, 50);
+
+            // Save on Plotly events
+            plotDiv.on('plotly_restyle', function() {{
+                savePositions(plotDiv);
+                setTimeout(function() {{ positionLabelsRight(plotDiv); }}, 100);
             }});
-            plotDiv.on('plotly_relayout', _onPlotChange);
+            plotDiv.on('plotly_update', function() {{
+                savePositions(plotDiv);
+                setTimeout(function() {{ positionLabelsRight(plotDiv); }}, 100);
+            }});
 
             addResetButton(plotDiv);
             plotDiv._dragPersistBound = true;
@@ -4514,60 +4415,42 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
     _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
 
-    _empty_labels = [""] * len(nodes)
-    fig = go.Figure(go.Sankey(
-        arrangement="snap",
-        orientation="h",
-        textfont=dict(size=1, color="rgba(0,0,0,0)"),
-        node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
-                  label=_empty_labels, color=node_colors, x=node_x, y=node_y,
-                  customdata=nodes,
-                  hovertemplate="<b>%{customdata}</b><extra></extra>"),
-        link=dict(source=srcs, target=tgts, value=vals, color=lcolors,
-                  hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
-        domain=dict(y=[0.04, 0.96]),
-    ))
-    # _h already computed dynamically above (before layout)
-    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
-                   paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                   font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
-    fig.update_layout(**_layout)
-
-    # ── Annotation-based labels ──────────────────────────────────────────
-    # Annotations are placed at the same node_y (already adjusted by _fix_bar_gaps)
-    _dom_y0, _dom_y1 = 0.04, 0.96
+    # Build node labels with line breaks for display
+    _node_labels = []
     _small_sz = max(8, _font_sz - 2)
     for i in range(len(nodes)):
-        x_paper = node_x[i]
-        y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
         r2 = node_row2[i]
         if r2:
-            # Color row 3: green for ↑, red for ↓, gray if zero/no arrow
             if "\u2191" in r2:
                 _r2_color = "#16a34a"
             elif "\u2193" in r2:
                 _r2_color = "#dc2626"
             else:
                 _r2_color = "#64748b"
-            txt = (f"{node_name_list[i]}<br>"
+            lbl = (f"<b>{node_name_list[i]}</b><br>"
                    f"{node_val_str[i]}<br>"
-                   f"<span style='font-size:{_small_sz}px;color:{_r2_color}'>{r2}</span>")
+                   f"<span style='color:{_r2_color}'>{r2}</span>")
         else:
-            txt = (f"{node_name_list[i]}<br>"
-                   f"{node_val_str[i]}")
-        fig.add_annotation(
-            x=x_paper, y=y_paper,
-            xref="paper", yref="paper",
-            text=txt,
-            showarrow=False,
-            align="left",
-            xanchor="left",
-            yanchor="middle",
-            xshift=_thickness // 2 + 1,
-            font=dict(size=_font_sz,
-                      family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
+            lbl = f"<b>{node_name_list[i]}</b><br>{node_val_str[i]}"
+        _node_labels.append(lbl)
+
+    fig = go.Figure(go.Sankey(
+        arrangement="snap",
+        orientation="h",
+        textfont=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
                       color="#1e293b"),
-        )
+        node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
+                  label=_node_labels, color=node_colors, x=node_x, y=node_y,
+                  customdata=nodes,
+                  hovertemplate="<b>%{customdata}</b><extra></extra>"),
+        link=dict(source=srcs, target=tgts, value=vals, color=lcolors,
+                  hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
+        domain=dict(y=[0.04, 0.96]),
+    ))
+    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
+                   paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                   font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
+    fig.update_layout(**_layout)
     # Return fig + list of node names that exist in the Sankey
     _actual_nodes = [n for n in node_name_list if n in INCOME_NODE_METRICS]
     return fig, _actual_nodes
@@ -5079,61 +4962,42 @@ def _build_balance_sheet_sankey(balance_df, info, compare_label="YoY", same_peri
     _fix_bar_gaps(node_x, node_y, node_val_raw, _h, min_gap_px=6)
     _fix_text_gaps(node_x, node_y, node_row2, _font_sz, _h, min_gap_px=6)
 
-    # Hide built-in node labels — we use annotations instead so text
-    # renders ON TOP of all nodes (separate SVG layer).
-    _empty_labels = [""] * len(nodes)
-    fig = go.Figure(go.Sankey(
-        arrangement="snap",
-        orientation="h",
-        textfont=dict(size=1, color="rgba(0,0,0,0)"),
-        node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
-                  label=_empty_labels, color=node_colors_list, x=node_x, y=node_y,
-                  customdata=nodes,
-                  hovertemplate="<b>%{customdata}</b><extra></extra>"),
-        link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
-                  hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
-        domain=dict(y=[0.04, 0.96]),
-    ))
-    # _h already computed dynamically above (via _compute_dynamic_height)
-    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
-                   paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                   font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
-    fig.update_layout(**_layout)
-
-    # ── Annotation-based labels (render above all nodes) ──────────────
-    _dom_y0, _dom_y1 = 0.04, 0.96
+    # Build node labels with line breaks for display
+    _node_labels = []
     _small_sz = max(8, _font_sz - 2)
     for i in range(len(nodes)):
-        x_paper = node_x[i]
-        y_paper = _dom_y0 + (_dom_y1 - _dom_y0) * (1.0 - node_y[i])
         r2 = node_row2[i]
         if r2:
-            # Color row 3: green for ↑, red for ↓, gray if zero/no arrow
             if "\u2191" in r2:
                 _r2_color = "#16a34a"
             elif "\u2193" in r2:
                 _r2_color = "#dc2626"
             else:
                 _r2_color = "#64748b"
-            txt = (f"{node_name_list[i]}<br>"
+            lbl = (f"<b>{node_name_list[i]}</b><br>"
                    f"{node_val_str[i]}<br>"
-                   f"<span style='font-size:{_small_sz}px;color:{_r2_color}'>{r2}</span>")
+                   f"<span style='color:{_r2_color}'>{r2}</span>")
         else:
-            txt = (f"{node_name_list[i]}<br>"
-                   f"{node_val_str[i]}")
-        fig.add_annotation(
-            x=x_paper, y=y_paper,
-            xref="paper", yref="paper",
-            text=txt,
-            showarrow=False,
-            align="left",
-            xanchor="left",
-            yanchor="middle",
-            xshift=_thickness // 2 + 1,
-            font=dict(size=_font_sz,
-                      family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
+            lbl = f"<b>{node_name_list[i]}</b><br>{node_val_str[i]}"
+        _node_labels.append(lbl)
+
+    fig = go.Figure(go.Sankey(
+        arrangement="snap",
+        orientation="h",
+        textfont=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
                       color="#1e293b"),
-        )
+        node=dict(pad=_pad, thickness=_thickness, line=dict(color="rgba(0,0,0,0)", width=0),
+                  label=_node_labels, color=node_colors_list, x=node_x, y=node_y,
+                  customdata=nodes,
+                  hovertemplate="<b>%{customdata}</b><extra></extra>"),
+        link=dict(source=links_src, target=links_tgt, value=links_val, color=links_col,
+                  hovertemplate="Flow: %{value:$,.0f}<extra></extra>"),
+        domain=dict(y=[0.04, 0.96]),
+    ))
+    _layout = dict(height=_h, margin=dict(l=6, r=6, t=20, b=6),
+                   paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                   font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
+    fig.update_layout(**_layout)
     # Return fig + list of node names that exist in the Sankey
     _actual_nodes = [n for n in node_name_list if n in BALANCE_NODE_METRICS]
     return fig, _actual_nodes
@@ -6087,7 +5951,7 @@ def render_sankey_page():
                  "Operating Income": "Operating Income", "Net Income": "Net Income"},
                 INCOME_PILL_COLORS, section="income")
             _inject_link_hover_js(INCOME_PILL_COLORS)
-            _inject_delta_color_js()
+            # _inject_delta_color_js()  # Disabled: built-in labels handle colors via <span>
             _inject_drag_persist_js(ticker, "income")
         else:
             if revenue == 0 and (op_income != 0 or net_income != 0):
@@ -6169,7 +6033,7 @@ def render_sankey_page():
                  "Equity": "Equity", "Cash": "Cash"},
                 BALANCE_PILL_COLORS, section="balance")
             _inject_link_hover_js(BALANCE_PILL_COLORS)
-            _inject_delta_color_js()
+            # _inject_delta_color_js()  # Disabled: built-in labels handle colors via <span>
             _inject_drag_persist_js(ticker, "balance")
         else:
             st.warning(f"No balance sheet data available for {ticker}.")
