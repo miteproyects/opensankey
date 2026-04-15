@@ -3143,7 +3143,7 @@ def _inject_link_hover_js(color_map):
     components.html(js, height=0)
 
 
-def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
+def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income", compare_note=""):
     """Generate a professional PDF with actual Sankey flow diagram + KPI cards.
 
     Income Statement  â Sankey diagram matching the on-screen Plotly version.
@@ -3436,6 +3436,9 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income"):
                 fig.text(0.5, 0.96, f"{company} ({ticker}) \u2014 Income Statement Flow",
                          ha="center", va="top", fontsize=20, fontweight="bold",
                          color="#0f172a")
+                if compare_note:
+                    fig.text(0.5, 0.935, compare_note,
+                             ha="center", va="top", fontsize=10, color="#64748b")
 
                 # Adaptive KPI row — only include metrics with data
                 _pdf_kpis = []
@@ -5767,28 +5770,39 @@ def render_sankey_page():
         """, unsafe_allow_html=True)
 
     with pdf_col:
-        # Pre-generate or retrieve cached PDF
-        _pdf_key = f"_sankey_pdf_v3_{ticker}_{sankey_view}"
+        # Generate PDF with current data — include selected quarters in cache key
+        _qs_key = str(st.session_state.get("_sankey_annual_match_qs", []))
+        _pa_key = str(st.session_state.get("sk_pa", ""))
+        _pb_key = str(st.session_state.get("sk_pb", ""))
+        _pdf_key = f"_sankey_pdf_v4_{ticker}_{sankey_view}_{_pa_key}_{_pb_key}_{_qs_key}"
+
+        # Clear stale PDF caches for this ticker/view
+        _stale = [k for k in st.session_state if k.startswith(f"_sankey_pdf_v4_{ticker}_{sankey_view}_") and k != _pdf_key]
+        for _sk in _stale:
+            del st.session_state[_sk]
+
         if not st.session_state.get(_pdf_key):
-            _pdf_bytes = _generate_sankey_pdf(income_df, balance_df, info, ticker, sankey_view)
+            _pdf_bytes = _generate_sankey_pdf(income_df, balance_df, info, ticker, sankey_view, compare_note=locals().get("_compare_note", ""))
             if _pdf_bytes:
                 st.session_state[_pdf_key] = _pdf_bytes
 
         if st.session_state.get(_pdf_key):
+            _qs_lbl = _qs_key.replace("[", "").replace("]", "").replace(", ", "+")
+            _fname = f"{ticker}_{sankey_view}_FY{_pa_key}_Q{_qs_lbl}.pdf"
             try:
                 st.download_button(
                     label="PDF",
                     data=st.session_state[_pdf_key],
-                    file_name=f"{ticker}_{sankey_view}_sankey.pdf",
+                    file_name=_fname,
                     mime="application/pdf",
                     icon=":material/download:",
                     key=f"dl_sankey_{sankey_view}",
                 )
             except TypeError:
                 st.download_button(
-                    label="â¬ PDF",
+                    label="PDF",
                     data=st.session_state[_pdf_key],
-                    file_name=f"{ticker}_{sankey_view}_sankey.pdf",
+                    file_name=_fname,
                     mime="application/pdf",
                     key=f"dl_sankey_{sankey_view}",
                 )
