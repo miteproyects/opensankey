@@ -1,6 +1,6 @@
 """
 Super Bug Agent — Unified audit system for QuarterCharts NSFE.
-19 specialized agents, each auditing a specific domain.
+20 specialized agents, each auditing a specific domain.
 Matches QuarterCharts dark design system.
 """
 
@@ -1601,11 +1601,123 @@ def _badge_html(sev):
 # MAIN RENDER
 # ═══════════════════════════════════════════════════════════════════════
 
+
+def _render_summary_report():
+    """Plain-text summary of the last audit run, with a copy button."""
+
+    st.markdown("""
+    <div class="sba-header">
+        <h1>📋 Summary Report</h1>
+        <p>Copy-paste friendly report of the last audit — share with AI or teammates</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    result = st.session_state.get("sba_result")
+
+    # Also check history if no session result
+    if not result:
+        history = _load_history()
+        if history:
+            result = history[0]
+
+    if not result:
+        st.markdown(
+            '<div class="sba-empty">No audit results yet. Run agents from the '
+            '<strong>Command Center</strong> tab first.</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    # ── Build plain-text report ──
+    overall = result.get("overall_score", 0)
+    tc = result.get("total_counts", {})
+    ts = result.get("timestamp", "")
+    try:
+        time_str = datetime.fromisoformat(ts).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        time_str = ts[:19] if ts else "unknown"
+
+    agents_data = result.get("agents", {})
+
+    lines = []
+    lines.append("=" * 60)
+    lines.append("QUARTERCHARTS — NSFQ AGENT SUMMARY REPORT")
+    lines.append(f"Run: {time_str}")
+    lines.append("=" * 60)
+    lines.append("")
+    lines.append(f"OVERALL SCORE: {overall}%")
+    lines.append(
+        f"  Critical: {tc.get('critical', 0)}  |  "
+        f"Warnings: {tc.get('warning', 0)}  |  "
+        f"Info: {tc.get('info', 0)}  |  "
+        f"Passed: {tc.get('pass', 0)}"
+    )
+    lines.append("")
+
+    # Per-agent summary (one-liner each)
+    lines.append("-" * 60)
+    lines.append("AGENT SCORES")
+    lines.append("-" * 60)
+    for agent in AGENTS:
+        aid = agent["id"]
+        ad = agents_data.get(aid, {})
+        score = ad.get("score", 0)
+        counts = ad.get("counts", {})
+        crit = counts.get("critical", 0)
+        warn = counts.get("warning", 0)
+        if crit > 0:
+            flag = " *** CRITICAL ***"
+        elif warn > 0:
+            flag = " * WARNING *"
+        else:
+            flag = ""
+        lines.append(
+            f"  {agent['icon']} {agent['name']:<20s}  {score:>3d}%  "
+            f"(C:{crit} W:{warn}){flag}"
+        )
+    lines.append("")
+
+    # Detailed issues per agent (only non-pass)
+    lines.append("-" * 60)
+    lines.append("ISSUES BY AGENT (critical & warning findings)")
+    lines.append("-" * 60)
+    any_issues = False
+    for agent in AGENTS:
+        aid = agent["id"]
+        ad = agents_data.get(aid, {})
+        findings = ad.get("findings", [])
+        issues = [f for f in findings if f["sev"] in ("critical", "warning")]
+        if not issues:
+            continue
+        any_issues = True
+        score = ad.get("score", 0)
+        lines.append("")
+        lines.append(f">>> {agent['icon']} {agent['name']} ({score}%)")
+        sev_order = {"critical": 0, "warning": 1, "info": 2}
+        for f in sorted(issues, key=lambda x: sev_order.get(x["sev"], 9)):
+            sev_label = f["sev"].upper()
+            detail = f" | {f['detail']}" if f.get("detail") else ""
+            lines.append(f"    [{sev_label}] {f['msg']}{detail}")
+
+    if not any_issues:
+        lines.append("  (No critical or warning issues found!)")
+
+    lines.append("")
+    lines.append("=" * 60)
+    lines.append("END OF REPORT")
+    lines.append("=" * 60)
+
+    report_text = "\n".join(lines)
+
+    # Show as copyable code block (Streamlit adds a copy button automatically)
+    st.code(report_text, language="text")
+
+
 def render_super_bug_agent():
     st.markdown(_CSS, unsafe_allow_html=True)
 
     # ── Subtabs ──
-    sub1, sub2, sub3 = st.tabs(["🎯 Command Center", "📅 History & Trends", "📡 Live Status"])
+    sub1, sub2, sub3, sub4 = st.tabs(["🎯 Command Center", "📅 History & Trends", "📡 Live Status", "📋 Summary Report"])
 
     with sub1:
         _render_command_center()
@@ -1613,6 +1725,8 @@ def render_super_bug_agent():
         _render_history()
     with sub3:
         _render_live_status()
+    with sub4:
+        _render_summary_report()
 
 
 def _render_command_center():
@@ -1622,14 +1736,14 @@ def _render_command_center():
     st.markdown("""
     <div class="sba-header">
         <h1>🐛 Super Bug Agent</h1>
-        <p>19 specialized agents auditing every layer of QuarterCharts</p>
+        <p>20 specialized agents auditing every layer of QuarterCharts</p>
     </div>
     """, unsafe_allow_html=True)
 
     # Run button
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        run = st.button("🚀 Run All 19 Agents", use_container_width=True, type="primary", key="sba_run")
+        run = st.button("🚀 Run All 20 Agents", use_container_width=True, type="primary", key="sba_run")
 
     if run:
         bar = st.progress(0, text="Initializing agents...")
@@ -1637,7 +1751,7 @@ def _render_command_center():
             bar.progress(min(pct, 1.0), text=txt)
 
         result = _run_all_agents(progress_cb=_cb)
-        bar.progress(1.0, text="All 19 agents complete!")
+        bar.progress(1.0, text="All 20 agents complete!")
         time.sleep(0.5)
         bar.empty()
 
@@ -1650,7 +1764,7 @@ def _render_command_center():
 
     result = st.session_state.get("sba_result")
     if not result:
-        st.markdown('<div class="sba-empty">Click <strong>Run All 19 Agents</strong> to start your first audit</div>',
+        st.markdown('<div class="sba-empty">Click <strong>Run All 20 Agents</strong> to start your first audit</div>',
                     unsafe_allow_html=True)
         return
 
