@@ -72,6 +72,92 @@ def _save_audit_tickers(tickers):
         return False
 
 
+# ── Earnings Week Tickers ──────────────────────────────────────────────
+_FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY", "d77c5b1r01qp6afl34h0d77c5b1r01qp6afl34hg")
+_EARNINGS_CACHE_FILE = os.path.join(_BASE_DIR, "earnings_week_cache.json")
+_EARNINGS_CACHE_TTL = 3600  # 1 hour
+
+
+def _fetch_earnings_week_tickers(week_offset: int = 0) -> list[str]:
+    """Fetch tickers reporting earnings in a given week from Finnhub API.
+
+    Args:
+        week_offset: 0 = this week, 1 = next week, -1 = last week
+
+    Returns:
+        Sorted list of unique ticker symbols.
+    """
+    from datetime import date as _d, timedelta as _td
+    today = _d.today()
+    monday = today - _td(days=today.weekday()) + _td(weeks=week_offset)
+    sunday = monday + _td(days=6)
+    from_str = monday.isoformat()
+    to_str = sunday.isoformat()
+
+    # Check cache first
+    try:
+        if os.path.exists(_EARNINGS_CACHE_FILE):
+            with open(_EARNINGS_CACHE_FILE, "r") as f:
+                cache = json.load(f)
+            if (cache.get("from") == from_str
+                    and cache.get("to") == to_str
+                    and cache.get("fetched")):
+                age = (datetime.now() - datetime.fromisoformat(cache["fetched"])).total_seconds()
+                if age < _EARNINGS_CACHE_TTL:
+                    return cache.get("tickers", [])
+    except Exception:
+        pass
+
+    # Fetch from Finnhub
+    tickers = set()
+    try:
+        r = requests.get(
+            "https://finnhub.io/api/v1/calendar/earnings",
+            params={"from": from_str, "to": to_str, "token": _FINNHUB_KEY},
+            timeout=12,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            for item in data.get("earningsCalendar", []):
+                sym = (item.get("symbol") or "").strip().upper()
+                if sym:
+                    tickers.add(sym)
+    except Exception:
+        pass
+
+    result = sorted(tickers)
+
+    # Save to cache
+    try:
+        with open(_EARNINGS_CACHE_FILE, "w") as f:
+            json.dump({
+                "from": from_str, "to": to_str,
+                "fetched": datetime.now().isoformat(),
+                "count": len(result),
+                "tickers": result,
+            }, f, indent=2)
+    except Exception:
+        pass
+
+    return result
+
+
+def _merge_earnings_into_audit_tickers(week_offset: int = 0) -> tuple[list[str], int]:
+    """Fetch this week's earnings tickers and merge them into the audit tickers list.
+
+    Returns:
+        (updated_tickers, num_added) — the full list and how many new tickers were added.
+    """
+    earnings = _fetch_earnings_week_tickers(week_offset)
+    current = _load_audit_tickers()
+    current_set = set(current)
+    new_tickers = [t for t in earnings if t not in current_set]
+    merged = current + new_tickers
+    if new_tickers:
+        _save_audit_tickers(merged)
+    return merged, len(new_tickers)
+
+
 # ── Persistence ─────────────────────────────────────────────────────────
 def _load_history():
     if os.path.exists(_HISTORY_FILE):
@@ -2110,7 +2196,45 @@ def _render_command_center():
             )
             st.markdown(pills_html, unsafe_allow_html=True)
 
-        # Input to add/replace tickers
+        # ── Auto-add from Earnings Calendar ──
+        st.markdown(
+            '<div style="font-size:0.78rem;color:#64748B;margin:12px 0 4px;">'
+            '<strong>Auto-add from Earnings Calendar</strong> — '
+            'adds tickers reporting this week (Finnhub API), keeps your existing list.</div>',
+            unsafe_allow_html=True,
+        )
+        ea1, ea2, ea3 = st.columns(3)
+        with ea1:
+            if st.button("📅 + This Week", key="sba_earn_this", use_container_width=True):
+                with st.spinner("Fetching this week's earnings..."):
+                    merged, added = _merge_earnings_into_audit_tickers(0)
+                if added > 0:
+                    st.toast(f"Added {added} tickers from this week's earnings ({len(merged)} total)", icon="📅")
+                    st.rerun()
+                else:
+                    st.toast("No new tickers to add — all already in list", icon="ℹ️")
+        with ea2:
+            if st.button("📅 + Next Week", key="sba_earn_next", use_container_width=True):
+                with st.spinner("Fetching next week's earnings..."):
+                    merged, added = _merge_earnings_into_audit_tickers(1)
+                if added > 0:
+                    st.toast(f"Added {added} tickers from next week's earnings ({len(merged)} total)", icon="📅")
+                    st.rerun()
+                else:
+                    st.toast("No new tickers to add — all already in list", icon="ℹ️")
+        with ea3:
+            if st.button("📅 Replace → This Week Only", key="sba_earn_replace", use_container_width=True):
+                with st.spinner("Fetching this week's earnings..."):
+                    tickers = _fetch_earnings_week_tickers(0)
+                if tickers:
+                    _save_audit_tickers(tickers)
+                    st.toast(f"Replaced with {len(tickers)} tickers from this week's earnings", icon="📅")
+                    st.rerun()
+                else:
+                    st.toast("No earnings found for this week", icon="⚠️")
+
+        # ── Manual edit ──
+        st.markdown("---")
         new_tickers_str = st.text_input(
             "Edit tickers (comma-separated):",
             value=", ".join(current_tickers),
