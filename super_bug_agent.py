@@ -72,6 +72,117 @@ def _save_audit_tickers(tickers):
         return False
 
 
+# ── EDGAR Ticker Registry ─────────────────────────────────────────────
+_EDGAR_REGISTRY_CACHE_FILE = os.path.join(_BASE_DIR, "edgar_tickers_cache.json")
+_EDGAR_REGISTRY_CACHE_TTL = 86400  # 24 hours
+
+
+def _fetch_edgar_ticker_registry(force=False):
+    """Fetch SEC EDGAR company_tickers.json and return {ticker: {cik, name}}.
+
+    Caches to disk for 24 hours to avoid hammering SEC servers.
+    Returns (dict, error_string_or_None).
+    """
+    # Check cache first
+    if not force and os.path.exists(_EDGAR_REGISTRY_CACHE_FILE):
+        try:
+            with open(_EDGAR_REGISTRY_CACHE_FILE, "r") as f:
+                cached = json.load(f)
+            age = time.time() - cached.get("fetched_ts", 0)
+            if age < _EDGAR_REGISTRY_CACHE_TTL and cached.get("tickers"):
+                return cached["tickers"], None
+        except Exception:
+            pass
+
+    # Fetch from SEC
+    try:
+        headers = {"User-Agent": "QuarterCharts/1.0 support@quartercharts.com"}
+        r = requests.get(
+            "https://www.sec.gov/files/company_tickers.json",
+            headers=headers, timeout=15,
+        )
+        r.raise_for_status()
+        raw = r.json()
+        # raw = {"0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc"}, ...}
+        registry = {}
+        for _, entry in raw.items():
+            tk = entry.get("ticker", "").upper()
+            if tk:
+                registry[tk] = {
+                    "cik": str(entry.get("cik_str", "")),
+                    "name": entry.get("title", ""),
+                }
+        # Cache to disk
+        try:
+            with open(_EDGAR_REGISTRY_CACHE_FILE, "w") as f:
+                json.dump({"tickers": registry, "fetched_ts": time.time(),
+                           "count": len(registry)}, f)
+        except Exception:
+            pass
+        return registry, None
+    except Exception as e:
+        return {}, f"Failed to fetch EDGAR registry: {str(e)[:80]}"
+
+
+def _validate_tickers_against_edgar(tickers):
+    """Cross-reference a list of tickers against SEC EDGAR registry.
+
+    Returns list of findings (dicts with sev/msg/detail).
+    """
+    findings = []
+    registry, err = _fetch_edgar_ticker_registry()
+    if err:
+        findings.append({"sev": "warning", "msg": f"EDGAR registry: {err}", "detail": ""})
+        return findings
+
+    findings.append({
+        "sev": "info",
+        "msg": f"EDGAR registry loaded: {len(registry):,} tickers",
+        "detail": "",
+    })
+
+    valid = []
+    invalid = []
+    for t in tickers:
+        if t.upper() in registry:
+            info = registry[t.upper()]
+            valid.append((t, info["cik"], info["name"]))
+        else:
+            invalid.append(t)
+
+    if valid:
+        findings.append({
+            "sev": "pass",
+            "msg": f"{len(valid)}/{len(tickers)} tickers found in EDGAR",
+            "detail": "",
+        })
+    if invalid:
+        findings.append({
+            "sev": "critical",
+            "msg": f"{len(invalid)} tickers NOT in EDGAR: {', '.join(invalid)}",
+            "detail": (
+                "These tickers have no SEC filings — they won't produce "
+                "Sankey data. Remove them or check for typos."
+            ),
+        })
+
+    # Also list each valid ticker with CIK + name for reference
+    for t, cik, name in valid[:10]:  # cap at 10 to keep output manageable
+        findings.append({
+            "sev": "pass",
+            "msg": f"{t}: CIK {cik} — {name}",
+            "detail": "",
+        })
+    if len(valid) > 10:
+        findings.append({
+            "sev": "info",
+            "msg": f"... and {len(valid) - 10} more valid tickers",
+            "detail": "",
+        })
+
+    return findings
+
+
 # ── Earnings Week Tickers ──────────────────────────────────────────────
 _FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY", "d77c5b1r01qp6afl34h0d77c5b1r01qp6afl34hg")
 _EARNINGS_CACHE_FILE = os.path.join(_BASE_DIR, "earnings_week_cache.json")
@@ -807,6 +918,23 @@ def _agent_audit_panel():
     # ── Load configured tickers ──
     audit_tickers = _load_audit_tickers()
     findings.append({"sev": "info", "msg": f"Auditing {len(audit_tickers)} tickers: {', '.join(audit_tickers)}", "detail": ""})
+
+    # ── PHASE 0: EDGAR Registry Validation (optional) ──
+    if st.session_state.get("sba_edgar_validate", False):
+        edgar_findings = _validate_tickers_against_edgar(audit_tickers)
+        findings.extend(edgar_findings)
+        # Remove invalid tickers from audit list so we don't waste time on them
+        registry, _ = _fetch_edgar_ticker_registry()
+        if registry:
+            _before = len(audit_tickers)
+            audit_tickers = [t for t in audit_tickers if t.upper() in registry]
+            _removed = _before - len(audit_tickers)
+            if _removed > 0:
+                findings.append({
+                    "sev": "info",
+                    "msg": f"Skipping {_removed} non-EDGAR tickers in remaining phases",
+                    "detail": "",
+                })
 
     # ── Generate all Q combination patterns ──
     # Single Qs, multi-Q within year, and full year
@@ -2362,6 +2490,22 @@ def _render_command_center():
                 _save_audit_tickers(_DEFAULT_AUDIT_TICKERS)
                 st.toast(f"Reset to defaults: {', '.join(_DEFAULT_AUDIT_TICKERS)}", icon="✅")
                 st.rerun()
+
+        # ── EDGAR Registry Validation Option ──
+        st.markdown("---")
+        st.markdown(
+            '<div style="font-size:0.78rem;color:#64748B;margin:4px 0 4px;">'
+            '<strong>Pre-run Validation</strong> — '
+            'cross-reference tickers against the official SEC EDGAR registry '
+            '(~12,000 filers) to catch typos and non-SEC tickers before running the full audit.</div>',
+            unsafe_allow_html=True,
+        )
+        _edgar_validate = st.checkbox(
+            "Validate tickers against SEC EDGAR registry",
+            value=st.session_state.get("sba_edgar_validate", True),
+            key="sba_edgar_validate",
+            help="Fetches SEC's company_tickers.json (cached 24h) and flags any tickers not found in EDGAR",
+        )
 
     # Run button
     c1, c2, c3 = st.columns([1, 2, 1])
