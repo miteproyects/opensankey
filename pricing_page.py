@@ -137,30 +137,20 @@ def render_pricing_page():
         text-decoration: none;
         margin-top: auto;
     }
-    .cta-default {
-        background: #f1f5f9;
-        color: #475569;
-        border: 2px solid #e2e8f0;
-    }
-    .cta-default:hover {
-        background: #e2e8f0;
-    }
-    .cta-popular {
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-        color: #fff;
-        border: none;
-    }
-    .cta-popular:hover {
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        box-shadow: 0 4px 16px rgba(59,130,246,0.35);
-    }
+    .cta-default,
+    .cta-popular,
     .cta-enterprise {
-        background: #1e293b;
+        background: linear-gradient(135deg, #22d3ee, #3b82f6);
         color: #fff;
         border: none;
+        box-shadow: 0 4px 14px rgba(59,130,246,0.25);
     }
+    .cta-default:hover,
+    .cta-popular:hover,
     .cta-enterprise:hover {
-        background: #0f172a;
+        background: linear-gradient(135deg, #06b6d4, #2563eb);
+        box-shadow: 0 6px 20px rgba(59,130,246,0.4);
+        transform: translateY(-1px);
     }
     .pricing-faq {
         max-width: 640px;
