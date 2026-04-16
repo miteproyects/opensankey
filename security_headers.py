@@ -84,6 +84,18 @@ def inject_security_headers():
             # X-Robots-Tag — ensure search engines index the site
             self.set_header("X-Robots-Tag", "index, follow")
 
+            # ── Cache-Control for static assets ──────────────────────────
+            # Long cache for immutable static files (CSS/JS/fonts have hashed
+            # filenames in Streamlit).  Short cache for HTML.
+            req_path = self.request.path
+            if req_path.startswith("/static/") or req_path.endswith((".js", ".css", ".woff2", ".woff", ".ttf", ".png", ".ico", ".svg")):
+                self.set_header(
+                    "Cache-Control",
+                    "public, max-age=31536000, immutable"
+                )
+            elif req_path in ("/robots.txt", "/sitemap.xml", "/og-image.png"):
+                self.set_header("Cache-Control", "public, max-age=86400")
+
             # SEC-010: Remove server version info
             self.clear_header("Server")
 

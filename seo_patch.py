@@ -219,18 +219,24 @@ def patch():
     # ── SEO: Preload key resources to improve FCP/LCP ──────────────────
     if 'rel="preload"' not in html:
         preloads = (
-            '<link rel="preload" href="/static/css/index.D5HInCXB.css" as="style">\n'
+            '<link rel="preload" href="/static/css/index.D5HInCXB.css" as="style" fetchpriority="high">\n'
         )
         html = html.replace("</head>", f"{preloads}</head>", 1)
 
-    # ── GA4 snippet ──────────────────────────────────────────────────────
+    # ── GA4 snippet (deferred — not render-blocking) ───────────────────
     _ga_id = "G-69Y4ELBVWZ"
     if _ga_id not in html:
+        # Load GA4 asynchronously and defer the config to after page load
+        # so it doesn't compete with critical rendering resources.
         ga_snippet = (
             f'<script async src="https://www.googletagmanager.com/gtag/js?id={_ga_id}"></script>\n'
             "<script>window.dataLayer=window.dataLayer||[];"
             "function gtag(){dataLayer.push(arguments);}"
-            f"gtag('js',new Date());gtag('config','{_ga_id}');</script>\n"
+            f"gtag('js',new Date());gtag('config','{_ga_id}'"
+            ",{send_page_view:false});"
+            "window.addEventListener('load',function(){"
+            f"gtag('config','{_ga_id}',{{send_page_view:true}})"
+            "});</script>\n"
         )
         html = html.replace("</head>", f"{ga_snippet}</head>", 1)
 

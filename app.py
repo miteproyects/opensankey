@@ -29,6 +29,15 @@ from io import BytesIO
 from security_headers import inject_security_headers, get_https_redirect_meta
 inject_security_headers()
 
+# ── Crawler Pre-render (monkey-patches Tornado RequestHandler.prepare) ────
+# Serves fully-formed HTML to Googlebot/Bingbot instead of the empty SPA shell.
+# Same monkey-patching approach as security_headers.py — runs at import time.
+try:
+    from crawler_prerender import inject_crawler_prerender
+    inject_crawler_prerender()
+except Exception as _e:
+    print(f"[prerender] Injection failed: {_e}", flush=True)
+
 # ── Auth module ──
 from auth import restore_session, get_auth_params, clear_session_state
 
