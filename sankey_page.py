@@ -888,8 +888,10 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
     # (same-vs-same comparison with 0% deltas).  Without bump:
     #   Period A: prev_qs → fy_a-1 = FY2025 Q4
     #   Period B: prev_qs → fy_b-1 = FY2024 Q4  ← correct comparison
+    # When SAME year (A=2026, B=2026), never bump — the duplication guard
+    # below (fy_a == _fy_b_eff) will copy Period A → 0% deltas as expected.
     _fy_b_eff = fy_b
-    if _prev_qs and not _cur_qs and (fy_b + 1) != fy_a:
+    if _prev_qs and not _cur_qs and fy_a != fy_b and (fy_b + 1) != fy_a:
         _fy_b_eff = fy_b + 1
 
     # Store effective fy_b so labels can use the correct year
@@ -5657,7 +5659,7 @@ def render_sankey_page():
         # qb_list maps to the right calendar year — BUT skip the bump when
         # years are consecutive (pb+1 == pa) to avoid overshooting into a
         # year with no data (same fix as _build_partial_year_df).
-        _adj_audit = 1 if (not _audit_qa and _audit_qb and (_audit_pb_val + 1) != _audit_pa_val) else 0
+        _adj_audit = 1 if (not _audit_qa and _audit_qb and _audit_pa_val != _audit_pb_val and (_audit_pb_val + 1) != _audit_pa_val) else 0
 
         # Use raw quarterly data if available; otherwise fall back to aggregated
         _src_inc = _raw_qtr_income_df if (_raw_qtr_income_df is not None and not _raw_qtr_income_df.empty) else (income_df if income_df is not None else pd.DataFrame())
