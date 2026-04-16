@@ -911,13 +911,28 @@ def _agent_audit_panel():
             return False
 
     def _find_col(df, q, fy, fy_end):
-        """Find the DataFrame column matching this Q's end date."""
+        """Find the DataFrame column matching this Q's end date.
+        Uses ±1 month fallback for 52/53-week FY drift companies."""
         em = _fq_end_month_s(q, fy_end)
         ey = _fq_end_year_s(q, fy, fy_end)
+        # Pass 1: exact match
         for col in df.columns:
             try:
                 ts = pd.Timestamp(col)
                 if ts.month == em and ts.year == ey:
+                    return col
+            except Exception:
+                pass
+        # Pass 2: ±1 month tolerance
+        m_minus = (em - 2) % 12 + 1
+        m_plus = em % 12 + 1
+        y_minus = ey if m_minus != 12 else ey - 1
+        y_plus = ey if m_plus != 1 else ey + 1
+        for col in df.columns:
+            try:
+                ts = pd.Timestamp(col)
+                if ((ts.month == m_minus and ts.year == y_minus) or
+                        (ts.month == m_plus and ts.year == y_plus)):
                     return col
             except Exception:
                 pass

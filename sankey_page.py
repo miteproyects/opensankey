@@ -786,14 +786,31 @@ def _aggregate_partial_year(qtr_df, fy, quarter_list, fy_end, is_balance_sheet=F
         except Exception:
             col_dates.append((c, None))
 
+    def _match_col(col_dates, target_m, target_y):
+        """Find column matching target month+year, with ±1 month fallback
+        for 52/53-week fiscal year companies whose period-end dates drift."""
+        # Pass 1: exact match
+        for col_name, ts in col_dates:
+            if ts and ts.month == target_m and ts.year == target_y:
+                return col_name
+        # Pass 2: ±1 month tolerance (same year)
+        m_minus = (target_m - 2) % 12 + 1  # month - 1 (wraps 1→12)
+        m_plus = target_m % 12 + 1          # month + 1 (wraps 12→1)
+        y_minus = target_y if m_minus != 12 else target_y - 1  # Dec of prev year
+        y_plus = target_y if m_plus != 1 else target_y + 1     # Jan of next year
+        for col_name, ts in col_dates:
+            if ts and ((ts.month == m_minus and ts.year == y_minus) or
+                       (ts.month == m_plus and ts.year == y_plus)):
+                return col_name
+        return None
+
     matched_cols = []
     for q in sorted(quarter_list):
         end_m = _fq_end_month_s(q, fy_end)
         end_y = _fq_end_year_s(q, fy, fy_end)
-        for col_name, ts in col_dates:
-            if ts and ts.month == end_m and ts.year == end_y:
-                matched_cols.append(col_name)
-                break
+        col = _match_col(col_dates, end_m, end_y)
+        if col:
+            matched_cols.append(col)
 
     if not matched_cols:
         return None, None
@@ -5655,11 +5672,22 @@ def render_sankey_page():
                     pass
 
             def _find_col_for_q(q_num, fy_val, fy_end_m):
-                """Find the DataFrame column matching fiscal quarter q_num of FY fy_val."""
+                """Find the DataFrame column matching fiscal quarter q_num of FY fy_val.
+                Uses ±1 month fallback for 52/53-week FY drift companies."""
                 em = _fq_end_month_s(q_num, fy_end_m)
                 ey = _fq_end_year_s(q_num, fy_val, fy_end_m)
+                # Pass 1: exact match
                 for col_name, ts in _col_ts_map.items():
                     if ts.month == em and ts.year == ey:
+                        return col_name
+                # Pass 2: ±1 month tolerance
+                m_minus = (em - 2) % 12 + 1
+                m_plus = em % 12 + 1
+                y_minus = ey if m_minus != 12 else ey - 1
+                y_plus = ey if m_plus != 1 else ey + 1
+                for col_name, ts in _col_ts_map.items():
+                    if ((ts.month == m_minus and ts.year == y_minus) or
+                            (ts.month == m_plus and ts.year == y_plus)):
                         return col_name
                 return None
 
