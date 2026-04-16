@@ -4524,10 +4524,12 @@ def render_sankey_page():
             border: none !important;
             border-radius: 0 !important;
             padding: 0 !important;
-            margin: 0 !important;
+            margin: 0 0 0.75rem 0 !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
+            position: relative;
+            z-index: 1;
         }
         .sankey-header-left {
             flex: 1;
