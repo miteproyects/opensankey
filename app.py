@@ -948,6 +948,11 @@ try:
     initialize_schema()
     from database import ensure_pricing_plan_columns
     ensure_pricing_plan_columns()
+    # Auto-assign Pro plan to admin user if no subscription exists
+    from database import get_user_by_email, assign_user_plan
+    _admin = get_user_by_email("info@quartercharts.com")
+    if _admin:
+        assign_user_plan(_admin["id"], "pro")
 except Exception:
     pass  # DB may not be available in dev mode
 
@@ -981,6 +986,9 @@ if _qp_ticker and _qp_page in ("charts", "sankey", "earnings", "dashboard"):
         _gate_uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
         _gate_access = _gate_upa(_gate_uid)
         _gate_allowed = _gate_access["allowed_tickers"]
+        # Admin bypass: admin user gets full access
+        if st.session_state.get("user_email") == "info@quartercharts.com":
+            _gate_allowed = None
         if _gate_allowed is not None and _qp_ticker not in _gate_allowed:
             _gate_redir = _gate_access.get("redirect_blocked", "pricing")
             st.query_params.update({"page": _gate_redir, "ticker": _qp_ticker})
@@ -2129,6 +2137,9 @@ with st.sidebar:
                 _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
                 _access = get_user_plan_access(_uid)
                 _allowed = _access["allowed_tickers"]
+                # Admin bypass
+                if st.session_state.get("user_email") == "info@quartercharts.com":
+                    _allowed = None
                 if _allowed is not None and new_ticker not in _allowed:
                     _blocked = True
                     _redir = _access["redirect_blocked"]
@@ -3372,6 +3383,9 @@ try:
     _final_uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
     _final_access = _final_upa(_final_uid)
     _final_allowed = _final_access["allowed_tickers"]
+    # Admin bypass
+    if st.session_state.get("user_email") == "info@quartercharts.com":
+        _final_allowed = None
     if _final_allowed is not None and ticker not in _final_allowed:
         _final_redir = _final_access.get("redirect_blocked", "pricing")
         st.query_params.update({"page": _final_redir, "ticker": ticker})

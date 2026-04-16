@@ -173,11 +173,15 @@ def login_with_email(email: str, password: str) -> tuple[bool, str]:
     Returns (success, error_message).
     On success, st.session_state is populated and session token is created.
     """
-    from database import get_user_by_email, update_last_login
+    from database import get_user_by_email, update_last_login, is_db_ready
 
     email = email.strip().lower()
     if not email or not password:
         return False, "Please enter your email and password."
+
+    if not is_db_ready():
+        logger.error("Database not available for login")
+        return False, "Database connection unavailable. Please check your DATABASE_URL and that psycopg2 is installed."
 
     user = get_user_by_email(email)
     if not user:
@@ -205,13 +209,17 @@ def register_with_email(email: str, password: str, display_name: str = "") -> tu
     Register a new account with email + password.
     If email already exists (from Google), link the password to it.
     """
-    from database import get_user_by_email, create_user_email, link_password_to_user, update_last_login
+    from database import get_user_by_email, create_user_email, link_password_to_user, update_last_login, is_db_ready
 
     email = email.strip().lower()
     if not email or not password:
         return False, "Please fill in all fields."
     if len(password) < 8:
         return False, "Password must be at least 8 characters."
+
+    if not is_db_ready():
+        logger.error("Database not available for registration")
+        return False, "Database connection unavailable. Please check your DATABASE_URL and that psycopg2 is installed."
 
     existing = get_user_by_email(email)
     if existing:

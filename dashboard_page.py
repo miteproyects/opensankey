@@ -99,7 +99,10 @@ def render_dashboard_page():
                     from database import get_user_plan_access
                     _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
                     _access = get_user_plan_access(_uid)
-                    if _access["allowed_tickers"] is not None and t not in _access["allowed_tickers"]:
+                    _dash_allowed = _access["allowed_tickers"]
+                    if st.session_state.get("user_email") == "info@quartercharts.com":
+                        _dash_allowed = None
+                    if _dash_allowed is not None and t not in _dash_allowed:
                         _blocked = True
                         _redir = _access["redirect_blocked"]
                 except Exception:

@@ -55,7 +55,8 @@
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
-    var CLIENT_ID = "61622589594-3tet7j0drvkam8js5gtisbiv8bs2hevj.apps.googleusercontent.com";
+    // Default Client ID — will be overridden by Streamlit args
+    var CLIENT_ID = "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com";
     var tokenClient = null;
 
     function handleCredential(accessToken) {
@@ -116,6 +117,29 @@
         height: 50
       }, "*");
     }
+
+    // Listen for Streamlit render events to get client_id from Python
+    window.addEventListener("message", function(event) {
+      if (event.data && event.data.type === "streamlit:render") {
+        var args = event.data.args;
+        if (args && args.client_id) {
+          CLIENT_ID = args.client_id;
+          // Re-init OAuth if the library is already loaded
+          if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+              client_id: CLIENT_ID,
+              scope: "openid email profile",
+              prompt: "select_account",
+              callback: function(tokenResponse) {
+                if (tokenResponse && tokenResponse.access_token) {
+                  handleCredential(tokenResponse.access_token);
+                }
+              }
+            });
+          }
+        }
+      }
+    });
 
     // Tell Streamlit this component is ready
     window.parent.postMessage({

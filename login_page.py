@@ -163,7 +163,7 @@ def _render_google_button():
     via a popup. The access token is then verified server-side by calling
     Google's userinfo endpoint.
     """
-    result = _google_signin(key="google_signin_btn", height=50)
+    result = _google_signin(client_id=GOOGLE_CLIENT_ID, key="google_signin_btn", height=50)
     # Fallback: if the component returned a token via postMessage
     if result and isinstance(result, str) and result.startswith("access_token:"):
         access_token = result[len("access_token:"):]
