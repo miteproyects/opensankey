@@ -2121,7 +2121,7 @@ with st.sidebar:
         )
         st.markdown(
             f'<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-2px 0 6px 0;">'
-            f'<em>Try for free:</em>&nbsp; {_demo_links}</div>',
+            f'<em>Try for free:</em><br>{_demo_links}</div>',
             unsafe_allow_html=True,
         )
     st.markdown("**Type a Ticker to Explore Data:**", unsafe_allow_html=True)
