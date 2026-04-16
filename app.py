@@ -2087,7 +2087,7 @@ with st.sidebar:
     </div>
         """, unsafe_allow_html=True)
 
-    # ── Fetch ticker pool & search_message flag for sidebar strip ──
+    # ── Fetch ticker pool & plan access for sidebar strip ──
     try:
         from database import get_ticker_pool as _gtp, get_user_plan_access as _gupa
         _demo_tickers = _gtp()
@@ -2095,13 +2095,15 @@ with st.sidebar:
         _demo_tickers = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"]
     _placeholder_tickers = ", ".join(_demo_tickers[:4])
 
-    # Determine search_message flag from user's plan
+    # Determine search_message flag & redirect_allowed from user's plan
     try:
         _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
         _access = _gupa(_uid)
         _search_msg = _access.get("search_message", False)
+        _redir_allowed = _access.get("redirect_allowed", "charts")
     except Exception:
         _search_msg = False
+        _redir_allowed = "charts"
 
     if _search_msg:
         st.markdown(
@@ -2111,7 +2113,7 @@ with st.sidebar:
         )
     else:
         _demo_links = " &middot; ".join(
-            f'<a href="/?page=charts&ticker={t}" target="_top" '
+            f'<a href="/?page={_redir_allowed}&ticker={t}" target="_top" '
             f'style="color:#3b82f6;font-weight:600;text-decoration:none;"'
             f' onmouseover="this.style.color=\'#60a5fa\';this.style.textDecoration=\'underline\'"'
             f' onmouseout="this.style.color=\'#3b82f6\';this.style.textDecoration=\'none\'">{t}</a>'
@@ -2146,11 +2148,13 @@ with st.sidebar:
             # ── Ticker access gating ──
             _blocked = False
             _redir = "pricing"
+            _redir_ok = "charts"
             try:
                 from database import get_user_plan_access
                 _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
                 _access = get_user_plan_access(_uid)
                 _allowed = _access["allowed_tickers"]
+                _redir_ok = _access.get("redirect_allowed", "charts")
                 # Admin bypass
                 if st.session_state.get("user_email") == "info@quartercharts.com":
                     _allowed = None
@@ -2163,7 +2167,9 @@ with st.sidebar:
                 st.query_params.update({"page": _redir, "ticker": new_ticker})
                 st.rerun()
             st.session_state.ticker = new_ticker
-            _ticker_params = {"page": st.session_state.page, "ticker": new_ticker}
+            # Use redirect_allowed page from plan (e.g. sankey) instead of current page
+            _dest_page = _redir_ok if _redir_ok else st.session_state.page
+            _ticker_params = {"page": _dest_page, "ticker": new_ticker}
             _ticker_sid = st.session_state.get("_server_sid", "")
             if _ticker_sid:
                 _ticker_params["sid"] = _ticker_sid
@@ -3270,12 +3276,15 @@ def _render_footer():
     # Pull popular tickers from the admin-managed pool (same source as
     # sidebar "Try for free", homepage search, and homepage "Try for free").
     try:
-        from database import get_ticker_pool as _gtp_footer
+        from database import get_ticker_pool as _gtp_footer, get_user_plan_access as _gupa_footer
         _footer_tickers = _gtp_footer()
+        _fuid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
+        _footer_redir = _gupa_footer(_fuid).get("redirect_allowed", "charts")
     except Exception:
         _footer_tickers = ["GOOG", "META", "NVDA", "TSLA"]
+        _footer_redir = "charts"
     _footer_links = " &middot; ".join(
-        f'<a href="/?page=charts&ticker={t}" style="color:#93c5fd;text-decoration:none;"'
+        f'<a href="/?page={_footer_redir}&ticker={t}" style="color:#93c5fd;text-decoration:none;"'
         f' onmouseover="this.style.textDecoration=\'underline\'"'
         f' onmouseout="this.style.textDecoration=\'none\'">{t}</a>'
         for t in _footer_tickers

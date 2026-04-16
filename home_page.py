@@ -4,7 +4,9 @@ import streamlit.components.v1 as components
 
 
 def _get_allowed_tickers_json():
-    """Return JSON array of allowed tickers for the current user, or null if ALL."""
+    """Return JSON array of allowed tickers for the current user, or null if ALL.
+    Returns: (allowed_json, redirect_blocked_json, redirect_allowed_json)
+    """
     import json
     try:
         from database import get_user_plan_access
@@ -12,11 +14,12 @@ def _get_allowed_tickers_json():
         access = get_user_plan_access(_uid)
         allowed = access["allowed_tickers"]
         redirect = access.get("redirect_blocked", "pricing")
+        redir_ok = access.get("redirect_allowed", "charts")
         if allowed is None:
-            return "null", json.dumps(redirect)
-        return json.dumps(sorted(allowed)), json.dumps(redirect)
+            return "null", json.dumps(redirect), json.dumps(redir_ok)
+        return json.dumps(sorted(allowed)), json.dumps(redirect), json.dumps(redir_ok)
     except Exception:
-        return "null", '"pricing"'
+        return "null", '"pricing"', '"charts"'
 
 
 def render_home_page():
@@ -45,13 +48,13 @@ def render_home_page():
     # ── ENTIRE home page as a single components.html block ──
     # This guarantees: no Streamlit style interference, JS works,
     # and the whole page is one seamless visual.
-    _allowed_json, _redir_json = _get_allowed_tickers_json()
+    _allowed_json, _redir_json, _redir_ok_json = _get_allowed_tickers_json()
     # Placeholder tickers = admin-managed ticker pool from DB
     import json as _json
     from database import get_ticker_pool
     _ticker_pool = _json.dumps(get_ticker_pool())
     components.html(f"""
-    <script>var __ALLOWED_TICKERS = {_allowed_json}; var __REDIR_PAGE = {_redir_json}; var __TICKER_POOL = {_ticker_pool};</script>"""
+    <script>var __ALLOWED_TICKERS = {_allowed_json}; var __REDIR_PAGE = {_redir_json}; var __REDIR_ALLOWED = {_redir_ok_json}; var __TICKER_POOL = {_ticker_pool};</script>"""
     """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
@@ -367,10 +370,11 @@ def render_home_page():
         (function(){
             var el = document.getElementById('popular-tickers');
             var tickers = __TICKER_POOL;
+            var destPage = (typeof __REDIR_ALLOWED !== 'undefined' && __REDIR_ALLOWED) ? __REDIR_ALLOWED : 'charts';
             var html = 'Try for free:&nbsp; ';
             for (var i = 0; i < tickers.length; i++) {
                 if (i > 0) html += ' \u00b7 ';
-                html += '<a href="/?page=charts&ticker=' + tickers[i] + '" target="_top">' + tickers[i] + '</a>';
+                html += '<a href="/?page=' + destPage + '&ticker=' + tickers[i] + '" target="_top">' + tickers[i] + '</a>';
             }
             el.innerHTML = html;
         })();
@@ -508,10 +512,11 @@ def render_home_page():
         var v = document.getElementById('ticker').value.trim().toUpperCase();
         if (!v) return;
         // Ticker access gating
+        var allowedDest = (typeof __REDIR_ALLOWED !== 'undefined' && __REDIR_ALLOWED) ? __REDIR_ALLOWED : 'charts';
         if (__ALLOWED_TICKERS !== null && __ALLOWED_TICKERS.indexOf(v) === -1) {
             var url = '/?page=' + encodeURIComponent(__REDIR_PAGE) + '&ticker=' + encodeURIComponent(v);
         } else {
-            var url = '/?page=charts&ticker=' + encodeURIComponent(v);
+            var url = '/?page=' + encodeURIComponent(allowedDest) + '&ticker=' + encodeURIComponent(v);
         }
         try {
             var a = window.parent.document.createElement('a');
