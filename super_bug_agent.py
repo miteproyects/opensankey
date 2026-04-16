@@ -494,40 +494,6 @@ def _agent_memory():
 
 
 # ── 12. Device Agent ────────────────────────────────────────────────────
-def _agent_device():
-    findings = []
-    # Test key pages respond
-    for name, path in [("Home", "/?page=home"), ("Sankey", "/?page=sankey&ticker=NVDA"),
-                        ("Pricing", "/?page=pricing")]:
-        r, elapsed = _get(_BASE_URL + path)
-        if not r:
-            findings.append({"sev": "critical", "msg": f"{name}: unreachable", "detail": ""})
-            continue
-
-        html = r.text
-        size_kb = round(len(r.content) / 1024, 1)
-
-        # Response time
-        if elapsed <= 3:
-            findings.append({"sev": "pass", "msg": f"{name}: {elapsed}s ({size_kb}KB)", "detail": ""})
-        elif elapsed <= 6:
-            findings.append({"sev": "warning", "msg": f"{name}: slow {elapsed}s ({size_kb}KB)", "detail": ""})
-        else:
-            findings.append({"sev": "critical", "msg": f"{name}: very slow {elapsed}s ({size_kb}KB)", "detail": ""})
-
-        # Viewport meta
-        if 'name="viewport"' in html or "name='viewport'" in html:
-            findings.append({"sev": "pass", "msg": f"{name}: viewport meta present", "detail": ""})
-        else:
-            findings.append({"sev": "info", "msg": f"{name}: missing viewport meta", "detail": ""})
-
-        # Page size warning
-        if size_kb > 2000:
-            findings.append({"sev": "warning", "msg": f"{name}: page size {size_kb}KB (heavy)", "detail": "Consider optimization"})
-
-    return findings
-
-
 # ── 13. Status Agent ────────────────────────────────────────────────────
 def _agent_status():
     """Tracks what's done, what needs attention, and overall project health."""
@@ -842,7 +808,7 @@ AGENTS = [
     {"id": "users",          "name": "Users",          "icon": "👤", "color": "#F97316", "fn": _agent_users,          "tab": "Users"},
     {"id": "analytics",      "name": "Analytics",      "icon": "📊", "color": "#14B8A6", "fn": _agent_analytics,      "tab": "Analytics"},
     {"id": "memory",         "name": "Memory",         "icon": "🧠", "color": "#A855F7", "fn": _agent_memory,         "tab": "Memory"},
-    {"id": "device",         "name": "Device",         "icon": "📱", "color": "#0EA5E9", "fn": _agent_device,         "tab": "Device Preview"},
+
     {"id": "status",         "name": "Status",         "icon": "✅", "color": "#10B981", "fn": _agent_status,         "tab": "Feature Tracker"},
     {"id": "meta",           "name": "Meta",           "icon": "🔄", "color": "#78716C", "fn": _agent_meta,           "tab": "Agent System"},
     {"id": "audit_panel",   "name": "Audit Panel",   "icon": "🔬", "color": "#DC2626", "fn": _agent_audit_panel,   "tab": "Sankey Audit"},
@@ -1018,14 +984,14 @@ def _render_command_center():
     st.markdown("""
     <div class="sba-header">
         <h1>🐛 Super Bug Agent</h1>
-        <p>15 specialized agents auditing every layer of QuarterCharts</p>
+        <p>14 specialized agents auditing every layer of QuarterCharts</p>
     </div>
     """, unsafe_allow_html=True)
 
     # Run button
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        run = st.button("🚀 Run All 15 Agents", use_container_width=True, type="primary", key="sba_run")
+        run = st.button("🚀 Run All 14 Agents", use_container_width=True, type="primary", key="sba_run")
 
     if run:
         bar = st.progress(0, text="Initializing agents...")
@@ -1033,7 +999,7 @@ def _render_command_center():
             bar.progress(min(pct, 1.0), text=txt)
 
         result = _run_all_agents(progress_cb=_cb)
-        bar.progress(1.0, text="All 15 agents complete!")
+        bar.progress(1.0, text="All 14 agents complete!")
         time.sleep(0.5)
         bar.empty()
 
@@ -1046,7 +1012,7 @@ def _render_command_center():
 
     result = st.session_state.get("sba_result")
     if not result:
-        st.markdown('<div class="sba-empty">Click <strong>Run All 15 Agents</strong> to start your first audit</div>',
+        st.markdown('<div class="sba-empty">Click <strong>Run All 14 Agents</strong> to start your first audit</div>',
                     unsafe_allow_html=True)
         return
 
