@@ -873,7 +873,7 @@ def _agent_audit_panel():
       8. Balance Sheet validation — non-zero, asset = liab + equity
       9. Default view fallback — detect same-period comparisons
      10. Q heuristic vs EDGAR mismatch — detect "Not yet filed" errors
-     11. Unmapped column detection — 52/53-week FY drift (e.g. HOFT, WMT)
+     11. Empty default view detection — current FY has 0 filed Qs on EDGAR
     """
     findings = []
 
@@ -1485,80 +1485,53 @@ def _agent_audit_panel():
                 })
 
             # ════════════════════════════════════════════════════════════
-            # PHASE 11: Unmapped Column Detection (52/53-Week FY Drift)
+            # PHASE 11: Empty Default View Detection
             # ════════════════════════════════════════════════════════════
-            # Companies with 52/53-week fiscal years (e.g. HOFT, WMT) have
-            # period-end dates that can drift ±1 month across FYs.  If
-            # fy_end=2 (Feb) but FY2024 Q4 ends Jan 28 (month 1), _find_col
-            # won't match it.  Detect columns that exist in the DataFrame
-            # but aren't mapped to any (FY, Q) in fy_q_map.
-            _mapped_cols = set()
-            for fy in fy_list:
-                for q in fy_q_map.get(fy, []):
-                    c = _find_col(inc_q, q, fy, fy_end)
-                    if c:
-                        _mapped_cols.add(c)
-
-            _all_q_cols = set()
-            for c in inc_q.columns:
-                try:
-                    pd.Timestamp(c)
-                    _all_q_cols.add(c)
-                except Exception:
-                    pass
-
-            _unmapped = _all_q_cols - _mapped_cols
-            if _unmapped:
-                # Check if unmapped columns are ±1 month from a known quarter end
-                _drift_cols = []
-                for c in sorted(_unmapped):
-                    try:
-                        ts = pd.Timestamp(c)
-                        # Try fy_end ±1 to see if this column belongs to a
-                        # quarter under a slightly different FY end month
-                        for alt_end in [(fy_end - 1) or 12, (fy_end % 12) + 1]:
-                            alt_fy = ts.year if ts.month <= alt_end else ts.year + 1
-                            for q in range(1, 5):
-                                em = _fq_end_month_s(q, alt_end)
-                                ey = _fq_end_year_s(q, alt_fy, alt_end)
-                                if ts.month == em and ts.year == ey:
-                                    _drift_cols.append(
-                                        f"{c} → FY{alt_fy} Q{q} (fy_end={alt_end})"
-                                    )
-                    except Exception:
-                        pass
-
-                if _drift_cols:
+            # The Sankey page defaults to Period A = current year (2026).
+            # If the current FY has ZERO filed quarters on EDGAR, the user
+            # sees an empty table with all dashes — bad first impression.
+            # Detect this and report which FY actually has data.
+            _cur_fy_qs = fy_q_map.get(current_year, [])
+            _prev_fy_qs = fy_q_map.get(current_year - 1, [])
+            if not _cur_fy_qs:
+                # Current FY has 0 filed quarters — default view shows all dashes
+                if _prev_fy_qs:
+                    _prev_q_list = ",".join(f"Q{q}" for q in sorted(_prev_fy_qs))
                     findings.append({
                         "sev": "critical",
                         "msg": (
-                            f"{ticker}: {len(_unmapped)} unmapped quarterly column(s) "
-                            f"— likely 52/53-week FY drift (fy_end={fy_end})"
+                            f"{ticker}: default Sankey view empty — FY{current_year} "
+                            f"has 0 filed Qs (FY{current_year - 1} has {_prev_q_list})"
                         ),
                         "detail": (
-                            "These EDGAR columns exist but don't match the detected "
-                            f"fy_end={fy_end}: {', '.join(_drift_cols)}. "
-                            "Company uses a 52/53-week fiscal year whose period-end "
-                            "dates shift between months across FYs.  Q buttons will "
-                            "incorrectly show 'Not yet filed' for affected quarters."
+                            f"Period A defaults to FY{current_year} but no quarters are "
+                            f"filed on EDGAR yet. User sees all-dash table. "
+                            f"FY{current_year - 1} has data for {_prev_q_list}. "
+                            f"Fallback logic should shift Period A → FY{current_year - 1} "
+                            f"and Period B → FY{current_year - 2} automatically."
                         ),
                     })
-                elif len(_unmapped) > 2:
+                else:
                     findings.append({
-                        "sev": "warning",
+                        "sev": "critical",
                         "msg": (
-                            f"{ticker}: {len(_unmapped)} DataFrame column(s) not "
-                            f"mapped to any FY/Q (fy_end={fy_end})"
+                            f"{ticker}: default Sankey view empty — FY{current_year} "
+                            f"and FY{current_year - 1} both have 0 filed Qs"
                         ),
                         "detail": (
-                            f"Unmapped: {', '.join(sorted(_unmapped)[:8])}. "
-                            "Possible FY-end detection error or unusual fiscal calendar."
+                            f"Neither FY{current_year} nor FY{current_year - 1} have "
+                            f"quarterly data on EDGAR. Latest FY with data: "
+                            f"FY{latest_fy}. User sees all-dash table on default view."
                         ),
                     })
             else:
+                _cur_q_list = ",".join(f"Q{q}" for q in sorted(_cur_fy_qs))
                 findings.append({
                     "sev": "pass",
-                    "msg": f"{ticker}: all {len(_all_q_cols)} quarterly columns mapped to FY/Q pairs",
+                    "msg": (
+                        f"{ticker}: FY{current_year} has {len(_cur_fy_qs)} filed Q(s) "
+                        f"({_cur_q_list}) — default view shows data"
+                    ),
                     "detail": "",
                 })
 
