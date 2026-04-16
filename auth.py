@@ -188,8 +188,10 @@ def login_with_email(email: str, password: str) -> tuple[bool, str]:
         return False, "No account found with this email. Please sign up first."
 
     if not user.get("password_hash"):
-        # User exists but signed up with Google only
-        return False, "This account uses Google sign-in. Click 'Continue with Google' or set a password in your account settings."
+        # User exists but signed up with Google only — return a
+        # machine-detectable prefix so the login page can show an
+        # inline "set a password" form instead of a dead-end error.
+        return False, "GOOGLE_ONLY:This account was created with Google Sign-In. You can set a password below to also sign in with email."
 
     if not _verify_password(password, user["password_hash"]):
         return False, "Incorrect password. Please try again."
@@ -198,6 +200,36 @@ def login_with_email(email: str, password: str) -> tuple[bool, str]:
         return False, "This account has been deactivated."
 
     # Success
+    token = create_login_session(user["id"])
+    set_session_state(user, token)
+    update_last_login(user["id"])
+    return True, ""
+
+
+def set_password_for_google_user(email: str, password: str) -> tuple[bool, str]:
+    """
+    Set a password for a Google-only account so the user can also log in
+    with email+password.  Called from the inline "set password" form that
+    appears when a Google-only user tries email login.
+    """
+    from database import get_user_by_email, link_password_to_user, update_last_login
+
+    email = email.strip().lower()
+    if not email or not password:
+        return False, "Please enter a password."
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters."
+
+    user = get_user_by_email(email)
+    if not user:
+        return False, "Account not found."
+    if user.get("password_hash"):
+        return False, "This account already has a password."
+
+    pw_hash = _hash_password(password)
+    if not link_password_to_user(user["id"], pw_hash):
+        return False, "Failed to set password. Please try again."
+
     token = create_login_session(user["id"])
     set_session_state(user, token)
     update_last_login(user["id"])

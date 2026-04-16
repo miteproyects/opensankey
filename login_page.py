@@ -74,15 +74,61 @@ def render_login_page():
         st.session_state.auth_mode = "login"
     mode = st.session_state.auth_mode
 
-    # -- Display any error message --
+    # -- Display any error message (except GOOGLE_ONLY which gets special UI) --
     error_msg = st.session_state.pop("_auth_error", "")
+    _google_only_mode = False
+    _google_only_email = ""
+    if error_msg and error_msg.startswith("GOOGLE_ONLY:"):
+        _google_only_mode = True
+        _google_only_email = st.session_state.pop("_google_only_email", "")
+        error_msg = error_msg[len("GOOGLE_ONLY:"):]
     if error_msg:
         st.markdown(f"""
-        <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;
-                    padding:12px 16px;margin:8px auto 0;max-width:460px;
-                    color:#dc2626;font-size:14px;">
-            {error_msg}
+        <div style="background:{'#eff6ff' if _google_only_mode else '#fef2f2'};
+                    border:1px solid {'#93c5fd' if _google_only_mode else '#fca5a5'};
+                    border-radius:8px;padding:12px 16px;margin:8px auto 0;max-width:460px;
+                    color:{'#1e40af' if _google_only_mode else '#dc2626'};font-size:14px;">
+            {'🔑 ' if _google_only_mode else ''}{error_msg}
         </div>""", unsafe_allow_html=True)
+
+    # -- If this is a Google-only user trying email login, show Set Password form --
+    if _google_only_mode and _google_only_email:
+        st.markdown('<h2 style="text-align:center;margin-top:30px;color:#f0f0f0;">Set a password</h2>', unsafe_allow_html=True)
+        st.markdown(f'<p style="text-align:center;color:#9ca3af;margin-top:-10px;">for <strong>{_google_only_email}</strong></p>', unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            new_pw = st.text_input("New password", type="password",
+                                   placeholder="Min. 8 characters",
+                                   key="set_pw_input")
+            confirm_pw = st.text_input("Confirm password", type="password",
+                                       placeholder="Re-enter password",
+                                       key="set_pw_confirm")
+
+            if st.button("Set Password & Sign In", use_container_width=True, type="primary", key="set_pw_btn"):
+                if new_pw != confirm_pw:
+                    st.error("Passwords don't match.")
+                else:
+                    from auth import set_password_for_google_user, get_auth_params
+                    success, error = set_password_for_google_user(_google_only_email, new_pw)
+                    if success:
+                        st.session_state.page = "dashboard"
+                        st.query_params["page"] = "dashboard"
+                        token = st.session_state.get("session_token", "")
+                        if token:
+                            st.query_params["_sid"] = token
+                        st.rerun()
+                    else:
+                        st.error(error)
+
+            st.markdown("<hr style='border-color:#374151;margin:24px 0 16px;'>", unsafe_allow_html=True)
+            st.markdown('<p style="text-align:center;color:#9ca3af;font-size:14px;">Or just use Google</p>', unsafe_allow_html=True)
+            _render_google_button()
+
+            if st.button("Back to Sign In", use_container_width=True, key="back_to_login"):
+                st.session_state.auth_mode = "login"
+                st.rerun()
+        return  # Don't show the normal login form
 
     # -- Page title --
     if mode == "login":
@@ -120,6 +166,11 @@ def render_login_page():
             from auth import login_with_email, register_with_email, get_auth_params
             if mode == "login":
                 success, error = login_with_email(email, password)
+                # Detect Google-only account — show inline password form
+                if not success and error.startswith("GOOGLE_ONLY:"):
+                    st.session_state["_auth_error"] = error
+                    st.session_state["_google_only_email"] = email
+                    st.rerun()
             else:
                 name = st.session_state.get("reg_name", "")
                 success, error = register_with_email(email, password, name)
@@ -131,7 +182,7 @@ def render_login_page():
                 if token:
                     st.query_params["_sid"] = token
                 st.rerun()
-            else:
+            elif not error.startswith("GOOGLE_ONLY:"):
                 st.error(error)
 
         # -- Toggle login / signup --
