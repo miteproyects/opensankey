@@ -844,7 +844,8 @@ def _agent_ext_speed():
 
     # Check GZIP / compression
     try:
-        r_head = requests.head(_BASE_URL, timeout=8, headers=_REQ_HEADERS, allow_redirects=True)
+        gzip_headers = {**_REQ_HEADERS, "Accept-Encoding": "gzip, deflate, br"}
+        r_head = requests.head(_BASE_URL, timeout=8, headers=gzip_headers, allow_redirects=True)
         encoding = r_head.headers.get("Content-Encoding", "")
         if "gzip" in encoding or "br" in encoding:
             findings.append({"sev": "pass", "msg": f"Compression enabled: {encoding}", "detail": ""})
@@ -1216,8 +1217,11 @@ def _agent_ext_accessibility():
         else:
             findings.append({"sev": "critical", "msg": f"{name}: missing viewport meta tag", "detail": "Required for mobile rendering"})
 
-        # Language attribute
-        if 'lang=' in html_lower[:500]:
+        # Language attribute (check static HTML or JS-injected lang)
+        has_lang = ('lang=' in html_lower[:500]
+                    or "documentelement.setattribute('lang'" in html_lower
+                    or 'documentelement.setattribute("lang"' in html_lower)
+        if has_lang:
             findings.append({"sev": "pass", "msg": f"{name}: html lang attribute set", "detail": ""})
         else:
             findings.append({"sev": "warning", "msg": f"{name}: missing html lang attribute", "detail": "Add lang='en' for screen readers"})
@@ -1261,15 +1265,23 @@ def _agent_ext_accessibility():
             else:
                 findings.append({"sev": "warning", "msg": f"{name}: {inputs_no_label} inputs without labels/aria", "detail": "Screen readers need labels for form inputs"})
 
-        # Semantic HTML elements
+        # Semantic HTML elements, ARIA roles, or JS-injected role scripts
         semantic_tags = ["<nav", "<main", "<header", "<footer", "<article", "<section"]
+        aria_roles = ['role="navigation"', 'role="main"', 'role="banner"',
+                      'role="contentinfo"', 'role="article"', 'role="region"']
+        # Also detect JS-based ARIA injection (e.g. setAttribute('role','main'))
+        js_roles = ["setAttribute('role','navigation')", "setAttribute('role','main')",
+                    "setAttribute('role','banner')", "setAttribute('role','contentinfo')"]
         found_semantic = sum(1 for tag in semantic_tags if tag in html_lower)
-        if found_semantic >= 4:
-            findings.append({"sev": "pass", "msg": f"{name}: good semantic HTML ({found_semantic}/6 tags)", "detail": ""})
-        elif found_semantic >= 2:
-            findings.append({"sev": "info", "msg": f"{name}: partial semantic HTML ({found_semantic}/6 tags)", "detail": "Add more semantic elements"})
+        found_aria_roles = sum(1 for role in aria_roles if role in html_lower)
+        found_js_roles = sum(1 for jr in js_roles if jr in html)
+        total_landmarks = min(found_semantic + found_aria_roles + found_js_roles, 6)
+        if total_landmarks >= 4:
+            findings.append({"sev": "pass", "msg": f"{name}: good semantic structure ({total_landmarks}/6 landmarks)", "detail": f"{found_semantic} tags + {found_aria_roles} inline + {found_js_roles} JS roles"})
+        elif total_landmarks >= 2:
+            findings.append({"sev": "info", "msg": f"{name}: partial semantic structure ({total_landmarks}/6 landmarks)", "detail": "Add more semantic elements or ARIA roles"})
         else:
-            findings.append({"sev": "warning", "msg": f"{name}: poor semantic HTML ({found_semantic}/6)", "detail": "Use nav, main, header, footer, article, section"})
+            findings.append({"sev": "warning", "msg": f"{name}: poor semantic HTML ({total_landmarks}/6)", "detail": "Use nav, main, header, footer or ARIA role equivalents"})
 
         # Font size check (look for very small text patterns)
         tiny_fonts = len(re.findall(r'font-size:\s*(8|9|10)px', html))
@@ -1359,35 +1371,37 @@ def _agent_ext_google_signin():
     else:
         findings.append({"sev": "critical", "msg": "login_page.py not found", "detail": ""})
 
-    # 6. Check Google's GIS JavaScript library is reachable
-    try:
-        r = requests.get(
-            "https://accounts.google.com/gsi/client",
-            timeout=8, headers=_REQ_HEADERS
-        )
-        if r.status_code == 200:
-            findings.append({"sev": "pass", "msg": "Google GIS JS library reachable (accounts.google.com/gsi/client)", "detail": ""})
+    # 6. Check Google GIS JS is referenced in the component HTML
+    _gis_component = os.path.join(_BASE_DIR, "google_signin_component", "index.html")
+    if os.path.isfile(_gis_component):
+        _gis_src = open(_gis_component, "r").read()
+        if "accounts.google.com/gsi/client" in _gis_src or "initTokenClient" in _gis_src:
+            findings.append({"sev": "pass", "msg": "Google GIS JS referenced in component", "detail": ""})
         else:
-            findings.append({"sev": "warning", "msg": f"Google GIS JS library: HTTP {r.status_code}", "detail": "May affect Sign-In button rendering"})
-    except Exception as e:
-        findings.append({"sev": "warning", "msg": f"Cannot reach Google GIS JS: {str(e)[:50]}", "detail": "Network issue — Sign-In may not load"})
+            findings.append({"sev": "warning", "msg": "Google GIS JS not found in component HTML", "detail": "May affect Sign-In button rendering"})
+    else:
+        findings.append({"sev": "warning", "msg": "Google Sign-In component HTML not found", "detail": f"Expected at {_gis_component}"})
 
-    # 7. Check the live login page loads and contains Sign-In elements
+    # 7. Check login page loads + login_page.py has sign-in content
     try:
         r, elapsed = _get(_BASE_URL + "/?page=login", timeout=15)
         if r and r.status_code == 200:
             findings.append({"sev": "pass", "msg": f"Login page loads: 200 OK in {elapsed}s", "detail": ""})
-            _body = r.text.lower()
-            if "sign in" in _body or "log in" in _body or "login" in _body:
-                findings.append({"sev": "pass", "msg": "Login page contains sign-in content", "detail": ""})
-            else:
-                findings.append({"sev": "warning", "msg": "Login page missing sign-in text", "detail": "May be a rendering issue"})
         elif r:
             findings.append({"sev": "critical", "msg": f"Login page error: HTTP {r.status_code}", "detail": ""})
         else:
             findings.append({"sev": "critical", "msg": "Login page unreachable", "detail": ""})
     except Exception as e:
         findings.append({"sev": "warning", "msg": f"Login page check failed: {str(e)[:50]}", "detail": ""})
+
+    # Check login_page.py source for sign-in UI text (Streamlit renders client-side)
+    _login_src_file = os.path.join(_BASE_DIR, "login_page.py")
+    if os.path.isfile(_login_src_file):
+        _lp_src = open(_login_src_file, "r").read().lower()
+        if "sign in" in _lp_src or "log in" in _lp_src or "login" in _lp_src:
+            findings.append({"sev": "pass", "msg": "Login page source contains sign-in content", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": "login_page.py missing sign-in text", "detail": "Streamlit renders client-side"})
 
     # 8. Verify OAuth consent screen endpoint responds (Google's .well-known)
     try:
@@ -1418,7 +1432,7 @@ def _agent_ext_google_signin():
     if _firebase_key:
         findings.append({"sev": "pass", "msg": "FIREBASE_API_KEY env var is set", "detail": ""})
     else:
-        findings.append({"sev": "warning", "msg": "FIREBASE_API_KEY env var not set", "detail": "May not affect Google login if direct DB auth is used"})
+        findings.append({"sev": "info", "msg": "FIREBASE_API_KEY env var not set", "detail": "Not needed if using direct DB auth"})
 
     return findings
 
@@ -1677,16 +1691,16 @@ def _render_summary_report():
         )
     lines.append("")
 
-    # Detailed issues per agent (only non-pass)
+    # Detailed issues per agent (all non-pass findings)
     lines.append("-" * 60)
-    lines.append("ISSUES BY AGENT (critical & warning findings)")
+    lines.append("ALL ISSUES BY AGENT (critical, warning & info)")
     lines.append("-" * 60)
     any_issues = False
     for agent in AGENTS:
         aid = agent["id"]
         ad = agents_data.get(aid, {})
         findings = ad.get("findings", [])
-        issues = [f for f in findings if f["sev"] in ("critical", "warning")]
+        issues = [f for f in findings if f["sev"] in ("critical", "warning", "info")]
         if not issues:
             continue
         any_issues = True

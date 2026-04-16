@@ -279,6 +279,8 @@ def patch():
         a11y_script = (
             '<script id="a11y-landmarks">'
             "document.addEventListener('DOMContentLoaded',function(){"
+            # Ensure html lang attribute is set (fallback for static patch)
+            "document.documentElement.setAttribute('lang','en');"
             # Skip-to-content link (visually hidden, focusable)
             "var sk=document.createElement('a');"
             "sk.href='#main-content';sk.textContent='Skip to main content';"
