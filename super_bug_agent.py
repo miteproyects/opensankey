@@ -558,8 +558,10 @@ def _agent_meta():
 
         # Check each agent has at least 5 lines of checks
         for agent_name in ["roadmap", "security", "config", "compliance", "infrastructure",
-                           "team", "seo", "pricing", "users", "analytics", "memory", "device",
-                           "status", "meta", "ext_google_signin"]:
+                           "team", "seo", "pricing", "users", "analytics", "memory",
+                           "status", "meta", "audit_panel",
+                           "ext_speed", "ext_seo", "ext_uptime", "ext_security",
+                           "ext_accessibility", "ext_google_signin"]:
             fn_name = f"def _agent_{agent_name}():"
             if fn_name in src:
                 findings.append({"sev": "pass", "msg": f"Agent '{agent_name}' — implemented", "detail": ""})
