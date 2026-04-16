@@ -1001,12 +1001,27 @@ _XBRL_INCOME_TAGS = {
         "SalesRevenueNet",
         "SalesRevenueGoodsNet",
         "RevenueFromContractWithCustomerIncludingAssessedTax",
+        # ── Financial-sector revenue tags (banks, insurance, etc.) ──
+        "InterestAndDividendIncomeOperating",
+        "InterestIncomeExpenseNet",
+        "InterestIncome",
+        "NoninterestIncome",
+        "RevenuesNetOfInterestExpense",
+        "FinancialServicesRevenue",
+        "InsuranceServicesRevenue",
+        "BrokerageCommissionsRevenue",
+        "InvestmentBankingRevenue",
+        "TotalInterestAndDividendIncome",
+        "NetInterestIncome",
     ],
     "Cost Of Revenue": [
         "CostOfRevenue",
         "CostOfGoodsAndServicesSold",
         "CostOfGoodsSold",
         "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
+        # ── Financial-sector cost tags ──
+        "ProvisionForLoanLeaseAndCreditLosses",
+        "PolicyholderBenefitsAndClaimsIncurredNet",
     ],
     "Gross Profit": [
         "GrossProfit",

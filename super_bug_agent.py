@@ -821,10 +821,27 @@ def _agent_audit_panel():
             # ════════════════════════════════════════════════════════════
             # PHASE 1: CIK Resolution
             # ════════════════════════════════════════════════════════════
-            cik = _ticker_to_cik(ticker)
+            cik = None
+            cik_error = None
+            try:
+                cik = _ticker_to_cik(ticker)
+            except Exception as e:
+                cik_error = str(e)[:80]
+
             if not cik:
-                findings.append({"sev": "critical", "msg": f"{ticker}: CIK resolution failed",
-                                 "detail": "Ticker not found in SEC EDGAR company registry"})
+                # Classify the failure — OTC/foreign/SPAC tickers are expected to fail
+                # Common suffixes for non-US or OTC tickers
+                _OTC_HINTS = (".L", ".TO", ".AX", ".HK", ".T", ".SI", ".NS", ".BO")
+                is_likely_non_sec = (
+                    any(ticker.endswith(s) for s in _OTC_HINTS) or
+                    len(ticker) > 5  # most US tickers are 1-5 chars
+                )
+                if is_likely_non_sec:
+                    findings.append({"sev": "info", "msg": f"{ticker}: not in SEC EDGAR (non-US/OTC)",
+                                     "detail": cik_error or "Company likely not SEC-registered"})
+                else:
+                    findings.append({"sev": "warning", "msg": f"{ticker}: CIK resolution failed",
+                                     "detail": cik_error or "Ticker not found in SEC EDGAR company registry"})
                 continue
             findings.append({"sev": "pass", "msg": f"{ticker}: CIK={cik}", "detail": ""})
 
@@ -834,13 +851,18 @@ def _agent_audit_panel():
             try:
                 facts = _fetch_edgar_facts(cik)
                 if not facts:
-                    findings.append({"sev": "critical", "msg": f"{ticker}: EDGAR returned empty facts",
+                    findings.append({"sev": "warning", "msg": f"{ticker}: EDGAR returned empty facts",
                                      "detail": "API may be down or CIK invalid"})
                     continue
                 us_gaap = facts.get("facts", {}).get("us-gaap", {})
+                ifrs = facts.get("facts", {}).get("ifrs-full", {})
                 if not us_gaap:
-                    findings.append({"sev": "critical", "msg": f"{ticker}: no us-gaap data in EDGAR facts",
-                                     "detail": "Company may use IFRS or have no XBRL filings"})
+                    if ifrs:
+                        findings.append({"sev": "info", "msg": f"{ticker}: uses IFRS (not us-gaap) — {len(ifrs)} concepts",
+                                         "detail": "IFRS filer; Sankey uses us-gaap tags so data may be sparse"})
+                    else:
+                        findings.append({"sev": "warning", "msg": f"{ticker}: no us-gaap data in EDGAR facts",
+                                         "detail": "Company may use IFRS or have no XBRL filings"})
                     continue
                 findings.append({"sev": "pass", "msg": f"{ticker}: EDGAR facts OK ({len(us_gaap)} concepts)", "detail": ""})
             except Exception as e:
@@ -979,11 +1001,12 @@ def _agent_audit_panel():
                         combo_details.append(f"{combo_label}: aggregation returned None")
                         continue
 
-                    # Extract key metrics
+                    # Extract key metrics (supports both standard and financial-sector tags)
                     rev = 0
                     ni = 0
                     cogs = 0
                     gp = 0
+                    fin_rev = 0  # financial-sector revenue fallback
                     for row_name in inc_q.index:
                         rn = row_name.lower()
                         try:
@@ -992,12 +1015,21 @@ def _agent_audit_panel():
                             v = 0
                         if "revenue" in rn and "cost" not in rn and abs(v) > abs(rev):
                             rev = v
+                        # Financial-sector revenue: interest income, noninterest income, etc.
+                        if any(k in rn for k in ("interest income", "interest and dividend",
+                               "noninterest income", "net interest income",
+                               "financial services", "brokerage commission",
+                               "investment banking")) and "expense" not in rn and abs(v) > abs(fin_rev):
+                            fin_rev = v
                         if rn in ("net income", "netincomeloss", "net income loss") and abs(v) > abs(ni):
                             ni = v
                         if ("cost of" in rn or "cost of goods" in rn or "costofrevenue" in rn) and abs(v) > abs(cogs):
                             cogs = v
                         if "gross profit" in rn and abs(v) > abs(gp):
                             gp = v
+                    # If standard revenue is $0 but financial-sector revenue exists, use it
+                    if rev == 0 and fin_rev != 0:
+                        rev = fin_rev
 
                     if rev == 0:
                         combo_fail += 1
@@ -1063,19 +1095,35 @@ def _agent_audit_panel():
                                 compare_details.append(f"{pair_label}: aggregation failed")
                                 continue
 
-                            # Extract revenue for both periods
+                            # Extract revenue for both periods (standard + financial-sector)
                             rev_a = rev_b = 0
+                            fin_rev_a = fin_rev_b = 0
+                            _FIN_KEYWORDS = ("interest income", "interest and dividend",
+                                             "noninterest income", "net interest income",
+                                             "financial services", "brokerage commission",
+                                             "investment banking")
                             for rn in inc_q.index:
-                                if "revenue" in rn.lower() and "cost" not in rn.lower():
-                                    try:
-                                        va = float(agg_a.get(rn, 0)) if not pd.isna(agg_a.get(rn, 0)) else 0
-                                        vb = float(agg_b.get(rn, 0)) if not pd.isna(agg_b.get(rn, 0)) else 0
-                                    except (ValueError, TypeError):
-                                        va = vb = 0
+                                rl = rn.lower()
+                                try:
+                                    va = float(agg_a.get(rn, 0)) if not pd.isna(agg_a.get(rn, 0)) else 0
+                                    vb = float(agg_b.get(rn, 0)) if not pd.isna(agg_b.get(rn, 0)) else 0
+                                except (ValueError, TypeError):
+                                    va = vb = 0
+                                if "revenue" in rl and "cost" not in rl:
                                     if abs(va) > abs(rev_a):
                                         rev_a = va
                                     if abs(vb) > abs(rev_b):
                                         rev_b = vb
+                                if any(k in rl for k in _FIN_KEYWORDS) and "expense" not in rl:
+                                    if abs(va) > abs(fin_rev_a):
+                                        fin_rev_a = va
+                                    if abs(vb) > abs(fin_rev_b):
+                                        fin_rev_b = vb
+                            # Fallback to financial-sector revenue
+                            if rev_a == 0 and fin_rev_a != 0:
+                                rev_a = fin_rev_a
+                            if rev_b == 0 and fin_rev_b != 0:
+                                rev_b = fin_rev_b
 
                             if rev_a > 0 and rev_b > 0:
                                 compare_pass += 1
@@ -1266,10 +1314,15 @@ def _agent_ext_speed():
             findings.append({"sev": "info", "msg": f"{name}: {css_count} external stylesheets", "detail": "Consider inlining critical CSS"})
 
     # Check GZIP / compression
+    # NOTE: HEAD requests often don't trigger server-side compression (e.g. Tornado).
+    # Use a full GET request with Accept-Encoding and stream=True to check the
+    # Content-Encoding header without downloading the entire body.
     try:
         gzip_headers = {**_REQ_HEADERS, "Accept-Encoding": "gzip, deflate, br"}
-        r_head = requests.head(_BASE_URL, timeout=8, headers=gzip_headers, allow_redirects=True)
-        encoding = r_head.headers.get("Content-Encoding", "")
+        r_gz = requests.get(_BASE_URL, timeout=10, headers=gzip_headers,
+                            allow_redirects=True, stream=True)
+        encoding = r_gz.headers.get("Content-Encoding", "")
+        r_gz.close()  # close without reading body
         if "gzip" in encoding or "br" in encoding:
             findings.append({"sev": "pass", "msg": f"Compression enabled: {encoding}", "detail": ""})
         else:
