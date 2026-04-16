@@ -266,9 +266,15 @@ def patch():
         )
         html = html.replace("</head>", f"{links}</head>", 1)
 
-    # ── Accessibility: semantic HTML + skip-nav + heading + ARIA ──────────
-    # Fixes: "No heading structure", "No page regions", "missing semantic
-    # HTML", "no skip navigation link" (WAVE / a11y agent)
+    # ── Accessibility: ARIA roles + skip-nav + heading ──────────────────
+    # Fixes: "No heading structure", "No page regions", "no skip navigation
+    # link" (WAVE / a11y agent).
+    # IMPORTANT: We add ARIA roles *directly* to existing Streamlit elements
+    # instead of wrapping them in <main>/<nav>/<header> etc., because wrapper
+    # elements break Streamlit's internal flex/grid CSS layout (sidebar moves
+    # left, extra whitespace appears, content blocks break).
+    # Always replace the a11y script (remove old version first if present)
+    html = re.sub(r'<script id="a11y-landmarks">.*?</script>\s*', '', html, flags=re.DOTALL)
     if "a11y-landmarks" not in html:
         a11y_script = (
             '<script id="a11y-landmarks">'
@@ -286,49 +292,36 @@ def patch():
             "'position:absolute;left:-9999px;top:auto;width:1px;height:1px;"
             "overflow:hidden;z-index:10000'});"
             "document.body.insertBefore(sk,document.body.firstChild);"
-            # Observe DOM and wrap Streamlit elements in semantic HTML
+            # Observe DOM and add ARIA roles to existing Streamlit elements
+            "var done=false;"
             "var obs=new MutationObserver(function(){"
+            "if(done)return;"
             "var mc=document.querySelector('[data-testid=\"stAppViewContainer\"]');"
             "var side=document.querySelector('[data-testid=\"stSidebar\"]');"
             "var hdr=document.querySelector('[data-testid=\"stHeader\"]');"
-            # Wrap main content in <main> if not already done
-            "if(mc&&!document.querySelector('main')){"
-            "var m=document.createElement('main');"
-            "m.id='main-content';m.setAttribute('role','main');"
-            "mc.parentNode.insertBefore(m,mc);m.appendChild(mc);"
-            # Visually hidden h1
+            "var btm=document.querySelector('[data-testid=\"stBottom\"]');"
+            # Add role=main + id to app view container (no wrapping)
+            "if(mc&&!mc.getAttribute('role')){"
+            "mc.setAttribute('role','main');"
+            "mc.id='main-content';"
+            # Visually hidden h1 as first child (no wrapper)
+            "if(!mc.querySelector('h1')){"
             "var h1=document.createElement('h1');"
             "h1.textContent='QuarterCharts \\u2014 Stock Charts, Sankey Diagrams & More';"
             "h1.style.cssText='position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden';"
-            "m.insertBefore(h1,m.firstChild)}"
-            # Wrap sidebar in <nav> if not already done
-            "if(side&&!document.querySelector('nav[aria-label=\"Sidebar\"]')){"
-            "var n=document.createElement('nav');"
-            "n.setAttribute('aria-label','Sidebar');"
-            "side.parentNode.insertBefore(n,side);n.appendChild(side)}"
-            # Wrap header in <header> if not already done
-            "if(hdr&&!document.querySelector('header')){"
-            "var hd=document.createElement('header');"
-            "hd.setAttribute('role','banner');"
-            "hdr.parentNode.insertBefore(hd,hdr);hd.appendChild(hdr)}"
-            # Add <footer> if missing
-            "if(!document.querySelector('footer')){"
-            "var ft=document.querySelector('[data-testid=\"stBottom\"]');"
-            "if(ft){var f=document.createElement('footer');"
-            "f.setAttribute('role','contentinfo');"
-            "ft.parentNode.insertBefore(f,ft);f.appendChild(ft)}"
-            "else{var f2=document.createElement('footer');"
-            "f2.setAttribute('role','contentinfo');"
-            "f2.style.cssText='position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden';"
-            "f2.innerHTML='<p>&copy; 2026 QuarterCharts</p>';"
-            "document.body.appendChild(f2)}}"
-            # Add <section> wrapper for content blocks
-            "var blocks=document.querySelectorAll('[data-testid=\"stVerticalBlock\"]');"
-            "if(blocks.length>0&&!document.querySelector('section[aria-label]')){"
-            "var first=blocks[0];"
-            "var sec=document.createElement('section');"
-            "sec.setAttribute('aria-label','Page content');"
-            "first.parentNode.insertBefore(sec,first);sec.appendChild(first)}"
+            "mc.insertBefore(h1,mc.firstChild)}}"
+            # Add role=navigation to sidebar (no wrapping)
+            "if(side&&!side.getAttribute('role')){"
+            "side.setAttribute('role','navigation');"
+            "side.setAttribute('aria-label','Sidebar')}"
+            # Add role=banner to header (no wrapping)
+            "if(hdr&&!hdr.getAttribute('role')){"
+            "hdr.setAttribute('role','banner')}"
+            # Add role=contentinfo to bottom (no wrapping)
+            "if(btm&&!btm.getAttribute('role')){"
+            "btm.setAttribute('role','contentinfo')}"
+            # Mark done once all elements are tagged
+            "if(mc&&mc.getAttribute('role')){done=true;obs.disconnect()}"
             "});"
             "obs.observe(document.body,{childList:true,subtree:true})"
             "});"
