@@ -5060,11 +5060,11 @@ def render_sankey_page():
                             _shifted_pb_fy = _sb_fy2
                             income_df["Period_B"] = _sb_inc
                         else:
-                            # Can't find nearby quarterly data — keep same period,
-                            # the warning banner already tells the user.
-                            _collision = False  # treat as no-collision (same period)
-                            _shifted_pb_fy = None
-                            income_df["Period_B"] = _fb_inc_ser  # same data
+                            # Can't find nearby quarterly data for the shifted year,
+                            # but keep the collision state so the label correctly
+                            # shows e.g. "FY2025 vs FY2024" instead of same-vs-same.
+                            # Period B will show NaN which is better than identical data.
+                            income_df["Period_B"] = pd.Series(np.nan, index=_fb_inc_ser.index)
                     else:
                         _existing_b_inc = income_df.get("Period_B", pd.Series(dtype=float)) if income_df is not None else pd.Series(dtype=float)
                         income_df["Period_B"] = _existing_b_inc
@@ -5076,7 +5076,7 @@ def render_sankey_page():
                     if _collision and _raw_qtr_balance_df is not None and not _raw_qtr_balance_df.empty:
                         _sb_bal, _sb_bts, _sb_bfy = _find_nearby_fy(
                             _raw_qtr_balance_df, _shifted_pb_fy, _fb_qs, _fy_end_m, True, max_back=3)
-                        balance_df["Period_B"] = _sb_bal if _sb_bal is not None else _fb_bal_ser
+                        balance_df["Period_B"] = _sb_bal if _sb_bal is not None else pd.Series(np.nan, index=_fb_bal_ser.index)
                     else:
                         _existing_b_bal = balance_df.get("Period_B", pd.Series(dtype=float)) if balance_df is not None else pd.Series(dtype=float)
                         balance_df["Period_B"] = _existing_b_bal
