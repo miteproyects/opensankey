@@ -5358,9 +5358,15 @@ def render_sankey_page():
         st.markdown(f'<div class="sankey-compare-card">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
         # ââ KPI Metric Cards ââ
-        # Use Sankey reconciled values if available (handles negative OI, etc.)
-        _rec = st.session_state.get('_sankey_reconciled', {})
-        _rec_prev = st.session_state.get('_sankey_reconciled_prev', {})
+        # IMPORTANT: clear stale reconciled values — they were computed from
+        # the PREVIOUS Q selection.  The Sankey is built AFTER KPIs (below),
+        # so these session-state values lag by one rerun.  By clearing them,
+        # KPIs fall back to income_df which is freshly computed for the
+        # current Q selection.  The Sankey will re-store correct values.
+        st.session_state.pop('_sankey_reconciled', None)
+        st.session_state.pop('_sankey_reconciled_prev', None)
+        _rec = {}
+        _rec_prev = {}
         revenue      = _rec.get('Revenue') or _safe(income_df, 'Total Revenue')
         gross_profit = _rec.get('Gross Profit') or _safe(income_df, 'Gross Profit')
         cogs_kpi     = abs(_rec.get('COGS', 0) or _safe(income_df, 'Cost Of Revenue'))

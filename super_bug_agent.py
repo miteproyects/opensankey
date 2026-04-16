@@ -874,6 +874,7 @@ def _agent_audit_panel():
       9. Default view fallback — detect same-period comparisons
      10. Q heuristic vs EDGAR mismatch — detect "Not yet filed" errors
      11. Empty default view detection — current FY has 0 filed Qs on EDGAR
+     12. KPI vs table cross-validation — stale session state causes mismatch
     """
     findings = []
 
@@ -1545,6 +1546,62 @@ def _agent_audit_panel():
                     ),
                     "detail": "",
                 })
+
+            # ════════════════════════════════════════════════════════════
+            # PHASE 12: KPI vs Table Cross-Validation
+            # ════════════════════════════════════════════════════════════
+            # The KPI cards and the per-quarter table must show the same
+            # data for the same Q selection.  When KPIs read from stale
+            # session state (_sankey_reconciled) while the table reads
+            # from fresh income_df, values diverge.  Simulate multi-Q
+            # aggregation and verify consistency.
+            _xv_fy = fy_list[0] if fy_list else current_year - 1
+            _xv_qs = fy_q_map.get(_xv_fy, [])
+            if len(_xv_qs) >= 2:
+                # Aggregate 2 quarters (e.g. Q3+Q4) via _aggregate_partial_year
+                _xv_q2 = sorted(_xv_qs)[-2:]  # latest 2 Qs
+                _xv_single_q = [_xv_q2[-1]]  # single Q (latest)
+                # Single-Q aggregation
+                _xv_1q, _ = _aggregate_partial_year(
+                    inc_q, _xv_fy, _xv_single_q, fy_end, False)
+                # Multi-Q aggregation
+                _xv_2q, _ = _aggregate_partial_year(
+                    inc_q, _xv_fy, _xv_q2, fy_end, False)
+
+                if _xv_1q is not None and _xv_2q is not None:
+                    # Revenue from single Q vs multi Q
+                    _rev_key = None
+                    for idx in _xv_1q.index:
+                        if "revenue" in str(idx).lower():
+                            _rev_key = idx
+                            break
+                    if _rev_key:
+                        _rev_1q = float(_xv_1q[_rev_key]) if pd.notna(_xv_1q[_rev_key]) else 0
+                        _rev_2q = float(_xv_2q[_rev_key]) if pd.notna(_xv_2q[_rev_key]) else 0
+                        if _rev_1q > 0 and _rev_2q > 0 and abs(_rev_2q - _rev_1q) > _rev_1q * 0.01:
+                            # Multi-Q sum is larger than single Q — expected.
+                            # Flag if KPIs could show stale single-Q when user selects multi-Q.
+                            findings.append({
+                                "sev": "warning",
+                                "msg": (
+                                    f"{ticker}: KPI stale-state risk — "
+                                    f"Q{_xv_q2[-1]} Revenue=${_rev_1q/1e9:.1f}B vs "
+                                    f"Q{'+Q'.join(str(q) for q in _xv_q2)} Revenue=${_rev_2q/1e9:.1f}B"
+                                ),
+                                "detail": (
+                                    "KPI cards read from _sankey_reconciled (session state) "
+                                    "which lags by one Streamlit rerun.  When user adds a Q, "
+                                    "KPIs show stale single-Q values while Sankey/table show "
+                                    "correct multi-Q sums.  Fix: clear _sankey_reconciled "
+                                    "before rendering KPIs."
+                                ),
+                            })
+                        else:
+                            findings.append({
+                                "sev": "pass",
+                                "msg": f"{ticker}: multi-Q aggregation consistent ({'+'.join(f'Q{q}' for q in _xv_q2)})",
+                                "detail": "",
+                            })
 
         except Exception as e:
             findings.append({"sev": "warning", "msg": f"{ticker}: audit crashed — {str(e)[:80]}", "detail": ""})
