@@ -176,6 +176,8 @@ def render_pricing_page():
     try:
         from database import get_all_plans
         plans = get_all_plans(active_only=True)
+        # Hide internal "no-login" plan from public pricing page
+        plans = [p for p in plans if p.get("slug") != "no-login"]
     except Exception:
         plans = []
 
