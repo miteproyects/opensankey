@@ -5017,19 +5017,33 @@ def render_sankey_page():
                 _collision = (_fb_fy == _pb_int)
                 _shifted_pb_fy = _fb_fy - 1 if _collision else None
 
+                # Helper: search backwards but cap at max_back years
+                def _find_nearby_fy(raw_df, start_fy, qs, fy_end, is_bs, max_back=3):
+                    """Try start_fy first, then search back up to max_back years."""
+                    ser, ts = _aggregate_partial_year(raw_df, start_fy, qs, fy_end, is_bs)
+                    if ser is not None:
+                        return ser, ts, start_fy
+                    for try_fy in range(start_fy - 1, start_fy - max_back, -1):
+                        ser, ts = _aggregate_partial_year(raw_df, try_fy, qs, fy_end, is_bs)
+                        if ser is not None:
+                            return ser, ts, try_fy
+                    return None, None, None
+
                 if _fb_inc_ser is not None:
                     income_df = pd.DataFrame({"Period_A": _fb_inc_ser})
                     if _collision and _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
-                        # Rebuild Period B from one year earlier to avoid same-vs-same
-                        _sb_inc, _sb_ts = _aggregate_partial_year(
-                            _raw_qtr_income_df, _shifted_pb_fy, _fb_qs, _fy_end_m, False)
-                        if _sb_inc is None:
-                            # Direct FY not available, search backwards
-                            _sb_inc, _sb_ts, _sb_fy2 = _find_closest_available_fy(
-                                _raw_qtr_income_df, _shifted_pb_fy + 1, _fb_qs, _fy_end_m, False)
-                            if _sb_fy2 and _sb_fy2 != _fb_fy:
-                                _shifted_pb_fy = _sb_fy2
-                        income_df["Period_B"] = _sb_inc if _sb_inc is not None else pd.Series(dtype=float)
+                        # Try to find Period B data within 2 years of shifted FY
+                        _sb_inc, _sb_ts, _sb_fy2 = _find_nearby_fy(
+                            _raw_qtr_income_df, _shifted_pb_fy, _fb_qs, _fy_end_m, False, max_back=3)
+                        if _sb_fy2 is not None:
+                            _shifted_pb_fy = _sb_fy2
+                            income_df["Period_B"] = _sb_inc
+                        else:
+                            # Can't find nearby quarterly data — keep same period,
+                            # the warning banner already tells the user.
+                            _collision = False  # treat as no-collision (same period)
+                            _shifted_pb_fy = None
+                            income_df["Period_B"] = _fb_inc_ser  # same data
                     else:
                         _existing_b_inc = income_df.get("Period_B", pd.Series(dtype=float)) if income_df is not None else pd.Series(dtype=float)
                         income_df["Period_B"] = _existing_b_inc
@@ -5039,20 +5053,17 @@ def render_sankey_page():
                 if _fb_bal_ser is not None:
                     balance_df = pd.DataFrame({"Period_A": _fb_bal_ser})
                     if _collision and _raw_qtr_balance_df is not None and not _raw_qtr_balance_df.empty:
-                        _sb_bal, _sb_bts = _aggregate_partial_year(
-                            _raw_qtr_balance_df, _shifted_pb_fy, _fb_qs, _fy_end_m, True)
-                        if _sb_bal is None:
-                            _sb_bal, _sb_bts, _ = _find_closest_available_fy(
-                                _raw_qtr_balance_df, _shifted_pb_fy + 1, _fb_qs, _fy_end_m, True)
-                        balance_df["Period_B"] = _sb_bal if _sb_bal is not None else pd.Series(dtype=float)
+                        _sb_bal, _sb_bts, _sb_bfy = _find_nearby_fy(
+                            _raw_qtr_balance_df, _shifted_pb_fy, _fb_qs, _fy_end_m, True, max_back=3)
+                        balance_df["Period_B"] = _sb_bal if _sb_bal is not None else _fb_bal_ser
                     else:
                         _existing_b_bal = balance_df.get("Period_B", pd.Series(dtype=float)) if balance_df is not None else pd.Series(dtype=float)
                         balance_df["Period_B"] = _existing_b_bal
                 elif balance_df is not None:
                     balance_df["Period_A"] = np.nan
                 _fb_months = _build_month_label(_fb_qs, _fb_fy, _fy_end_m)
-                if _collision:
-                    _shifted_months = _build_month_label(_fb_qs, _shifted_pb_fy, _fy_end_m) if _shifted_pb_fy else ""
+                if _collision and _shifted_pb_fy is not None:
+                    _shifted_months = _build_month_label(_fb_qs, _shifted_pb_fy, _fy_end_m)
                     st.warning(f"⚠️ {_qs_tag} FY{_pa} data not yet filed in SEC EDGAR. "
                                f"Falling back to FY{_fb_fy}{_fb_months} vs FY{_shifted_pb_fy}{_shifted_months}.")
                     st.session_state["_fallback_fy"] = _fb_fy
@@ -5328,12 +5339,12 @@ def render_sankey_page():
         revenue      = _rec.get('Revenue') or _safe(income_df, 'Total Revenue')
         gross_profit = _rec.get('Gross Profit') or _safe(income_df, 'Gross Profit')
         cogs_kpi     = abs(_rec.get('COGS', 0) or _safe(income_df, 'Cost Of Revenue'))
-        op_income    = _rec.get('Operating Income', _safe(income_df, 'Operating Income'))
-        net_income   = _rec.get('Net Income', _safe(income_df, 'Net Income'))
+        op_income    = _rec.get('Operating Income') or _safe(income_df, 'Operating Income')
+        net_income   = _rec.get('Net Income') or _safe(income_df, 'Net Income')
         rev_prev     = _rec_prev.get('Revenue') or _safe_prev(income_df, 'Total Revenue')
         gp_prev      = _rec_prev.get('Gross Profit') or _safe_prev(income_df, 'Gross Profit')
-        oi_prev      = _rec_prev.get('Operating Income', _safe_prev(income_df, 'Operating Income'))
-        ni_prev      = _rec_prev.get('Net Income', _safe_prev(income_df, 'Net Income'))
+        oi_prev      = _rec_prev.get('Operating Income') or _safe_prev(income_df, 'Operating Income')
+        ni_prev      = _rec_prev.get('Net Income') or _safe_prev(income_df, 'Net Income')
         # (matches Sankey reconciliation: GP = Revenue − COGS; when COGS=0, GP = Revenue)
         if gross_profit == 0 and revenue > 0:
             gross_profit = revenue - cogs_kpi  # cogs_kpi may be 0 → GP = Revenue
