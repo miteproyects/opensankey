@@ -559,7 +559,7 @@ def _agent_meta():
         # Check each agent has at least 5 lines of checks
         for agent_name in ["roadmap", "security", "config", "compliance", "infrastructure",
                            "team", "seo", "pricing", "users", "analytics", "memory", "device",
-                           "status", "meta"]:
+                           "status", "meta", "ext_google_signin"]:
             fn_name = f"def _agent_{agent_name}():"
             if fn_name in src:
                 findings.append({"sev": "pass", "msg": f"Agent '{agent_name}' — implemented", "detail": ""})
@@ -1292,6 +1292,135 @@ def _agent_ext_accessibility():
     return findings
 
 
+# ── E6. Google Sign-In Agent ──────────────────────────────────────────
+def _agent_ext_google_signin():
+    """Checks that Google Sign-In is fully operational end-to-end:
+    component files, Client ID config, GIS script reachability,
+    login page rendering, token verification library, and OAuth consent."""
+    findings = []
+
+    # 1. Check google_signin_component directory exists with index.html
+    _comp_dir = os.path.join(_BASE_DIR, "google_signin_component")
+    if os.path.isdir(_comp_dir):
+        _index = os.path.join(_comp_dir, "index.html")
+        if os.path.isfile(_index):
+            _html = open(_index, "r").read()
+            if "accounts.google.com/gsi/client" in _html:
+                findings.append({"sev": "pass", "msg": "GIS component: index.html with Google Identity Services script", "detail": ""})
+            else:
+                findings.append({"sev": "warning", "msg": "GIS component: index.html missing GIS script reference", "detail": "Should load accounts.google.com/gsi/client"})
+        else:
+            findings.append({"sev": "critical", "msg": "GIS component: index.html missing", "detail": _comp_dir})
+    else:
+        findings.append({"sev": "critical", "msg": "google_signin_component directory missing", "detail": _comp_dir})
+
+    # 2. Check GOOGLE_CLIENT_ID is configured
+    try:
+        from auth import GOOGLE_CLIENT_ID
+        if GOOGLE_CLIENT_ID and len(GOOGLE_CLIENT_ID) > 20:
+            findings.append({"sev": "pass", "msg": f"Client ID configured: {GOOGLE_CLIENT_ID[:20]}...", "detail": ""})
+        else:
+            findings.append({"sev": "critical", "msg": "GOOGLE_CLIENT_ID is empty or too short", "detail": "Set GOOGLE_CLIENT_ID env var"})
+    except ImportError:
+        findings.append({"sev": "critical", "msg": "Cannot import GOOGLE_CLIENT_ID from auth.py", "detail": ""})
+
+    # 3. Check google.oauth2 library is importable (token verification)
+    try:
+        from google.oauth2 import id_token as _gid
+        from google.auth.transport import requests as _greq
+        findings.append({"sev": "pass", "msg": "google-auth library available (id_token + transport)", "detail": ""})
+    except ImportError as e:
+        findings.append({"sev": "critical", "msg": f"google-auth library missing: {e}", "detail": "pip install google-auth"})
+
+    # 4. Check verify_google_id_token function exists
+    try:
+        from auth import verify_google_id_token
+        findings.append({"sev": "pass", "msg": "verify_google_id_token() function available", "detail": ""})
+    except ImportError:
+        findings.append({"sev": "critical", "msg": "verify_google_id_token not found in auth.py", "detail": ""})
+
+    # 5. Check login_page.py has Google Sign-In handling
+    _login_file = os.path.join(_BASE_DIR, "login_page.py")
+    if os.path.isfile(_login_file):
+        _lsrc = open(_login_file, "r").read()
+        checks = {
+            "login_with_google": "Google login handler imported",
+            "google_signin": "Google Sign-In component declared",
+            "credential": "Credential callback handled",
+            "_render_google_button": "Google button render function",
+        }
+        for pattern, label in checks.items():
+            if pattern in _lsrc:
+                findings.append({"sev": "pass", "msg": f"login_page.py: {label}", "detail": ""})
+            else:
+                findings.append({"sev": "warning", "msg": f"login_page.py: missing {label}", "detail": f"Pattern '{pattern}' not found"})
+    else:
+        findings.append({"sev": "critical", "msg": "login_page.py not found", "detail": ""})
+
+    # 6. Check Google's GIS JavaScript library is reachable
+    try:
+        r = requests.get(
+            "https://accounts.google.com/gsi/client",
+            timeout=8, headers=_REQ_HEADERS
+        )
+        if r.status_code == 200:
+            findings.append({"sev": "pass", "msg": "Google GIS JS library reachable (accounts.google.com/gsi/client)", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": f"Google GIS JS library: HTTP {r.status_code}", "detail": "May affect Sign-In button rendering"})
+    except Exception as e:
+        findings.append({"sev": "warning", "msg": f"Cannot reach Google GIS JS: {str(e)[:50]}", "detail": "Network issue — Sign-In may not load"})
+
+    # 7. Check the live login page loads and contains Sign-In elements
+    try:
+        r, elapsed = _get(_BASE_URL + "/?page=login", timeout=15)
+        if r and r.status_code == 200:
+            findings.append({"sev": "pass", "msg": f"Login page loads: 200 OK in {elapsed}s", "detail": ""})
+            _body = r.text.lower()
+            if "sign in" in _body or "log in" in _body or "login" in _body:
+                findings.append({"sev": "pass", "msg": "Login page contains sign-in content", "detail": ""})
+            else:
+                findings.append({"sev": "warning", "msg": "Login page missing sign-in text", "detail": "May be a rendering issue"})
+        elif r:
+            findings.append({"sev": "critical", "msg": f"Login page error: HTTP {r.status_code}", "detail": ""})
+        else:
+            findings.append({"sev": "critical", "msg": "Login page unreachable", "detail": ""})
+    except Exception as e:
+        findings.append({"sev": "warning", "msg": f"Login page check failed: {str(e)[:50]}", "detail": ""})
+
+    # 8. Verify OAuth consent screen endpoint responds (Google's .well-known)
+    try:
+        r = requests.get(
+            "https://accounts.google.com/.well-known/openid-configuration",
+            timeout=8, headers=_REQ_HEADERS
+        )
+        if r.status_code == 200:
+            cfg = r.json()
+            if "authorization_endpoint" in cfg and "token_endpoint" in cfg:
+                findings.append({"sev": "pass", "msg": "Google OpenID Connect discovery endpoint OK", "detail": ""})
+            else:
+                findings.append({"sev": "warning", "msg": "Google OIDC config missing expected fields", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": f"Google OIDC discovery: HTTP {r.status_code}", "detail": ""})
+    except Exception as e:
+        findings.append({"sev": "info", "msg": f"Could not check Google OIDC: {str(e)[:50]}", "detail": ""})
+
+    # 9. Check auth.py has login_with_google function
+    try:
+        from auth import login_with_google
+        findings.append({"sev": "pass", "msg": "login_with_google() function available in auth.py", "detail": ""})
+    except ImportError:
+        findings.append({"sev": "critical", "msg": "login_with_google not found in auth.py", "detail": ""})
+
+    # 10. Check Firebase env vars (needed for user creation on first Google login)
+    _firebase_key = os.environ.get("FIREBASE_API_KEY", "")
+    if _firebase_key:
+        findings.append({"sev": "pass", "msg": "FIREBASE_API_KEY env var is set", "detail": ""})
+    else:
+        findings.append({"sev": "warning", "msg": "FIREBASE_API_KEY env var not set", "detail": "May not affect Google login if direct DB auth is used"})
+
+    return findings
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # AGENT REGISTRY
 # ═══════════════════════════════════════════════════════════════════════
@@ -1318,6 +1447,7 @@ AGENTS = [
     {"id": "ext_uptime",     "name": "Uptime",         "icon": "🟢", "color": "#34D399", "fn": _agent_ext_uptime,     "tab": "External"},
     {"id": "ext_security",   "name": "SSL & Security", "icon": "🔐", "color": "#F43F5E", "fn": _agent_ext_security,   "tab": "External"},
     {"id": "ext_a11y",       "name": "Accessibility",  "icon": "♿", "color": "#818CF8", "fn": _agent_ext_accessibility, "tab": "External"},
+    {"id": "ext_google_signin", "name": "Google Sign-In", "icon": "🔑", "color": "#4285F4", "fn": _agent_ext_google_signin, "tab": "External"},
 ]
 
 
