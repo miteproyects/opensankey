@@ -361,7 +361,7 @@ def render_home_page():
             investors who value clarity over clutter.
         </p>
         <div class="hero-cta">
-            <a class="btn-primary" href="/?page=charts&ticker=NVDA" target="_top">Explore Charts &#8212; Free</a>
+            <a class="btn-primary" href="/?page=sankey&ticker=NVDA" target="_top">Explore Charts &#8212; Free</a>
             <a class="btn-ghost"  href="/?page=pricing" target="_top">View Pricing</a>
         </div>
         <div style="height:0.5px;background:rgba(255,255,255,0.07);max-width:480px;margin:6px auto 0;border-radius:1px;"></div>
@@ -370,7 +370,7 @@ def render_home_page():
         (function(){
             var el = document.getElementById('popular-tickers');
             var tickers = __TICKER_POOL;
-            var destPage = (typeof __REDIR_ALLOWED !== 'undefined' && __REDIR_ALLOWED) ? __REDIR_ALLOWED : 'charts';
+            var destPage = 'sankey';
             var html = 'Try for free:&nbsp; ';
             for (var i = 0; i < tickers.length; i++) {
                 if (i > 0) html += ' \u00b7 ';
@@ -442,7 +442,7 @@ def render_home_page():
         <div class="step">
             <div class="step-num">1</div>
             <h3>Enter a Ticker</h3>
-            <p>Type any US stock symbol &#8212; <a href="/?page=charts&ticker=AAPL" target="_top">AAPL</a>, <a href="/?page=charts&ticker=TSLA" target="_top">TSLA</a>, <a href="/?page=charts&ticker=NVDA" target="_top">NVDA</a>, or 10 000+ others.</p>
+            <p>Type any US stock symbol &#8212; <a href="/?page=sankey&ticker=AAPL" target="_top">AAPL</a>, <a href="/?page=sankey&ticker=TSLA" target="_top">TSLA</a>, <a href="/?page=sankey&ticker=NVDA" target="_top">NVDA</a>, or 10 000+ others.</p>
         </div>
         <div class="step">
             <div class="step-num">2</div>
@@ -471,7 +471,7 @@ def render_home_page():
                 <li>Income statement charts</li>
                 <li>Basic Sankey diagrams</li>
             </ul>
-            <a class="btn-primary" style="display:block;text-align:center;" href="/?page=charts&ticker=NVDA" target="_top">Get Started</a>
+            <a class="btn-primary" style="display:block;text-align:center;" href="/?page=sankey&ticker=NVDA" target="_top">Get Started</a>
         </div>
         <div class="pcard pop">
             <div class="tier">Pro</div>
@@ -503,7 +503,7 @@ def render_home_page():
     <div class="cta-foot">
         <h2>Ready to See Your Stocks Differently?</h2>
         <p>Join thousands of investors using QuarterCharts to make smarter decisions.</p>
-        <a class="btn-primary" href="/?page=charts&ticker=AAPL" target="_top">Try It Now &#8212; It's Free</a>
+        <a class="btn-primary" href="/?page=sankey&ticker=AAPL" target="_top">Try It Now &#8212; It's Free</a>
     </div>
     <!-- footer rendered globally by app.py -->
 
@@ -512,11 +512,11 @@ def render_home_page():
         var v = document.getElementById('ticker').value.trim().toUpperCase();
         if (!v) return;
         // Ticker access gating
-        var allowedDest = (typeof __REDIR_ALLOWED !== 'undefined' && __REDIR_ALLOWED) ? __REDIR_ALLOWED : 'charts';
+        // Always go to sankey page; blocked tickers redirect via pricing
         if (__ALLOWED_TICKERS !== null && __ALLOWED_TICKERS.indexOf(v) === -1) {
             var url = '/?page=' + encodeURIComponent(__REDIR_PAGE) + '&ticker=' + encodeURIComponent(v);
         } else {
-            var url = '/?page=' + encodeURIComponent(allowedDest) + '&ticker=' + encodeURIComponent(v);
+            var url = '/?page=sankey&ticker=' + encodeURIComponent(v);
         }
         try {
             var a = window.parent.document.createElement('a');

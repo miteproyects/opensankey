@@ -2116,7 +2116,7 @@ with st.sidebar:
         )
     else:
         _demo_links = " &middot; ".join(
-            f'<a href="/?page={_redir_allowed}&ticker={t}" target="_top" '
+            f'<a href="/?page=sankey&ticker={t}" target="_top" '
             f'style="color:#3b82f6;font-weight:600;text-decoration:none;"'
             f' onmouseover="this.style.color=\'#60a5fa\';this.style.textDecoration=\'underline\'"'
             f' onmouseout="this.style.color=\'#3b82f6\';this.style.textDecoration=\'none\'">{t}</a>'
@@ -2170,8 +2170,8 @@ with st.sidebar:
                 st.query_params.update({"page": _redir, "ticker": new_ticker})
                 st.rerun()
             st.session_state.ticker = new_ticker
-            # Use redirect_allowed page from plan (e.g. sankey) instead of current page
-            _dest_page = _redir_ok if _redir_ok else st.session_state.page
+            # Always open Sankey page when searching for a ticker
+            _dest_page = "sankey"
             _ticker_params = {"page": _dest_page, "ticker": new_ticker}
             _ticker_sid = st.session_state.get("_server_sid", "")
             if _ticker_sid:
@@ -2708,11 +2708,10 @@ with st.sidebar:
                         count += 1
                 return count
 
-            # Determine current fiscal year
-            if _cur_month > _fy_m_sk:
-                _cur_fy = _cur_year + 1
-            else:
-                _cur_fy = _cur_year
+            # Always use current calendar year as the "current FY" for the
+            # Q selector.  Companies with early FY-end (Jan/Feb/Mar) would
+            # compute _cur_fy = 2027 when we're in Apr 2026 — cap to 2026.
+            _cur_fy = _cur_year
 
             # ── Build quarter selector with month-range labels ──
             _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -2794,6 +2793,26 @@ with st.sidebar:
                 if _default_q is None:
                     _default_q = 4  # ultimate fallback
                     _default_q_prefix = "sk_Ya"
+
+                # ── Detect ticker change → reset Q selector to fresh defaults ──
+                _ticker_uc_sk = (ticker.upper() if ticker else "")
+                _prev_sk_ticker = st.session_state.get("_sk_prev_ticker", "")
+                if _prev_sk_ticker and _prev_sk_ticker != _ticker_uc_sk:
+                    # Ticker changed — clear all Q selector state so it
+                    # re-initialises with the new ticker's defaults.
+                    for _rk in ["_sk_btns_init", "sk_pa", "sk_pb",
+                                "_sk_prev_pa", "_edgar_qs_ticker",
+                                "_fallback_fy", "_fallback_pb_fy"]:
+                        st.session_state.pop(_rk, None)
+                    for _qi in range(1, 5):
+                        st.session_state.pop(f"sk_Ya_q{_qi}", None)
+                        st.session_state.pop(f"sk_Yb_q{_qi}", None)
+                    # Clear per-FY EDGAR cache keys for old ticker
+                    _to_del = [k for k in st.session_state
+                               if k.startswith("_edgar_qs_avail_")]
+                    for _dk in _to_del:
+                        del st.session_state[_dk]
+                st.session_state["_sk_prev_ticker"] = _ticker_uc_sk
 
                 # Keys: sk_Ya_q{1-4} = True/False, sk_Yb_q{1-4} = True/False
                 # Initialise: only the latest Q with filed data is ON
@@ -3367,7 +3386,7 @@ def _render_footer():
         _footer_tickers = ["GOOG", "META", "NVDA", "TSLA"]
         _footer_redir = "charts"
     _footer_links = " &middot; ".join(
-        f'<a href="/?page={_footer_redir}&ticker={t}" style="color:#93c5fd;text-decoration:none;"'
+        f'<a href="/?page=sankey&ticker={t}" style="color:#93c5fd;text-decoration:none;"'
         f' onmouseover="this.style.textDecoration=\'underline\'"'
         f' onmouseout="this.style.textDecoration=\'none\'">{t}</a>'
         for t in _footer_tickers
