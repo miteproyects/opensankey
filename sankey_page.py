@@ -5010,25 +5010,57 @@ def render_sankey_page():
             _fb_fy = _fb_fy_inc or _fb_fy_bal  # whichever was found
 
             if _fb_fy is not None:
-                # Found closest available — replace ONLY Period A.
-                # Period B keeps the user's selected comparison year.
+                # Found closest available — replace Period A.
+                # If the fallback FY collides with Period B, also shift Period B
+                # one year earlier so we don't compare identical data.
+                _pb_int = int(_pb) if _pb else 0
+                _collision = (_fb_fy == _pb_int)
+                _shifted_pb_fy = _fb_fy - 1 if _collision else None
+
                 if _fb_inc_ser is not None:
-                    _existing_b_inc = income_df["Period_B"].copy() if (income_df is not None and "Period_B" in income_df.columns) else pd.Series(dtype=float)
                     income_df = pd.DataFrame({"Period_A": _fb_inc_ser})
-                    income_df["Period_B"] = _existing_b_inc
+                    if _collision and _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
+                        # Rebuild Period B from one year earlier to avoid same-vs-same
+                        _sb_inc, _sb_ts = _aggregate_partial_year(
+                            _raw_qtr_income_df, _shifted_pb_fy, _fb_qs, _fy_end_m, False)
+                        if _sb_inc is None:
+                            # Direct FY not available, search backwards
+                            _sb_inc, _sb_ts, _sb_fy2 = _find_closest_available_fy(
+                                _raw_qtr_income_df, _shifted_pb_fy + 1, _fb_qs, _fy_end_m, False)
+                            if _sb_fy2 and _sb_fy2 != _fb_fy:
+                                _shifted_pb_fy = _sb_fy2
+                        income_df["Period_B"] = _sb_inc if _sb_inc is not None else pd.Series(dtype=float)
+                    else:
+                        _existing_b_inc = income_df.get("Period_B", pd.Series(dtype=float)) if income_df is not None else pd.Series(dtype=float)
+                        income_df["Period_B"] = _existing_b_inc
                     _swapped_periods = True
                 elif income_df is not None:
                     income_df["Period_A"] = np.nan
                 if _fb_bal_ser is not None:
-                    _existing_b_bal = balance_df["Period_B"].copy() if (balance_df is not None and "Period_B" in balance_df.columns) else pd.Series(dtype=float)
                     balance_df = pd.DataFrame({"Period_A": _fb_bal_ser})
-                    balance_df["Period_B"] = _existing_b_bal
+                    if _collision and _raw_qtr_balance_df is not None and not _raw_qtr_balance_df.empty:
+                        _sb_bal, _sb_bts = _aggregate_partial_year(
+                            _raw_qtr_balance_df, _shifted_pb_fy, _fb_qs, _fy_end_m, True)
+                        if _sb_bal is None:
+                            _sb_bal, _sb_bts, _ = _find_closest_available_fy(
+                                _raw_qtr_balance_df, _shifted_pb_fy + 1, _fb_qs, _fy_end_m, True)
+                        balance_df["Period_B"] = _sb_bal if _sb_bal is not None else pd.Series(dtype=float)
+                    else:
+                        _existing_b_bal = balance_df.get("Period_B", pd.Series(dtype=float)) if balance_df is not None else pd.Series(dtype=float)
+                        balance_df["Period_B"] = _existing_b_bal
                 elif balance_df is not None:
                     balance_df["Period_A"] = np.nan
                 _fb_months = _build_month_label(_fb_qs, _fb_fy, _fy_end_m)
-                st.warning(f"⚠️ {_qs_tag} FY{_pa} data not yet filed in SEC EDGAR. "
-                           f"Falling back to closest available: {_qs_tag} FY{_fb_fy}{_fb_months}.")
-                st.session_state["_fallback_fy"] = _fb_fy
+                if _collision:
+                    _shifted_months = _build_month_label(_fb_qs, _shifted_pb_fy, _fy_end_m) if _shifted_pb_fy else ""
+                    st.warning(f"⚠️ {_qs_tag} FY{_pa} data not yet filed in SEC EDGAR. "
+                               f"Falling back to FY{_fb_fy}{_fb_months} vs FY{_shifted_pb_fy}{_shifted_months}.")
+                    st.session_state["_fallback_fy"] = _fb_fy
+                    st.session_state["_fallback_pb_fy"] = _shifted_pb_fy
+                else:
+                    st.warning(f"⚠️ {_qs_tag} FY{_pa} data not yet filed in SEC EDGAR. "
+                               f"Falling back to closest available: {_qs_tag} FY{_fb_fy}{_fb_months}.")
+                    st.session_state["_fallback_fy"] = _fb_fy
             else:
                 _swapped_periods = True
                 st.warning(f"⚠️ {_qs_tag} data not available for FY{_pa} in SEC EDGAR. No recent data found.")
@@ -5069,11 +5101,18 @@ def render_sankey_page():
         _label_a = _build_period_label(_fy_a_int, _qa_qs, _qb_qs) if not _sq2 else _pa
         _label_b = _build_period_label(_fy_b_eff_label, _qa_qs, _qb_qs) if not _sq2 else _pb
         if _swapped_periods:
-            # Period A fell back to closest available; Period B kept as-is
+            # Period A fell back to closest available
             _fb_fy_used = st.session_state.get("_fallback_fy", int(_pb))
+            _fb_pb_used = st.session_state.get("_fallback_pb_fy")
             _fb_label = _build_period_label(_fb_fy_used, _qa_qs, _qb_qs) if not _sq2 else f"FY{_fb_fy_used}"
-            _compare_label = f"vs {_pb}"
-            _compare_note = f"Comparing {_fb_label} vs {_label_b} (FY{_pa} not yet filed)"
+            if _fb_pb_used is not None:
+                # Period B was also shifted due to collision
+                _fb_label_b = _build_period_label(_fb_pb_used, _qa_qs, _qb_qs) if not _sq2 else f"FY{_fb_pb_used}"
+                _compare_label = f"vs {_fb_pb_used}"
+                _compare_note = f"Comparing {_fb_label} vs {_fb_label_b} (FY{_pa} not yet filed)"
+            else:
+                _compare_label = f"vs {_pb}"
+                _compare_note = f"Comparing {_fb_label} vs {_label_b} (FY{_pa} not yet filed)"
         else:
             _compare_label = f"vs {_pb}"
             _compare_note = f"Comparing {_label_a} vs {_label_b}"

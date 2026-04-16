@@ -1258,6 +1258,26 @@ def _agent_audit_panel():
                                          "detail": ""})
                         break
 
+            # ════════════════════════════════════════════════════════════
+            # PHASE 9: Default View Fallback Check
+            # ════════════════════════════════════════════════════════════
+            # Detect when the latest FY (what users see by default) has no data,
+            # causing a fallback that could collide with Period B (same-vs-same).
+            current_year = now.year
+            latest_fy = fy_list[0] if fy_list else current_year
+            if latest_fy < current_year:
+                # The latest FY with data is older than the current year — users
+                # selecting the current year as Period A will trigger a fallback.
+                gap = current_year - latest_fy
+                if gap >= 2:
+                    findings.append({"sev": "warning",
+                                     "msg": f"{ticker}: latest EDGAR data is FY{latest_fy} ({gap}yr gap)",
+                                     "detail": "Default view will fall back; may compare same period vs itself"})
+                else:
+                    findings.append({"sev": "info",
+                                     "msg": f"{ticker}: latest FY with data is {latest_fy} (current year={current_year})",
+                                     "detail": "May trigger fallback in default Sankey view"})
+
         except Exception as e:
             findings.append({"sev": "warning", "msg": f"{ticker}: audit crashed — {str(e)[:80]}", "detail": ""})
 
