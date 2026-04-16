@@ -1,6 +1,6 @@
 """
 Super Bug Agent — Unified audit system for QuarterCharts NSFE.
-12 specialized agents, each auditing a specific domain.
+19 specialized agents, each auditing a specific domain.
 Matches QuarterCharts dark design system.
 """
 
@@ -793,6 +793,506 @@ def _test_q_combo(findings, ticker, fy, qs, inc_df, fy_end, combo_name):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# EXTERNAL MONITORING AGENTS
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── E1. Speed & Performance Agent ──────────────────────────────────────
+def _agent_ext_speed():
+    """Checks page speed, response times, page weight, and Core Web Vitals hints."""
+    findings = []
+    _test_pages = [
+        ("Home", "/?page=home"),
+        ("Charts", "/?page=charts&ticker=NVDA"),
+        ("Sankey", "/?page=sankey&ticker=NVDA"),
+        ("Pricing", "/?page=pricing"),
+        ("Earnings", "/?page=earnings"),
+    ]
+
+    for name, path in _test_pages:
+        url = _BASE_URL + path
+        r, elapsed = _get(url, timeout=15)
+        if not r:
+            findings.append({"sev": "critical", "msg": f"{name}: unreachable", "detail": url})
+            continue
+
+        html = r.text
+        size_kb = round(len(r.content) / 1024, 1)
+
+        # Response time thresholds (TTFB-like)
+        if elapsed <= 2:
+            findings.append({"sev": "pass", "msg": f"{name}: fast response {elapsed}s ({size_kb}KB)", "detail": ""})
+        elif elapsed <= 5:
+            findings.append({"sev": "warning", "msg": f"{name}: moderate {elapsed}s ({size_kb}KB)", "detail": "Target < 2s for good Core Web Vitals"})
+        else:
+            findings.append({"sev": "critical", "msg": f"{name}: slow {elapsed}s ({size_kb}KB)", "detail": "Slow TTFB hurts LCP and PageSpeed score"})
+
+        # Page weight
+        if size_kb > 3000:
+            findings.append({"sev": "critical", "msg": f"{name}: heavy page {size_kb}KB", "detail": "Compress images, lazy-load, split bundles"})
+        elif size_kb > 1500:
+            findings.append({"sev": "warning", "msg": f"{name}: page weight {size_kb}KB", "detail": "Consider reducing assets for mobile users"})
+
+        # Check for render-blocking patterns
+        import_count = html.lower().count('<script src=')
+        css_count = html.lower().count('<link rel="stylesheet"')
+        if import_count > 10:
+            findings.append({"sev": "warning", "msg": f"{name}: {import_count} external scripts", "detail": "Many scripts can delay First Contentful Paint"})
+        if css_count > 5:
+            findings.append({"sev": "info", "msg": f"{name}: {css_count} external stylesheets", "detail": "Consider inlining critical CSS"})
+
+    # Check GZIP / compression
+    try:
+        r_head = requests.head(_BASE_URL, timeout=8, headers=_REQ_HEADERS, allow_redirects=True)
+        encoding = r_head.headers.get("Content-Encoding", "")
+        if "gzip" in encoding or "br" in encoding:
+            findings.append({"sev": "pass", "msg": f"Compression enabled: {encoding}", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": "No GZIP/Brotli compression detected", "detail": "Enable compression to reduce transfer size 60-80%"})
+
+        # Cache headers
+        cache = r_head.headers.get("Cache-Control", "")
+        if cache:
+            findings.append({"sev": "pass", "msg": f"Cache-Control header present: {cache[:60]}", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": "No Cache-Control header", "detail": "Add caching to reduce repeat load times"})
+    except Exception:
+        findings.append({"sev": "info", "msg": "Could not check compression headers", "detail": ""})
+
+    # PageSpeed Insights API (free, no key needed for basic check)
+    try:
+        psi_url = f"https://www.googleapis.com/pagespeedonline/v5/runPagespeedtest?url={_BASE_URL}&category=PERFORMANCE&strategy=MOBILE"
+        psi_r = requests.get(psi_url, timeout=60)
+        if psi_r.status_code == 200:
+            data = psi_r.json()
+            score = data.get("lighthouseResult", {}).get("categories", {}).get("performance", {}).get("score", 0)
+            score_pct = int(score * 100)
+            audits = data.get("lighthouseResult", {}).get("audits", {})
+
+            if score_pct >= 90:
+                findings.append({"sev": "pass", "msg": f"PageSpeed mobile score: {score_pct}/100", "detail": "Excellent performance"})
+            elif score_pct >= 50:
+                findings.append({"sev": "warning", "msg": f"PageSpeed mobile score: {score_pct}/100", "detail": "Needs improvement — target 90+"})
+            else:
+                findings.append({"sev": "critical", "msg": f"PageSpeed mobile score: {score_pct}/100", "detail": "Poor performance — major optimizations needed"})
+
+            # Key metrics
+            for metric_key, label in [("first-contentful-paint", "FCP"), ("largest-contentful-paint", "LCP"),
+                                       ("total-blocking-time", "TBT"), ("cumulative-layout-shift", "CLS"),
+                                       ("speed-index", "Speed Index")]:
+                audit = audits.get(metric_key, {})
+                display = audit.get("displayValue", "N/A")
+                audit_score = audit.get("score", 1)
+                sev = "pass" if audit_score >= 0.9 else "warning" if audit_score >= 0.5 else "critical"
+                findings.append({"sev": sev, "msg": f"{label}: {display}", "detail": audit.get("description", "")[:80]})
+        else:
+            findings.append({"sev": "info", "msg": f"PageSpeed API returned {psi_r.status_code}", "detail": "Try manually at pagespeed.web.dev"})
+    except Exception as e:
+        findings.append({"sev": "info", "msg": f"PageSpeed API check skipped: {str(e)[:50]}", "detail": "Run manually at pagespeed.web.dev"})
+
+    return findings
+
+
+# ── E2. SEO & Search Agent ─────────────────────────────────────────────
+def _agent_ext_seo():
+    """Checks meta tags, Open Graph, structured data, robots.txt, sitemap, and SEO best practices."""
+    findings = []
+
+    # Check robots.txt
+    r, _ = _get(_BASE_URL + "/robots.txt")
+    if r and r.status_code == 200:
+        robots_text = r.text
+        if "Sitemap:" in robots_text:
+            findings.append({"sev": "pass", "msg": "robots.txt: Sitemap reference found", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": "robots.txt: No Sitemap reference", "detail": "Add Sitemap: URL to robots.txt"})
+        if "Disallow" in robots_text:
+            findings.append({"sev": "pass", "msg": "robots.txt: Disallow rules present", "detail": ""})
+    else:
+        findings.append({"sev": "critical", "msg": "robots.txt: missing or unreachable", "detail": "Search engines need robots.txt"})
+
+    # Check sitemap.xml
+    r, _ = _get(_BASE_URL + "/sitemap.xml")
+    if r and r.status_code == 200 and "<url>" in r.text.lower():
+        url_count = r.text.lower().count("<url>")
+        findings.append({"sev": "pass", "msg": f"sitemap.xml: found with {url_count} URLs", "detail": ""})
+    else:
+        findings.append({"sev": "critical", "msg": "sitemap.xml: missing or invalid", "detail": "Create XML sitemap for better indexing"})
+
+    # Check key pages for SEO elements
+    _seo_pages = [
+        ("Home", "/?page=home"),
+        ("Pricing", "/?page=pricing"),
+        ("Charts (NVDA)", "/?page=charts&ticker=NVDA"),
+    ]
+
+    for name, path in _seo_pages:
+        r, _ = _get(_BASE_URL + path)
+        if not r:
+            findings.append({"sev": "critical", "msg": f"{name}: unreachable for SEO check", "detail": ""})
+            continue
+
+        html = r.text.lower()
+
+        # Title tag
+        if "<title>" in html and "</title>" in html:
+            title_start = html.index("<title>") + 7
+            title_end = html.index("</title>")
+            title = html[title_start:title_end].strip()
+            title_len = len(title)
+            if 30 <= title_len <= 60:
+                findings.append({"sev": "pass", "msg": f"{name}: title tag OK ({title_len} chars)", "detail": ""})
+            elif title_len > 0:
+                findings.append({"sev": "warning", "msg": f"{name}: title {title_len} chars (ideal 30-60)", "detail": title[:60]})
+            else:
+                findings.append({"sev": "critical", "msg": f"{name}: empty title tag", "detail": "Every page needs a unique title"})
+        else:
+            findings.append({"sev": "critical", "msg": f"{name}: missing <title> tag", "detail": ""})
+
+        # Meta description
+        if 'name="description"' in html:
+            findings.append({"sev": "pass", "msg": f"{name}: meta description present", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": f"{name}: missing meta description", "detail": "Add meta description for better CTR in search results"})
+
+        # Open Graph tags
+        og_tags = ["og:title", "og:description", "og:image", "og:url"]
+        og_found = sum(1 for tag in og_tags if f'property="{tag}"' in html or f"property='{tag}'" in html)
+        if og_found == len(og_tags):
+            findings.append({"sev": "pass", "msg": f"{name}: all Open Graph tags present", "detail": ""})
+        elif og_found > 0:
+            findings.append({"sev": "warning", "msg": f"{name}: {og_found}/{len(og_tags)} OG tags", "detail": "Add missing OG tags for social sharing"})
+        else:
+            findings.append({"sev": "warning", "msg": f"{name}: no Open Graph tags", "detail": "OG tags improve social media previews"})
+
+        # Twitter Card
+        if 'name="twitter:card"' in html or "name='twitter:card'" in html:
+            findings.append({"sev": "pass", "msg": f"{name}: Twitter Card meta present", "detail": ""})
+        else:
+            findings.append({"sev": "info", "msg": f"{name}: no Twitter Card meta", "detail": "Add for better X/Twitter previews"})
+
+        # Canonical URL
+        if 'rel="canonical"' in html or "rel='canonical'" in html:
+            findings.append({"sev": "pass", "msg": f"{name}: canonical URL set", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": f"{name}: missing canonical URL", "detail": "Prevents duplicate content issues"})
+
+        # H1 tag
+        if "<h1" in html:
+            findings.append({"sev": "pass", "msg": f"{name}: H1 tag present", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": f"{name}: missing H1 tag", "detail": "Every page should have one H1"})
+
+        # Structured data (JSON-LD)
+        if 'application/ld+json' in html:
+            findings.append({"sev": "pass", "msg": f"{name}: JSON-LD structured data found", "detail": ""})
+        else:
+            findings.append({"sev": "info", "msg": f"{name}: no JSON-LD structured data", "detail": "Add schema.org markup for rich results"})
+
+    # Check for hreflang (international SEO)
+    r, _ = _get(_BASE_URL + "/?page=home")
+    if r and 'hreflang' in r.text.lower():
+        findings.append({"sev": "pass", "msg": "hreflang tags present (international SEO)", "detail": ""})
+    else:
+        findings.append({"sev": "info", "msg": "No hreflang tags (OK if single-language site)", "detail": ""})
+
+    return findings
+
+
+# ── E3. Uptime & Availability Agent ────────────────────────────────────
+def _agent_ext_uptime():
+    """Checks site availability, HTTP status codes, redirect chains, and DNS resolution."""
+    findings = []
+
+    # Test main domain
+    _endpoints = [
+        ("Homepage", _BASE_URL),
+        ("WWW redirect", "https://www.quartercharts.com"),
+        ("HTTP redirect", "http://quartercharts.com"),
+        ("Charts page", _BASE_URL + "/?page=charts&ticker=NVDA"),
+        ("Sankey page", _BASE_URL + "/?page=sankey&ticker=NVDA"),
+        ("Pricing page", _BASE_URL + "/?page=pricing"),
+        ("API/Sitemap", _BASE_URL + "/sitemap.xml"),
+        ("Robots", _BASE_URL + "/robots.txt"),
+    ]
+
+    for name, url in _endpoints:
+        try:
+            start = time.time()
+            r = requests.get(url, timeout=15, headers=_REQ_HEADERS, allow_redirects=True)
+            elapsed = round(time.time() - start, 2)
+
+            if r.status_code == 200:
+                findings.append({"sev": "pass", "msg": f"{name}: UP ({r.status_code}) in {elapsed}s", "detail": ""})
+            elif r.status_code in (301, 302, 308):
+                findings.append({"sev": "pass", "msg": f"{name}: redirect {r.status_code} → {r.headers.get('Location', '?')[:60]}", "detail": ""})
+            elif r.status_code == 403:
+                findings.append({"sev": "warning", "msg": f"{name}: 403 Forbidden", "detail": "Check access permissions"})
+            elif r.status_code == 404:
+                findings.append({"sev": "critical", "msg": f"{name}: 404 Not Found", "detail": url})
+            elif r.status_code >= 500:
+                findings.append({"sev": "critical", "msg": f"{name}: server error {r.status_code}", "detail": "Check Railway logs for errors"})
+            else:
+                findings.append({"sev": "info", "msg": f"{name}: status {r.status_code} in {elapsed}s", "detail": ""})
+
+            # Check redirect chain length
+            if len(r.history) > 2:
+                findings.append({"sev": "warning", "msg": f"{name}: {len(r.history)} redirects in chain", "detail": "Long redirect chains slow page load"})
+
+        except requests.exceptions.Timeout:
+            findings.append({"sev": "critical", "msg": f"{name}: TIMEOUT (>15s)", "detail": "Site may be down or extremely slow"})
+        except requests.exceptions.ConnectionError:
+            findings.append({"sev": "critical", "msg": f"{name}: CONNECTION FAILED", "detail": "Site is unreachable"})
+        except Exception as e:
+            findings.append({"sev": "critical", "msg": f"{name}: error — {str(e)[:50]}", "detail": ""})
+
+    # DNS resolution check
+    try:
+        import socket
+        ip = socket.gethostbyname("quartercharts.com")
+        findings.append({"sev": "pass", "msg": f"DNS resolves: quartercharts.com → {ip}", "detail": ""})
+    except Exception as e:
+        findings.append({"sev": "critical", "msg": f"DNS resolution failed: {str(e)[:50]}", "detail": "Domain may be misconfigured"})
+
+    # Check www vs non-www consistency
+    try:
+        r_www = requests.get("https://www.quartercharts.com", timeout=10, allow_redirects=False, headers=_REQ_HEADERS)
+        r_bare = requests.get("https://quartercharts.com", timeout=10, allow_redirects=False, headers=_REQ_HEADERS)
+        if r_www.status_code in (301, 302, 308):
+            findings.append({"sev": "pass", "msg": "www → non-www redirect configured", "detail": ""})
+        elif r_bare.status_code in (301, 302, 308):
+            findings.append({"sev": "pass", "msg": "non-www → www redirect configured", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": "No www/non-www redirect", "detail": "Both versions serve content — pick one canonical"})
+    except Exception:
+        findings.append({"sev": "info", "msg": "Could not test www redirect", "detail": ""})
+
+    # Measure average response time across 3 pings
+    times = []
+    for _ in range(3):
+        _, t = _get(_BASE_URL, timeout=10)
+        if t > 0:
+            times.append(t)
+    if times:
+        avg = round(sum(times) / len(times), 2)
+        if avg <= 2:
+            findings.append({"sev": "pass", "msg": f"Avg response time: {avg}s (3 pings)", "detail": ""})
+        elif avg <= 5:
+            findings.append({"sev": "warning", "msg": f"Avg response time: {avg}s (3 pings)", "detail": "Consider CDN or caching"})
+        else:
+            findings.append({"sev": "critical", "msg": f"Avg response time: {avg}s (3 pings)", "detail": "Severely slow — investigate server"})
+
+    return findings
+
+
+# ── E4. Security & SSL Agent ───────────────────────────────────────────
+def _agent_ext_security():
+    """Checks SSL certificate, security headers, HTTPS enforcement, and common vulnerabilities."""
+    findings = []
+
+    # SSL certificate check
+    try:
+        import ssl
+        import socket
+        ctx = ssl.create_default_context()
+        with ctx.wrap_socket(socket.socket(), server_hostname="quartercharts.com") as s:
+            s.settimeout(10)
+            s.connect(("quartercharts.com", 443))
+            cert = s.getpeercert()
+
+            # Expiry check
+            not_after = cert.get("notAfter", "")
+            if not_after:
+                from datetime import datetime as dt
+                expiry = dt.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
+                days_left = (expiry - dt.utcnow()).days
+                if days_left > 30:
+                    findings.append({"sev": "pass", "msg": f"SSL valid: {days_left} days until expiry", "detail": f"Expires: {not_after}"})
+                elif days_left > 7:
+                    findings.append({"sev": "warning", "msg": f"SSL expiring soon: {days_left} days left", "detail": "Renew certificate ASAP"})
+                elif days_left > 0:
+                    findings.append({"sev": "critical", "msg": f"SSL expires in {days_left} days!", "detail": "URGENT: Renew immediately"})
+                else:
+                    findings.append({"sev": "critical", "msg": "SSL CERTIFICATE EXPIRED", "detail": "Site will show security warnings"})
+
+            # Issuer
+            issuer = dict(x[0] for x in cert.get("issuer", []))
+            org = issuer.get("organizationName", "Unknown")
+            findings.append({"sev": "pass", "msg": f"SSL issuer: {org}", "detail": ""})
+
+            # Subject alt names
+            san = cert.get("subjectAltName", [])
+            domains = [d[1] for d in san if d[0] == "DNS"]
+            findings.append({"sev": "pass", "msg": f"SSL covers: {', '.join(domains[:5])}", "detail": ""})
+
+    except Exception as e:
+        findings.append({"sev": "critical", "msg": f"SSL check failed: {str(e)[:60]}", "detail": "Cannot verify certificate"})
+
+    # HTTPS enforcement
+    try:
+        r = requests.get("http://quartercharts.com", timeout=10, allow_redirects=False, headers=_REQ_HEADERS)
+        if r.status_code in (301, 302, 308) and "https" in r.headers.get("Location", ""):
+            findings.append({"sev": "pass", "msg": "HTTP → HTTPS redirect active", "detail": ""})
+        else:
+            findings.append({"sev": "critical", "msg": "HTTP not redirecting to HTTPS", "detail": "All traffic must use HTTPS"})
+    except Exception:
+        findings.append({"sev": "info", "msg": "Could not test HTTP redirect", "detail": ""})
+
+    # Security headers check
+    try:
+        r = requests.get(_BASE_URL, timeout=10, headers=_REQ_HEADERS)
+        headers = r.headers
+
+        _sec_headers = {
+            "Strict-Transport-Security": ("HSTS", "critical", "Prevents protocol downgrade attacks"),
+            "X-Content-Type-Options": ("X-Content-Type-Options", "warning", "Prevents MIME sniffing"),
+            "X-Frame-Options": ("X-Frame-Options", "warning", "Prevents clickjacking"),
+            "Content-Security-Policy": ("CSP", "warning", "Controls allowed content sources"),
+            "X-XSS-Protection": ("X-XSS-Protection", "info", "Legacy XSS filter (mostly deprecated)"),
+            "Referrer-Policy": ("Referrer-Policy", "info", "Controls referrer information"),
+            "Permissions-Policy": ("Permissions-Policy", "info", "Controls browser features"),
+        }
+
+        for header, (label, sev_missing, desc) in _sec_headers.items():
+            if header in headers:
+                val = headers[header][:60]
+                findings.append({"sev": "pass", "msg": f"{label}: {val}", "detail": ""})
+            else:
+                findings.append({"sev": sev_missing, "msg": f"Missing {label} header", "detail": desc})
+
+        # Check for server version disclosure
+        server = headers.get("Server", "")
+        if server and any(v in server.lower() for v in ["apache", "nginx", "iis"]):
+            findings.append({"sev": "warning", "msg": f"Server header exposes: {server}", "detail": "Hide server version to reduce attack surface"})
+        elif server:
+            findings.append({"sev": "pass", "msg": f"Server header: {server}", "detail": ""})
+
+    except Exception as e:
+        findings.append({"sev": "warning", "msg": f"Security headers check failed: {str(e)[:50]}", "detail": ""})
+
+    # Check for mixed content indicators
+    try:
+        r, _ = _get(_BASE_URL + "/?page=home")
+        if r:
+            html = r.text
+            http_refs = len(re.findall(r'(src|href)=["\']http://', html))
+            if http_refs == 0:
+                findings.append({"sev": "pass", "msg": "No mixed content (HTTP refs) on homepage", "detail": ""})
+            else:
+                findings.append({"sev": "warning", "msg": f"Mixed content: {http_refs} HTTP references on homepage", "detail": "All resources should use HTTPS"})
+    except Exception:
+        pass
+
+    return findings
+
+
+# ── E5. Accessibility & Mobile Agent ───────────────────────────────────
+def _agent_ext_accessibility():
+    """Checks mobile-friendliness, accessibility basics, viewport, ARIA, and semantic HTML."""
+    findings = []
+
+    _test_pages = [
+        ("Home", "/?page=home"),
+        ("Pricing", "/?page=pricing"),
+        ("Charts", "/?page=charts&ticker=NVDA"),
+    ]
+
+    for name, path in _test_pages:
+        r, _ = _get(_BASE_URL + path)
+        if not r:
+            findings.append({"sev": "critical", "msg": f"{name}: unreachable", "detail": ""})
+            continue
+
+        html = r.text
+        html_lower = html.lower()
+
+        # Viewport meta
+        if 'name="viewport"' in html_lower:
+            if "width=device-width" in html_lower:
+                findings.append({"sev": "pass", "msg": f"{name}: viewport meta with device-width", "detail": ""})
+            else:
+                findings.append({"sev": "warning", "msg": f"{name}: viewport meta but no device-width", "detail": "Use width=device-width for responsive design"})
+        else:
+            findings.append({"sev": "critical", "msg": f"{name}: missing viewport meta tag", "detail": "Required for mobile rendering"})
+
+        # Language attribute
+        if 'lang=' in html_lower[:500]:
+            findings.append({"sev": "pass", "msg": f"{name}: html lang attribute set", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": f"{name}: missing html lang attribute", "detail": "Add lang='en' for screen readers"})
+
+        # Image alt attributes
+        img_tags = re.findall(r'<img[^>]*>', html, re.IGNORECASE)
+        imgs_no_alt = sum(1 for img in img_tags if 'alt=' not in img.lower())
+        if img_tags:
+            if imgs_no_alt == 0:
+                findings.append({"sev": "pass", "msg": f"{name}: all {len(img_tags)} images have alt text", "detail": ""})
+            else:
+                findings.append({"sev": "warning", "msg": f"{name}: {imgs_no_alt}/{len(img_tags)} images missing alt", "detail": "Alt text required for accessibility"})
+
+        # ARIA landmarks / roles
+        aria_count = html_lower.count('role=') + html_lower.count('aria-')
+        if aria_count > 5:
+            findings.append({"sev": "pass", "msg": f"{name}: {aria_count} ARIA attributes found", "detail": ""})
+        elif aria_count > 0:
+            findings.append({"sev": "info", "msg": f"{name}: {aria_count} ARIA attributes (consider adding more)", "detail": ""})
+        else:
+            findings.append({"sev": "warning", "msg": f"{name}: no ARIA attributes found", "detail": "Add ARIA landmarks for screen reader navigation"})
+
+        # Skip links
+        if 'skip' in html_lower[:2000] and ('nav' in html_lower[:2000] or 'main' in html_lower[:2000]):
+            findings.append({"sev": "pass", "msg": f"{name}: skip navigation link found", "detail": ""})
+        else:
+            findings.append({"sev": "info", "msg": f"{name}: no skip navigation link", "detail": "Add 'Skip to main content' for keyboard users"})
+
+        # Form labels
+        inputs = re.findall(r'<input[^>]*>', html, re.IGNORECASE)
+        inputs_no_label = sum(1 for inp in inputs
+                              if 'type="hidden"' not in inp.lower()
+                              and 'type="submit"' not in inp.lower()
+                              and 'aria-label' not in inp.lower()
+                              and 'id=' not in inp.lower())
+        if inputs:
+            if inputs_no_label == 0:
+                findings.append({"sev": "pass", "msg": f"{name}: form inputs properly labeled", "detail": ""})
+            elif inputs_no_label <= 2:
+                findings.append({"sev": "info", "msg": f"{name}: {inputs_no_label} inputs may lack labels", "detail": ""})
+            else:
+                findings.append({"sev": "warning", "msg": f"{name}: {inputs_no_label} inputs without labels/aria", "detail": "Screen readers need labels for form inputs"})
+
+        # Semantic HTML elements
+        semantic_tags = ["<nav", "<main", "<header", "<footer", "<article", "<section"]
+        found_semantic = sum(1 for tag in semantic_tags if tag in html_lower)
+        if found_semantic >= 4:
+            findings.append({"sev": "pass", "msg": f"{name}: good semantic HTML ({found_semantic}/6 tags)", "detail": ""})
+        elif found_semantic >= 2:
+            findings.append({"sev": "info", "msg": f"{name}: partial semantic HTML ({found_semantic}/6 tags)", "detail": "Add more semantic elements"})
+        else:
+            findings.append({"sev": "warning", "msg": f"{name}: poor semantic HTML ({found_semantic}/6)", "detail": "Use nav, main, header, footer, article, section"})
+
+        # Font size check (look for very small text patterns)
+        tiny_fonts = len(re.findall(r'font-size:\s*(8|9|10)px', html))
+        if tiny_fonts > 5:
+            findings.append({"sev": "warning", "msg": f"{name}: {tiny_fonts} elements with font ≤10px", "detail": "Minimum 12px recommended for readability"})
+
+    # Mobile responsiveness — check for common responsive patterns
+    r, _ = _get(_BASE_URL + "/?page=home")
+    if r:
+        html = r.text
+        if "@media" in html:
+            media_queries = html.count("@media")
+            findings.append({"sev": "pass", "msg": f"Responsive: {media_queries} @media queries found", "detail": ""})
+        else:
+            findings.append({"sev": "info", "msg": "No @media queries in initial HTML", "detail": "May be in external stylesheets (OK)"})
+
+        # Touch-friendly tap targets (check for very small clickable areas)
+        small_buttons = len(re.findall(r'padding:\s*[0-2]px', html))
+        if small_buttons > 3:
+            findings.append({"sev": "warning", "msg": f"{small_buttons} elements with tiny padding (<3px)", "detail": "Tap targets should be at least 48x48px on mobile"})
+
+    return findings
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # AGENT REGISTRY
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -812,6 +1312,12 @@ AGENTS = [
     {"id": "status",         "name": "Status",         "icon": "✅", "color": "#10B981", "fn": _agent_status,         "tab": "Feature Tracker"},
     {"id": "meta",           "name": "Meta",           "icon": "🔄", "color": "#78716C", "fn": _agent_meta,           "tab": "Agent System"},
     {"id": "audit_panel",   "name": "Audit Panel",   "icon": "🔬", "color": "#DC2626", "fn": _agent_audit_panel,   "tab": "Sankey Audit"},
+    # External monitoring agents
+    {"id": "ext_speed",      "name": "Speed",          "icon": "⚡", "color": "#F59E0B", "fn": _agent_ext_speed,      "tab": "External"},
+    {"id": "ext_seo",        "name": "SEO Check",      "icon": "🔎", "color": "#22D3EE", "fn": _agent_ext_seo,        "tab": "External"},
+    {"id": "ext_uptime",     "name": "Uptime",         "icon": "🟢", "color": "#34D399", "fn": _agent_ext_uptime,     "tab": "External"},
+    {"id": "ext_security",   "name": "SSL & Security", "icon": "🔐", "color": "#F43F5E", "fn": _agent_ext_security,   "tab": "External"},
+    {"id": "ext_a11y",       "name": "Accessibility",  "icon": "♿", "color": "#818CF8", "fn": _agent_ext_accessibility, "tab": "External"},
 ]
 
 
@@ -984,14 +1490,14 @@ def _render_command_center():
     st.markdown("""
     <div class="sba-header">
         <h1>🐛 Super Bug Agent</h1>
-        <p>14 specialized agents auditing every layer of QuarterCharts</p>
+        <p>19 specialized agents auditing every layer of QuarterCharts</p>
     </div>
     """, unsafe_allow_html=True)
 
     # Run button
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        run = st.button("🚀 Run All 14 Agents", use_container_width=True, type="primary", key="sba_run")
+        run = st.button("🚀 Run All 19 Agents", use_container_width=True, type="primary", key="sba_run")
 
     if run:
         bar = st.progress(0, text="Initializing agents...")
@@ -999,7 +1505,7 @@ def _render_command_center():
             bar.progress(min(pct, 1.0), text=txt)
 
         result = _run_all_agents(progress_cb=_cb)
-        bar.progress(1.0, text="All 14 agents complete!")
+        bar.progress(1.0, text="All 19 agents complete!")
         time.sleep(0.5)
         bar.empty()
 
@@ -1012,7 +1518,7 @@ def _render_command_center():
 
     result = st.session_state.get("sba_result")
     if not result:
-        st.markdown('<div class="sba-empty">Click <strong>Run All 14 Agents</strong> to start your first audit</div>',
+        st.markdown('<div class="sba-empty">Click <strong>Run All 19 Agents</strong> to start your first audit</div>',
                     unsafe_allow_html=True)
         return
 
