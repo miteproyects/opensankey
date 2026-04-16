@@ -413,23 +413,6 @@ section[data-testid="stSidebar"] {
     cursor: pointer !important;
     min-height: 3rem !important;
 }
-/* Pre-style PDF buttons before JS Ã¢ÂÂ only when row has no JS class yet */
-[data-testid="stHorizontalBlock"]:has([class*="st-key-hdr_show_"]):not(.section-row-expanded):not(.section-row-collapsed) [class*="st-key-gen_pdf_"] button,
-[data-testid="stHorizontalBlock"]:has([class*="st-key-hdr_show_"]):not(.section-row-expanded):not(.section-row-collapsed) [class*="st-key-dl_"] button {
-    background: rgba(255,255,255,0.13) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255,255,255,0.28) !important;
-    font-size: 0.78rem !important;
-    font-weight: 500 !important;
-    padding: 5px 14px !important;
-    border-radius: 8px !important;
-    cursor: pointer !important;
-    min-height: 0 !important;
-    height: auto !important;
-    line-height: 1.4 !important;
-    white-space: nowrap !important;
-}
-
 /* ---- Section header logo (injected by JS) ---- */
 .section-logo {
     height: 22px;
@@ -557,57 +540,6 @@ section[data-testid="stSidebar"] {
     border-radius: 0 !important;
     margin-top: 0 !important;
 }
-/* PDF button dark variant (inside expanded row) */
-.section-row-expanded button:not(.section-header-expanded) {
-    background: rgba(255,255,255,0.13) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255,255,255,0.28) !important;
-    font-size: 0.78rem !important;
-    font-weight: 500 !important;
-    padding: 5px 14px !important;
-    border-radius: 8px !important;
-    cursor: pointer !important;
-    min-height: 0 !important;
-    height: auto !important;
-    line-height: 1.4 !important;
-    white-space: nowrap !important;
-}
-.section-row-expanded button:not(.section-header-expanded):hover {
-    background: rgba(255,255,255,0.24) !important;
-    border-color: rgba(255,255,255,0.45) !important;
-}
-/* PDF button light variant (inside collapsed row) */
-.section-row-collapsed button:not(.section-header-collapsed) {
-    background: rgba(0,0,0,0.05) !important;
-    color: var(--text) !important;
-    border: 1px solid var(--border) !important;
-    font-size: 0.78rem !important;
-    font-weight: 500 !important;
-    padding: 5px 14px !important;
-    border-radius: 8px !important;
-    cursor: pointer !important;
-    min-height: 0 !important;
-    height: auto !important;
-    line-height: 1.4 !important;
-    white-space: nowrap !important;
-}
-.section-row-collapsed button:not(.section-header-collapsed):hover {
-    background: rgba(0,0,0,0.10) !important;
-    border-color: #adb5bd !important;
-}
-/* Remove extra padding from PDF column containers */
-.section-row-expanded [data-testid="stColumn"],
-.section-row-collapsed [data-testid="stColumn"] {
-    padding: 0 !important;
-}
-.section-row-expanded [data-testid="stColumn"] [data-testid="stButton"],
-.section-row-collapsed [data-testid="stColumn"] [data-testid="stButton"],
-.section-row-expanded [data-testid="stColumn"] [data-testid="stDownloadButton"],
-.section-row-collapsed [data-testid="stColumn"] [data-testid="stDownloadButton"] {
-    margin: 0 !important;
-    padding: 0 !important;
-}
-
 /* ---- Info (i) icon styling ---- */
 [data-testid="stPopoverButton"] {
     background: transparent !important;
@@ -939,12 +871,6 @@ img, iframe, svg, canvas { max-width: 100%; height: auto; }
     .section-header-collapsed {
         padding: 8px 10px !important;
         font-size: 0.85rem !important;
-    }
-    /* PDF buttons in section headers */
-    .section-row-expanded button:not(.section-header-expanded),
-    .section-row-collapsed button:not(.section-header-collapsed) {
-        font-size: 0.68rem !important;
-        padding: 4px 8px !important;
     }
 }
 
@@ -1601,173 +1527,6 @@ def _share_row(chart_name: str, ticker: str):
     pass  # Share functionality removed to fix layout; can be re-added via chart toolbar
 
 
-def _plotly_fig_to_mpl(pfig, figsize=(10, 5)):
-    """Convert a Plotly figure to a matplotlib figure for PDF export.
-
-    Handles grouped bar charts, stacked bar charts, and line/scatter charts.
-    Uses colours from the original Plotly traces.
-    """
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.ticker import FuncFormatter
-    import numpy as np
-
-    traces = pfig.data if hasattr(pfig, "data") else []
-    if not traces:
-        return None
-
-    # Extract title
-    title = ""
-    meta = getattr(pfig.layout, "meta", None)
-    if isinstance(meta, str) and meta:
-        title = meta
-    elif hasattr(pfig.layout, "title") and hasattr(pfig.layout.title, "text"):
-        title = pfig.layout.title.text or ""
-
-    fig, ax = plt.subplots(figsize=figsize)
-
-    bar_traces = [t for t in traces if getattr(t, "type", "bar") == "bar"]
-    line_traces = [t for t in traces
-                   if getattr(t, "type", "") in ("scatter", "scattergl")]
-
-    # Detect stacked mode
-    barmode = getattr(pfig.layout, "barmode", None) or "group"
-
-    if bar_traces:
-        x_labels = [str(v) for v in bar_traces[0].x]
-        x_pos = np.arange(len(x_labels))
-
-        if barmode == "stack":
-            bottom = np.zeros(len(x_labels))
-            for t in bar_traces:
-                y_vals = np.array([float(v) if v is not None else 0 for v in t.y])
-                color = getattr(t.marker, "color", None) or "#4285f4"
-                if isinstance(color, (list, tuple)):
-                    color = color[0] if color else "#4285f4"
-                ax.bar(x_pos, y_vals, 0.7, bottom=bottom,
-                       label=t.name or "", color=color, edgecolor="none")
-                bottom += y_vals
-        else:
-            n_bars = len(bar_traces)
-            width = 0.8 / max(n_bars, 1)
-            for idx, t in enumerate(bar_traces):
-                y_vals = [float(v) if v is not None else 0 for v in t.y]
-                color = getattr(t.marker, "color", None) or "#4285f4"
-                if isinstance(color, (list, tuple)):
-                    color = color[0] if color else "#4285f4"
-                offset = (idx - (n_bars - 1) / 2) * width
-                ax.bar(x_pos + offset, y_vals, width,
-                       label=t.name or "", color=color, edgecolor="none")
-
-        ax.set_xticks(x_pos)
-        ax.set_xticklabels(x_labels, rotation=45, ha="right", fontsize=8)
-
-    for t in line_traces:
-        x_labels = [str(v) for v in t.x]
-        y_vals = [float(v) if v is not None else 0 for v in t.y]
-        color = getattr(t.marker, "color", None) or "#4285f4"
-        if isinstance(color, (list, tuple)):
-            color = color[0] if color else "#4285f4"
-        ax.plot(range(len(y_vals)), y_vals, marker="o",
-                label=t.name or "", color=color, linewidth=2)
-        if not bar_traces:
-            ax.set_xticks(range(len(x_labels)))
-            ax.set_xticklabels(x_labels, rotation=45, ha="right", fontsize=8)
-
-    # Smart y-axis formatting
-    def _fmt_val(v, _pos):
-        if abs(v) >= 1e9:
-            return f"{v / 1e9:.0f}B"
-        if abs(v) >= 1e6:
-            return f"{v / 1e6:.0f}M"
-        if abs(v) >= 1e3:
-            return f"{v / 1e3:.0f}K"
-        if 0 < abs(v) < 1:
-            return f"{v:.1%}"
-        return f"{v:.0f}"
-    ax.yaxis.set_major_formatter(FuncFormatter(_fmt_val))
-
-    if title:
-        ax.set_title(title, fontsize=12, fontweight="bold", pad=12)
-    if any(getattr(t, "name", "") for t in traces):
-        ax.legend(fontsize=8, loc="upper left")
-    ax.grid(axis="y", alpha=0.3)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    fig.tight_layout()
-    return fig
-
-
-def _generate_section_pdf(figures: list, section_title: str, ticker: str) -> bytes:
-    """Generate a multi-page PDF with matplotlib-rendered charts.
-
-    Converts each Plotly figure to a matplotlib chart, then writes all
-    charts into a single PDF.  No kaleido dependency required.
-    """
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.backends.backend_pdf import PdfPages
-    from io import BytesIO
-
-    buf = BytesIO()
-    added = 0
-
-    # Fetch company logo for title page
-    _logo_img = None
-    try:
-        import requests as _req
-        from PIL import Image as _PILImage
-        _logo_resp = _req.get(
-            f"https://financialmodelingprep.com/image-stock/{ticker}.png",
-            timeout=3,
-        )
-        if _logo_resp.status_code == 200 and len(_logo_resp.content) > 100:
-            _logo_img = _PILImage.open(BytesIO(_logo_resp.content)).convert("RGBA")
-    except Exception:
-        pass
-
-    with PdfPages(buf) as pdf:
-        # Title page
-        tfig = plt.figure(figsize=(11, 1))
-        if _logo_img is not None:
-            logo_ax = tfig.add_axes([0.28, 0.1, 0.06, 0.8])
-            logo_ax.imshow(_logo_img)
-            logo_ax.axis("off")
-            tfig.text(0.55, 0.5, f"{ticker} \u2014 {section_title}",
-                      ha="center", va="center", fontsize=20, fontweight="bold")
-        else:
-            tfig.text(0.5, 0.5, f"{ticker} \u2014 {section_title}",
-                      ha="center", va="center", fontsize=20, fontweight="bold")
-        tfig.patch.set_facecolor("white")
-        pdf.savefig(tfig, bbox_inches="tight")
-        plt.close(tfig)
-
-        for pfig, _name in figures:
-            traces = pfig.data if hasattr(pfig, "data") else []
-            has_data = any(
-                (hasattr(t, "x") and t.x is not None and len(t.x) > 0)
-                or (hasattr(t, "values") and t.values is not None
-                    and len(t.values) > 0)
-                for t in traces
-            )
-            if not has_data:
-                continue
-            try:
-                mpl_fig = _plotly_fig_to_mpl(pfig)
-                if mpl_fig:
-                    pdf.savefig(mpl_fig, bbox_inches="tight", dpi=150)
-                    plt.close(mpl_fig)
-                    added += 1
-            except Exception:
-                continue
-
-    if added == 0:
-        return b""
-    return buf.getvalue()
-
-
 def _render_blocked_overlay(chart_title: str, key: str):
     """Render a blur overlay placeholder for a blocked chart with Upgrade button."""
     _ticker = st.session_state.get("ticker", "STOCK")
@@ -1810,7 +1569,7 @@ def render_charts(charts: list, section: str, blocked_charts=None):
     """Render a list of (figure, name) tuples in the selected column layout.
 
     Skips charts that have no data (empty traces) to avoid blank placeholders
-    in the grid layout.  Also stores valid figures in session state for PDF export.
+    in the grid layout.  
     Charts whose key appears in blocked_charts render a blur overlay instead.
     """
     if blocked_charts is None:
@@ -1832,25 +1591,8 @@ def render_charts(charts: list, section: str, blocked_charts=None):
         if has_data:
             valid.append((fig, name))
 
-    # Store for PDF export (only non-blocked)
+    # Store chart references (only non-blocked)
     st.session_state[f"_charts_{section}"] = [(f, n) for f, n in valid if n not in blocked_charts]
-
-    # Pre-generate PDF so the download button is immediately ready (single-click)
-    _section_title_map = {
-        "income": "Income Statement",
-        "cashflow": "Cash Flow Statement",
-        "balance": "Balance Sheet",
-        "keymetrics": "Key Metrics",
-    }
-    _pdf_state_key = f"_pdf_data_{section}"
-    _pdf_valid = [(f, n) for f, n in valid if n not in blocked_charts]
-    if _pdf_valid and not st.session_state.get(_pdf_state_key):
-        _tk = st.session_state.get("ticker", "STOCK")
-        _sec_title = _section_title_map.get(section, section.title())
-        _pdf_bytes = _generate_section_pdf(_pdf_valid, _sec_title, _tk)
-        if _pdf_bytes:
-            st.session_state[_pdf_state_key] = _pdf_bytes
-            st.session_state["_need_pdf_rerun"] = True
 
     n_cols = st.session_state.layout_cols
     for i in range(0, len(valid), n_cols):
@@ -1876,11 +1618,7 @@ def render_charts(charts: list, section: str, blocked_charts=None):
 
 def _section_header(title: str, emoji: str, state_key: str, cb_key: str = "",
                     charts_key: str = "") -> bool:
-    """Render a clickable section header that toggles section visibility.
-
-    Uses st.columns to place header + PDF button side by side.
-    JS PASS 1 styles the parent row with matching background.
-    Returns True if the section content should be displayed.
+    """Render the section header.
     """
     is_open = st.session_state.get(state_key, True)
     arrow = "\u25B2" if is_open else "\u25BC"
@@ -4093,5 +3831,3 @@ components.html("""
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 # Auto-rerun once after PDFs are pre-generated so download buttons appear
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-if st.session_state.pop("_need_pdf_rerun", False):
-    st.rerun()

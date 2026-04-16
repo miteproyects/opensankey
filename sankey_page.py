@@ -3143,44 +3143,6 @@ def _inject_link_hover_js(color_map):
     components.html(js, height=0)
 
 
-def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income", compare_note=""):
-    """Generate export of the live Sankey chart.
-    Tries kaleido PDF first, falls back to standalone HTML (always works)."""
-    company = info.get("shortName", info.get("longName", ticker))
-    try:
-        fig = None
-        if view == "income":
-            result = _build_income_sankey(income_df, info, "YoY", False, ticker=ticker)
-            if result and result[0]: fig = result[0]
-        else:
-            result = _build_balance_sheet_sankey(balance_df, info, "YoY", False, ticker=ticker)
-            if result and result[0]: fig = result[0]
-        if not fig: return b"", "pdf"
-        view_label = "Income Statement" if view == "income" else "Balance Sheet"
-        title = f"{company} ({ticker}) \u2014 {view_label} Sankey"
-        sub = f"<br><span style='color:#64748b;font-size:11px'>{compare_note}</span>" if compare_note else ""
-        fig.update_layout(
-            title=dict(text=title + sub, font=dict(size=18, color="#0f172a"), x=0.5, xanchor="center"),
-            margin=dict(l=20, r=20, t=80, b=40),
-            paper_bgcolor="white", plot_bgcolor="white",
-            width=1400, height=750,
-        )
-        # Try kaleido PDF export first
-        try:
-            pdf_bytes = fig.to_image(format="pdf", scale=2)
-            if pdf_bytes and len(pdf_bytes) > 100:
-                return pdf_bytes, "pdf"
-        except Exception:
-            pass
-        # Fallback: standalone HTML (always works, no dependencies)
-        html = fig.to_html(
-            include_plotlyjs="cdn",
-            full_html=True,
-            config={"displayModeBar": False, "scrollZoom": False},
-        )
-        return html.encode("utf-8"), "html"
-    except Exception:
-        return b"", "pdf"
 
 
 def _fetch_sankey_data(ticker: str, quarterly: bool = False):
@@ -4599,70 +4561,10 @@ def render_sankey_page():
             color: #94a3b8;
             font-size: 0.9rem;
         }
-        /* ââ Sankey header row: title + PDF download button ââ */
-        /* Target the stHorizontalBlock that contains the PDF download key */
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]),
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) {
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
-            border-radius: 12px !important;
-            border: 1px solid rgba(255,255,255,0.06) !important;
-            padding: 12px 4px !important;
-            gap: 0 !important;
-            align-items: center !important;
-            justify-content: center !important;
-            margin-top: 23px !important;
-            margin-bottom: 4px !important;
-        }
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]) [data-testid="stColumn"],
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) [data-testid="stColumn"] {
-            padding: 0 !important;
-        }
         /* Make inner header transparent since row provides the dark bg */
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]) .sankey-header,
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) .sankey-header {
-            background: transparent !important;
-            border: none !important;
-            border-radius: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
         /* Kill all inner margins so title stays vertically centered */
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]) [data-testid="stColumn"] [data-testid="stMarkdownContainer"],
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) [data-testid="stColumn"] [data-testid="stMarkdownContainer"] {
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]) [data-testid="stColumn"] [data-testid="stMarkdownContainer"] p,
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) [data-testid="stColumn"] [data-testid="stMarkdownContainer"] p {
-            margin: 0 !important;
-        }
         /* PDF download button inside header row */
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]) [data-testid="stDownloadButton"] button,
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) [data-testid="stButton"] button {
-            background: rgba(255,255,255,0.13) !important;
-            color: #ffffff !important;
-            border: 1px solid rgba(255,255,255,0.28) !important;
-            font-size: 0.78rem !important;
-            font-weight: 500 !important;
-            padding: 5px 14px !important;
-            border-radius: 8px !important;
-            cursor: pointer !important;
-            min-height: 0 !important;
-            height: auto !important;
-            line-height: 1.4 !important;
-            white-space: nowrap !important;
-        }
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]) [data-testid="stDownloadButton"] button:hover,
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) [data-testid="stButton"] button:hover {
-            background: rgba(255,255,255,0.24) !important;
-            border-color: rgba(255,255,255,0.45) !important;
-        }
         /* Remove extra margins inside PDF column */
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]) [data-testid="stDownloadButton"],
-        [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) [data-testid="stButton"] {
-            margin: 0 !important;
-            padding: 0 !important;
-        }
         .sankey-tab-container {
             display: flex;
             gap: 0;
@@ -4879,10 +4781,6 @@ def render_sankey_page():
             }
             .sankey-cta-banner {
                 padding: 12px 16px !important;
-            }
-            [data-testid="stHorizontalBlock"]:has([class*="st-key-dl_sankey_"]),
-            [data-testid="stHorizontalBlock"]:has([class*="st-key-gen_pdf_sankey_"]) {
-                padding: 6px 4px !important;
             }
         }
         @media (max-width: 480px) {
@@ -5331,55 +5229,14 @@ def render_sankey_page():
 
     view_label = "Income Statement" if sankey_view == "income" else "Balance Sheet"
 
-    # ââ Header row: title (HTML) + PDF download button (st.download_button) ââ
-    hdr_col, pdf_col = st.columns([0.87, 0.13], vertical_alignment="center")
-
-    with hdr_col:
-        st.markdown(f"""
-        <div class="sankey-header">
-            <div class="sankey-header-left">
-                <div class="sankey-title"><img src="https://financialmodelingprep.com/image-stock/{ticker.upper()}.png" class="sankey-company-logo" onerror="this.style.display='none'"> {company_name} &mdash; Sankey Diagram</div>
-            </div>
+    # – Header row: title (HTML) –
+    st.markdown(f"""
+    <div class="sankey-header">
+        <div class="sankey-header-left">
+            <div class="sankey-title"><img src="https://financialmodelingprep.com/image-stock/{ticker.upper()}.png" class="sankey-company-logo" onerror="this.style.display='none'"> {company_name} &mdash; Sankey Diagram</div>
         </div>
-        """, unsafe_allow_html=True)
-
-    with pdf_col:
-        # ── PDF button: lazy generation (only on click) ──
-        _pdf_data_key = f"_pdf_data_{ticker}_{sankey_view}"
-
-        if st.session_state.get(_pdf_data_key):
-            _qs_key = str(st.session_state.get("_sankey_annual_match_qs", []))
-            _pa_key = str(st.session_state.get("sk_pa", ""))
-            _qs_lbl = _qs_key.replace("[", "").replace("]", "").replace(", ", "+")
-            _dl_fmt = st.session_state.get("_pdf_fmt", "pdf")
-            _ext = "html" if _dl_fmt == "html" else "pdf"
-            _mime = "text/html" if _dl_fmt == "html" else "application/pdf"
-            _btn_label = "Save" if _dl_fmt == "html" else "PDF"
-            _fname = f"{ticker}_{sankey_view}_FY{_pa_key}_Q{_qs_lbl}.{_ext}"
-            try:
-                st.download_button(label=_btn_label, data=st.session_state[_pdf_data_key],
-                    file_name=_fname, mime=_mime,
-                    icon=":material/download:", key=f"dl_sankey_{sankey_view}")
-            except TypeError:
-                st.download_button(label=_btn_label, data=st.session_state[_pdf_data_key],
-                    file_name=_fname, mime=_mime,
-                    key=f"dl_sankey_{sankey_view}")
-        else:
-            try:
-                _gen = st.button("PDF", key=f"gen_pdf_sankey_{sankey_view}",
-                                  icon=":material/download:")
-            except TypeError:
-                _gen = st.button("PDF", key=f"gen_pdf_sankey_{sankey_view}")
-            if _gen:
-                with st.spinner("Exporting chart..."):
-                    _cn = locals().get("_compare_note", "")
-                    _data, _out_fmt = _generate_sankey_pdf(income_df, balance_df, info, ticker, sankey_view, compare_note=_cn)
-                    if _data and len(_data) > 100:
-                        st.session_state[_pdf_data_key] = _data
-                        st.session_state["_pdf_fmt"] = _out_fmt
-                        st.rerun()
-                    else:
-                        st.toast("Export failed", icon="\u26a0\ufe0f")
+    </div>
+    """, unsafe_allow_html=True)
 
     # ── Income / Balance tab selector ──
     # Uses st.session_state + rerun instead of <a href> navigation to preserve
