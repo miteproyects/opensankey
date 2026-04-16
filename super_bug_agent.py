@@ -2497,7 +2497,7 @@ def _render_command_center():
             '<div style="font-size:0.78rem;color:#64748B;margin:4px 0 4px;">'
             '<strong>Pre-run Validation</strong> — '
             'cross-reference tickers against the official SEC EDGAR registry '
-            '(~12,000 filers) to catch typos and non-SEC tickers before running the full audit.</div>',
+            '(10,391 filers) to catch typos and non-SEC tickers before running the full audit.</div>',
             unsafe_allow_html=True,
         )
         _edgar_validate = st.checkbox(

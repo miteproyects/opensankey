@@ -1737,11 +1737,11 @@ def _inject_page_seo(page: str, tkr: str):
         },
         "sitemap": {
             "title": "Sitemap — QuarterCharts",
-            "desc": "Browse all pages on QuarterCharts.com. Stock charts, Sankey diagrams, company profiles, and more for 6,000+ tickers.",
+            "desc": "Browse all pages on QuarterCharts.com. Stock charts, Sankey diagrams, company profiles, and more for 10,000+ tickers.",
         },
         "home": {
             "title": "QuarterCharts.com — Stock Charts, Sankey Diagrams & More",
-            "desc": "Visualize any stock\u2019s financials with interactive Sankey diagrams, quarterly charts and company profiles. 6,000+ tickers from SEC filings. Free to start.",
+            "desc": "Visualize any stock\u2019s financials with interactive Sankey diagrams, quarterly charts and company profiles. 10,000+ tickers from SEC filings. Free to start.",
         },
     }
     info = _seo.get(page, _seo["home"])
@@ -2111,7 +2111,7 @@ with st.sidebar:
     if _search_msg:
         st.markdown(
             '<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-2px 0 6px 0;">'
-            '<em>+6,000 available tickers &mdash; SEC&nbsp; Sync</em></div>',
+            '<em>+10,000 available tickers &mdash; SEC&nbsp; Sync</em></div>',
             unsafe_allow_html=True,
         )
     else:

@@ -78,7 +78,7 @@ def patch():
     _desc = (
         "Visualize any stock\u2019s financials with interactive Sankey diagrams, "
         "quarterly charts and company profiles. "
-        "6,000+ tickers from SEC filings. Free to start."
+        "10,000+ tickers from SEC filings. Free to start."
     )
     if 'name="description"' not in html:
         html = html.replace(
@@ -337,7 +337,7 @@ def patch():
         '<div style="max-width:760px;margin:40px auto;font-family:sans-serif;color:#333">'
         "<h1>QuarterCharts.com &mdash; Stock Charts, Sankey Diagrams &amp; More</h1>"
         "<p>Visualize any stock's financials with interactive Sankey diagrams, "
-        "quarterly charts and company profiles. 6,000+ tickers from SEC filings. "
+        "quarterly charts and company profiles. 10,000+ tickers from SEC filings. "
         "Free to start.</p>"
         "<h2><a href='/?page=charts'>Stock Charts &mdash; Statements + Key Metrics</a></h2>"
         "<p>8+ years of quarterly and annual charts. Visualize income statements, balance sheets, and key financial metrics.</p>"

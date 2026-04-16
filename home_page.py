@@ -383,7 +383,7 @@ def render_home_page():
 
     <!-- ═══ METRICS ═══ -->
     <div class="metrics">
-        <div class="metric"><div class="num">6 000+</div><div class="lbl">Tickers Covered</div></div>
+        <div class="metric"><div class="num">10 000+</div><div class="lbl">Tickers Covered</div></div>
         <div class="metric"><div class="num">40+</div><div class="lbl">Quarters of Data</div></div>
         <div class="metric"><div class="num">Real-Time</div><div class="lbl">SEC Filings Sync</div></div>
         <div class="metric"><div class="num">Free</div><div class="lbl">To Get Started</div></div>
@@ -442,7 +442,7 @@ def render_home_page():
         <div class="step">
             <div class="step-num">1</div>
             <h3>Enter a Ticker</h3>
-            <p>Type any US stock symbol &#8212; <a href="/?page=charts&ticker=AAPL" target="_top">AAPL</a>, <a href="/?page=charts&ticker=TSLA" target="_top">TSLA</a>, <a href="/?page=charts&ticker=NVDA" target="_top">NVDA</a>, or 6 000+ others.</p>
+            <p>Type any US stock symbol &#8212; <a href="/?page=charts&ticker=AAPL" target="_top">AAPL</a>, <a href="/?page=charts&ticker=TSLA" target="_top">TSLA</a>, <a href="/?page=charts&ticker=NVDA" target="_top">NVDA</a>, or 10 000+ others.</p>
         </div>
         <div class="step">
             <div class="step-num">2</div>

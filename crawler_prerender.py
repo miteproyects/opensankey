@@ -47,7 +47,7 @@ SITE_TITLE = "QuarterCharts.com — Stock Charts, Sankey Diagrams & More"
 SITE_DESC = (
     "Visualize any stock's financials with interactive Sankey diagrams, "
     "quarterly charts and company profiles. "
-    "6,000+ tickers from SEC filings. Free to start."
+    "10,000+ tickers from SEC filings. Free to start."
 )
 OG_IMAGE = f"{SITE}/og-image.png"
 
@@ -69,7 +69,7 @@ PAGE_META = {
             "QuarterCharts helps you visualize any public company's financials "
             "with interactive Sankey diagrams, quarterly and annual charts, "
             "and detailed company profiles. Built from SEC filings covering "
-            "6,000+ tickers. Free to start — no credit card required."
+            "10,000+ tickers. Free to start — no credit card required."
         ),
     },
     "charts": {
@@ -79,7 +79,7 @@ PAGE_META = {
         "content": (
             "Explore 8+ years of quarterly and annual financial charts. "
             "Visualize income statements, balance sheets, cash flow statements, "
-            "and key financial metrics for 6,000+ publicly traded companies. "
+            "and key financial metrics for 10,000+ publicly traded companies. "
             "Data sourced directly from SEC filings."
         ),
     },

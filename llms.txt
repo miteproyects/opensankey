@@ -1,6 +1,6 @@
 # QuarterCharts - Financial Data Visualization Platform
 
-> QuarterCharts transforms complex SEC financial filings into interactive visualizations and comprehensive company profiles for over 6,000 publicly traded companies. Access real-time market data, earnings calendars, and financial analysis tools—all free.
+> QuarterCharts transforms complex SEC financial filings into interactive visualizations and comprehensive company profiles for over 10,000 publicly traded companies. Access real-time market data, earnings calendars, and financial analysis tools—all free.
 
 ## Overview
 
@@ -61,7 +61,7 @@ Data is refreshed daily or weekly depending on the source, ensuring accuracy and
 
 ## Coverage & Scale
 
-The platform covers 6,000+ publicly traded companies across all major U.S. exchanges:
+The platform covers 10,000+ publicly traded companies across all major U.S. exchanges:
 - All S&P 500 companies with comprehensive historical data
 - All NASDAQ-listed companies including technology leaders
 - NYSE and other exchange-listed companies
