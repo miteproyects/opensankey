@@ -1,592 +1,980 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+
+  <!-- Homepage (canonical root) -->
+  <url>
+    <loc>https://quartercharts.com/</loc>
+    <lastmod>2026-04-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>QuarterCharts — Stock Charts, Sankey Diagrams &amp; More</image:caption>
+    </image:image>
+  </url>
+
   <!-- Static Pages -->
   <url>
     <loc>https://quartercharts.com/?page=home</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>1.0</priority>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>QuarterCharts Home — Financial Visualization Platform</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=earnings</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>Earnings Calendar — Upcoming Dates &amp; EPS Surprises</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=watchlist</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>hourly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=pricing</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=login</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.4</priority>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=privacy</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>yearly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.3</priority>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=terms</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://quartercharts.com/?page=sitemap</loc>
+    <lastmod>2026-04-16</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
 
   <!-- Financial Charts Pages (30 Popular Tickers) -->
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=AAPL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AAPL Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=MSFT</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>MSFT Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=GOOGL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>GOOGL Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=AMZN</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AMZN Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=NVDA</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>NVDA Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=TSLA</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>TSLA Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=META</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>META Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=NFLX</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>NFLX Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=GOOG</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>GOOG Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=JPM</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>JPM Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=V</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>V Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=MA</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>MA Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=UNH</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>UNH Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=HD</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>HD Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=PG</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>PG Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=JNJ</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>JNJ Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=BAC</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>BAC Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=DIS</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>DIS Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=ADBE</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>ADBE Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=CRM</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>CRM Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=PYPL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>PYPL Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=INTC</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>INTC Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=AMD</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AMD Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=ORCL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>ORCL Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=CSCO</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>CSCO Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=QCOM</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>QCOM Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=AVGO</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AVGO Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=TXN</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>TXN Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=COST</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>COST Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=charts&amp;ticker=WMT</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>WMT Stock Charts — Quarterly &amp; Annual Financial Statements</image:caption>
+    </image:image>
   </url>
 
   <!-- Sankey Diagram Pages (30 Popular Tickers) -->
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=AAPL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AAPL Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=MSFT</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>MSFT Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=GOOGL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>GOOGL Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=AMZN</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AMZN Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=NVDA</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>NVDA Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=TSLA</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>TSLA Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=META</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>META Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=NFLX</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>NFLX Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=GOOG</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>GOOG Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=JPM</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>JPM Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=V</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>V Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=MA</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>MA Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=UNH</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>UNH Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=HD</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>HD Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=PG</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>PG Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=JNJ</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>JNJ Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=BAC</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>BAC Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=DIS</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>DIS Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=ADBE</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>ADBE Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=CRM</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>CRM Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=PYPL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>PYPL Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=INTC</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>INTC Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=AMD</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AMD Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=ORCL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>ORCL Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=CSCO</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>CSCO Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=QCOM</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>QCOM Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=AVGO</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AVGO Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=TXN</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>TXN Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=COST</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>COST Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=sankey&amp;ticker=WMT</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>WMT Sankey Diagram — Financial Flows Visualized</image:caption>
+    </image:image>
   </url>
 
   <!-- Company Profile Pages (30 Popular Tickers) -->
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=AAPL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AAPL Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=MSFT</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>MSFT Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=GOOGL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>GOOGL Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=AMZN</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AMZN Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=NVDA</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>NVDA Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=TSLA</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>TSLA Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=META</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>META Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=NFLX</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>NFLX Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=GOOG</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>GOOG Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=JPM</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>JPM Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=V</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>V Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=MA</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>MA Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=UNH</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>UNH Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=HD</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>HD Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=PG</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>PG Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=JNJ</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>JNJ Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=BAC</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>BAC Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=DIS</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>DIS Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=ADBE</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>ADBE Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=CRM</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>CRM Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=PYPL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>PYPL Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=INTC</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>INTC Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=AMD</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AMD Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=ORCL</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>ORCL Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=CSCO</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>CSCO Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=QCOM</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>QCOM Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=AVGO</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>AVGO Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=TXN</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>TXN Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=COST</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>COST Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://quartercharts.com/?page=profile&amp;ticker=WMT</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://quartercharts.com/og-image.png</image:loc>
+      <image:caption>WMT Company Profile — Financials &amp; Valuation</image:caption>
+    </image:image>
   </url>
 </urlset>
