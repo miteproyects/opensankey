@@ -77,9 +77,13 @@ def inject_security_headers():
                 "camera=(), microphone=(), geolocation=(), payment=()"
             )
 
-            # Cross-Origin headers — enhance isolation
-            self.set_header("Cross-Origin-Opener-Policy", "same-origin")
-            self.set_header("Cross-Origin-Resource-Policy", "same-origin")
+            # Cross-Origin headers — enhance isolation while allowing
+            # Google Sign-In popup flow (accounts.google.com popup must be
+            # able to communicate back to the opener window via callback).
+            # "same-origin-allow-popups" keeps isolation for same-origin
+            # navigations but lets OAuth popups work correctly.
+            self.set_header("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
+            self.set_header("Cross-Origin-Resource-Policy", "cross-origin")
 
             # X-Robots-Tag — ensure search engines index the site
             self.set_header("X-Robots-Tag", "index, follow")
