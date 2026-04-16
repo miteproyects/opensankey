@@ -1493,35 +1493,46 @@ def _agent_audit_panel():
             # Detect this and report which FY actually has data.
             _cur_fy_qs = fy_q_map.get(current_year, [])
             _prev_fy_qs = fy_q_map.get(current_year - 1, [])
+            _prev2_fy_qs = fy_q_map.get(current_year - 2, [])
             if not _cur_fy_qs:
-                # Current FY has 0 filed quarters — default view shows all dashes
+                # Current FY has 0 filed quarters.
+                # Default Q selection falls on Year B → all Qs from prev_qs.
+                # Verify the table header and comparison use correct years.
                 if _prev_fy_qs:
                     _prev_q_list = ",".join(f"Q{q}" for q in sorted(_prev_fy_qs))
+                    # Default: latest Q from FY(cur-1)
+                    _default_q = sorted(_prev_fy_qs)[-1]
+                    # Check: does the comparison year (cur-2) also have this Q?
+                    _compare_ok = _default_q in _prev2_fy_qs
                     findings.append({
                         "sev": "critical",
                         "msg": (
-                            f"{ticker}: default Sankey view empty — FY{current_year} "
-                            f"has 0 filed Qs (FY{current_year - 1} has {_prev_q_list})"
+                            f"{ticker}: FY{current_year} has 0 filed Qs — default "
+                            f"Q selector picks Q{_default_q} from FY{current_year - 1}"
                         ),
                         "detail": (
-                            f"Period A defaults to FY{current_year} but no quarters are "
-                            f"filed on EDGAR yet. User sees all-dash table. "
-                            f"FY{current_year - 1} has data for {_prev_q_list}. "
-                            f"Fallback logic should shift Period A → FY{current_year - 1} "
-                            f"and Period B → FY{current_year - 2} automatically."
+                            f"Period A=FY{current_year}, Period B=FY{current_year - 1} "
+                            f"(consecutive). All Qs from Year B row (prev_qs only). "
+                            f"Table header must show 'FY{current_year - 1} (Q{_default_q})' "
+                            f"not 'FY{current_year} (Q{_default_q})'. "
+                            f"Comparison must be FY{current_year - 1} vs FY{current_year - 2} "
+                            f"(not same-vs-same). "
+                            f"FY{current_year - 2} Q{_default_q}: "
+                            f"{'available ✓' if _compare_ok else 'NOT available ✗ — compare will show NaN'}. "
+                            f"FY{current_year - 1} has {_prev_q_list}."
                         ),
                     })
                 else:
                     findings.append({
                         "sev": "critical",
                         "msg": (
-                            f"{ticker}: default Sankey view empty — FY{current_year} "
-                            f"and FY{current_year - 1} both have 0 filed Qs"
+                            f"{ticker}: FY{current_year} and FY{current_year - 1} "
+                            f"both have 0 filed Qs"
                         ),
                         "detail": (
-                            f"Neither FY{current_year} nor FY{current_year - 1} have "
-                            f"quarterly data on EDGAR. Latest FY with data: "
-                            f"FY{latest_fy}. User sees all-dash table on default view."
+                            f"No quarterly data for the two most recent FYs. "
+                            f"Latest FY with data: FY{latest_fy}. "
+                            f"User sees all-dash table on default view."
                         ),
                     })
             else:

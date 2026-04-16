@@ -5630,7 +5630,11 @@ def render_sankey_page():
         _audit_qb = st.session_state.get("_sankey_qb_nums", [])
         _audit_pa_val = int(_pa) if _pa else 0
         _audit_pb_val = int(_pb) if _pb else 0
-        _adj_audit = 1 if (not _audit_qa and _audit_qb) else 0
+        # When all Qs come from Year B (prev_qs only), bump main_fy so
+        # qb_list maps to the right calendar year — BUT skip the bump when
+        # years are consecutive (pb+1 == pa) to avoid overshooting into a
+        # year with no data (same fix as _build_partial_year_df).
+        _adj_audit = 1 if (not _audit_qa and _audit_qb and (_audit_pb_val + 1) != _audit_pa_val) else 0
 
         # Use raw quarterly data if available; otherwise fall back to aggregated
         _src_inc = _raw_qtr_income_df if (_raw_qtr_income_df is not None and not _raw_qtr_income_df.empty) else (income_df if income_df is not None else pd.DataFrame())
