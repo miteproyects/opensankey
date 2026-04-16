@@ -216,6 +216,13 @@ def patch():
         )
         html = html.replace("</head>", f"{ld_block}</head>", 1)
 
+    # ── SEO: Preload key resources to improve FCP/LCP ──────────────────
+    if 'rel="preload"' not in html:
+        preloads = (
+            '<link rel="preload" href="/static/css/index.D5HInCXB.css" as="style">\n'
+        )
+        html = html.replace("</head>", f"{preloads}</head>", 1)
+
     # ── GA4 snippet ──────────────────────────────────────────────────────
     _ga_id = "G-69Y4ELBVWZ"
     if _ga_id not in html:
@@ -227,14 +234,66 @@ def patch():
         )
         html = html.replace("</head>", f"{ga_snippet}</head>", 1)
 
+    # ── Font-display: swap for Streamlit's bundled SourceSans font ──────
+    # Fixes: "Ensure text remains visible during webfont load" (GTmetrix)
+    if "font-display-fix" not in html:
+        font_fix = (
+            '<style id="font-display-fix">'
+            "@font-face { font-family: 'Source Sans Pro'; font-display: swap !important; }"
+            "@font-face { font-family: 'Source Sans 3'; font-display: swap !important; }"
+            "</style>\n"
+        )
+        html = html.replace("</head>", f"{font_fix}</head>", 1)
+
     # ── Preconnect hints ─────────────────────────────────────────────────
     if 'rel="preconnect" href="https://www.googletagmanager.com"' not in html:
         links = (
             '<link rel="preconnect" href="https://www.googletagmanager.com">\n'
             '<link rel="preconnect" href="https://www.google-analytics.com">\n'
+            '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
             '<link rel="dns-prefetch" href="https://financialmodelingprep.com">\n'
         )
         html = html.replace("</head>", f"{links}</head>", 1)
+
+    # ── Accessibility: ARIA landmarks + skip-nav + heading structure ─────
+    # Fixes: "No heading structure", "No page regions" (WAVE alerts)
+    if "a11y-landmarks" not in html:
+        a11y_script = (
+            '<script id="a11y-landmarks">'
+            "document.addEventListener('DOMContentLoaded',function(){"
+            # Skip-to-content link (visually hidden, focusable)
+            "var sk=document.createElement('a');"
+            "sk.href='#main-content';sk.textContent='Skip to main content';"
+            "sk.className='sr-only';sk.style.cssText="
+            "'position:absolute;left:-9999px;top:auto;width:1px;height:1px;"
+            "overflow:hidden;z-index:10000';"
+            "sk.addEventListener('focus',function(){this.style.cssText="
+            "'position:fixed;top:0;left:0;background:#fff;color:#000;"
+            "padding:8px 16px;z-index:10000;font-size:16px'});"
+            "sk.addEventListener('blur',function(){this.style.cssText="
+            "'position:absolute;left:-9999px;top:auto;width:1px;height:1px;"
+            "overflow:hidden;z-index:10000'});"
+            "document.body.insertBefore(sk,document.body.firstChild);"
+            # Observe DOM and assign landmarks once Streamlit renders
+            "var obs=new MutationObserver(function(){"
+            "var main=document.querySelector('[data-testid=\"stAppViewContainer\"]');"
+            "var side=document.querySelector('[data-testid=\"stSidebar\"]');"
+            "if(main&&!main.hasAttribute('role')){"
+            "main.setAttribute('role','main');main.id='main-content';"
+            # Add visually hidden h1
+            "var h1=document.createElement('h1');"
+            "h1.textContent='QuarterCharts — Stock Charts, Sankey Diagrams & More';"
+            "h1.style.cssText='position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden';"
+            "main.insertBefore(h1,main.firstChild)}"
+            "if(side&&!side.hasAttribute('role')){"
+            "side.setAttribute('role','navigation');"
+            "side.setAttribute('aria-label','Sidebar navigation')}"
+            "});"
+            "obs.observe(document.body,{childList:true,subtree:true})"
+            "});"
+            "</script>\n"
+        )
+        html = html.replace("</head>", f"{a11y_script}</head>", 1)
 
     # ── Noscript fallback for crawlers ───────────────────────────────────
     _noscript = (

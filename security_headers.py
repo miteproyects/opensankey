@@ -77,6 +77,13 @@ def inject_security_headers():
                 "camera=(), microphone=(), geolocation=(), payment=()"
             )
 
+            # Cross-Origin headers — enhance isolation
+            self.set_header("Cross-Origin-Opener-Policy", "same-origin")
+            self.set_header("Cross-Origin-Resource-Policy", "same-origin")
+
+            # X-Robots-Tag — ensure search engines index the site
+            self.set_header("X-Robots-Tag", "index, follow")
+
             # SEC-010: Remove server version info
             self.clear_header("Server")
 
