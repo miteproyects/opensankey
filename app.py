@@ -2092,7 +2092,7 @@ with st.sidebar:
         from database import get_ticker_pool as _gtp, get_user_plan_access as _gupa
         _demo_tickers = _gtp()
     except Exception:
-        _demo_tickers = ["GOOG", "META", "NVDA", "TSLA"]
+        _demo_tickers = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"]
     _placeholder_tickers = ", ".join(_demo_tickers[:4])
 
     # Determine search_message flag from user's plan
@@ -3267,6 +3267,19 @@ with st.sidebar:
 
 def _render_footer():
     """Render the shared site footer on every page."""
+    # Pull popular tickers from the admin-managed pool (same source as
+    # sidebar "Try for free", homepage search, and homepage "Try for free").
+    try:
+        from database import get_ticker_pool as _gtp_footer
+        _footer_tickers = _gtp_footer()
+    except Exception:
+        _footer_tickers = ["GOOG", "META", "NVDA", "TSLA"]
+    _footer_links = " &middot; ".join(
+        f'<a href="/?page=charts&ticker={t}" style="color:#93c5fd;text-decoration:none;"'
+        f' onmouseover="this.style.textDecoration=\'underline\'"'
+        f' onmouseout="this.style.textDecoration=\'none\'">{t}</a>'
+        for t in _footer_tickers
+    )
     st.markdown(f"""
 <div class="footer">
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:30px;">
@@ -3289,7 +3302,7 @@ def _render_footer():
         </div>
         <div>
             <h3>Popular Companies</h3>
-            <p>AAPL &middot; MSFT &middot; GOOGL &middot; AMZN &middot; NVDA &middot; TSLA &middot; META &middot; NFLX</p>
+            <p>{_footer_links}</p>
         </div>
         <div>
             <h3>Disclaimer</h3>
