@@ -108,6 +108,80 @@ def inject_security_headers():
         return False
 
 
+def inject_gzip_compression():
+    """
+    Enable GZip compression for Tornado responses.
+
+    Monkey-patches Tornado's Application to add GZipContentEncoding transform,
+    reducing transfer sizes by 60-80% for text-based content (HTML, CSS, JS).
+
+    PERF-001: Fixes "No GZIP/Brotli compression detected" warning.
+    """
+    try:
+        from tornado.web import Application, GZipContentEncoding
+
+        _original_init = Application.__init__
+
+        def _gzip_init(self, *args, **kwargs):
+            _original_init(self, *args, **kwargs)
+            # Add GZip transform if not already present
+            has_gzip = any(
+                t == GZipContentEncoding or
+                (isinstance(t, type) and issubclass(t, GZipContentEncoding))
+                for t in self.transforms
+            )
+            if not has_gzip:
+                self.transforms.append(GZipContentEncoding)
+                logger.info("GZip compression transform added to Tornado.")
+
+        Application.__init__ = _gzip_init
+        logger.info("GZip compression injection ready.")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to inject GZip compression: {e}")
+        return False
+
+
+def inject_www_redirect():
+    """
+    Redirect www.quartercharts.com → quartercharts.com (or vice versa).
+
+    Ensures a single canonical host to avoid duplicate content and satisfy
+    uptime monitoring checks.  Railway handles HTTPS, but not www normalization.
+
+    UPTIME-001: Fixes "No www/non-www redirect" warning.
+    """
+    try:
+        from tornado.web import RequestHandler
+
+        _original_prepare = getattr(RequestHandler, '_original_prepare_for_redirect', None)
+        if _original_prepare is not None:
+            return True  # Already injected
+
+        _base_prepare = RequestHandler.prepare
+
+        def _redirect_prepare(self):
+            host = self.request.host.split(":")[0]  # strip port
+            if host.startswith("www."):
+                # 301 permanent redirect from www → non-www
+                target = self.request.full_url().replace(
+                    "://www.", "://", 1
+                )
+                self.redirect(target, permanent=True)
+                return
+            return _base_prepare(self)
+
+        RequestHandler._original_prepare_for_redirect = _base_prepare
+        RequestHandler.prepare = _redirect_prepare
+        logger.info("www → non-www redirect middleware injected.")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to inject www redirect: {e}")
+        return False
+
+
 def get_https_redirect_meta():
     """
     Returns an HTML meta tag that forces HTTPS redirect on the client side.

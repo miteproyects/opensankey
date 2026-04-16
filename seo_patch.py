@@ -28,6 +28,11 @@ def patch():
 
     original = html  # keep a copy to detect changes
 
+    # ── HTML lang attribute (A11Y-001) ──────────────────────────────────
+    # Accessibility: screen readers need lang="en" on <html>
+    if 'lang="en"' not in html:
+        html = re.sub(r"<html(?!\s+lang=)", '<html lang="en"', html, count=1)
+
     # ── Google site verification ─────────────────────────────────────────
     tag = '<meta name="google-site-verification" content="4yRIohYFN8d_gMq4yQUG3sF9n_tbeZqKEL4pp-SlK9A" />'
     if "google-site-verification" not in html:
@@ -261,8 +266,9 @@ def patch():
         )
         html = html.replace("</head>", f"{links}</head>", 1)
 
-    # ── Accessibility: ARIA landmarks + skip-nav + heading structure ─────
-    # Fixes: "No heading structure", "No page regions" (WAVE alerts)
+    # ── Accessibility: semantic HTML + skip-nav + heading + ARIA ──────────
+    # Fixes: "No heading structure", "No page regions", "missing semantic
+    # HTML", "no skip navigation link" (WAVE / a11y agent)
     if "a11y-landmarks" not in html:
         a11y_script = (
             '<script id="a11y-landmarks">'
@@ -280,20 +286,49 @@ def patch():
             "'position:absolute;left:-9999px;top:auto;width:1px;height:1px;"
             "overflow:hidden;z-index:10000'});"
             "document.body.insertBefore(sk,document.body.firstChild);"
-            # Observe DOM and assign landmarks once Streamlit renders
+            # Observe DOM and wrap Streamlit elements in semantic HTML
             "var obs=new MutationObserver(function(){"
-            "var main=document.querySelector('[data-testid=\"stAppViewContainer\"]');"
+            "var mc=document.querySelector('[data-testid=\"stAppViewContainer\"]');"
             "var side=document.querySelector('[data-testid=\"stSidebar\"]');"
-            "if(main&&!main.hasAttribute('role')){"
-            "main.setAttribute('role','main');main.id='main-content';"
-            # Add visually hidden h1
+            "var hdr=document.querySelector('[data-testid=\"stHeader\"]');"
+            # Wrap main content in <main> if not already done
+            "if(mc&&!document.querySelector('main')){"
+            "var m=document.createElement('main');"
+            "m.id='main-content';m.setAttribute('role','main');"
+            "mc.parentNode.insertBefore(m,mc);m.appendChild(mc);"
+            # Visually hidden h1
             "var h1=document.createElement('h1');"
-            "h1.textContent='QuarterCharts — Stock Charts, Sankey Diagrams & More';"
+            "h1.textContent='QuarterCharts \\u2014 Stock Charts, Sankey Diagrams & More';"
             "h1.style.cssText='position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden';"
-            "main.insertBefore(h1,main.firstChild)}"
-            "if(side&&!side.hasAttribute('role')){"
-            "side.setAttribute('role','navigation');"
-            "side.setAttribute('aria-label','Sidebar navigation')}"
+            "m.insertBefore(h1,m.firstChild)}"
+            # Wrap sidebar in <nav> if not already done
+            "if(side&&!document.querySelector('nav[aria-label=\"Sidebar\"]')){"
+            "var n=document.createElement('nav');"
+            "n.setAttribute('aria-label','Sidebar');"
+            "side.parentNode.insertBefore(n,side);n.appendChild(side)}"
+            # Wrap header in <header> if not already done
+            "if(hdr&&!document.querySelector('header')){"
+            "var hd=document.createElement('header');"
+            "hd.setAttribute('role','banner');"
+            "hdr.parentNode.insertBefore(hd,hdr);hd.appendChild(hdr)}"
+            # Add <footer> if missing
+            "if(!document.querySelector('footer')){"
+            "var ft=document.querySelector('[data-testid=\"stBottom\"]');"
+            "if(ft){var f=document.createElement('footer');"
+            "f.setAttribute('role','contentinfo');"
+            "ft.parentNode.insertBefore(f,ft);f.appendChild(ft)}"
+            "else{var f2=document.createElement('footer');"
+            "f2.setAttribute('role','contentinfo');"
+            "f2.style.cssText='position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden';"
+            "f2.innerHTML='<p>&copy; 2026 QuarterCharts</p>';"
+            "document.body.appendChild(f2)}}"
+            # Add <section> wrapper for content blocks
+            "var blocks=document.querySelectorAll('[data-testid=\"stVerticalBlock\"]');"
+            "if(blocks.length>0&&!document.querySelector('section[aria-label]')){"
+            "var first=blocks[0];"
+            "var sec=document.createElement('section');"
+            "sec.setAttribute('aria-label','Page content');"
+            "first.parentNode.insertBefore(sec,first);sec.appendChild(first)}"
             "});"
             "obs.observe(document.body,{childList:true,subtree:true})"
             "});"

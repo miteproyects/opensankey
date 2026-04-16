@@ -440,34 +440,46 @@ def inject_crawler_prerender():
 
         def _crawler_aware_prepare(self):
             """Intercept crawler requests and serve pre-rendered HTML."""
-            ua = self.request.headers.get("User-Agent", "")
+            try:
+                ua = self.request.headers.get("User-Agent", "")
 
-            # Only intercept root page requests (not /static/*, /_stcore/*, /api/*, etc.)
-            path = self.request.path
-            if path in ("/", "") and CRAWLER_RE.search(ua):
-                # Parse query params
-                page = self.get_argument("page", "home").lower()
-                ticker = self.get_argument("ticker", "").upper()
+                # Only intercept root page requests (not /static/*, /_stcore/*, /api/*, etc.)
+                path = self.request.path
+                if path in ("/", "") and CRAWLER_RE.search(ua):
+                    # Parse query params
+                    page = self.get_argument("page", "home").lower()
+                    ticker = self.get_argument("ticker", "").upper()
 
-                if page not in _VALID_PAGES:
-                    page = "home"
+                    if page not in _VALID_PAGES:
+                        page = "home"
 
-                html = _get_cached_html(page, ticker)
+                    html = _get_cached_html(page, ticker)
 
-                self.set_status(200)
-                self.set_header("Content-Type", "text/html; charset=utf-8")
-                self.set_header("X-Robots-Tag", "index, follow")
-                self.set_header("Cache-Control", "public, max-age=3600, s-maxage=86400")
-                self.set_header("Vary", "User-Agent")
-                self.write(html)
-                self.finish()
-                logger.info(
-                    f"[prerender] Served: page={page} ticker={ticker} "
-                    f"ua={ua[:50]}"
-                )
-                return  # Skip normal Streamlit processing
+                    self.set_status(200)
+                    self.set_header("Content-Type", "text/html; charset=utf-8")
+                    self.set_header("X-Robots-Tag", "index, follow")
+                    self.set_header("Cache-Control", "public, max-age=3600, s-maxage=86400")
+                    self.set_header("Vary", "User-Agent")
+                    # Override restrictive COOP/CORP headers — crawlers don't
+                    # need isolation and these can break crawler rendering.
+                    self.set_header("Cross-Origin-Opener-Policy", "unsafe-none")
+                    self.set_header("Cross-Origin-Resource-Policy", "cross-origin")
+                    self.write(html)
+                    self.finish()
+                    logger.info(
+                        f"[prerender] Served: page={page} ticker={ticker} "
+                        f"ua={ua[:50]}"
+                    )
+                    return  # Skip normal Streamlit processing
 
-            # Not a crawler or not a root request — proceed normally
+            except Exception as exc:
+                # Never let prerender crash the whole request — fall through
+                # to normal Streamlit so the page still loads.
+                logger.error(f"[prerender] Error in prepare: {exc}", exc_info=True)
+                print(f"[prerender] ERROR in prepare: {exc}", flush=True)
+
+            # Not a crawler, not a root request, or prerender errored —
+            # proceed normally with Streamlit.
             return _original_prepare(self)
 
         RequestHandler.prepare = _crawler_aware_prepare

@@ -26,8 +26,13 @@ from PIL import Image
 from io import BytesIO
 
 # ── Security Headers (must run before any response is served) ──
-from security_headers import inject_security_headers, get_https_redirect_meta
+from security_headers import (
+    inject_security_headers, get_https_redirect_meta,
+    inject_gzip_compression, inject_www_redirect,
+)
 inject_security_headers()
+inject_gzip_compression()   # PERF-001: GZip/Brotli compression
+inject_www_redirect()        # UPTIME-001: www → non-www redirect
 
 # ── Crawler Pre-render (monkey-patches Tornado RequestHandler.prepare) ────
 # Serves fully-formed HTML to Googlebot/Bingbot instead of the empty SPA shell.
