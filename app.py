@@ -2759,32 +2759,49 @@ with st.sidebar:
             st.session_state.sankey_compare_quarterly = False
             if True:
                 # ── Build year lists first (needed for defaults) ──
-                # Always include current FY (even if no Qs filed yet)
-                # so the user sees greyed-out buttons for pending Qs.
-                _years = [str(_cur_fy)]
+                # Always include current FY AND previous FY (even if no Qs
+                # filed yet) so the user always sees 8 Q buttons.
+                _years = [str(_cur_fy), str(_cur_fy - 1)]
                 _years_with_data = []  # subset: only years with ≥1 filed Q
                 _cq_cur = _completed_qs_in_fy(_cur_fy, _fy_m_sk)
                 if _cq_cur >= 1:
                     _years_with_data.append(str(_cur_fy))
-                for _y in range(_cur_fy - 1, _cur_fy - 11, -1):
+                _cq_prev = _completed_qs_in_fy(_cur_fy - 1, _fy_m_sk)
+                if _cq_prev >= 1:
+                    _years_with_data.append(str(_cur_fy - 1))
+                for _y in range(_cur_fy - 2, _cur_fy - 11, -1):
                     if _completed_qs_in_fy(_y, _fy_m_sk) >= 1:
                         _years.append(str(_y))
                         _years_with_data.append(str(_y))
                 if not _years_with_data:
                     _years_with_data = [str(_cur_fy - 1)]
 
-                # ── Find default Q: most recent quarter with filed data ──
-                _default_pa_fy = int(_years_with_data[0])
-                _cq_default = _completed_qs_in_fy(_default_pa_fy, _fy_m_sk)
-                _default_q = max(1, _cq_default)
+                # ── Find default Q: latest quarter with filed EDGAR data ──
+                # Walk backwards from current FY Q4 → Q1 then prev FY Q4 → Q1
+                _default_q = None
+                _default_q_prefix = "sk_Ya"  # sk_Ya = Period A year, sk_Yb = prev
+                for _dq in range(4, 0, -1):
+                    if _q_actually_available(_dq, _cur_fy, _fy_m_sk):
+                        _default_q = _dq
+                        _default_q_prefix = "sk_Ya"
+                        break
+                if _default_q is None:
+                    for _dq in range(4, 0, -1):
+                        if _q_actually_available(_dq, _cur_fy - 1, _fy_m_sk):
+                            _default_q = _dq
+                            _default_q_prefix = "sk_Yb"
+                            break
+                if _default_q is None:
+                    _default_q = 4  # ultimate fallback
+                    _default_q_prefix = "sk_Ya"
 
                 # Keys: sk_Ya_q{1-4} = True/False, sk_Yb_q{1-4} = True/False
-                # Initialise: only the most recent available Q of Period A is ON
+                # Initialise: only the latest Q with filed data is ON
                 _init_key = "_sk_btns_init"
                 if _init_key not in st.session_state:
                     for _qi in range(1, 5):
-                        st.session_state[f"sk_Ya_q{_qi}"] = (_qi == _default_q)
-                        st.session_state[f"sk_Yb_q{_qi}"] = False
+                        st.session_state[f"sk_Ya_q{_qi}"] = (_default_q_prefix == "sk_Ya" and _qi == _default_q)
+                        st.session_state[f"sk_Yb_q{_qi}"] = (_default_q_prefix == "sk_Yb" and _qi == _default_q)
                     st.session_state[_init_key] = True
 
                 # ── Deselect quarters whose EDGAR data turned out missing ──
@@ -2795,7 +2812,7 @@ with st.sidebar:
                 _ticker_uc_ck = (ticker.upper() if ticker else "")
                 _cached_tkr = st.session_state.get("_edgar_qs_ticker", "")
                 if _cached_tkr == _ticker_uc_ck:
-                    _pa_fy_ck = int(st.session_state.get("sk_pa", _years_with_data[0]))
+                    _pa_fy_ck = int(st.session_state.get("sk_pa", str(_cur_fy)))
                     _pb_fy_ck = _pa_fy_ck - 1
                     _any_deselected = False
                     for _qi in range(1, 5):
@@ -2834,7 +2851,7 @@ with st.sidebar:
                 # the previously selected sk_Ya Qs become invalid.  Migrate them
                 # to sk_Yb so they stay selected (they now represent prev year).
                 _prev_pa_key = "_sk_prev_pa"
-                _cur_pa = st.session_state.get("sk_pa", _years_with_data[0])
+                _cur_pa = st.session_state.get("sk_pa", str(_cur_fy))
                 _prev_pa = st.session_state.get(_prev_pa_key, _cur_pa)
                 if _cur_pa != _prev_pa:
                     _cq_new = _completed_qs_in_fy(int(_cur_pa), _fy_m_sk)
@@ -2863,7 +2880,7 @@ with st.sidebar:
                 # Enforce min 1 across both years
                 if not _qa_nums and not _qb_nums:
                     # Use sk_Ya if Period A has available Qs, else sk_Yb
-                    _sel_pa_fy = int(st.session_state.get("sk_pa", _years_with_data[0]))
+                    _sel_pa_fy = int(st.session_state.get("sk_pa", str(_cur_fy)))
                     _cq_sel = _completed_qs_in_fy(_sel_pa_fy, _fy_m_sk)
                     if _cq_sel >= _default_q:
                         _qa_nums = [_default_q]
@@ -2894,22 +2911,12 @@ with st.sidebar:
                 if not _years:
                     _years = [str(_cur_fy - 1)]
 
-                # Initialise selectbox keys: default Period A to latest year
-                # with filed data (e.g. FY2025 when FY2026 has no Qs yet)
+                # Initialise selectbox keys: Period A = current FY,
+                # Period B = previous FY (always, even if no Qs filed yet)
                 if "sk_pa" not in st.session_state or st.session_state["sk_pa"] not in _years:
-                    st.session_state["sk_pa"] = _years_with_data[0]
+                    st.session_state["sk_pa"] = str(_cur_fy)
                 if "sk_pb" not in st.session_state or st.session_state["sk_pb"] not in _years:
-                    st.session_state["sk_pb"] = _years_with_data[min(1, len(_years_with_data) - 1)]
-
-                # ── Guard: if Period A has 0 filed Qs, redirect to latest year with data ──
-                _pa_fy_check = int(st.session_state.get("sk_pa", _years_with_data[0]))
-                _pa_cq_check = _completed_qs_in_fy(_pa_fy_check, _fy_m_sk)
-                if _pa_cq_check == 0 and _years_with_data:
-                    _fallback_fy = _years_with_data[0]
-                    st.session_state["sk_pa"] = _fallback_fy
-                    st.session_state["_qbtn_toast"] = (
-                        f"FY{_pa_fy_check} has no filed quarters yet — switched to FY{_fallback_fy}"
-                    )
+                    st.session_state["sk_pb"] = str(_cur_fy - 1)
                 # Allow same year for both Period A and Period B (e.g. 2020 vs 2020)
 
                 # ── Period A & B selectors ──
@@ -3003,7 +3010,7 @@ with st.sidebar:
                         _changed = True
                 # Enforce min 1
                 if not _on_keys:
-                    _sel_pa_fy2 = int(st.session_state.get("sk_pa", _years_with_data[0]))
+                    _sel_pa_fy2 = int(st.session_state.get("sk_pa", str(_cur_fy)))
                     _cq_sel2 = _completed_qs_in_fy(_sel_pa_fy2, _fy_m_sk)
                     if _cq_sel2 >= _default_q:
                         _def_key = f"sk_Ya_q{_default_q}"

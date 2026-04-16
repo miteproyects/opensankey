@@ -871,6 +871,9 @@ def _agent_audit_panel():
       6. Revenue sanity — detect $0 revenue, all-dashes, negative values
       7. Accounting identity checks — GP = Rev - COGS, etc.
       8. Balance Sheet validation — non-zero, asset = liab + equity
+      9. Default view fallback — detect same-period comparisons
+     10. Q heuristic vs EDGAR mismatch — detect "Not yet filed" errors
+     11. Unmapped column detection — 52/53-week FY drift (e.g. HOFT, WMT)
     """
     findings = []
 
@@ -1478,6 +1481,84 @@ def _agent_audit_panel():
                 findings.append({
                     "sev": "pass",
                     "msg": f"{ticker}: Q availability heuristic matches EDGAR data",
+                    "detail": "",
+                })
+
+            # ════════════════════════════════════════════════════════════
+            # PHASE 11: Unmapped Column Detection (52/53-Week FY Drift)
+            # ════════════════════════════════════════════════════════════
+            # Companies with 52/53-week fiscal years (e.g. HOFT, WMT) have
+            # period-end dates that can drift ±1 month across FYs.  If
+            # fy_end=2 (Feb) but FY2024 Q4 ends Jan 28 (month 1), _find_col
+            # won't match it.  Detect columns that exist in the DataFrame
+            # but aren't mapped to any (FY, Q) in fy_q_map.
+            _mapped_cols = set()
+            for fy in fy_list:
+                for q in fy_q_map.get(fy, []):
+                    c = _find_col(inc_q, q, fy, fy_end)
+                    if c:
+                        _mapped_cols.add(c)
+
+            _all_q_cols = set()
+            for c in inc_q.columns:
+                try:
+                    pd.Timestamp(c)
+                    _all_q_cols.add(c)
+                except Exception:
+                    pass
+
+            _unmapped = _all_q_cols - _mapped_cols
+            if _unmapped:
+                # Check if unmapped columns are ±1 month from a known quarter end
+                _drift_cols = []
+                for c in sorted(_unmapped):
+                    try:
+                        ts = pd.Timestamp(c)
+                        # Try fy_end ±1 to see if this column belongs to a
+                        # quarter under a slightly different FY end month
+                        for alt_end in [(fy_end - 1) or 12, (fy_end % 12) + 1]:
+                            alt_fy = ts.year if ts.month <= alt_end else ts.year + 1
+                            for q in range(1, 5):
+                                em = _fq_end_month_s(q, alt_end)
+                                ey = _fq_end_year_s(q, alt_fy, alt_end)
+                                if ts.month == em and ts.year == ey:
+                                    _drift_cols.append(
+                                        f"{c} → FY{alt_fy} Q{q} (fy_end={alt_end})"
+                                    )
+                    except Exception:
+                        pass
+
+                if _drift_cols:
+                    findings.append({
+                        "sev": "critical",
+                        "msg": (
+                            f"{ticker}: {len(_unmapped)} unmapped quarterly column(s) "
+                            f"— likely 52/53-week FY drift (fy_end={fy_end})"
+                        ),
+                        "detail": (
+                            "These EDGAR columns exist but don't match the detected "
+                            f"fy_end={fy_end}: {', '.join(_drift_cols)}. "
+                            "Company uses a 52/53-week fiscal year whose period-end "
+                            "dates shift between months across FYs.  Q buttons will "
+                            "incorrectly show 'Not yet filed' for affected quarters."
+                        ),
+                    })
+                elif len(_unmapped) > 2:
+                    findings.append({
+                        "sev": "warning",
+                        "msg": (
+                            f"{ticker}: {len(_unmapped)} DataFrame column(s) not "
+                            f"mapped to any FY/Q (fy_end={fy_end})"
+                        ),
+                        "detail": (
+                            f"Unmapped: {', '.join(sorted(_unmapped)[:8])}. "
+                            "Possible FY-end detection error or unusual fiscal calendar."
+                        ),
+                    })
+            else:
+                findings.append({
+                    "sev": "pass",
+                    "msg": f"{ticker}: all {len(_all_q_cols)} quarterly columns mapped to FY/Q pairs",
                     "detail": "",
                 })
 
