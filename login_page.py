@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 _COMPONENT_DIR = os.path.join(os.path.dirname(__file__), "google_signin_component")
 _google_signin = components.declare_component("google_signin", path=_COMPONENT_DIR)
 
-GOOGLE_CLIENT_ID = "61622589594-3tet7j0drvkam8js5gtisbiv8bs2hevj.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com")
 
 
 def render_login_page():

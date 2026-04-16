@@ -43,9 +43,11 @@ def _verify_password(password: str, hashed: str) -> bool:
         return False
 
 
+import os
+
 # ── Google ID Token Verification ─────────────────────────────────────────────
 
-GOOGLE_CLIENT_ID = "61622589594-3tet7j0drvkam8js5gtisbiv8bs2hevj.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "399215694191-jpd7hljpsgvvnnj34apjpsngfmsq4a33.apps.googleusercontent.com")
 
 
 def verify_google_id_token(id_token_str: str) -> dict | None:
