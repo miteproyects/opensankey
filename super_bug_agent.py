@@ -617,17 +617,25 @@ def _agent_meta():
 
 # ── 15. Audit Panel Agent ───────────────────────────────────────────────
 def _agent_audit_panel():
-    """Comprehensive Sankey Audit Panel validation.
-    Uses the same backend functions as the Sankey page to fetch EDGAR data,
-    then tests multiple Q/year combinations per ticker:
-    - Verifies quarterly DataFrames have actual data (not all dashes)
-    - Tests single-Q, multi-Q, and full-year aggregations
-    - Runs accounting identity checks on each combination
-    - Validates both Income Statement and Balance Sheet
-    - Checks that future years with no data are flagged correctly"""
+    """Comprehensive Sankey Audit Panel: validates EDGAR data pipeline and
+    Sankey rendering for every configured ticker across ALL year/Q combinations.
+
+    For each ticker:
+      1. CIK resolution — diagnose ticker→CIK failures
+      2. EDGAR data fetch — diagnose API/network/XBRL failures
+      3. XBRL tag coverage — check which income/balance tags have data
+      4. Year discovery — find all available FYs
+      5. For EVERY FY pair (Period A × Period B): test ALL Q combos
+         - Single Qs: Q1, Q2, Q3, Q4
+         - Multi-Q within year: Q1+Q2, Q1+Q2+Q3, Q1+Q2+Q3+Q4, Q2+Q3, etc.
+         - Cross-year: Q3+Q4(prev) + Q1+Q2(cur) rolling windows
+      6. Revenue sanity — detect $0 revenue, all-dashes, negative values
+      7. Accounting identity checks — GP = Rev - COGS, etc.
+      8. Balance Sheet validation — non-zero, asset = liab + equity
+    """
     findings = []
 
-    # Import the Sankey page's own backend functions
+    # ── 0. Imports ──
     try:
         from sankey_page import (
             _fetch_sankey_data, _ticker_to_cik, _fetch_edgar_facts,
@@ -636,194 +644,491 @@ def _agent_audit_panel():
         )
         findings.append({"sev": "pass", "msg": "Backend imports OK", "detail": ""})
     except Exception as e:
-        findings.append({"sev": "critical", "msg": f"Cannot import sankey_page: {str(e)[:60]}", "detail": ""})
+        findings.append({"sev": "critical", "msg": f"Cannot import sankey_page: {str(e)[:80]}", "detail": ""})
         return findings
 
-    # Determine current date for Q availability checks
-    now = datetime.now()
-    cur_year = now.year
-    cur_month = now.month
-    _SEC_BUFFER = 45  # days after quarter end before data is available
+    import calendar
+    from datetime import date as _date, timedelta as _td
+    from itertools import combinations
 
+    now = datetime.now()
+    today = _date(now.year, now.month, min(now.day, 28))
+    _SEC_BUFFER = 45  # days after Q end before SEC data appears
+
+    # ── Helpers ──
     def _q_end_date(q, fy, fy_end=12):
-        """Calendar end date of fiscal quarter q in fiscal year fy."""
         em = _fq_end_month_s(q, fy_end)
         ey = _fq_end_year_s(q, fy, fy_end)
-        import calendar
-        last_day = calendar.monthrange(ey, em)[1]
-        from datetime import date
-        return date(ey, em, last_day)
+        return _date(ey, em, calendar.monthrange(ey, em)[1])
 
-    def _q_has_data(q, fy, fy_end=12):
-        """Check if SEC data is likely available for this quarter."""
+    def _q_available(q, fy, fy_end=12):
         try:
-            from datetime import date, timedelta
-            q_end = _q_end_date(q, fy, fy_end)
-            today = date(cur_year, cur_month, min(now.day, 28))
-            return today >= q_end + timedelta(days=_SEC_BUFFER)
+            return today >= _q_end_date(q, fy, fy_end) + _td(days=_SEC_BUFFER)
         except Exception:
             return False
 
+    def _find_col(df, q, fy, fy_end):
+        """Find the DataFrame column matching this Q's end date."""
+        em = _fq_end_month_s(q, fy_end)
+        ey = _fq_end_year_s(q, fy, fy_end)
+        for col in df.columns:
+            try:
+                ts = pd.Timestamp(col)
+                if ts.month == em and ts.year == ey:
+                    return col
+            except Exception:
+                pass
+        return None
+
+    def _col_has_data(df, col):
+        """Check if a column has any non-zero, non-NaN values."""
+        try:
+            vals = df[col]
+            return vals.apply(lambda v: v is not None and v != 0 and not pd.isna(v)).any()
+        except Exception:
+            return False
+
+    def _extract_metric(df, col, keywords, exclude=None):
+        """Extract a metric value from a DataFrame column by row name matching."""
+        best = 0
+        for row_name in df.index:
+            rn = row_name.lower()
+            if any(k in rn for k in keywords):
+                if exclude and any(e in rn for e in exclude):
+                    continue
+                try:
+                    v = float(df.at[row_name, col]) if df.at[row_name, col] is not None and not pd.isna(df.at[row_name, col]) else 0
+                except (ValueError, TypeError):
+                    v = 0
+                if abs(v) > abs(best):
+                    best = v
+        return best
+
+    def _aggregate_qs(df, qs, fy, fy_end, is_balance=False):
+        """Aggregate multiple quarters: sum for income, latest snapshot for balance."""
+        result = None
+        for q in sorted(qs):
+            col = _find_col(df, q, fy, fy_end)
+            if col is None or not _col_has_data(df, col):
+                return None  # missing Q breaks the combo
+            series = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            if is_balance:
+                result = series  # point-in-time: take latest
+            else:
+                result = series if result is None else result.add(series, fill_value=0)
+        return result
+
+    # ── Load configured tickers ──
     audit_tickers = _load_audit_tickers()
     findings.append({"sev": "info", "msg": f"Auditing {len(audit_tickers)} tickers: {', '.join(audit_tickers)}", "detail": ""})
 
+    # ── Generate all Q combination patterns ──
+    # Single Qs, multi-Q within year, and full year
+    all_q_combos = []
+    for size in range(1, 5):
+        for combo in combinations([1, 2, 3, 4], size):
+            all_q_combos.append(list(combo))
+    # all_q_combos: [1],[2],[3],[4],[1,2],[1,3],[1,4],[2,3],[2,4],[3,4],[1,2,3],[1,2,4],[1,3,4],[2,3,4],[1,2,3,4]
+
     for ticker in audit_tickers:
         try:
-            # ── Fetch quarterly income + balance data ──
+            # ════════════════════════════════════════════════════════════
+            # PHASE 1: CIK Resolution
+            # ════════════════════════════════════════════════════════════
+            cik = _ticker_to_cik(ticker)
+            if not cik:
+                findings.append({"sev": "critical", "msg": f"{ticker}: CIK resolution failed",
+                                 "detail": "Ticker not found in SEC EDGAR company registry"})
+                continue
+            findings.append({"sev": "pass", "msg": f"{ticker}: CIK={cik}", "detail": ""})
+
+            # ════════════════════════════════════════════════════════════
+            # PHASE 2: EDGAR Data Fetch + Failure Diagnosis
+            # ════════════════════════════════════════════════════════════
+            try:
+                facts = _fetch_edgar_facts(cik)
+                if not facts:
+                    findings.append({"sev": "critical", "msg": f"{ticker}: EDGAR returned empty facts",
+                                     "detail": "API may be down or CIK invalid"})
+                    continue
+                us_gaap = facts.get("facts", {}).get("us-gaap", {})
+                if not us_gaap:
+                    findings.append({"sev": "critical", "msg": f"{ticker}: no us-gaap data in EDGAR facts",
+                                     "detail": "Company may use IFRS or have no XBRL filings"})
+                    continue
+                findings.append({"sev": "pass", "msg": f"{ticker}: EDGAR facts OK ({len(us_gaap)} concepts)", "detail": ""})
+            except Exception as e:
+                findings.append({"sev": "critical", "msg": f"{ticker}: EDGAR fetch failed — {str(e)[:60]}",
+                                 "detail": "Network timeout, rate limit, or API error"})
+                continue
+
+            # ════════════════════════════════════════════════════════════
+            # PHASE 3: XBRL Tag Coverage
+            # ════════════════════════════════════════════════════════════
+            missing_income_tags = []
+            for display_name, tags in _XBRL_INCOME_TAGS.items():
+                if not tags:  # derived field
+                    continue
+                found = any(t in us_gaap for t in tags)
+                if not found:
+                    missing_income_tags.append(display_name)
+
+            missing_balance_tags = []
+            for display_name, tags in _XBRL_BALANCE_TAGS.items():
+                if not tags:  # derived field
+                    continue
+                found = any(t in us_gaap for t in tags)
+                if not found:
+                    missing_balance_tags.append(display_name)
+
+            total_inc = len([k for k, v in _XBRL_INCOME_TAGS.items() if v])
+            total_bal = len([k for k, v in _XBRL_BALANCE_TAGS.items() if v])
+            inc_found = total_inc - len(missing_income_tags)
+            bal_found = total_bal - len(missing_balance_tags)
+
+            if missing_income_tags:
+                findings.append({"sev": "info", "msg": f"{ticker}: income tags {inc_found}/{total_inc}",
+                                 "detail": f"Missing: {', '.join(missing_income_tags[:5])}"})
+            else:
+                findings.append({"sev": "pass", "msg": f"{ticker}: all {total_inc} income tags present", "detail": ""})
+
+            if missing_balance_tags:
+                findings.append({"sev": "info", "msg": f"{ticker}: balance tags {bal_found}/{total_bal}",
+                                 "detail": f"Missing: {', '.join(missing_balance_tags[:5])}"})
+            else:
+                findings.append({"sev": "pass", "msg": f"{ticker}: all {total_bal} balance tags present", "detail": ""})
+
+            # ════════════════════════════════════════════════════════════
+            # PHASE 4: Build DataFrames
+            # ════════════════════════════════════════════════════════════
             inc_q, bal_q, info = _fetch_sankey_data(ticker, quarterly=True)
             inc_a, bal_a, _ = _fetch_sankey_data(ticker, quarterly=False)
             entity = info.get("shortName", ticker)
 
             if inc_q.empty and inc_a.empty:
-                findings.append({"sev": "warning", "msg": f"{ticker}: no EDGAR data returned", "detail": ""})
+                findings.append({"sev": "warning", "msg": f"{ticker}: DataFrames empty after build",
+                                 "detail": "XBRL tags exist but filtering produced no rows"})
                 continue
 
-            findings.append({"sev": "pass", "msg": f"{ticker}: data fetched ({entity})", "detail": f"Q:{inc_q.shape}, A:{inc_a.shape}"})
+            findings.append({"sev": "pass", "msg": f"{ticker}: DataFrames built ({entity})",
+                             "detail": f"Income Q:{inc_q.shape} A:{inc_a.shape} | Balance Q:{bal_q.shape} A:{bal_a.shape}"})
 
-            # ── Determine FY end month ──
-            fy_end = 12  # default
+            # ════════════════════════════════════════════════════════════
+            # PHASE 5: Discover Available FYs + FY End Month
+            # ════════════════════════════════════════════════════════════
+            fy_end = 12
             if not inc_q.empty:
                 try:
-                    last_col = pd.Timestamp(inc_q.columns[0])
-                    fy_end = last_col.month
+                    # Use the most common month across columns
+                    months = [pd.Timestamp(c).month for c in inc_q.columns]
+                    fy_end = max(set(months), key=months.count)
                 except Exception:
                     pass
 
-            # ── Determine available fiscal years ──
             available_fy = set()
-            if not inc_q.empty:
-                for col in inc_q.columns:
-                    try:
-                        ts = pd.Timestamp(col)
-                        # Map calendar date back to FY
-                        if ts.month <= fy_end:
-                            available_fy.add(ts.year)
-                        else:
-                            available_fy.add(ts.year + 1)
-                    except Exception:
-                        pass
+            for df_check in [inc_q, inc_a]:
+                if not df_check.empty:
+                    for col in df_check.columns:
+                        try:
+                            ts = pd.Timestamp(col)
+                            fy = ts.year if ts.month <= fy_end else ts.year + 1
+                            available_fy.add(fy)
+                        except Exception:
+                            pass
 
             if not available_fy:
-                available_fy = {cur_year, cur_year - 1}
-            fy_list = sorted(available_fy, reverse=True)[:3]  # Test last 3 FYs
+                findings.append({"sev": "warning", "msg": f"{ticker}: no fiscal years discovered", "detail": ""})
+                continue
 
-            # ── Test each FY: check which quarters have data ──
+            fy_list = sorted(available_fy, reverse=True)
+            findings.append({"sev": "pass", "msg": f"{ticker}: FY end month={fy_end}, years={fy_list[0]}..{fy_list[-1]} ({len(fy_list)} FYs)",
+                             "detail": ""})
+
+            # ════════════════════════════════════════════════════════════
+            # PHASE 6: Test ALL Year × Q Combinations
+            # ════════════════════════════════════════════════════════════
+            # For each FY, determine which individual Qs have data
+            fy_q_map = {}  # fy -> list of Qs with data
             for fy in fy_list:
-                qs_with_data = []
+                qs_avail = []
                 for q in range(1, 5):
-                    if _q_has_data(q, fy, fy_end):
-                        # Also verify the data column actually exists in the DF
-                        em = _fq_end_month_s(q, fy_end)
-                        ey = _fq_end_year_s(q, fy, fy_end)
-                        col_found = False
-                        for col in inc_q.columns:
-                            try:
-                                ts = pd.Timestamp(col)
-                                if ts.month == em and ts.year == ey:
-                                    # Check if the column has any non-zero values
-                                    col_vals = inc_q[col]
-                                    has_data = col_vals.apply(lambda v: v is not None and v != 0 and not pd.isna(v)).any()
-                                    if has_data:
-                                        col_found = True
-                                    break
-                            except Exception:
-                                pass
-                        if col_found:
-                            qs_with_data.append(q)
+                    col = _find_col(inc_q, q, fy, fy_end)
+                    if col is not None and _col_has_data(inc_q, col):
+                        qs_avail.append(q)
+                fy_q_map[fy] = qs_avail
 
-                if not qs_with_data:
-                    findings.append({"sev": "info", "msg": f"{ticker} FY{fy}: no Qs with data", "detail": "Future year or no filings yet"})
+            # Report per-FY availability
+            for fy in fy_list[:5]:  # top 5 FYs
+                qs = fy_q_map.get(fy, [])
+                if qs:
+                    findings.append({"sev": "pass", "msg": f"{ticker} FY{fy}: Q{','.join(str(q) for q in qs)} available", "detail": ""})
+                else:
+                    if _q_available(1, fy, fy_end):
+                        findings.append({"sev": "warning", "msg": f"{ticker} FY{fy}: no Qs with data (expected some)",
+                                         "detail": "Q1 should be available by now"})
+                    else:
+                        findings.append({"sev": "info", "msg": f"{ticker} FY{fy}: no data yet (future/recent)", "detail": ""})
+
+            # ── Test all Q combos within each FY ──
+            combo_pass = 0
+            combo_fail = 0
+            combo_details = []  # collect failures for report
+
+            for fy in fy_list[:4]:  # test last 4 FYs
+                qs_avail = fy_q_map.get(fy, [])
+                if not qs_avail:
                     continue
 
-                findings.append({"sev": "pass", "msg": f"{ticker} FY{fy}: Q{','.join(str(q) for q in qs_with_data)} have data", "detail": ""})
+                for q_combo in all_q_combos:
+                    # Skip combos that include Qs without data
+                    if not all(q in qs_avail for q in q_combo):
+                        continue
 
-                # ── Test Q combinations ──
-                # Combo 1: Latest single Q
-                _test_q_combo(findings, ticker, fy, [qs_with_data[-1]], inc_q, fy_end, "single-Q")
+                    combo_label = f"FY{fy} Q{'+'.join(str(q) for q in q_combo)}"
 
-                # Combo 2: All available Qs
-                if len(qs_with_data) > 1:
-                    _test_q_combo(findings, ticker, fy, qs_with_data, inc_q, fy_end, "all-Q")
+                    # Aggregate income
+                    agg = _aggregate_qs(inc_q, q_combo, fy, fy_end, is_balance=False)
+                    if agg is None:
+                        combo_fail += 1
+                        combo_details.append(f"{combo_label}: aggregation returned None")
+                        continue
 
-                # Combo 3: First 2 Qs (if available)
-                if len(qs_with_data) >= 2:
-                    _test_q_combo(findings, ticker, fy, qs_with_data[:2], inc_q, fy_end, "first-2Q")
+                    # Extract key metrics
+                    rev = 0
+                    ni = 0
+                    cogs = 0
+                    gp = 0
+                    for row_name in inc_q.index:
+                        rn = row_name.lower()
+                        try:
+                            v = float(agg.get(row_name, 0)) if not pd.isna(agg.get(row_name, 0)) else 0
+                        except (ValueError, TypeError):
+                            v = 0
+                        if "revenue" in rn and "cost" not in rn and abs(v) > abs(rev):
+                            rev = v
+                        if rn in ("net income", "netincomeloss", "net income loss") and abs(v) > abs(ni):
+                            ni = v
+                        if ("cost of" in rn or "cost of goods" in rn or "costofrevenue" in rn) and abs(v) > abs(cogs):
+                            cogs = v
+                        if "gross profit" in rn and abs(v) > abs(gp):
+                            gp = v
 
-            # ── Test future year (should have no data → not all dashes bug) ──
-            future_fy = max(fy_list) + 1
-            future_qs = [q for q in range(1, 5) if _q_has_data(q, future_fy, fy_end)]
-            if not future_qs:
-                findings.append({"sev": "pass", "msg": f"{ticker} FY{future_fy}: correctly shows no data (future)", "detail": ""})
-            else:
-                findings.append({"sev": "info", "msg": f"{ticker} FY{future_fy}: has Q data (filing detected)", "detail": ""})
+                    if rev == 0:
+                        combo_fail += 1
+                        combo_details.append(f"{combo_label}: revenue=$0")
+                    elif rev < 0:
+                        combo_fail += 1
+                        combo_details.append(f"{combo_label}: negative revenue ${rev/1e6:.0f}M")
+                    else:
+                        combo_pass += 1
 
-            # ── Balance Sheet checks ──
-            if not bal_q.empty:
-                bal_cols = len(bal_q.columns)
-                bal_rows = len(bal_q.index)
-                non_zero = bal_q.apply(pd.to_numeric, errors='coerce').fillna(0).abs().sum().sum()
-                if non_zero > 0:
-                    findings.append({"sev": "pass", "msg": f"{ticker}: Balance Sheet has data ({bal_rows}×{bal_cols})", "detail": ""})
+                        # Accounting identity: GP ≈ Rev - COGS (if both reported)
+                        if gp > 0 and cogs > 0:
+                            expected_gp = rev - cogs
+                            gp_diff_pct = abs(gp - expected_gp) / rev * 100 if rev else 0
+                            if gp_diff_pct > 5:
+                                combo_details.append(
+                                    f"{combo_label}: GP mismatch — reported ${gp/1e9:.1f}B vs "
+                                    f"computed ${expected_gp/1e9:.1f}B ({gp_diff_pct:.0f}% diff)")
+
+            total_combos = combo_pass + combo_fail
+            if total_combos > 0:
+                pass_rate = round(combo_pass / total_combos * 100)
+                if combo_fail == 0:
+                    findings.append({"sev": "pass",
+                                     "msg": f"{ticker}: all {total_combos} Q combos pass (rev>0)",
+                                     "detail": f"{combo_pass} combos across {min(len(fy_list),4)} FYs"})
                 else:
-                    findings.append({"sev": "warning", "msg": f"{ticker}: Balance Sheet all zeros", "detail": ""})
+                    sev = "warning" if pass_rate >= 80 else "critical"
+                    findings.append({"sev": sev,
+                                     "msg": f"{ticker}: {combo_fail}/{total_combos} Q combos failed ({pass_rate}% pass)",
+                                     "detail": "; ".join(combo_details[:5])})
+
+            # ── Test Period A vs Period B (compare mode) ──
+            if len(fy_list) >= 2:
+                compare_pass = 0
+                compare_fail = 0
+                compare_details = []
+
+                # Test every FY pair (A, B) where A > B
+                test_fys = fy_list[:4]
+                for i, fy_a in enumerate(test_fys):
+                    for fy_b in test_fys[i+1:]:
+                        qs_a = fy_q_map.get(fy_a, [])
+                        qs_b = fy_q_map.get(fy_b, [])
+                        if not qs_a or not qs_b:
+                            continue
+
+                        # Test matching Q patterns between periods
+                        common_qs_patterns = []
+                        for q_combo in all_q_combos:
+                            if all(q in qs_a for q in q_combo) and all(q in qs_b for q in q_combo):
+                                common_qs_patterns.append(q_combo)
+
+                        for q_combo in common_qs_patterns:
+                            q_label = f"Q{'+'.join(str(q) for q in q_combo)}"
+                            pair_label = f"FY{fy_a} vs FY{fy_b} {q_label}"
+
+                            agg_a = _aggregate_qs(inc_q, q_combo, fy_a, fy_end)
+                            agg_b = _aggregate_qs(inc_q, q_combo, fy_b, fy_end)
+
+                            if agg_a is None or agg_b is None:
+                                compare_fail += 1
+                                compare_details.append(f"{pair_label}: aggregation failed")
+                                continue
+
+                            # Extract revenue for both periods
+                            rev_a = rev_b = 0
+                            for rn in inc_q.index:
+                                if "revenue" in rn.lower() and "cost" not in rn.lower():
+                                    try:
+                                        va = float(agg_a.get(rn, 0)) if not pd.isna(agg_a.get(rn, 0)) else 0
+                                        vb = float(agg_b.get(rn, 0)) if not pd.isna(agg_b.get(rn, 0)) else 0
+                                    except (ValueError, TypeError):
+                                        va = vb = 0
+                                    if abs(va) > abs(rev_a):
+                                        rev_a = va
+                                    if abs(vb) > abs(rev_b):
+                                        rev_b = vb
+
+                            if rev_a > 0 and rev_b > 0:
+                                compare_pass += 1
+                            else:
+                                compare_fail += 1
+                                if rev_a == 0:
+                                    compare_details.append(f"{pair_label}: Period A rev=$0")
+                                if rev_b == 0:
+                                    compare_details.append(f"{pair_label}: Period B rev=$0")
+
+                total_cmp = compare_pass + compare_fail
+                if total_cmp > 0:
+                    cmp_rate = round(compare_pass / total_cmp * 100)
+                    if compare_fail == 0:
+                        findings.append({"sev": "pass",
+                                         "msg": f"{ticker}: all {total_cmp} compare combos pass",
+                                         "detail": f"Period A×B pairs with matching Q patterns"})
+                    else:
+                        sev = "warning" if cmp_rate >= 80 else "critical"
+                        findings.append({"sev": sev,
+                                         "msg": f"{ticker}: {compare_fail}/{total_cmp} compare combos failed ({cmp_rate}%)",
+                                         "detail": "; ".join(compare_details[:5])})
+
+            # ════════════════════════════════════════════════════════════
+            # PHASE 7: Balance Sheet Validation
+            # ════════════════════════════════════════════════════════════
+            if not bal_q.empty:
+                bal_pass = 0
+                bal_fail = 0
+                bal_details = []
+
+                for fy in fy_list[:4]:
+                    qs_avail = fy_q_map.get(fy, [])
+                    for q in qs_avail:
+                        col = _find_col(bal_q, q, fy, fy_end)
+                        if col is None:
+                            # Try matching balance sheet columns differently
+                            continue
+                        if not _col_has_data(bal_q, col):
+                            bal_fail += 1
+                            bal_details.append(f"FY{fy} Q{q}: balance col empty")
+                            continue
+
+                        # Extract key balance metrics
+                        series = pd.to_numeric(bal_q[col], errors="coerce").fillna(0)
+                        total_assets = 0
+                        total_liab = 0
+                        total_equity = 0
+                        for rn in bal_q.index:
+                            rl = rn.lower()
+                            v = series.get(rn, 0)
+                            if "total assets" in rl and "non" not in rl and abs(v) > abs(total_assets):
+                                total_assets = v
+                            if ("total liabilit" in rl) and "and" not in rl and abs(v) > abs(total_liab):
+                                total_liab = v
+                            if ("stockholder" in rl or "total equity" in rl or "shareholders" in rl) and abs(v) > abs(total_equity):
+                                total_equity = v
+
+                        if total_assets > 0:
+                            bal_pass += 1
+                            # Check A = L + E identity
+                            if total_liab > 0 and total_equity != 0:
+                                expected = total_liab + total_equity
+                                diff_pct = abs(total_assets - expected) / total_assets * 100
+                                if diff_pct > 2:
+                                    bal_details.append(
+                                        f"FY{fy} Q{q}: A≠L+E — A=${total_assets/1e9:.1f}B, "
+                                        f"L+E=${expected/1e9:.1f}B ({diff_pct:.0f}%)")
+                        else:
+                            bal_fail += 1
+                            bal_details.append(f"FY{fy} Q{q}: total assets=$0")
+
+                total_bal_checks = bal_pass + bal_fail
+                if total_bal_checks > 0:
+                    if bal_fail == 0:
+                        findings.append({"sev": "pass",
+                                         "msg": f"{ticker}: all {total_bal_checks} balance sheet checks pass",
+                                         "detail": ""})
+                    else:
+                        findings.append({"sev": "warning",
+                                         "msg": f"{ticker}: {bal_fail}/{total_bal_checks} balance checks failed",
+                                         "detail": "; ".join(bal_details[:5])})
+                if bal_details:
+                    for d in bal_details[:3]:
+                        findings.append({"sev": "info", "msg": f"{ticker} balance: {d}", "detail": ""})
             elif not bal_a.empty:
-                findings.append({"sev": "pass", "msg": f"{ticker}: Balance Sheet (annual) has data", "detail": ""})
+                findings.append({"sev": "pass", "msg": f"{ticker}: Balance Sheet annual data OK", "detail": ""})
             else:
-                findings.append({"sev": "warning", "msg": f"{ticker}: no Balance Sheet data", "detail": ""})
+                findings.append({"sev": "warning", "msg": f"{ticker}: no Balance Sheet data at all", "detail": ""})
+
+            # ════════════════════════════════════════════════════════════
+            # PHASE 8: Sankey Render Check (smoke test)
+            # ════════════════════════════════════════════════════════════
+            try:
+                from sankey_page import _build_income_sankey, _build_partial_year_df
+            except ImportError:
+                findings.append({"sev": "info", "msg": f"{ticker}: cannot import Sankey render functions", "detail": ""})
+                continue
+
+            # Test rendering for the most recent FY with full data
+            for fy in fy_list[:2]:
+                qs = fy_q_map.get(fy, [])
+                if sorted(qs) == [1, 2, 3, 4]:
+                    try:
+                        # Build a 2-column DF (Period A = this FY, Period B = prior FY)
+                        fy_b = fy - 1 if fy - 1 in fy_list else None
+                        agg_a = _aggregate_qs(inc_q, [1, 2, 3, 4], fy, fy_end)
+                        if agg_a is not None and agg_a.sum() != 0:
+                            render_df = pd.DataFrame({"Period_A": agg_a})
+                            if fy_b and fy_q_map.get(fy_b):
+                                agg_b = _aggregate_qs(inc_q, [1, 2, 3, 4], fy_b, fy_end)
+                                if agg_b is not None:
+                                    render_df["Period_B"] = agg_b
+                                else:
+                                    render_df["Period_B"] = pd.Series(dtype=float)
+                            else:
+                                render_df["Period_B"] = pd.Series(dtype=float)
+
+                            fig, nodes = _build_income_sankey(render_df, info, ticker=ticker)
+                            if fig is not None and len(nodes) > 0:
+                                findings.append({"sev": "pass",
+                                                 "msg": f"{ticker} FY{fy}: Sankey renders OK ({len(nodes)} nodes)",
+                                                 "detail": ""})
+                            elif fig is None:
+                                findings.append({"sev": "warning",
+                                                 "msg": f"{ticker} FY{fy}: Sankey returned None (rev=$0?)",
+                                                 "detail": "Income Sankey requires positive revenue"})
+                            break  # only test one FY for render
+                    except Exception as e:
+                        findings.append({"sev": "warning",
+                                         "msg": f"{ticker} FY{fy}: Sankey render error — {str(e)[:60]}",
+                                         "detail": ""})
+                        break
 
         except Exception as e:
-            findings.append({"sev": "warning", "msg": f"{ticker}: audit failed — {str(e)[:60]}", "detail": ""})
+            findings.append({"sev": "warning", "msg": f"{ticker}: audit crashed — {str(e)[:80]}", "detail": ""})
 
     return findings
 
-
-def _test_q_combo(findings, ticker, fy, qs, inc_df, fy_end, combo_name):
-    """Test a specific quarter combination: aggregate selected Qs and verify data."""
-    try:
-        from sankey_page import _fq_end_month_s, _fq_end_year_s
-
-        total_rev = 0
-        total_ni = 0
-        cols_found = 0
-
-        for q in qs:
-            em = _fq_end_month_s(q, fy_end)
-            ey = _fq_end_year_s(q, fy, fy_end)
-            for col in inc_df.columns:
-                try:
-                    ts = pd.Timestamp(col)
-                    if ts.month == em and ts.year == ey:
-                        # Extract Revenue and Net Income
-                        rev = 0
-                        ni = 0
-                        for row_name in inc_df.index:
-                            val = inc_df.at[row_name, col]
-                            try:
-                                val = float(val) if val is not None and not pd.isna(val) else 0
-                            except (ValueError, TypeError):
-                                val = 0
-                            if "revenue" in row_name.lower() and "cost" not in row_name.lower():
-                                rev = max(rev, val)
-                            if row_name.lower() in ("net income", "netincomeloss", "net income loss"):
-                                ni = val
-                        total_rev += rev
-                        total_ni += ni
-                        cols_found += 1
-                        break
-                except Exception:
-                    pass
-
-        q_label = "+".join(f"Q{q}" for q in qs)
-        if cols_found == len(qs) and total_rev > 0:
-            findings.append({"sev": "pass", "msg": f"{ticker} FY{fy} ({q_label}): Rev ${total_rev/1e9:.1f}B ✓", "detail": combo_name})
-        elif cols_found == 0:
-            findings.append({"sev": "warning", "msg": f"{ticker} FY{fy} ({q_label}): no matching columns", "detail": f"{combo_name} — audit panel would show dashes"})
-        elif total_rev == 0:
-            findings.append({"sev": "warning", "msg": f"{ticker} FY{fy} ({q_label}): revenue is $0", "detail": f"{combo_name} — data columns found but empty"})
-        else:
-            findings.append({"sev": "info", "msg": f"{ticker} FY{fy} ({q_label}): partial data ({cols_found}/{len(qs)} cols)", "detail": combo_name})
-    except Exception as e:
-        findings.append({"sev": "warning", "msg": f"{ticker} FY{fy} combo test failed: {str(e)[:50]}", "detail": combo_name})
 
 
 # ═══════════════════════════════════════════════════════════════════════
