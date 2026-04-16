@@ -42,6 +42,35 @@ _CIK_MAP = {
     "TSLA": "0001318605", "AAPL": "0000320193", "MSFT": "0000789019",
 }
 
+# ── Audit Tickers Config ───────────────────────────────────────────────
+_AUDIT_TICKERS_FILE = os.path.join(_BASE_DIR, "audit_tickers_config.json")
+_DEFAULT_AUDIT_TICKERS = ["NVDA", "GOOG", "META", "TSLA", "AAPL", "MSFT", "AMZN"]
+
+
+def _load_audit_tickers():
+    """Load the list of tickers the Audit Panel agent should check."""
+    if os.path.exists(_AUDIT_TICKERS_FILE):
+        try:
+            with open(_AUDIT_TICKERS_FILE, "r") as f:
+                data = json.load(f)
+                tickers = data.get("tickers", _DEFAULT_AUDIT_TICKERS)
+                if isinstance(tickers, list) and len(tickers) > 0:
+                    return [t.strip().upper() for t in tickers if t.strip()]
+        except Exception:
+            pass
+    return list(_DEFAULT_AUDIT_TICKERS)
+
+
+def _save_audit_tickers(tickers):
+    """Persist the audit tickers list."""
+    try:
+        clean = [t.strip().upper() for t in tickers if t.strip()]
+        with open(_AUDIT_TICKERS_FILE, "w") as f:
+            json.dump({"tickers": clean, "updated": datetime.now().isoformat()}, f, indent=2)
+        return True
+    except Exception:
+        return False
+
 
 # ── Persistence ─────────────────────────────────────────────────────────
 def _load_history():
@@ -635,7 +664,10 @@ def _agent_audit_panel():
         except Exception:
             return False
 
-    for ticker in _FREE_TICKERS:
+    audit_tickers = _load_audit_tickers()
+    findings.append({"sev": "info", "msg": f"Auditing {len(audit_tickers)} tickers: {', '.join(audit_tickers)}", "detail": ""})
+
+    for ticker in audit_tickers:
         try:
             # ── Fetch quarterly income + balance data ──
             inc_q, bal_q, info = _fetch_sankey_data(ticker, quarterly=True)
@@ -1753,6 +1785,48 @@ def _render_command_center():
         <p>20 specialized agents auditing every layer of QuarterCharts</p>
     </div>
     """, unsafe_allow_html=True)
+
+    # ── Tickers to Check (Audit Panel config) ──
+    with st.expander("🔬 Tickers to Check (Sankey Audit)", expanded=False):
+        current_tickers = _load_audit_tickers()
+        st.markdown(
+            f'<div style="font-size:0.82rem;color:#94A3B8;margin-bottom:8px;">'
+            f'The <strong>Audit Panel</strong> agent will validate Sankey data for these tickers. '
+            f'Currently: <strong>{len(current_tickers)}</strong> tickers.</div>',
+            unsafe_allow_html=True,
+        )
+        # Show current tickers as pills
+        if current_tickers:
+            pills_html = " ".join(
+                f'<span style="display:inline-block;background:#1E293B;color:#F1F5F9;'
+                f'border:1px solid #334155;border-radius:8px;padding:4px 12px;'
+                f'font-size:0.82rem;font-weight:600;margin:2px;">{t}</span>'
+                for t in current_tickers
+            )
+            st.markdown(pills_html, unsafe_allow_html=True)
+
+        # Input to add/replace tickers
+        new_tickers_str = st.text_input(
+            "Edit tickers (comma-separated):",
+            value=", ".join(current_tickers),
+            key="sba_audit_tickers_input",
+            placeholder="e.g. NVDA, GOOG, META, TSLA, AAPL",
+        )
+        tc1, tc2 = st.columns(2)
+        with tc1:
+            if st.button("💾 Save Tickers", key="sba_save_tickers", use_container_width=True):
+                parsed = [t.strip().upper() for t in new_tickers_str.split(",") if t.strip()]
+                if parsed:
+                    _save_audit_tickers(parsed)
+                    st.toast(f"Saved {len(parsed)} tickers: {', '.join(parsed)}", icon="✅")
+                    st.rerun()
+                else:
+                    st.toast("Please enter at least one ticker.", icon="⚠️")
+        with tc2:
+            if st.button("↩️ Reset to Defaults", key="sba_reset_tickers", use_container_width=True):
+                _save_audit_tickers(_DEFAULT_AUDIT_TICKERS)
+                st.toast(f"Reset to defaults: {', '.join(_DEFAULT_AUDIT_TICKERS)}", icon="✅")
+                st.rerun()
 
     # Run button
     c1, c2, c3 = st.columns([1, 2, 1])
