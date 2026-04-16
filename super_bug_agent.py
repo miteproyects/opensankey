@@ -44,7 +44,7 @@ _CIK_MAP = {
 
 # ── Audit Tickers Config ───────────────────────────────────────────────
 _AUDIT_TICKERS_FILE = os.path.join(_BASE_DIR, "audit_tickers_config.json")
-_DEFAULT_AUDIT_TICKERS = ["NVDA", "GOOG", "META", "TSLA", "AAPL", "MSFT", "AMZN"]
+_DEFAULT_AUDIT_TICKERS = ["NVDA", "GOOG", "META", "TSLA", "AAPL", "MSFT", "AMZN", "HOFT"]
 
 
 def _load_audit_tickers():
@@ -875,6 +875,8 @@ def _agent_audit_panel():
      10. Q heuristic vs EDGAR mismatch — detect "Not yet filed" errors
      11. Empty default view detection — current FY has 0 filed Qs on EDGAR
      12. KPI vs table cross-validation — stale session state causes mismatch
+     13. 52/53-week FY drift tolerance — verify ±1 month fallback finds data
+     14. Table year-shift detection — table auto-retries year-1 when sidebar year is empty
     """
     findings = []
 
@@ -1615,6 +1617,109 @@ def _agent_audit_panel():
                             findings.append({
                                 "sev": "pass",
                                 "msg": f"{ticker}: multi-Q aggregation consistent ({'+'.join(f'Q{q}' for q in _xv_q2)})",
+                                "detail": "",
+                            })
+
+            # ════════════════════════════════════════════════════════════
+            # PHASE 13: 52/53-Week FY Drift Tolerance Verification
+            # ════════════════════════════════════════════════════════════
+            # Companies like HOFT have fiscal years ending in non-standard
+            # months (e.g. fy_end=2) AND their period-end dates drift ±1
+            # month across fiscal years (52/53-week calendars).  Strict
+            # month matching fails; the ±1 tolerance in _find_col,
+            # _match_col, and _find_col_for_q must rescue these.
+            # For each available Q, check if exact match fails but ±1 succeeds.
+            _drift_found = []
+            _drift_fy = fy_list[0] if fy_list else current_year - 1
+            _drift_qs = fy_q_map.get(_drift_fy, [])
+            for _dq in _drift_qs:
+                _d_em = _fq_end_month_s(_dq, fy_end)
+                _d_ey = _fq_end_year_s(_dq, _drift_fy, fy_end)
+                # Exact match
+                _exact = None
+                for col in inc_q.columns:
+                    try:
+                        ts = pd.Timestamp(col)
+                        if ts.month == _d_em and ts.year == _d_ey:
+                            _exact = col
+                            break
+                    except Exception:
+                        pass
+                # ±1 match
+                _fuzzy = _find_col(inc_q, _dq, _drift_fy, fy_end) if not _exact else _exact
+                if not _exact and _fuzzy:
+                    _drift_found.append(f"Q{_dq} (expected {_d_em}/{_d_ey}, found {_fuzzy})")
+
+            if _drift_found:
+                findings.append({
+                    "sev": "warning",
+                    "msg": (
+                        f"{ticker}: 52/53-week drift detected — "
+                        f"{len(_drift_found)} Q(s) need ±1 month tolerance"
+                    ),
+                    "detail": (
+                        f"FY{_drift_fy} fy_end={fy_end}. "
+                        f"Drift columns: {'; '.join(_drift_found)}. "
+                        f"Without ±1 tolerance in _find_col/_match_col/_find_col_for_q, "
+                        f"these Qs would show all dashes. Tolerance is active and rescuing data."
+                    ),
+                })
+            else:
+                findings.append({
+                    "sev": "pass",
+                    "msg": f"{ticker}: no 52/53-week drift — exact month matching works for all Qs",
+                    "detail": "",
+                })
+
+            # ════════════════════════════════════════════════════════════
+            # PHASE 14: Table Year-Shift Detection
+            # ════════════════════════════════════════════════════════════
+            # The table uses sidebar year (Period A = current_year) to
+            # look up Q columns.  When that year has no filed Qs, the
+            # table must auto-shift to year - 1.  Simulate this: try
+            # sidebar year first; if no data found, verify year - 1 works.
+            if not _cur_fy_qs:
+                # Current FY has no data → table should auto-shift
+                _tbl_target_a = current_year - 1
+                _tbl_target_b = current_year - 2
+                _prev_fy_default_q = sorted(fy_q_map.get(_tbl_target_a, []))[-1] if fy_q_map.get(_tbl_target_a) else None
+                if _prev_fy_default_q:
+                    # Verify sidebar year would show dashes
+                    _sidebar_col = _find_col(inc_q, _prev_fy_default_q, current_year, fy_end)
+                    _sidebar_has_data = _sidebar_col and _col_has_data(inc_q, _sidebar_col)
+                    # Verify shifted year has data
+                    _shifted_col = _find_col(inc_q, _prev_fy_default_q, _tbl_target_a, fy_end)
+                    _shifted_has_data = _shifted_col and _col_has_data(inc_q, _shifted_col)
+                    if not _sidebar_has_data and _shifted_has_data:
+                        findings.append({
+                            "sev": "warning",
+                            "msg": (
+                                f"{ticker}: table needs year-shift — FY{current_year} Q{_prev_fy_default_q} "
+                                f"empty, FY{_tbl_target_a} Q{_prev_fy_default_q} has data"
+                            ),
+                            "detail": (
+                                f"Sidebar Period A = FY{current_year} but user's Q selection "
+                                f"maps to FY{_tbl_target_a}. Table must auto-detect all-dashes "
+                                f"and retry with year - 1 to show the user's actual selection."
+                            ),
+                        })
+                    elif _shifted_has_data:
+                        findings.append({
+                            "sev": "pass",
+                            "msg": f"{ticker}: table year-shift — FY{_tbl_target_a} Q{_prev_fy_default_q} has data",
+                            "detail": "",
+                        })
+                    # Check Period B (comparison year)
+                    _pb_default_q = sorted(fy_q_map.get(_tbl_target_b, []))[-1] if fy_q_map.get(_tbl_target_b) else None
+                    if _pb_default_q:
+                        _pb_col = _find_col(inc_q, _pb_default_q, _tbl_target_b, fy_end)
+                        if not (_pb_col and _col_has_data(inc_q, _pb_col)):
+                            findings.append({
+                                "sev": "warning",
+                                "msg": (
+                                    f"{ticker}: table Period B FY{_tbl_target_b} Q{_pb_default_q} "
+                                    f"has no data — comparison will show dashes"
+                                ),
                                 "detail": "",
                             })
 

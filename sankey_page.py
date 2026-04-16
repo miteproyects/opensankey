@@ -5754,12 +5754,28 @@ def render_sankey_page():
 
                 return result, _footnotes_used
 
-            # Period A table
+            # Helper: check if a table has any real data (not all dashes)
+            def _tbl_has_data(tbl):
+                if tbl is None:
+                    return False
+                for col in tbl.columns:
+                    for v in tbl[col]:
+                        if str(v).strip() not in ("—", "nan", ""):
+                            return True
+                return False
+
+            # Period A table — if sidebar year has no data, try year - 1
+            # (user's Q selection may map to the previous FY)
             _derived_inc = st.session_state.get("_derived_income_rows", {})
+            _fy_shift = 0
             _main_fy_a = _audit_pa_val + _adj_audit
             _tbl_a, _fn_a = _build_period_table(_main_fy_a, _audit_qa, _audit_qb, _audit_fy_end_q, _src_inc, "Period A", derived_rows=_derived_inc)
+            if not _tbl_has_data(_tbl_a):
+                _main_fy_a -= 1
+                _fy_shift = -1
+                _tbl_a, _fn_a = _build_period_table(_main_fy_a, _audit_qa, _audit_qb, _audit_fy_end_q, _src_inc, "Period A", derived_rows=_derived_inc)
             if _tbl_a is not None:
-                _lbl_a = _build_period_label(_main_fy_a, _audit_qa, _audit_qb) if (_audit_qa or _audit_qb) else f"FY{_audit_pa_val}"
+                _lbl_a = _build_period_label(_main_fy_a, _audit_qa, _audit_qb) if (_audit_qa or _audit_qb) else f"FY{_main_fy_a}"
                 st.markdown(f'<p class="audit-header">📊 Income Statement — Period A: {_lbl_a}</p>', unsafe_allow_html=True)
                 st.dataframe(_tbl_a, use_container_width=True)
                 if _fn_a:
@@ -5768,11 +5784,11 @@ def render_sankey_page():
 
             st.markdown("---")
 
-            # Period B table
-            _main_fy_b = _audit_pb_val + _adj_audit
+            # Period B table — apply same year shift as Period A
+            _main_fy_b = _audit_pb_val + _adj_audit + _fy_shift
             _tbl_b, _fn_b = _build_period_table(_main_fy_b, _audit_qa, _audit_qb, _audit_fy_end_q, _src_inc, "Period B", derived_rows=_derived_inc)
             if _tbl_b is not None:
-                _lbl_b = _build_period_label(_main_fy_b, _audit_qa, _audit_qb) if (_audit_qa or _audit_qb) else f"FY{_audit_pb_val}"
+                _lbl_b = _build_period_label(_main_fy_b, _audit_qa, _audit_qb) if (_audit_qa or _audit_qb) else f"FY{_main_fy_b}"
                 st.markdown(f'<p class="audit-header">📊 Income Statement — Period B: {_lbl_b}</p>', unsafe_allow_html=True)
                 st.dataframe(_tbl_b, use_container_width=True)
                 if _fn_b:
