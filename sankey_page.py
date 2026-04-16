@@ -4520,11 +4520,11 @@ def render_sankey_page():
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         .sankey-header {
-            background: transparent !important;
-            border: none !important;
-            border-radius: 0 !important;
-            padding: 0 !important;
-            margin: 0 0 0.75rem 0 !important;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+            border: 1px solid rgba(255,255,255,0.06) !important;
+            border-radius: 12px !important;
+            padding: 14px 20px !important;
+            margin: 23px 0 1.5rem 0 !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
@@ -4568,10 +4568,6 @@ def render_sankey_page():
             color: #94a3b8;
             font-size: 0.9rem;
         }
-        /* Make inner header transparent since row provides the dark bg */
-        /* Kill all inner margins so title stays vertically centered */
-        /* PDF download button inside header row */
-        /* Remove extra margins inside PDF column */
         .sankey-tab-container {
             display: flex;
             gap: 0;
