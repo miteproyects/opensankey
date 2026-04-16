@@ -1278,6 +1278,39 @@ def _agent_audit_panel():
                                      "msg": f"{ticker}: latest FY with data is {latest_fy} (current year={current_year})",
                                      "detail": "May trigger fallback in default Sankey view"})
 
+            # PHASE 10: Q Availability Heuristic vs EDGAR Mismatch
+            # ════════════════════════════════════════════════════════════
+            # Detect quarters where the 45-day heuristic says data should
+            # be available but EDGAR actually has no data.  This causes
+            # the Q selector to show clickable buttons for empty quarters.
+            _mismatch_qs = []
+            for fy in fy_list[:3]:  # check latest 3 FYs
+                actual_qs = set(fy_q_map.get(fy, []))
+                for q in range(1, 5):
+                    heuristic_avail = _q_available(q, fy, fy_end)
+                    edgar_has_data = q in actual_qs
+                    if heuristic_avail and not edgar_has_data:
+                        _mismatch_qs.append((fy, q))
+
+            if _mismatch_qs:
+                _mm_list = ", ".join(f"FY{fy} Q{q}" for fy, q in _mismatch_qs)
+                findings.append({
+                    "sev": "warning",
+                    "msg": f"{ticker}: Q selector heuristic/EDGAR mismatch — {_mm_list}",
+                    "detail": (
+                        "45-day heuristic says these quarters should be filed, "
+                        "but EDGAR has no quarterly data. Likely 10-K (annual) "
+                        "filing that takes 60-90 days, or company hasn't filed yet. "
+                        "Q buttons will show 'Not yet filed' after first data load."
+                    ),
+                })
+            else:
+                findings.append({
+                    "sev": "pass",
+                    "msg": f"{ticker}: Q availability heuristic matches EDGAR data",
+                    "detail": "",
+                })
+
         except Exception as e:
             findings.append({"sev": "warning", "msg": f"{ticker}: audit crashed — {str(e)[:80]}", "detail": ""})
 

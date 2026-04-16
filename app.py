@@ -2680,12 +2680,31 @@ with st.sidebar:
                 today = _date_cls(_cur_year, _cur_month, _dt.now().day)
                 return today > q_end
 
+            def _q_actually_available(q, fy, fy_end):
+                """Check ACTUAL EDGAR data availability (cached), falling back
+                to the date-based heuristic on first render.
+
+                The sankey page caches which quarters truly have EDGAR
+                quarterly columns after the first data fetch.  Once cached,
+                we use that ground truth instead of the 45-day heuristic
+                (which is inaccurate for 10-K filings that take 60-90 days).
+                """
+                _ticker_uc = (ticker.upper() if ticker else "")
+                _cached_ticker = st.session_state.get("_edgar_qs_ticker", "")
+                if _cached_ticker == _ticker_uc:
+                    _ckey = f"_edgar_qs_avail_{_ticker_uc}_{fy}"
+                    _cached = st.session_state.get(_ckey)
+                    if _cached is not None:
+                        return q in _cached
+                # First render — fall back to heuristic
+                return _q_data_available(q, fy, fy_end)
+
             def _completed_qs_in_fy(fy, fy_end):
-                """Return the number of quarters with SEC data likely available.
-                Accounts for ~45 day filing delay after quarter end."""
+                """Return the number of quarters with SEC data available.
+                Uses cached EDGAR data when available, else date heuristic."""
                 count = 0
                 for q in range(1, 5):
-                    if _q_data_available(q, fy, fy_end):
+                    if _q_actually_available(q, fy, fy_end):
                         count += 1
                 return count
 
@@ -2709,7 +2728,7 @@ with st.sidebar:
 
             def _q_is_completed(q, fy, fy_end):
                 """Check if fiscal quarter q of FY fy has data available."""
-                return _q_data_available(q, fy, fy_end)
+                return _q_actually_available(q, fy, fy_end)
 
             # Order Q1-Q4 chronologically by most recent completion date
             # (oldest on the left, most recent on the right)
@@ -2767,6 +2786,48 @@ with st.sidebar:
                         st.session_state[f"sk_Ya_q{_qi}"] = (_qi == _default_q)
                         st.session_state[f"sk_Yb_q{_qi}"] = False
                     st.session_state[_init_key] = True
+
+                # ── Deselect quarters whose EDGAR data turned out missing ──
+                # On first render the heuristic might select e.g. Q4, but
+                # once the sankey page caches real availability we know Q4
+                # has no data.  Deselect those and fall back to the highest
+                # actually available Q.
+                _ticker_uc_ck = (ticker.upper() if ticker else "")
+                _cached_tkr = st.session_state.get("_edgar_qs_ticker", "")
+                if _cached_tkr == _ticker_uc_ck:
+                    _pa_fy_ck = int(st.session_state.get("sk_pa", _years_with_data[0]))
+                    _pb_fy_ck = _pa_fy_ck - 1
+                    _any_deselected = False
+                    for _qi in range(1, 5):
+                        # Period A quarters
+                        if st.session_state.get(f"sk_Ya_q{_qi}", False):
+                            if not _q_actually_available(_qi, _pa_fy_ck, _fy_m_sk):
+                                st.session_state[f"sk_Ya_q{_qi}"] = False
+                                _any_deselected = True
+                        # Period B quarters
+                        if st.session_state.get(f"sk_Yb_q{_qi}", False):
+                            if not _q_actually_available(_qi, _pb_fy_ck, _fy_m_sk):
+                                st.session_state[f"sk_Yb_q{_qi}"] = False
+                                _any_deselected = True
+                    # Ensure at least one Q stays selected
+                    if _any_deselected:
+                        _has_any = any(
+                            st.session_state.get(f"sk_Ya_q{x}", False) or
+                            st.session_state.get(f"sk_Yb_q{x}", False)
+                            for x in range(1, 5)
+                        )
+                        if not _has_any:
+                            # Select highest actually available Q in Period A
+                            for _qi in range(4, 0, -1):
+                                if _q_actually_available(_qi, _pa_fy_ck, _fy_m_sk):
+                                    st.session_state[f"sk_Ya_q{_qi}"] = True
+                                    break
+                            else:
+                                # No Q available in Period A — try previous year
+                                for _qi in range(4, 0, -1):
+                                    if _q_actually_available(_qi, _pb_fy_ck, _fy_m_sk):
+                                        st.session_state[f"sk_Yb_q{_qi}"] = True
+                                        break
 
                 # ── Detect Period A year change ──
                 # When user switches to a year with no available Qs (e.g. 2026),
@@ -2900,8 +2961,9 @@ with st.sidebar:
                     return max(0, (data_avail - today).days)
 
                 def _q_filing_pending(q, fy):
-                    """True if quarter has ended but filing not yet expected."""
-                    return _q_has_ended(q, fy, _fy_m_sk) and not _q_data_available(q, fy, _fy_m_sk)
+                    """True if quarter has ended but data not yet available.
+                    Uses cached EDGAR ground truth when available."""
+                    return _q_has_ended(q, fy, _fy_m_sk) and not _q_actually_available(q, fy, _fy_m_sk)
 
                 # ── Build sorted list: all 8 quarters, newest first ──
                 # Each item: (end_year, end_month, fiscal_year, quarter, prefix, chrono_idx)
@@ -3078,7 +3140,7 @@ with st.sidebar:
 
                 # ── Render sorted quarter toggle buttons ──
                 for _idx, (_, _, _fy_i, _qi_i, _pfx_i) in enumerate(_all_q_items):
-                    _avail = _qi_i <= _completed_qs_in_fy(_fy_i, _fy_m_sk)
+                    _avail = _q_actually_available(_qi_i, _fy_i, _fy_m_sk)
                     _key = f"{_pfx_i}_q{_qi_i}"
                     _c = _QC[_qi_i]
                     _on = st.session_state.get(_key, False)
@@ -3086,8 +3148,18 @@ with st.sidebar:
                     _tip = _get_help_text(_key, _avail, _fy_i, _qi_i)
 
                     if not _avail:
-                        _pending = _q_filing_pending(_qi_i, _fy_i)
-                        if _pending:
+                        _ended = _q_has_ended(_qi_i, _fy_i, _fy_m_sk)
+                        _heuristic_says_avail = _q_data_available(_qi_i, _fy_i, _fy_m_sk)
+                        if _ended and _heuristic_says_avail:
+                            # Quarter ended, heuristic says filing should be done,
+                            # but actual EDGAR data is missing → "Not yet filed"
+                            st.button(
+                                f"FY{_fy_i} - Q{_qi_i} — Not yet filed",
+                                key=_bid, use_container_width=True, disabled=True,
+                                help=f"Quarter ended but SEC filing data not yet available on EDGAR",
+                            )
+                        elif _ended and not _heuristic_says_avail:
+                            # Quarter ended, within the normal filing window
                             _days = _days_until_q(_qi_i, _fy_i)
                             st.button(
                                 f"FY{_fy_i} - Q{_qi_i} — filing ~{_days}d",
@@ -3095,6 +3167,7 @@ with st.sidebar:
                                 help=f"Quarter ended, SEC filing pending (~45 days after quarter end) — [subscribe](https://quartercharts.com/pricing) to get notified",
                             )
                         else:
+                            # Quarter hasn't ended yet
                             _days = _days_until_q(_qi_i, _fy_i)
                             st.button(
                                 f"FY{_fy_i} - Q{_qi_i} — in {_days}d",

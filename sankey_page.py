@@ -4888,6 +4888,27 @@ def render_sankey_page():
             _raw_qtr_income_df = income_df.copy() if income_df is not None else None
             _raw_qtr_balance_df = balance_df.copy() if balance_df is not None else None
 
+            # ── Cache actual EDGAR Q availability for sidebar Q selector ──
+            # The sidebar uses a date-based heuristic that can be wrong (e.g.
+            # HOFT Q4 = 10-K filing, takes 60-90 days, not 45).  After we
+            # have the real quarterly DataFrame we know exactly which
+            # quarters have EDGAR data.  Store that in session state so the
+            # Q buttons disable quarters with no actual data.
+            _ticker_uc = ticker.upper() if ticker else ""
+            for _chk_fy in set([_fy_a, _fy_b, _fy_a - 1, _fy_b - 1]):
+                _ckey = f"_edgar_qs_avail_{_ticker_uc}_{_chk_fy}"
+                _avail_set = set()
+                if _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
+                    for _qc in range(1, 5):
+                        _ser_chk, _ = _aggregate_partial_year(
+                            _raw_qtr_income_df, _chk_fy, [_qc], _fy_end, False
+                        )
+                        if _ser_chk is not None:
+                            _avail_set.add(_qc)
+                st.session_state[_ckey] = _avail_set
+            # Also store the ticker so app.py knows which ticker's cache to read
+            st.session_state["_edgar_qs_ticker"] = _ticker_uc
+
             # ── Track & add derived income rows for audit panel ──
             _derived_income_rows = {}  # row_name → footnote text
             if _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
