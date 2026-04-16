@@ -1179,8 +1179,14 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
         if not xbrl_tags:
             continue  # Skip derived fields (e.g., Total Non Current Assets)
 
-        best_vals = None       # {end_date: val} from the best tag so far
-        best_max_date = ""     # most recent end date from best tag
+        # Merge data from ALL matching tags (not just the most-recent one).
+        # Companies like Alphabet switch XBRL tags mid-history (e.g.
+        # "Revenues" -> "RevenueFromContract...ExcludingAssessedTax").
+        # Picking only the tag with the most recent date loses historical
+        # periods filed under the older tag name.
+        # Strategy: accumulate {end_date: (val, filed)} across all tags;
+        # when two tags cover the same end_date, keep the most-recently-filed.
+        merged_vals = {}   # end_date -> (val, filed)
 
         for tag in xbrl_tags:
             concept = gaap.get(tag)
@@ -1309,16 +1315,15 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                         if q4 >= 0:
                             vals[fy_end] = (q4, fy_filed)
 
-            if vals:
-                # Pick the tag whose data is most recent (handles tag
-                # transitions like Revenues â RevenueFromContractâ¦)
-                tag_max_date = max(vals.keys())
-                if best_vals is None or tag_max_date > best_max_date:
-                    best_vals = vals
-                    best_max_date = tag_max_date
+            # Merge this tag's vals into the combined dict.
+            # For each end_date, keep whichever entry was filed more
+            # recently (= most up-to-date restated value).
+            for end_date, (val, filed) in vals.items():
+                if end_date not in merged_vals or filed > merged_vals[end_date][1]:
+                    merged_vals[end_date] = (val, filed)
 
-        if best_vals:
-            rows[display_name] = {k: v[0] for k, v in best_vals.items()}
+        if merged_vals:
+            rows[display_name] = {k: v[0] for k, v in merged_vals.items()}
 
     if not rows:
         return pd.DataFrame()
