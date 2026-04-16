@@ -3144,7 +3144,8 @@ def _inject_link_hover_js(color_map):
 
 
 def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income", compare_note=""):
-    """Generate PDF using Plotly kaleido 0.2 — exact copy of the live chart."""
+    """Generate export of the live Sankey chart.
+    Tries kaleido PDF first, falls back to standalone HTML (always works)."""
     company = info.get("shortName", info.get("longName", ticker))
     try:
         fig = None
@@ -3154,7 +3155,7 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income", com
         else:
             result = _build_balance_sheet_sankey(balance_df, info, "YoY", False, ticker=ticker)
             if result and result[0]: fig = result[0]
-        if not fig: return b""
+        if not fig: return b"", "pdf"
         view_label = "Income Statement" if view == "income" else "Balance Sheet"
         title = f"{company} ({ticker}) \u2014 {view_label} Sankey"
         sub = f"<br><span style='color:#64748b;font-size:11px'>{compare_note}</span>" if compare_note else ""
@@ -3163,15 +3164,23 @@ def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income", com
             margin=dict(l=20, r=20, t=80, b=40),
             paper_bgcolor="white", plot_bgcolor="white",
             width=1400, height=750,
-            annotations=list(fig.layout.annotations or []) + [
-                dict(text=f"QuarterCharts \u00b7 SEC EDGAR data \u00b7 {ticker} \u00b7 quartercharts.com",
-                     xref="paper", yref="paper", x=0.5, y=-0.04,
-                     showarrow=False, font=dict(size=8, color="#94a3b8"))
-            ],
         )
-        return fig.to_image(format="pdf", scale=2)
+        # Try kaleido PDF export first
+        try:
+            pdf_bytes = fig.to_image(format="pdf", scale=2)
+            if pdf_bytes and len(pdf_bytes) > 100:
+                return pdf_bytes, "pdf"
+        except Exception:
+            pass
+        # Fallback: standalone HTML (always works, no dependencies)
+        html = fig.to_html(
+            include_plotlyjs="cdn",
+            full_html=True,
+            config={"displayModeBar": False, "scrollZoom": False},
+        )
+        return html.encode("utf-8"), "html"
     except Exception:
-        return b""
+        return b"", "pdf"
 
 
 def _fetch_sankey_data(ticker: str, quarterly: bool = False):
@@ -5342,14 +5351,18 @@ def render_sankey_page():
             _qs_key = str(st.session_state.get("_sankey_annual_match_qs", []))
             _pa_key = str(st.session_state.get("sk_pa", ""))
             _qs_lbl = _qs_key.replace("[", "").replace("]", "").replace(", ", "+")
-            _fname = f"{ticker}_{sankey_view}_FY{_pa_key}_Q{_qs_lbl}.pdf"
+            _dl_fmt = st.session_state.get("_pdf_fmt", "pdf")
+            _ext = "html" if _dl_fmt == "html" else "pdf"
+            _mime = "text/html" if _dl_fmt == "html" else "application/pdf"
+            _btn_label = "Save" if _dl_fmt == "html" else "PDF"
+            _fname = f"{ticker}_{sankey_view}_FY{_pa_key}_Q{_qs_lbl}.{_ext}"
             try:
-                st.download_button(label="PDF", data=st.session_state[_pdf_data_key],
-                    file_name=_fname, mime="application/pdf",
+                st.download_button(label=_btn_label, data=st.session_state[_pdf_data_key],
+                    file_name=_fname, mime=_mime,
                     icon=":material/download:", key=f"dl_sankey_{sankey_view}")
             except TypeError:
-                st.download_button(label="PDF", data=st.session_state[_pdf_data_key],
-                    file_name=_fname, mime="application/pdf",
+                st.download_button(label=_btn_label, data=st.session_state[_pdf_data_key],
+                    file_name=_fname, mime=_mime,
                     key=f"dl_sankey_{sankey_view}")
         else:
             try:
@@ -5358,14 +5371,15 @@ def render_sankey_page():
             except TypeError:
                 _gen = st.button("PDF", key=f"gen_pdf_sankey_{sankey_view}")
             if _gen:
-                with st.spinner("Generating PDF..."):
+                with st.spinner("Exporting chart..."):
                     _cn = locals().get("_compare_note", "")
-                    _pb = _generate_sankey_pdf(income_df, balance_df, info, ticker, sankey_view, compare_note=_cn)
-                    if _pb and len(_pb) > 100:
-                        st.session_state[_pdf_data_key] = _pb
+                    _data, _out_fmt = _generate_sankey_pdf(income_df, balance_df, info, ticker, sankey_view, compare_note=_cn)
+                    if _data and len(_data) > 100:
+                        st.session_state[_pdf_data_key] = _data
+                        st.session_state["_pdf_fmt"] = _out_fmt
                         st.rerun()
                     else:
-                        st.toast("PDF generation failed", icon="\u26a0\ufe0f")
+                        st.toast("Export failed", icon="\u26a0\ufe0f")
 
     # ── Income / Balance tab selector ──
     # Uses st.session_state + rerun instead of <a href> navigation to preserve
