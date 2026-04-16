@@ -863,12 +863,16 @@ def _build_partial_year_df(qtr_df, fy_a, fy_b, quarter_list, fy_end,
     #   Period A: FY2025 Q1-Q3 + FY2024 Q4
     #   Period B (=2024): FY2024 Q1-Q3 + FY2023 Q4   ✓ same 12-month window
     #
-    # Special case — 2026 / no-data migration: all Qs moved to sk_Yb
-    #   (cur_qs=[], prev_qs=[4]).  Period B must bump main_fy by +1 so
-    #   main_fy-1 lands on fy_b.  E.g. Period B=2021 → main_fy=2022 →
-    #   prev_qs aggregates FY2021 Q4.
+    # Special case — all Qs from sk_Yb (prev_qs only, cur_qs empty).
+    # When years are NOT consecutive (e.g. A=2026, B=2021), bump fy_b so
+    # prev_qs lands on the right year: B=2021 → eff=2022 → prev=FY2021.
+    # When years ARE consecutive (A=2026, B=2025), do NOT bump — the bump
+    # would make fy_b_eff == fy_a, causing identical data for both periods
+    # (same-vs-same comparison with 0% deltas).  Without bump:
+    #   Period A: prev_qs → fy_a-1 = FY2025 Q4
+    #   Period B: prev_qs → fy_b-1 = FY2024 Q4  ← correct comparison
     _fy_b_eff = fy_b
-    if _prev_qs and not _cur_qs:
+    if _prev_qs and not _cur_qs and (fy_b + 1) != fy_a:
         _fy_b_eff = fy_b + 1
 
     # Store effective fy_b so labels can use the correct year
