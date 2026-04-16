@@ -183,6 +183,48 @@ def _validate_tickers_against_edgar(tickers):
     return findings
 
 
+# ── EDGAR Batch Audit ─────────────────────────────────────────────────
+_BATCH_SIZE = 500
+_BATCH_TIMESTAMPS_FILE = os.path.join(_BASE_DIR, "edgar_batch_timestamps.json")
+
+
+def _load_batch_timestamps() -> dict:
+    """Load {batch_index_str: iso_timestamp} from disk."""
+    if os.path.exists(_BATCH_TIMESTAMPS_FILE):
+        try:
+            with open(_BATCH_TIMESTAMPS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def _save_batch_timestamp(batch_idx: int):
+    """Record the current datetime for a completed batch."""
+    ts_map = _load_batch_timestamps()
+    ts_map[str(batch_idx)] = datetime.now().isoformat()
+    try:
+        with open(_BATCH_TIMESTAMPS_FILE, "w") as f:
+            json.dump(ts_map, f, indent=2)
+    except Exception:
+        pass
+
+
+def _get_edgar_batches() -> list[list[str]]:
+    """Fetch all EDGAR tickers, sort alphabetically, split into batches of 500.
+
+    Returns list of lists.  Last batch may be shorter (e.g. 391).
+    """
+    registry, err = _fetch_edgar_ticker_registry()
+    if not registry:
+        return []
+    all_tickers = sorted(registry.keys())
+    batches = []
+    for i in range(0, len(all_tickers), _BATCH_SIZE):
+        batches.append(all_tickers[i : i + _BATCH_SIZE])
+    return batches
+
+
 # ── Earnings Week Tickers ──────────────────────────────────────────────
 _FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY", "d77c5b1r01qp6afl34h0d77c5b1r01qp6afl34hg")
 _EARNINGS_CACHE_FILE = os.path.join(_BASE_DIR, "earnings_week_cache.json")
@@ -2506,6 +2548,106 @@ def _render_command_center():
             key="sba_edgar_validate",
             help="Fetches SEC's company_tickers.json (cached 24h) and flags any tickers not found in EDGAR",
         )
+
+    # ── EDGAR Full Registry Batch Audit ──────────────────────────────────
+    with st.expander("📦 EDGAR Full Registry — Batch Audit (10,391 tickers)", expanded=False):
+        st.markdown(
+            '<div style="font-size:0.82rem;color:#94A3B8;margin-bottom:10px;">'
+            'Run all 20 agents against the <strong>entire SEC EDGAR registry</strong> in manageable '
+            'batches of 500 tickers. Click any batch when you have time — a timestamp records when '
+            'each batch was last checked so you know which ones still need auditing.</div>',
+            unsafe_allow_html=True,
+        )
+
+        batches = _get_edgar_batches()
+        ts_map = _load_batch_timestamps()
+
+        if not batches:
+            st.warning("Could not load EDGAR registry. Check your network connection and try again.")
+        else:
+            total_tickers = sum(len(b) for b in batches)
+            checked_count = sum(1 for i in range(len(batches)) if str(i) in ts_map)
+            st.markdown(
+                f'<div style="font-size:0.78rem;color:#64748B;margin-bottom:12px;">'
+                f'<strong>{total_tickers:,}</strong> tickers → <strong>{len(batches)}</strong> batches '
+                f'({_BATCH_SIZE} each, last has {len(batches[-1])}) · '
+                f'<strong>{checked_count}/{len(batches)}</strong> batches checked</div>',
+                unsafe_allow_html=True,
+            )
+
+            # Render batch buttons in rows of 3
+            for row_start in range(0, len(batches), 3):
+                cols = st.columns(3)
+                for col_idx, batch_idx in enumerate(range(row_start, min(row_start + 3, len(batches)))):
+                    batch = batches[batch_idx]
+                    first_t = batch[0]
+                    last_t = batch[-1]
+                    last_ts = ts_map.get(str(batch_idx))
+                    if last_ts:
+                        try:
+                            ts_label = datetime.fromisoformat(last_ts).strftime("%b %d %H:%M")
+                        except Exception:
+                            ts_label = last_ts[:16]
+                        badge = f"✅ {ts_label}"
+                        btn_type = "secondary"
+                    else:
+                        badge = "⬜ Not checked"
+                        btn_type = "primary"
+
+                    with cols[col_idx]:
+                        st.markdown(
+                            f'<div style="text-align:center;font-size:0.7rem;color:#64748B;'
+                            f'margin-bottom:2px;">{first_t} → {last_t} · {len(batch)} tickers</div>',
+                            unsafe_allow_html=True,
+                        )
+                        btn_key = f"sba_batch_{batch_idx}"
+                        if st.button(
+                            f"Batch {batch_idx + 1} — {badge}",
+                            key=btn_key,
+                            use_container_width=True,
+                            type=btn_type,
+                        ):
+                            st.session_state["_sba_run_batch"] = batch_idx
+
+            # ── Execute batch if a button was clicked ──
+            pending_batch = st.session_state.pop("_sba_run_batch", None)
+            if pending_batch is not None:
+                batch = batches[pending_batch]
+                st.info(f"🚀 Running all 20 agents on **Batch {pending_batch + 1}** "
+                        f"({len(batch)} tickers: {batch[0]} → {batch[-1]})...")
+
+                # Temporarily override audit tickers with this batch
+                original_tickers = _load_audit_tickers()
+                _save_audit_tickers(batch)
+
+                bar = st.progress(0, text=f"Batch {pending_batch + 1}: Initializing agents...")
+                def _batch_cb(pct, txt):
+                    bar.progress(min(pct, 1.0), text=f"Batch {pending_batch + 1}: {txt}")
+
+                batch_result = _run_all_agents(progress_cb=_batch_cb)
+                bar.progress(1.0, text=f"Batch {pending_batch + 1}: All 20 agents complete!")
+                time.sleep(0.5)
+                bar.empty()
+
+                # Restore original tickers
+                _save_audit_tickers(original_tickers)
+
+                # Save batch timestamp
+                _save_batch_timestamp(pending_batch)
+
+                # Store result
+                st.session_state["sba_result"] = batch_result
+                history = _load_history()
+                history.insert(0, batch_result)
+                _save_history(history)
+
+                tc = batch_result["total_counts"]
+                st.toast(
+                    f"Batch {pending_batch + 1} complete! Score: {batch_result['overall_score']}% · "
+                    f"{tc['critical']} critical · {tc['warning']} warnings",
+                    icon="✅",
+                )
+                st.rerun()
 
     # Run button
     c1, c2, c3 = st.columns([1, 2, 1])
