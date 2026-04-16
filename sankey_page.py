@@ -3144,471 +3144,36 @@ def _inject_link_hover_js(color_map):
 
 
 def _generate_sankey_pdf(income_df, balance_df, info, ticker, view="income", compare_note=""):
-    """Generate a professional PDF with actual Sankey flow diagram + KPI cards.
-
-    Income Statement  â Sankey diagram matching the on-screen Plotly version.
-    Balance Sheet     â Sankey diagram matching the on-screen Plotly version.
-    Uses matplotlib only (no kaleido needed).  Returns PDF bytes.
-    """
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    import matplotlib.patches as mpatches
-    from matplotlib.path import Path
-    from matplotlib.backends.backend_pdf import PdfPages
-    import numpy as np
-
-    buf = BytesIO()
+    """Generate PDF using Plotly kaleido 0.2 — exact copy of the live chart."""
     company = info.get("shortName", info.get("longName", ticker))
-
-    # Fetch company logo for PDF title
-    _logo_img = None
     try:
-        from PIL import Image as _PILImage
-        _logo_resp = requests.get(
-            f"https://financialmodelingprep.com/image-stock/{ticker}.png",
-            timeout=3,
+        fig = None
+        if view == "income":
+            result = _build_income_sankey(income_df, info, "YoY", False, ticker=ticker)
+            if result and result[0]: fig = result[0]
+        else:
+            result = _build_balance_sheet_sankey(balance_df, info, "YoY", False, ticker=ticker)
+            if result and result[0]: fig = result[0]
+        if not fig: return b""
+        view_label = "Income Statement" if view == "income" else "Balance Sheet"
+        title = f"{company} ({ticker}) \u2014 {view_label} Sankey"
+        sub = f"<br><span style='color:#64748b;font-size:11px'>{compare_note}</span>" if compare_note else ""
+        fig.update_layout(
+            title=dict(text=title + sub, font=dict(size=18, color="#0f172a"), x=0.5, xanchor="center"),
+            margin=dict(l=20, r=20, t=80, b=40),
+            paper_bgcolor="white", plot_bgcolor="white",
+            width=1400, height=750,
+            annotations=list(fig.layout.annotations or []) + [
+                dict(text=f"QuarterCharts \u00b7 SEC EDGAR data \u00b7 {ticker} \u00b7 quartercharts.com",
+                     xref="paper", yref="paper", x=0.5, y=-0.04,
+                     showarrow=False, font=dict(size=8, color="#94a3b8"))
+            ],
         )
-        if _logo_resp.status_code == 200 and len(_logo_resp.content) > 100:
-            _logo_img = _PILImage.open(BytesIO(_logo_resp.content)).convert("RGBA")
-    except Exception:
-        pass
-
-    def _fmts(v):
-        """Short format for labels."""
-        av = abs(v)
-        if av >= 1e12: return f"${v/1e12:.1f}T"
-        if av >= 1e9:  return f"${v/1e9:.1f}B"
-        if av >= 1e6:  return f"${v/1e6:.0f}M"
-        return f"${v:,.0f}"
-
-    def _hex_to_rgba(hex_color, alpha=0.35):
-        """Convert hex color to RGBA tuple for matplotlib."""
-        h = hex_color.lstrip("#")
-        r, g, b = int(h[0:2], 16) / 255, int(h[2:4], 16) / 255, int(h[4:6], 16) / 255
-        return (r, g, b, alpha)
-
-    def _draw_kpi_row(fig, kpis, y_bottom=0.88, height=0.06):
-        """Draw a KPI card row at the top of a figure."""
-        ax_kpi = fig.add_axes([0.06, y_bottom, 0.88, height])
-        ax_kpi.set_xlim(0, len(kpis))
-        ax_kpi.set_ylim(0, 1)
-        ax_kpi.axis("off")
-        bg = mpatches.FancyBboxPatch(
-            (0.02, -0.1), len(kpis) - 0.04, 1.2,
-            boxstyle="round,pad=0.05",
-            facecolor="#f8fafc", edgecolor="#e2e8f0", linewidth=1,
-        )
-        ax_kpi.add_patch(bg)
-        for i, (lbl, val) in enumerate(kpis):
-            xc = i + 0.5
-            ax_kpi.text(xc, 0.72, lbl, ha="center", va="center",
-                        fontsize=9, color="#64748b")
-            ax_kpi.text(xc, 0.25, _fmts(val), ha="center", va="center",
-                        fontsize=14, color="#1e293b", fontweight="bold")
-            if i < len(kpis) - 1:
-                ax_kpi.axvline(x=i + 1, color="#e2e8f0", linewidth=1.5)
-
-    def _draw_sankey(ax, node_list, link_list, total_height):
-        """Draw a Sankey diagram on ax.
-
-        node_list: [(label, value, x, y_center, color), ...]
-           x in [0,1], y_center in [0,1] (0=bottom, 1=top)
-        link_list: [(src_idx, tgt_idx, value, color), ...]
-        total_height: the max value for scaling bar heights.
-        """
-        if not node_list:
-            return
-
-        ax.set_xlim(-0.05, 1.08)
-        ax.set_ylim(-0.05, 1.05)
-        ax.axis("off")
-
-        bar_w = 0.025  # node bar width
-        scale = 0.85 / max(total_height, 1)  # scale factor to convert value â y height
-
-        # Precompute node positions (in axis coords)
-        node_rects = []  # (x, y_bottom, width, height, color, label, value)
-        for label, value, nx, ny, color in node_list:
-            h = max(abs(value) * scale, 0.008)  # minimum visible height
-            y_bot = ny - h / 2
-            node_rects.append((nx, y_bot, bar_w, h, color, label, value))
-
-        # Track how much of each node's top/bottom is used by links
-        node_out_offset = [0.0] * len(node_list)  # outgoing: from top down
-        node_in_offset = [0.0] * len(node_list)   # incoming: from top down
-
-        # Draw links as bezier curves
-        for src_i, tgt_i, val, lcolor in link_list:
-            if val <= 0:
-                continue
-            s_x, s_yb, s_w, s_h, _, _, _ = node_rects[src_i]
-            t_x, t_yb, t_w, t_h, _, _, _ = node_rects[tgt_i]
-
-            link_h = max(val * scale, 0.003)
-
-            # Source: start from top, go down
-            s_top = s_yb + s_h - node_out_offset[src_i]
-            s_y1 = s_top
-            s_y0 = s_top - link_h
-            node_out_offset[src_i] += link_h
-
-            # Target: start from top, go down
-            t_top = t_yb + t_h - node_in_offset[tgt_i]
-            t_y1 = t_top
-            t_y0 = t_top - link_h
-            node_in_offset[tgt_i] += link_h
-
-            # Draw bezier band from (s_x + s_w, s_y0..s_y1) to (t_x, t_y0..t_y1)
-            x0 = s_x + s_w
-            x1 = t_x
-            xm = (x0 + x1) / 2
-
-            # Upper edge
-            verts_upper = [
-                (x0, s_y1),
-                (xm, s_y1),
-                (xm, t_y1),
-                (x1, t_y1),
-            ]
-            # Lower edge (reversed)
-            verts_lower = [
-                (x1, t_y0),
-                (xm, t_y0),
-                (xm, s_y0),
-                (x0, s_y0),
-            ]
-
-            verts = verts_upper + verts_lower + [(x0, s_y1)]
-            codes = [
-                Path.MOVETO,
-                Path.CURVE4, Path.CURVE4, Path.CURVE4,
-                Path.LINETO,
-                Path.CURVE4, Path.CURVE4, Path.CURVE4,
-                Path.CLOSEPOLY,
-            ]
-
-            path = Path(verts, codes)
-            rgba = _hex_to_rgba(lcolor, 0.35)
-            patch = mpatches.PathPatch(path, facecolor=rgba, edgecolor="none",
-                                       linewidth=0, zorder=1)
-            ax.add_patch(patch)
-
-        # Draw node bars
-        for i, (nx, y_bot, w, h, color, label, value) in enumerate(node_rects):
-            rect = mpatches.FancyBboxPatch(
-                (nx, y_bot), w, h,
-                boxstyle="round,pad=0.002",
-                facecolor=color, edgecolor="none", linewidth=0, zorder=3,
-            )
-            ax.add_patch(rect)
-
-            # Label to the right (or left for rightmost column)
-            txt = f"{label}\n{_fmts(value)}"
-            if nx > 0.85:
-                ax.text(nx + w + 0.012, y_bot + h / 2, txt,
-                        ha="left", va="center", fontsize=8,
-                        color="#1e293b", fontweight="medium", zorder=4)
-            elif nx < 0.08:
-                ax.text(nx - 0.012, y_bot + h / 2, txt,
-                        ha="right", va="center", fontsize=8,
-                        color="#1e293b", fontweight="medium", zorder=4)
-            else:
-                ax.text(nx + w + 0.012, y_bot + h / 2, txt,
-                        ha="left", va="center", fontsize=7.5,
-                        color="#1e293b", fontweight="medium", zorder=4)
-
-    try:
-        with PdfPages(buf) as pdf:
-            if view == "income":
-                # ââ Extract data (same as _build_income_sankey) ââ
-                revenue       = _safe(income_df, "Total Revenue")
-                cogs          = abs(_safe(income_df, "Cost Of Revenue"))
-                gross_profit  = _safe(income_df, "Gross Profit")
-                rd            = abs(_safe(income_df, "Research And Development"))
-                sga           = abs(_safe(income_df, "Selling General And Administration"))
-                da            = abs(_safe(income_df, "Reconciled Depreciation"))
-                if da == 0:
-                    da = abs(_safe(income_df, "Depreciation And Amortization"))
-                other_opex    = abs(_safe(income_df, "Other Operating Expense"))
-                op_income     = _safe(income_df, "Operating Income")
-                interest      = abs(_safe(income_df, "Interest Expense"))
-                pretax        = _safe(income_df, "Pretax Income") or _safe(income_df, "Income Before Tax")
-                tax           = abs(_safe(income_df, "Tax Provision"))
-                net_income    = _safe(income_df, "Net Income")
-
-                if revenue == 0:
-                    return b""
-
-                # Fix derived
-                if gross_profit == 0:
-                    gross_profit = revenue - cogs
-                if op_income == 0:
-                    op_income = gross_profit - rd - sga - da - other_opex
-                if pretax == 0:
-                    pretax = op_income - interest
-                if net_income == 0:
-                    net_income = pretax - tax
-
-                # Ensure positive
-                revenue = max(revenue, 0)
-                cogs = max(cogs, 0)
-                gross_profit = max(gross_profit, 0)
-                rd = max(rd, 0)
-                sga = max(sga, 0)
-                da = max(da, 0)
-                other_opex = max(other_opex, 0)
-                op_income = max(op_income, 0)
-                interest = max(interest, 0)
-                pretax = max(pretax, 0)
-                tax = max(tax, 0)
-                net_income = max(net_income, 0)
-
-                # ââ Build nodes: (label, value, x, y_center, color) ââ
-                # Layout: 5 columns matching the Plotly Sankey
-                # Wide X spacing for PDF Sankey (matplotlib-drawn, not Plotly)
-                X1, X2, X3, X4, X5 = 0.01, 0.14, 0.32, 0.52, 0.68
-                nodes = []
-                nmap = {}
-
-                def add_n(name, val, x, y, ci):
-                    nmap[name] = len(nodes)
-                    nodes.append((name, val, x, y, VIVID[ci]))
-
-                add_n("Revenue", revenue, X1, 0.50, 0)
-                add_n("Cost of Revenue", cogs, X2, 0.88, 1)
-                add_n("Gross Profit", gross_profit, X2, 0.38, 2)
-
-                # Expenses in column 3
-                exp_y = 0.92
-                exp_gap = 0.14
-                n_exp = 0
-                if rd > 0:
-                    add_n("R&D", rd, X3, exp_y - n_exp * exp_gap, 3)
-                    n_exp += 1
-                if sga > 0:
-                    add_n("SG&A", sga, X3, exp_y - n_exp * exp_gap, 4)
-                    n_exp += 1
-                if da > 0:
-                    add_n("D&A", da, X3, exp_y - n_exp * exp_gap, 5)
-                    n_exp += 1
-                if other_opex > 0:
-                    add_n("Other OpEx", other_opex, X3, exp_y - n_exp * exp_gap, 5)
-                    n_exp += 1
-                oi_y = min(exp_y - n_exp * exp_gap - 0.12, 0.35)
-                add_n("Operating Income", op_income, X3, oi_y, 6)
-
-                if interest > 0:
-                    add_n("Interest Exp.", interest, X4, oi_y + 0.12, 7)
-                pt_y = oi_y - 0.08
-                add_n("Pretax Income", pretax, X4, pt_y, 8)
-
-                if tax > 0:
-                    add_n("Income Tax", tax, X5, pt_y + 0.10, 9)
-                net_y = pt_y - 0.10
-                add_n("Net Income", net_income, X5, max(net_y, 0.08), 10)
-
-                # ââ Build links: (src_idx, tgt_idx, value, color) ââ
-                links = []
-                def lnk(s, t, v, ci):
-                    si, ti = nmap.get(s, -1), nmap.get(t, -1)
-                    if si >= 0 and ti >= 0 and v > 0:
-                        links.append((si, ti, v, VIVID[ci]))
-
-                lnk("Revenue", "Cost of Revenue", cogs, 1)
-                lnk("Revenue", "Gross Profit", gross_profit, 2)
-                if rd > 0: lnk("Gross Profit", "R&D", rd, 3)
-                if sga > 0: lnk("Gross Profit", "SG&A", sga, 4)
-                if da > 0: lnk("Gross Profit", "D&A", da, 5)
-                if other_opex > 0: lnk("Gross Profit", "Other OpEx", other_opex, 5)
-                lnk("Gross Profit", "Operating Income", op_income, 6)
-                if interest > 0: lnk("Operating Income", "Interest Exp.", interest, 7)
-                lnk("Operating Income", "Pretax Income", pretax, 8)
-                if tax > 0: lnk("Pretax Income", "Income Tax", tax, 9)
-                lnk("Pretax Income", "Net Income", net_income, 10)
-
-                # ââ Draw figure ââ
-                fig = plt.figure(figsize=(16, 9), facecolor="white")
-                if _logo_img is not None:
-                    logo_ax = fig.add_axes([0.20, 0.93, 0.03, 0.05])
-                    logo_ax.imshow(_logo_img)
-                    logo_ax.axis("off")
-                fig.text(0.5, 0.96, f"{company} ({ticker}) \u2014 Income Statement Flow",
-                         ha="center", va="top", fontsize=20, fontweight="bold",
-                         color="#0f172a")
-                if compare_note:
-                    fig.text(0.5, 0.935, compare_note,
-                             ha="center", va="top", fontsize=10, color="#64748b")
-
-                # Adaptive KPI row — only include metrics with data
-                _pdf_kpis = []
-                if revenue != 0:
-                    _pdf_kpis.append(("Revenue", revenue))
-                if gross_profit != 0:
-                    _pdf_kpis.append(("Gross Profit", gross_profit))
-                if op_income != 0 or not _pdf_kpis:
-                    _pdf_kpis.append(("Operating Income", op_income))
-                if net_income != 0 or len(_pdf_kpis) < 2:
-                    _pdf_kpis.append(("Net Income", net_income))
-                _draw_kpi_row(fig, _pdf_kpis)
-
-                ax = fig.add_axes([0.06, 0.05, 0.88, 0.78])
-                _draw_sankey(ax, nodes, links, revenue)
-
-                fig.text(0.5, 0.01,
-                         f"QuarterCharts  \u00b7  SEC EDGAR data  \u00b7  {ticker}",
-                         ha="center", va="bottom", fontsize=8, color="#94a3b8")
-                pdf.savefig(fig, facecolor="white", dpi=150)
-                plt.close(fig)
-
-            else:
-                # ââ Balance Sheet Sankey ââ
-                total_assets      = _safe(balance_df, "Total Assets")
-                if total_assets == 0:
-                    return b""
-
-                current_assets    = _safe(balance_df, "Current Assets")
-                noncurrent_assets = _safe(balance_df, "Total Non Current Assets")
-                cash              = _safe(balance_df, "Cash And Cash Equivalents")
-                short_invest      = _safe(balance_df, "Other Short Term Investments")
-                receivables       = _safe(balance_df, "Accounts Receivable") or _safe(balance_df, "Receivables")
-                inventory         = _safe(balance_df, "Inventory")
-                ppe               = _safe(balance_df, "Net PPE") or _safe(balance_df, "Property Plant Equipment")
-                goodwill          = _safe(balance_df, "Goodwill")
-                intangibles       = _safe(balance_df, "Intangible Assets") or _safe(balance_df, "Other Intangible Assets")
-                investments       = _safe(balance_df, "Investments And Advances") or _safe(balance_df, "Long Term Equity Investment")
-
-                total_liab        = _safe(balance_df, "Total Liabilities Net Minority Interest") or _safe(balance_df, "Total Liab")
-                current_liab      = _safe(balance_df, "Current Liabilities")
-                noncurrent_liab   = _safe(balance_df, "Total Non Current Liabilities Net Minority Interest")
-                accounts_payable  = _safe(balance_df, "Accounts Payable") or _safe(balance_df, "Payables")
-                short_debt        = _safe(balance_df, "Current Debt") or _safe(balance_df, "Short Long Term Debt")
-                long_debt         = _safe(balance_df, "Long Term Debt")
-                equity            = _safe(balance_df, "Stockholders Equity") or _safe(balance_df, "Total Stockholders Equity")
-                retained          = _safe(balance_df, "Retained Earnings")
-
-                if noncurrent_assets == 0 and total_assets > current_assets:
-                    noncurrent_assets = total_assets - current_assets
-                if noncurrent_liab == 0 and total_liab > current_liab:
-                    noncurrent_liab = total_liab - current_liab
-                if equity == 0 and total_assets > total_liab:
-                    equity = total_assets - total_liab
-
-                C = BS_COLORS
-                nodes = []
-                nmap = {}
-                def add_n(name, val, x, y, color):
-                    nmap[name] = len(nodes)
-                    nodes.append((name, val, x, y, color))
-
-                # Column 1: Total Assets
-                add_n("Total Assets", total_assets, 0.02, 0.50, C["asset"])
-
-                # Column 2: Current / Non-Current / Liabilities / Equity
-                ca_y = 0.80
-                nca_y = 0.55
-                tl_y = 0.30
-                eq_y = 0.10
-                if current_assets > 0:
-                    add_n("Current Assets", current_assets, 0.22, ca_y, C["asset"])
-                if noncurrent_assets > 0:
-                    add_n("Non-Current Assets", noncurrent_assets, 0.22, nca_y, C["asset2"])
-                if total_liab > 0:
-                    add_n("Total Liabilities", total_liab, 0.22, tl_y, C["liability"])
-                if equity > 0:
-                    add_n("Equity", equity, 0.22, eq_y, C["equity"])
-
-                # Column 3: sub-categories
-                y_pos = 0.92
-                if cash > 0:
-                    add_n("Cash", cash, 0.48, y_pos, C["cash"]); y_pos -= 0.11
-                if receivables > 0:
-                    add_n("Receivables", receivables, 0.48, y_pos, C["asset"]); y_pos -= 0.11
-                if inventory > 0:
-                    add_n("Inventory", inventory, 0.48, y_pos, C["asset2"]); y_pos -= 0.11
-                if ppe > 0:
-                    add_n("PPE", ppe, 0.48, y_pos, C["ppe"]); y_pos -= 0.11
-                if goodwill > 0:
-                    add_n("Goodwill", goodwill, 0.48, y_pos, C["invest"]); y_pos -= 0.11
-                if current_liab > 0:
-                    add_n("Current Liab.", current_liab, 0.48, y_pos, C["payable"]); y_pos -= 0.11
-                if long_debt > 0:
-                    add_n("Long-Term Debt", long_debt, 0.48, y_pos, C["debt"]); y_pos -= 0.11
-                if retained > 0:
-                    add_n("Retained Earnings", retained, 0.48, max(y_pos, 0.05), C["retained"])
-
-                # ââ Links ââ
-                links = []
-                def lnk(s, t, v, color):
-                    si, ti = nmap.get(s, -1), nmap.get(t, -1)
-                    if si >= 0 and ti >= 0 and v > 0:
-                        links.append((si, ti, v, color))
-
-                if current_assets > 0:
-                    lnk("Total Assets", "Current Assets", current_assets, C["asset"])
-                if noncurrent_assets > 0:
-                    lnk("Total Assets", "Non-Current Assets", noncurrent_assets, C["asset2"])
-                if total_liab > 0:
-                    lnk("Total Assets", "Total Liabilities", total_liab, C["liability"])
-                if equity > 0:
-                    lnk("Total Assets", "Equity", equity, C["equity"])
-
-                # Current asset details
-                if cash > 0:
-                    lnk("Current Assets", "Cash", cash, C["cash"])
-                if receivables > 0:
-                    lnk("Current Assets", "Receivables", receivables, C["asset"])
-                if inventory > 0:
-                    lnk("Current Assets", "Inventory", inventory, C["asset2"])
-
-                # Non-current details
-                if ppe > 0:
-                    lnk("Non-Current Assets", "PPE", ppe, C["ppe"])
-                if goodwill > 0:
-                    lnk("Non-Current Assets", "Goodwill", goodwill, C["invest"])
-
-                # Liability details
-                if current_liab > 0:
-                    lnk("Total Liabilities", "Current Liab.", current_liab, C["payable"])
-                if long_debt > 0:
-                    lnk("Total Liabilities", "Long-Term Debt", long_debt, C["debt"])
-
-                # Equity details
-                if retained > 0:
-                    lnk("Equity", "Retained Earnings", retained, C["retained"])
-
-                # ââ Draw figure ââ
-                fig = plt.figure(figsize=(16, 9), facecolor="white")
-                if _logo_img is not None:
-                    logo_ax2 = fig.add_axes([0.20, 0.93, 0.03, 0.05])
-                    logo_ax2.imshow(_logo_img)
-                    logo_ax2.axis("off")
-                fig.text(0.5, 0.96,
-                         f"{company} ({ticker}) \u2014 Balance Sheet Flow",
-                         ha="center", va="top", fontsize=20, fontweight="bold",
-                         color="#0f172a")
-
-                _draw_kpi_row(fig, [
-                    ("Total Assets", total_assets), ("Total Liabilities", total_liab),
-                    ("Equity", equity), ("Cash", cash),
-                ])
-
-                ax = fig.add_axes([0.06, 0.05, 0.88, 0.78])
-                _draw_sankey(ax, nodes, links, total_assets)
-
-                fig.text(0.5, 0.01,
-                         f"QuarterCharts  \u00b7  SEC EDGAR data  \u00b7  {ticker}",
-                         ha="center", va="bottom", fontsize=8, color="#94a3b8")
-                pdf.savefig(fig, facecolor="white", dpi=150)
-                plt.close(fig)
-
+        return fig.to_image(format="pdf", scale=2)
     except Exception:
         return b""
 
-    return buf.getvalue()
 
-
-@st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_sankey_data(ticker: str, quarterly: bool = False):
     """Fetch income statement & balance sheet data from SEC EDGAR for Sankey diagrams."""
     try:
@@ -5770,49 +5335,37 @@ def render_sankey_page():
         """, unsafe_allow_html=True)
 
     with pdf_col:
-        # Generate PDF with current data — include selected quarters in cache key
-        _qs_key = str(st.session_state.get("_sankey_annual_match_qs", []))
-        _pa_key = str(st.session_state.get("sk_pa", ""))
-        _pb_key = str(st.session_state.get("sk_pb", ""))
-        _pdf_key = f"_sankey_pdf_v4_{ticker}_{sankey_view}_{_pa_key}_{_pb_key}_{_qs_key}"
+        # ── PDF button: lazy generation (only on click) ──
+        _pdf_data_key = f"_pdf_data_{ticker}_{sankey_view}"
 
-        # Clear stale PDF caches for this ticker/view
-        _stale = [k for k in st.session_state if k.startswith(f"_sankey_pdf_v4_{ticker}_{sankey_view}_") and k != _pdf_key]
-        for _sk in _stale:
-            del st.session_state[_sk]
-
-        if not st.session_state.get(_pdf_key):
-            _pdf_bytes = _generate_sankey_pdf(income_df, balance_df, info, ticker, sankey_view, compare_note=locals().get("_compare_note", ""))
-            if _pdf_bytes:
-                st.session_state[_pdf_key] = _pdf_bytes
-
-        if st.session_state.get(_pdf_key):
+        if st.session_state.get(_pdf_data_key):
+            _qs_key = str(st.session_state.get("_sankey_annual_match_qs", []))
+            _pa_key = str(st.session_state.get("sk_pa", ""))
             _qs_lbl = _qs_key.replace("[", "").replace("]", "").replace(", ", "+")
             _fname = f"{ticker}_{sankey_view}_FY{_pa_key}_Q{_qs_lbl}.pdf"
             try:
-                st.download_button(
-                    label="PDF",
-                    data=st.session_state[_pdf_key],
-                    file_name=_fname,
-                    mime="application/pdf",
-                    icon=":material/download:",
-                    key=f"dl_sankey_{sankey_view}",
-                )
+                st.download_button(label="PDF", data=st.session_state[_pdf_data_key],
+                    file_name=_fname, mime="application/pdf",
+                    icon=":material/download:", key=f"dl_sankey_{sankey_view}")
             except TypeError:
-                st.download_button(
-                    label="PDF",
-                    data=st.session_state[_pdf_key],
-                    file_name=_fname,
-                    mime="application/pdf",
-                    key=f"dl_sankey_{sankey_view}",
-                )
+                st.download_button(label="PDF", data=st.session_state[_pdf_data_key],
+                    file_name=_fname, mime="application/pdf",
+                    key=f"dl_sankey_{sankey_view}")
         else:
             try:
-                st.button("PDF", key=f"gen_pdf_sankey_{sankey_view}",
-                          icon=":material/download:", disabled=True)
+                _gen = st.button("PDF", key=f"gen_pdf_sankey_{sankey_view}",
+                                  icon=":material/download:")
             except TypeError:
-                st.button("PDF", key=f"gen_pdf_sankey_{sankey_view}",
-                          disabled=True)
+                _gen = st.button("PDF", key=f"gen_pdf_sankey_{sankey_view}")
+            if _gen:
+                with st.spinner("Generating PDF..."):
+                    _cn = locals().get("_compare_note", "")
+                    _pb = _generate_sankey_pdf(income_df, balance_df, info, ticker, sankey_view, compare_note=_cn)
+                    if _pb and len(_pb) > 100:
+                        st.session_state[_pdf_data_key] = _pb
+                        st.rerun()
+                    else:
+                        st.toast("PDF generation failed", icon="\u26a0\ufe0f")
 
     # ── Income / Balance tab selector ──
     # Uses st.session_state + rerun instead of <a href> navigation to preserve
