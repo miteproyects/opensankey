@@ -2087,23 +2087,26 @@ with st.sidebar:
     </div>
         """, unsafe_allow_html=True)
 
-    # ── Fetch ticker pool & plan access for sidebar strip ──
+    # ── Fetch plan access for sidebar strip ──
+    # Sidebar "Try for free" tickers come from the plan's allowed_tickers
+    # (set via NSFE Pricing → Subscription Access), NOT the generic ticker pool.
     try:
         from database import get_ticker_pool as _gtp, get_user_plan_access as _gupa
-        _demo_tickers = _gtp()
-    except Exception:
-        _demo_tickers = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"]
-    _placeholder_tickers = ", ".join(_demo_tickers[:4])
-
-    # Determine search_message flag & redirect_allowed from user's plan
-    try:
         _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
         _access = _gupa(_uid)
         _search_msg = _access.get("search_message", False)
         _redir_allowed = _access.get("redirect_allowed", "charts")
+        _allowed_set = _access.get("allowed_tickers")  # None = ALL
+        if _allowed_set is not None:
+            _demo_tickers = sorted(_allowed_set)
+        else:
+            # ALL tickers allowed → show ticker pool as demo suggestions
+            _demo_tickers = _gtp()
     except Exception:
+        _demo_tickers = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOG", "META"]
         _search_msg = False
         _redir_allowed = "charts"
+    _placeholder_tickers = ", ".join(_demo_tickers[:4])
 
     if _search_msg:
         st.markdown(
@@ -2117,7 +2120,7 @@ with st.sidebar:
             f'style="color:#3b82f6;font-weight:600;text-decoration:none;"'
             f' onmouseover="this.style.color=\'#60a5fa\';this.style.textDecoration=\'underline\'"'
             f' onmouseout="this.style.color=\'#3b82f6\';this.style.textDecoration=\'none\'">{t}</a>'
-            for t in _demo_tickers[:5]
+            for t in _demo_tickers
         )
         st.markdown(
             f'<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-2px 0 6px 0;">'
