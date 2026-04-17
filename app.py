@@ -2629,8 +2629,44 @@ with st.sidebar:
             # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ Sankey Period Comparison Selector Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
             from datetime import datetime as _dt
 
-            _cur_year = _dt.now().year
-            _cur_month = _dt.now().month
+            # ── Detect user's LOCAL timezone offset (no permission needed) ──
+            # `new Date().getTimezoneOffset()` and `Intl.DateTimeFormat` are
+            # browser APIs that read the OS timezone setting without any
+            # permission prompt (unlike geolocation).  We stash the offset
+            # (minutes behind UTC) in the URL as ?tz_off=... so Python can
+            # use it on subsequent renders.  On the very first render the
+            # query param isn't set yet → we fall back to UTC and inject
+            # a tiny JS block that reloads the page once with tz_off added.
+            _tz_off_qp = st.query_params.get("tz_off")
+            if _tz_off_qp is not None:
+                try:
+                    _user_tz_off_min = int(_tz_off_qp)
+                except Exception:
+                    _user_tz_off_min = 0
+                st.session_state["_user_tz_off_min"] = _user_tz_off_min
+            else:
+                _user_tz_off_min = st.session_state.get("_user_tz_off_min")
+                if _user_tz_off_min is None:
+                    components.html("""<script>
+(function(){
+    try {
+        var u = new URL(window.parent.location.href);
+        if (u.searchParams.has('tz_off')) return;
+        var off = new Date().getTimezoneOffset();  // minutes behind UTC
+        u.searchParams.set('tz_off', String(off));
+        window.parent.location.replace(u.toString());
+    } catch(e) {}
+})();
+</script>""", height=0, scrolling=False)
+                    _user_tz_off_min = 0  # fall back to UTC just for this render
+
+            # ── "today" in the user's local timezone, using pandas ──
+            _today_ts = (
+                pd.Timestamp.utcnow().tz_localize(None)
+                - pd.Timedelta(minutes=_user_tz_off_min)
+            ).normalize()
+            _cur_year = int(_today_ts.year)
+            _cur_month = int(_today_ts.month)
             # Store FY end month so sankey_page can use it for fiscal matching
             from data_fetcher import _get_fy_end_month as _fy_m_fn
             _fy_m_sk = _fy_m_fn(ticker)
@@ -2668,17 +2704,17 @@ with st.sidebar:
 
             def _q_data_available(q, fy, fy_end):
                 """Check if SEC data is likely available for this quarter.
-                True only after quarter end + filing buffer days."""
-                from datetime import timedelta as _td
-                q_end = _q_end_date(q, fy, fy_end)
-                today = _date_cls(_cur_year, _cur_month, _dt.now().day)
-                return today >= q_end + _td(days=_SEC_FILING_BUFFER_DAYS)
+                True only after quarter end + filing buffer days.  Uses the
+                user's local 'today' (pandas Timestamp)."""
+                q_end_ts = pd.Timestamp(_q_end_date(q, fy, fy_end))
+                avail_ts = q_end_ts + pd.Timedelta(days=_SEC_FILING_BUFFER_DAYS)
+                return _today_ts >= avail_ts
 
             def _q_has_ended(q, fy, fy_end):
-                """Check if the quarter has ended (calendar-wise)."""
-                q_end = _q_end_date(q, fy, fy_end)
-                today = _date_cls(_cur_year, _cur_month, _dt.now().day)
-                return today > q_end
+                """Check if the quarter has ended (calendar-wise), using
+                the user's local 'today'."""
+                q_end_ts = pd.Timestamp(_q_end_date(q, fy, fy_end))
+                return _today_ts > q_end_ts
 
             def _q_actually_available(q, fy, fy_end):
                 """Check ACTUAL EDGAR data availability (cached), falling back
@@ -2979,12 +3015,11 @@ with st.sidebar:
                             f"{_MON[mm]} {my % 100:02d} · {_MON[em]} {ey % 100:02d})")
 
                 def _days_until_q(q, fy):
-                    """Days until quarter data becomes available (end + filing buffer)."""
-                    from datetime import timedelta as _td
-                    q_end = _q_end_date(q, fy, _fy_m_sk)
-                    data_avail = q_end + _td(days=_SEC_FILING_BUFFER_DAYS)
-                    today = _date_cls(_cur_year, _cur_month, _dt.now().day)
-                    return max(0, (data_avail - today).days)
+                    """Days until quarter data becomes available (end + filing
+                    buffer), measured against the user's local 'today'."""
+                    q_end_ts = pd.Timestamp(_q_end_date(q, fy, _fy_m_sk))
+                    avail_ts = q_end_ts + pd.Timedelta(days=_SEC_FILING_BUFFER_DAYS)
+                    return max(0, int((avail_ts - _today_ts).days))
 
                 def _q_filing_pending(q, fy):
                     """True if quarter has ended but data not yet available.
