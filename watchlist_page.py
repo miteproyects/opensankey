@@ -746,62 +746,13 @@ def render_watchlist_page():
 
     st.markdown(table_html, unsafe_allow_html=True)
 
-    # ── Remove buttons (★ toggle — click to remove) ───────────────────────
-    st.markdown("---")
-    st.markdown(
-        '<p style="font-size:0.85rem; color:#888; margin-bottom:8px;">'
-        'Click to remove from watchlist:</p>',
-        unsafe_allow_html=True,
-    )
+    # NOTE: The "Click to remove from watchlist" grid and the
+    # "Quick add popular companies" grid were removed per product request.
+    # The wl_remove_* / wl_qadd_* session-state handlers at the top of
+    # render_watchlist_page() are kept intact so buttons can be re-enabled
+    # later without re-plumbing the logic.
 
-    num_cols = min(len(tickers), 4)
-    if num_cols > 0:
-        rows_of_btns = [tickers[i:i + num_cols] for i in range(0, len(tickers), num_cols)]
-        for btn_row in rows_of_btns:
-            cols = st.columns(num_cols)
-            for i, sym in enumerate(btn_row):
-                with cols[i]:
-                    st.button(
-                        f"★ {sym}",
-                        key=f"wl_remove_{sym}",
-                        use_container_width=True,
-                    )
-
-    # ── Quick-add popular tickers ─────────────────────────────────────────
-    # Source = admin-managed ticker pool (NSFQ → "Manage Available Tickers"),
-    # so updates there propagate here automatically.
-    try:
-        from database import get_ticker_pool
-        popular = list(get_ticker_pool() or [])
-    except Exception:
-        popular = []
-    if not popular:
-        popular = [
-            "NVDA", "AAPL", "GOOGL", "MSFT", "AMZN", "META", "TSLA",
-            "TSM", "AVGO", "JPM", "V", "WMT", "NFLX", "ADBE",
-            "KO", "PEP", "DIS", "NKE", "CRM", "AMD",
-        ]
-    available = [t for t in popular if t not in tickers]
-
-    if available and count < _MAX_COMPANIES:
-        st.markdown("---")
-        st.markdown(
-            '<p style="font-size:0.85rem; color:#888; margin-bottom:8px;">'
-            'Quick add popular companies:</p>',
-            unsafe_allow_html=True,
-        )
-        num_cols2 = min(len(available), 4)
-        rows_of_adds = [available[i:i + num_cols2] for i in range(0, len(available), num_cols2)]
-        for add_row in rows_of_adds:
-            cols2 = st.columns(num_cols2)
-            for i, sym in enumerate(add_row):
-                with cols2[i]:
-                    st.button(
-                        f"+ {sym}",
-                        key=f"wl_qadd_{sym}",
-                        use_container_width=True,
-                    )
-    elif count >= _MAX_COMPANIES:
+    if count >= _MAX_COMPANIES:
         st.markdown("---")
         st.markdown(
             f'<div class="wl-limit-warn">Watchlist is full ({_MAX_COMPANIES}/{_MAX_COMPANIES}). '
