@@ -420,7 +420,7 @@ def render_home_page():
             investors who value clarity over clutter.
         </p>
         <div class="hero-cta">
-            <a class="btn-primary" href="/?page=sankey&ticker=NVDA" target="_top">Explore Charts &#8212; Free</a>
+            <a class="btn-primary" href="/?page=charts&ticker=NVDA" target="_top">Explore Charts &#8212; Free</a>
             <a class="btn-ghost"  href="/?page=pricing" target="_top">View Pricing</a>
         </div>
         <div style="height:0.5px;background:rgba(255,255,255,0.07);max-width:480px;margin:6px auto 0;border-radius:1px;"></div>
