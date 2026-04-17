@@ -561,6 +561,113 @@ def _render_ticker_search(symbol: str):
         _render_earnings_table(past, show_date=True)
 
 
+@st.cache_data(ttl=7200, show_spinner=False)
+def _get_filing_cadence(ticker: str) -> dict:
+    """
+    Return per-ticker filing cadence derived from EDGAR (via FMP get_fiscal_calendar):
+      - median_gap:  median of (filing_date - period_end) days across recent quarters
+      - fy_month:    fiscal-year-end month (1..12) or None
+      - quarters:    raw quarter list (for date matching)
+    Cached 2h per ticker.
+    """
+    try:
+        from data_fetcher import get_fiscal_calendar
+    except Exception:
+        return {"median_gap": None, "fy_month": None, "quarters": []}
+
+    try:
+        fc = get_fiscal_calendar(ticker) or {}
+    except Exception:
+        fc = {}
+
+    quarters = fc.get("quarters") if isinstance(fc, dict) else None
+    fy_month = None
+    if isinstance(fc, dict):
+        fy_month = fc.get("fy_month") or fc.get("fiscal_year_end_month")
+        if fy_month:
+            try:
+                fy_month = int(fy_month)
+            except Exception:
+                fy_month = None
+
+    import pandas as _pd
+    gaps = []
+    for q in (quarters or []):
+        pe = (q.get("period_end") or "")[:10]
+        fd = (q.get("filing_date") or "")[:10]
+        if pe and fd:
+            try:
+                g = (_pd.Timestamp(fd) - _pd.Timestamp(pe)).days
+                if 0 < g < 180:
+                    gaps.append(g)
+            except Exception:
+                pass
+
+    median_gap = None
+    if gaps:
+        gaps.sort()
+        median_gap = int(gaps[len(gaps) // 2])
+        # Clamp to a reasonable 10-Q/10-K window
+        median_gap = max(15, min(95, median_gap))
+
+    return {"median_gap": median_gap, "fy_month": fy_month, "quarters": quarters or []}
+
+
+def _compute_filing_eta_days(ticker: str, event_label: str, finnhub_date_str: str):
+    """
+    Approximate days-until-filing for an upcoming earnings row.
+    Primary:  EDGAR-derived — predicted period_end + per-ticker historical median gap.
+    Fallback: Finnhub earnings-announcement date.
+    Returns int days (>=0) or None.
+    """
+    try:
+        import pandas as _pd
+        import calendar as _cal
+        from datetime import date as _ddate, timedelta as _dtd
+    except Exception:
+        return None
+
+    today = _ddate.today()
+    cadence = _get_filing_cadence(ticker) if ticker else {}
+    median_gap = cadence.get("median_gap")
+    fy_month = cadence.get("fy_month")
+
+    # Parse event label like "Q1 2026 Earnings"
+    q_num, q_year = None, None
+    try:
+        for tok in str(event_label or "").strip().split():
+            if tok.startswith("Q") and tok[1:].isdigit():
+                q_num = int(tok[1:])
+            elif tok.isdigit() and len(tok) == 4:
+                q_year = int(tok)
+    except Exception:
+        pass
+
+    eta = None
+    # Primary: EDGAR-based prediction from period_end + median gap
+    if q_num and q_year and fy_month and median_gap is not None:
+        try:
+            qe_month = ((fy_month - 1) + 3 * q_num) % 12 + 1
+            pe_year = q_year if qe_month <= fy_month else q_year - 1
+            last_day = _cal.monthrange(pe_year, qe_month)[1]
+            period_end = _ddate(pe_year, qe_month, last_day)
+            eta = period_end + _dtd(days=median_gap)
+        except Exception:
+            eta = None
+
+    # Fallback: Finnhub earnings-announcement date
+    if eta is None and finnhub_date_str:
+        try:
+            eta = _pd.Timestamp(finnhub_date_str).date()
+        except Exception:
+            eta = None
+
+    if eta is None:
+        return None
+
+    return (eta - today).days
+
+
 def _render_earnings_table(earnings: list[dict], show_date: bool = False):
     _auth_params = ""
     if st.session_state.get("session_token"):
@@ -568,6 +675,8 @@ def _render_earnings_table(earnings: list[dict], show_date: bool = False):
 
     order = {"BMO": 0, "AMC": 1, "TAS": 2, "TNS": 3}
     earnings_sorted = sorted(earnings, key=lambda x: (order.get(x.get("call_time", "TNS"), 3), x.get("ticker", "")))
+
+    _today_iso = date.today().isoformat()
 
     rows_html = ""
     for e in earnings_sorted:
@@ -609,7 +718,27 @@ def _render_earnings_table(earnings: list[dict], show_date: bool = False):
             surprise_html = '<span class="ec-eps-neutral">&ndash;</span>'
 
         ticker_link = f'/?page=charts&ticker={ticker}{_auth_params}'
-        date_col = f'<td>{e.get("date", "")}</td>' if show_date else ''
+
+        _d_str = e.get("date", "") or ""
+        _eta_suffix_html = ""
+        if show_date and _d_str and _d_str >= _today_iso:
+            try:
+                _days = _compute_filing_eta_days(ticker, event, _d_str)
+                if _days is not None:
+                    if _days <= 0:
+                        _eta_txt = "~ filing any day"
+                    elif _days == 1:
+                        _eta_txt = "~ filing in 1d"
+                    else:
+                        _eta_txt = f"~ filing in {_days}d"
+                    _eta_suffix_html = (
+                        f' <span style="color:#fbbf24;font-weight:600;font-size:0.82em;">'
+                        f'&middot; {_eta_txt}</span>'
+                    )
+            except Exception:
+                _eta_suffix_html = ""
+
+        date_col = f'<td>{_d_str}{_eta_suffix_html}</td>' if show_date else ''
 
         rows_html += (
             f'<tr><td><a class="ec-ticker" href="{ticker_link}" target="_self">{ticker}</a></td>'
