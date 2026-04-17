@@ -352,7 +352,7 @@ def render_home_page():
         .pcard .per  { font-size: .85rem; color: #94A3B8; margin-bottom: 16px; }
         .pcard ul { list-style: none; text-align: left; padding: 0; margin-bottom: 20px; }
         .pcard li { font-size: .88rem; color: #94A3B8; padding: 5px 0; }
-        .pcard li::before { content: "\2713  "; color: #10B981; font-weight: 700; }
+        .pcard li::before { content: "\\2713  "; color: #10B981; font-weight: 700; }
 
         /* ── CTA FOOTER ── */
         .cta-foot {
