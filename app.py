@@ -3219,53 +3219,78 @@ with st.sidebar:
                         )
 
                 # ── Auto-fit quarter button labels to 1 line ──
-                # Forces white-space:nowrap and progressively shrinks the
-                # font-size of each "FYxxxx - Qn ..." button until its text
-                # fits on a single line inside the button (down to a min).
+                # Targets quarter buttons anywhere on the page (they're in a
+                # right-side panel, NOT inside stSidebar) by looking for
+                # elements whose text matches "FY20xx - Qn ...". For each,
+                # forces white-space:nowrap on the inner <p> and shrinks
+                # font-size progressively until the text fits on one line.
+                # A MutationObserver re-applies when Streamlit re-renders.
                 components.html("""<script>
 (function(){
-    var fit = function(){
-        var sb = window.parent.document.querySelector('section[data-testid="stSidebar"]');
-        if (!sb) return false;
-        var btns = sb.querySelectorAll('div[data-testid="stButton"] > button');
+    var doc = window.parent.document;
+    var scheduled = false;
+    var fit_one = function(btn){
+        var p = btn.querySelector('[data-testid="stMarkdownContainer"] p') ||
+                btn.querySelector('p') || btn.querySelector('div');
+        if (!p) return;
+        p.style.setProperty('white-space', 'nowrap', 'important');
+        p.style.setProperty('overflow', 'hidden', 'important');
+        p.style.setProperty('text-overflow', 'clip', 'important');
+        p.style.setProperty('display', 'block', 'important');
+        p.style.setProperty('line-height', '1.2', 'important');
+        // Reset before measuring
+        p.style.removeProperty('font-size');
+        p.style.removeProperty('letter-spacing');
+        var min_px = 8.0;
+        var max_px = 14.0;
+        var size = max_px;
+        p.style.setProperty('font-size', size + 'px', 'important');
+        // Shrink until the inner text no longer overflows the button box.
+        // Use btn's inner content width (button clientWidth minus horiz padding).
+        var target = btn.clientWidth - 8;
+        var guard = 40;
+        while (p.scrollWidth > target && size > min_px && guard-- > 0){
+            size -= 0.5;
+            p.style.setProperty('font-size', size + 'px', 'important');
+        }
+        if (size <= 10.5){
+            p.style.setProperty('letter-spacing', '-0.015em', 'important');
+        }
+    };
+    var fit_all = function(){
+        scheduled = false;
+        // Any element whose DOM class contains "st-key-qb-" is a quarter
+        // button container (Streamlit reflects the widget key there).
+        var conts = doc.querySelectorAll('[class*="st-key-qb-"]');
         var did = false;
-        for (var i = 0; i < btns.length; i++){
-            var b = btns[i];
-            var t = (b.innerText || b.textContent || '').trim();
+        for (var i = 0; i < conts.length; i++){
+            var btn = conts[i].querySelector('button');
+            if (!btn) continue;
+            var t = (btn.innerText || '').trim();
             if (!/^FY20\\d{2}\\s*-\\s*Q[1-4]/.test(t)) continue;
+            fit_one(btn);
             did = true;
-            // Target the inner text element if present (Streamlit wraps label in <div>/<p>)
-            var inner = b.querySelector('p') || b.querySelector('div') || b;
-            inner.style.setProperty('white-space', 'nowrap', 'important');
-            inner.style.setProperty('overflow', 'hidden', 'important');
-            inner.style.setProperty('text-overflow', 'clip', 'important');
-            inner.style.setProperty('display', 'block', 'important');
-            // Reset before measuring
-            inner.style.removeProperty('font-size');
-            inner.style.removeProperty('letter-spacing');
-            var min_px = 9;   // floor
-            var max_px = 14;  // cap (Streamlit default ~14px)
-            var size = max_px;
-            inner.style.setProperty('font-size', size + 'px', 'important');
-            // Shrink until text fits, or we hit the floor
-            var guard = 30;
-            while (inner.scrollWidth > (b.clientWidth - 4) && size > min_px && guard-- > 0){
-                size -= 0.5;
-                inner.style.setProperty('font-size', size + 'px', 'important');
-            }
-            if (size <= 11){
-                inner.style.setProperty('letter-spacing', '-0.01em', 'important');
-            }
         }
         return did;
     };
-    if (!fit()){
-        var t = setInterval(function(){ if (fit()) clearInterval(t); }, 80);
-        setTimeout(function(){ clearInterval(t); }, 4000);
+    var schedule_fit = function(){
+        if (scheduled) return;
+        scheduled = true;
+        window.requestAnimationFrame(fit_all);
+    };
+    // Initial attempts (Streamlit may not have rendered yet when this runs)
+    if (!fit_all()){
+        var t = setInterval(function(){ if (fit_all()) { clearInterval(t); } }, 100);
+        setTimeout(function(){ clearInterval(t); }, 6000);
     }
-    // Re-fit on window resize (sidebar width can change)
+    // Re-fit whenever Streamlit re-renders or user resizes the viewport.
     try {
-        window.parent.addEventListener('resize', function(){ fit(); });
+        var root = doc.body;
+        var obs = new MutationObserver(schedule_fit);
+        obs.observe(root, { childList: true, subtree: true, characterData: true });
+    } catch(e){}
+    try {
+        window.parent.addEventListener('resize', schedule_fit);
     } catch(e){}
 })();
 </script>""", height=0, scrolling=False)
