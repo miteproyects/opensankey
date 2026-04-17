@@ -422,11 +422,11 @@ def render_home_page():
             <p>Revenue, gross profit, operating &amp; net income on one chart. Toggle quarterly vs. annual, compare 1&#8211;10 years.</p>
             <span class="clink">View NVDA Charts &#8594;</span>
         </a>
-        <a class="fcard" href="/?page=sankey&ticker=NVDA" target="_top">
+        <a class="fcard" href="/?page=sankey&ticker=NVDA&view=balance" target="_top">
             <div class="ficon ic-blue">&#128256;</div>
-            <h3>Sankey Diagrams</h3>
-            <p>See exactly where revenue flows &#8212; from top-line sales through costs to net income &#8212; in one interactive visual.</p>
-            <span class="clink">Try NVDA Sankey &#8594;</span>
+            <h3>Balance Sheet Sankey</h3>
+            <p>Assets, liabilities &amp; equity on one flow diagram. Toggle quarterly vs. annual, compare point-in-time snapshots.</p>
+            <span class="clink">View NVDA Balance &#8594;</span>
         </a>
         <a class="fcard" href="/?page=profile&ticker=NVDA" target="_top">
             <div class="ficon ic-green">&#127970;</div>
