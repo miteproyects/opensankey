@@ -493,7 +493,25 @@ def render_eta_info_html(eta: dict, css_class_prefix: str = "qc-eta") -> str:
 # Reusable CSS block — include once per page.
 ETA_INFO_CSS = """
 <style>
-.qc-eta-wrap { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+/* Force Streamlit's sidebar + block containers to allow the popover to escape.
+   Without these overrides the popover gets clipped by overflow:hidden ancestors. */
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"] > div,
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"],
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"],
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+[data-testid="stMarkdownContainer"]:has(.qc-eta-wrap),
+[data-testid="stVerticalBlock"]:has(.qc-eta-wrap) {
+  overflow: visible !important;
+}
+
+.qc-eta-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  isolation: isolate;
+}
 .qc-eta-primary { color: #fbbf24; font-weight: 600; }
 .qc-eta-info {
   display: inline-flex; align-items: center; justify-content: center;
@@ -502,26 +520,45 @@ ETA_INFO_CSS = """
   color: #93c5fd; background: rgba(147,197,253,0.08);
   border: 1px solid rgba(147,197,253,0.35);
   transition: all 0.15s ease;
+  flex: 0 0 auto;
 }
 .qc-eta-info:hover { background: rgba(147,197,253,0.18); color: #bfdbfe; }
+
+/* Popover opens BELOW + to the RIGHT of the ⓘ icon so it extends into the
+   main content area (always visible) instead of back across the narrow
+   sidebar column. z-index is set to a very large value so it sits above
+   every Streamlit-managed container. */
 .qc-eta-pop {
   visibility: hidden; opacity: 0; pointer-events: none;
-  position: absolute; z-index: 9999;
-  top: calc(100% + 6px); right: 0;
-  min-width: 230px; padding: 10px 12px;
+  position: absolute; z-index: 2147483000;
+  top: calc(100% + 6px);
+  left: 0;
+  right: auto;
+  min-width: 240px; max-width: 300px; padding: 10px 12px;
   background: #0f172a; border: 1px solid #1e293b; border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.55);
   font-family: Inter, system-ui, sans-serif; font-size: 0.78rem;
   color: #cbd5e1; transition: opacity 0.15s ease;
+  white-space: normal;
 }
 .qc-eta-wrap:hover .qc-eta-pop,
 .qc-eta-wrap:focus-within .qc-eta-pop { visibility: visible; opacity: 1; pointer-events: auto; }
 .qc-eta-pop-title { display: block; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; font-size: 0.75rem; letter-spacing: 0.02em; }
-.qc-eta-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; border-bottom: 1px dashed rgba(148,163,184,0.12); }
+.qc-eta-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; border-bottom: 1px dashed rgba(148,163,184,0.12); gap: 10px; }
 .qc-eta-row:last-of-type { border-bottom: none; }
-.qc-eta-src { color: #94a3b8; font-weight: 500; }
-.qc-eta-val { color: #fbbf24; font-weight: 600; font-variant-numeric: tabular-nums; }
+.qc-eta-src { color: #94a3b8; font-weight: 500; white-space: nowrap; }
+.qc-eta-val { color: #fbbf24; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .qc-eta-na .qc-eta-val { color: #475569; font-weight: 400; }
 .qc-eta-pop-note { display: block; margin-top: 8px; color: #64748b; font-size: 0.68rem; font-style: italic; }
+
+/* When the popover is inside a sidebar where space to the right is limited,
+   flip it to open UP-AND-RIGHT from the icon so the body never falls outside
+   the sidebar's horizontal band. */
+section[data-testid="stSidebar"] .qc-eta-pop {
+  top: auto;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: auto;
+}
 </style>
 """
