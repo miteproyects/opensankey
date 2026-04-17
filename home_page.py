@@ -53,6 +53,64 @@ def render_home_page():
     import json as _json
     from database import get_ticker_pool
     _ticker_pool = _json.dumps(get_ticker_pool())
+
+    # ── Load pricing plans from DB (single source of truth with pricing_page.py) ──
+    try:
+        from database import get_all_plans
+        _hp_plans = [p for p in get_all_plans(active_only=True) if p.get("slug") != "no-login"]
+    except Exception:
+        _hp_plans = []
+
+    def _hp_pricing_card(plan):
+        """Build a single .pcard block matching homepage styling, fed from DB."""
+        feats = plan.get("features", [])
+        if isinstance(feats, str):
+            try:
+                feats = _json.loads(feats)
+            except Exception:
+                feats = []
+        slug = plan.get("slug", "")
+        name = plan.get("name", "Plan")
+        try:
+            price_monthly = float(plan.get("price_monthly", 0) or 0)
+        except Exception:
+            price_monthly = 0.0
+        is_popular = bool(plan.get("is_popular", False))
+        cta_text = plan.get("cta_text", "Get Started")
+        cta_url = plan.get("cta_url", "") or "/?page=pricing"
+        if cta_url.startswith("?"):
+            cta_url = "/" + cta_url
+        # Price display
+        if slug == "enterprise":
+            amt_html = ('<div class="amt" style="font-size:2rem;">Custom</div>'
+                        '<div class="per">contact us</div>')
+        elif price_monthly <= 0:
+            amt_html = '<div class="amt">$0</div><div class="per">forever</div>'
+        else:
+            amt_html = (f'<div class="amt">${price_monthly:.0f}</div>'
+                        '<div class="per">/ month</div>')
+        items = "".join(f"<li>{f}</li>" for f in feats)
+        pop_class = " pop" if is_popular else ""
+        return (
+            f'<div class="pcard{pop_class}">'
+            f'<div class="tier">{name}</div>'
+            f'{amt_html}'
+            f'<ul>{items}</ul>'
+            f'<a class="btn-primary" style="display:block;text-align:center;" '
+            f'href="{cta_url}" target="_top">{cta_text}</a>'
+            '</div>'
+        )
+
+    if _hp_plans:
+        _pricing_cards_html = "".join(_hp_pricing_card(p) for p in _hp_plans)
+    else:
+        _pricing_cards_html = (
+            '<div class="pcard"><div class="tier">Pricing</div>'
+            '<div class="amt">&mdash;</div><div class="per">unavailable</div>'
+            '<a class="btn-primary" style="display:block;text-align:center;" '
+            'href="/?page=pricing" target="_top">View Pricing</a></div>'
+        )
+
     components.html(f"""
     <script>var __ALLOWED_TICKERS = {_allowed_json}; var __REDIR_PAGE = {_redir_json}; var __REDIR_ALLOWED = {_redir_ok_json}; var __TICKER_POOL = {_ticker_pool};</script>"""
     """
@@ -274,25 +332,6 @@ def render_home_page():
         .ic-orange { background: rgba(249,115,22,.15); }
         .ic-rose   { background: rgba(244,63,94,.15); }
 
-        /* ── STEPS ── */
-        .steps {
-            display: flex; justify-content: center; gap: 40px;
-            max-width: 960px; margin: 36px auto 0;
-            padding: 0 24px 72px; flex-wrap: wrap;
-        }
-        .step { text-align: center; flex: 1; min-width: 200px; max-width: 280px; }
-        .step-num {
-            width: 48px; height: 48px; border-radius: 50%;
-            background: rgba(59,130,246,.15); color: #3B82F6;
-            font-weight: 800; font-size: 1.2rem;
-            display: inline-flex; align-items: center; justify-content: center;
-            margin-bottom: 16px;
-        }
-        .step h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 6px; }
-        .step p  { font-size: .88rem; color: #94A3B8; line-height: 1.5; }
-        .step a  { color: #3B82F6; font-weight: 600; }
-        .step a:hover { text-decoration: underline; }
-
         /* ── PRICING ── */
         .pricing {
             display: flex; justify-content: center; gap: 24px;
@@ -454,70 +493,15 @@ def render_home_page():
         </a>
     </div>
 
-    <!-- ═══ HOW IT WORKS ═══ -->
-    <div class="stitle">
-        <h2>Start in Three Steps</h2>
-        <p>No sign-up required for basic access.</p>
-    </div>
-    <div class="steps">
-        <div class="step">
-            <div class="step-num">1</div>
-            <h3>Enter a Ticker</h3>
-            <p>Type any US stock symbol &#8212; <a href="/?page=sankey&ticker=AAPL" target="_top">AAPL</a>, <a href="/?page=sankey&ticker=TSLA" target="_top">TSLA</a>, <a href="/?page=sankey&ticker=NVDA" target="_top">NVDA</a>, or 10 000+ others.</p>
-        </div>
-        <div class="step">
-            <div class="step-num">2</div>
-            <h3>Explore Visuals</h3>
-            <p>Switch between <a href="/?page=sankey&ticker=NVDA" target="_top">Sankey</a>, <a href="/?page=charts&ticker=NVDA" target="_top">charts</a>, and <a href="/?page=profile&ticker=NVDA" target="_top">profiles</a> with a single click.</p>
-        </div>
-        <div class="step">
-            <div class="step-num">3</div>
-            <h3>Export &amp; Share</h3>
-            <p>Download PDFs or share links &#8212; your data, your way.</p>
-        </div>
-    </div>
-
     <!-- ═══ PRICING ═══ -->
     <div class="stitle">
         <h2>Simple, Transparent Pricing</h2>
         <p>Start free. Upgrade when you're ready.</p>
     </div>
     <div class="pricing">
-        <div class="pcard">
-            <div class="tier">Free</div>
-            <div class="amt">$0</div>
-            <div class="per">forever</div>
-            <ul>
-                <li>5 ticker lookups / day</li>
-                <li>Income statement charts</li>
-                <li>Basic Sankey diagrams</li>
-            </ul>
-            <a class="btn-primary" style="display:block;text-align:center;" href="/?page=sankey&ticker=NVDA" target="_top">Get Started</a>
-        </div>
-        <div class="pcard pop">
-            <div class="tier">Pro</div>
-            <div class="amt">$15</div>
-            <div class="per">/ month</div>
-            <ul>
-                <li>Unlimited lookups</li>
-                <li>Company profiles</li>
-                <li>PDF exports</li>
-                <li>Watchlist</li>
-            </ul>
-            <a class="btn-primary" style="display:block;text-align:center;" href="/?page=pricing" target="_top">Upgrade to Pro</a>
-        </div>
-        <div class="pcard">
-            <div class="tier">Enterprise</div>
-            <div class="amt">$49</div>
-            <div class="per">/ month</div>
-            <ul>
-                <li>Everything in Pro</li>
-                <li>API access</li>
-                <li>Team dashboards</li>
-                <li>Priority support</li>
-            </ul>
-            <a class="btn-primary" style="display:block;text-align:center;" href="/?page=pricing" target="_top">Contact Us</a>
-        </div>
+    """
+    f"""{_pricing_cards_html}"""
+    """
     </div>
 
     <!-- ═══ CTA FOOTER ═══ -->
@@ -571,4 +555,4 @@ def render_home_page():
         });
     })();
     </script>
-    """, height=2700, scrolling=False)
+    """, height=2340, scrolling=False)
