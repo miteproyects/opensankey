@@ -123,42 +123,54 @@ def render_pricing_page():
         flex-shrink: 0;
         margin-top: 1px;
     }
-    /* Using a.pricing-cta + !important to outrank Streamlit's global
-       <a> styling, which otherwise adds an underline and a dark link
-       color on top of our gradient buttons. */
+    /* Match the homepage .btn-primary look exactly: solid blue + soft glow,
+       white non-underlined text. Streamlit's global <a> rule inside
+       [data-testid="stMarkdownContainer"] adds an underline and dark link
+       color; these selectors out-specify it and use !important to win. */
+    [data-testid="stMarkdownContainer"] a.pricing-cta,
+    [data-testid="stMarkdownContainer"] a.pricing-cta:link,
+    [data-testid="stMarkdownContainer"] a.pricing-cta:visited,
+    [data-testid="stMarkdownContainer"] a.pricing-cta:active,
     a.pricing-cta,
     a.pricing-cta:link,
     a.pricing-cta:visited,
-    a.pricing-cta:hover,
     a.pricing-cta:active {
-        display: block;
-        width: 100%;
-        padding: 12px 20px;
-        border-radius: 10px;
-        font-size: 0.95rem;
-        font-weight: 700;
-        font-family: Inter, system-ui, sans-serif;
+        display: block !important;
+        width: 100% !important;
+        padding: 14px 32px !important;
+        border-radius: 10px !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        font-family: Inter, system-ui, sans-serif !important;
         cursor: pointer;
-        transition: all 0.15s ease;
-        text-align: center;
+        transition: all 0.2s ease;
+        text-align: center !important;
         text-decoration: none !important;
         margin-top: auto;
         color: #ffffff !important;
+        background: #3B82F6 !important;
+        background-image: none !important;
+        border: none !important;
+        box-shadow: 0 0 24px rgba(59,130,246,0.35) !important;
     }
-    a.pricing-cta.cta-default,
-    a.pricing-cta.cta-popular,
-    a.pricing-cta.cta-enterprise {
-        background: linear-gradient(135deg, #22d3ee, #3b82f6);
-        border: none;
-        box-shadow: 0 4px 14px rgba(59,130,246,0.25);
-    }
-    a.pricing-cta.cta-default:hover,
-    a.pricing-cta.cta-popular:hover,
-    a.pricing-cta.cta-enterprise:hover {
-        background: linear-gradient(135deg, #06b6d4, #2563eb);
-        box-shadow: 0 6px 20px rgba(59,130,246,0.4);
-        transform: translateY(-1px);
+    [data-testid="stMarkdownContainer"] a.pricing-cta:hover,
+    a.pricing-cta:hover {
+        background: #2563EB !important;
+        background-image: none !important;
         color: #ffffff !important;
+        text-decoration: none !important;
+        transform: translateY(-2px);
+        box-shadow: 0 0 28px rgba(59,130,246,0.5) !important;
+    }
+    /* Streamlit sometimes renders link text inside a <p> or <span> child.
+       Force those to inherit white & strip underline too. */
+    a.pricing-cta,
+    a.pricing-cta *,
+    [data-testid="stMarkdownContainer"] a.pricing-cta,
+    [data-testid="stMarkdownContainer"] a.pricing-cta * {
+        color: #ffffff !important;
+        text-decoration: none !important;
+        border-bottom: none !important;
     }
     .pricing-faq {
         max-width: 640px;
@@ -301,7 +313,28 @@ def render_pricing_page():
             # Build card HTML
             popular_badge = '<div class="popular-badge">MOST POPULAR</div>' if is_popular else ""
 
-            card_html = f'<div class="{card_class}">{popular_badge}<div class="pricing-plan-name">{plan_name}</div>{_price_html}<div class="pricing-desc">{desc_html}</div><ul class="pricing-features">{features_html}</ul><a class="pricing-cta {cta_class}" href="{cta_url}" target="_self">{cta_text}</a></div>'
+            # Inline styles on the anchor itself win every specificity fight,
+            # including Streamlit theme updates and [data-testid] overrides.
+            _cta_style = (
+                "display:block;width:100%;padding:12px 20px;"
+                "border-radius:10px;font-size:0.95rem;font-weight:700;"
+                "font-family:Inter,system-ui,sans-serif;text-align:center;"
+                "text-decoration:none;color:#ffffff;border:none;"
+                "background:linear-gradient(135deg,#22d3ee,#3b82f6);"
+                "box-shadow:0 4px 14px rgba(59,130,246,0.25);"
+                "margin-top:auto;cursor:pointer;"
+                "transition:all .15s ease;"
+            )
+            card_html = (
+                f'<div class="{card_class}">{popular_badge}'
+                f'<div class="pricing-plan-name">{plan_name}</div>'
+                f'{_price_html}'
+                f'<div class="pricing-desc">{desc_html}</div>'
+                f'<ul class="pricing-features">{features_html}</ul>'
+                f'<a class="pricing-cta {cta_class}" href="{cta_url}" '
+                f'target="_self" style="{_cta_style}">{cta_text}</a>'
+                '</div>'
+            )
             st.markdown(card_html, unsafe_allow_html=True)
 
     # ── FAQ section ──
