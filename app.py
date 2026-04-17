@@ -2254,13 +2254,19 @@ with st.sidebar:
                 if _saved_qt not in _avail_q_periods:
                     _saved_qt = _avail_q_periods[-1]
 
+                # Display options most-recent-first (chronological reverse) so
+                # the newest quarter sits at the top of each dropdown.  Seeding
+                # and range logic above keep using the original chronological
+                # list, so _saved_qf / _saved_qt stay valid lookups.
+                _q_options = list(reversed(_avail_q_periods))
+
                 st.markdown(
                     '<p style="color:#94a3b8;font-size:12px;margin:8px 0 4px;font-weight:600;">FROM</p>',
                     unsafe_allow_html=True,
                 )
                 st.selectbox(
-                    "From Quarter", _avail_q_periods,
-                    index=_avail_q_periods.index(_saved_qf),
+                    "From Quarter", _q_options,
+                    index=_q_options.index(_saved_qf),
                     key="_cf_q_from",
                     label_visibility="collapsed",
                     on_change=_apply_custom_range,
@@ -2270,8 +2276,8 @@ with st.sidebar:
                     unsafe_allow_html=True,
                 )
                 st.selectbox(
-                    "To Quarter", _avail_q_periods,
-                    index=_avail_q_periods.index(_saved_qt),
+                    "To Quarter", _q_options,
+                    index=_q_options.index(_saved_qt),
                     key="_cf_q_to",
                     label_visibility="collapsed",
                     on_change=_apply_custom_range,
