@@ -3457,6 +3457,13 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     tax           = abs(_safe(income_df, "Tax Provision"))
     net_income    = _safe(income_df, "Net Income")
 
+    # ── Raw signed values (current period) — captured before any reconciliation ──
+    # Used by the "Negative Accounts" frame drawn in the top-right of the Sankey.
+    _raw_neg_gp_cur     = gross_profit
+    _raw_neg_oi_cur     = operating_inc
+    _raw_neg_pretax_cur = pretax_income
+    _raw_neg_ni_cur     = net_income
+
     # --- Previous period values for % change labels ---
     p_revenue       = _safe_prev(income_df, "Total Revenue")
     p_cogs          = abs(_safe_prev(income_df, "Cost Of Revenue"))
@@ -3474,6 +3481,13 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     p_pretax_income = _safe_prev(income_df, "Pretax Income") or _safe_prev(income_df, "Income Before Tax")
     p_tax           = abs(_safe_prev(income_df, "Tax Provision"))
     p_net_income    = _safe_prev(income_df, "Net Income")
+
+    # ── Raw signed values (previous period) — fresh reads, bypass reconciliation ──
+    _raw_neg_gp_prev     = _safe_prev(income_df, "Gross Profit")
+    _raw_neg_oi_prev     = _safe_prev(income_df, "Operating Income")
+    _raw_neg_pretax_prev = _safe_prev(income_df, "Pretax Income") or _safe_prev(income_df, "Income Before Tax")
+    _raw_neg_ni_prev     = _safe_prev(income_df, "Net Income")
+
     # Derive missing previous-period residuals
     if p_other_opex == 0 and p_gross_profit > 0 and p_operating_inc > 0:
         p_other_opex = max(0, p_gross_profit - p_rd_expense - p_sga_expense - p_dep_amort - p_operating_inc)
@@ -3733,9 +3747,10 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     # Nodes in col3/col4/col5 are confined within parent sub-bands, so compute
     # "effective full-chart density" = n_items / band_fraction for each sub-band.
     _c2_n = 2 if cogs > 0 else 1
-    _c3_n = sum(1 for v in [rd_expense, sga_expense, dep_amort, other_opex] if v > 0) + 1  # +OI
-    _c4_n = sum(1 for v in [interest_exp, other_nonop] if v > 0) + 1  # +Pretax
-    _c5_n = (1 if tax > 0 else 0) + 1  # +NI
+    # Match conditional-node logic below: OI / Pretax / NI only counted when > 0
+    _c3_n = sum(1 for v in [rd_expense, sga_expense, dep_amort, other_opex] if v > 0) + (1 if operating_inc > 0 else 0)
+    _c4_n = (sum(1 for v in [interest_exp, other_nonop] if v > 0) + (1 if pretax_income > 0 else 0)) if operating_inc > 0 else 0
+    _c5_n = ((1 if tax > 0 else 0) + (1 if net_income > 0 else 0)) if pretax_income > 0 else 0
 
     # Effective density accounting for sub-band confinement:
     # Col3 items live inside GP band (fraction = gross_profit / revenue)
@@ -3929,7 +3944,12 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     if other_opex > 0:
         col3_items.append(("Other OpEx", other_opex, 5, p_other_opex, False))
 
-    col3_items.append(("Operating Income", operating_inc, 6, p_operating_inc, False))
+    # Only show Operating Income node when it's actually positive after reconciliation.
+    # If OI landed at 0 (typically because raw OI was negative and nothing could absorb
+    # the loss), we drop the node entirely so the Sankey doesn't carry an empty slot.
+    # The "Negative Accounts" frame in the top-right annotates the original signed value.
+    if operating_inc > 0:
+        col3_items.append(("Operating Income", operating_inc, 6, p_operating_inc, False))
 
     # Sort col3 high → low
     col3_items.sort(key=lambda t: t[1], reverse=True)
@@ -3937,40 +3957,53 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     c3 = _split_band(c3_vals, *gp_band)
     for i, (lbl, val, ci, pv, expandable) in enumerate(col3_items):
         add(lbl, val, ci, X3, c3[i][0], pv, expandable=expandable)
-    _oi_idx3 = next(i for i, it in enumerate(col3_items) if it[0] == "Operating Income")
-    oi_y = c3[_oi_idx3][0]
-    oi_band = (c3[_oi_idx3][1], c3[_oi_idx3][2])
+    _oi_idx3 = next((i for i, it in enumerate(col3_items) if it[0] == "Operating Income"), None)
+    if _oi_idx3 is not None:
+        oi_y = c3[_oi_idx3][0]
+        oi_band = (c3[_oi_idx3][1], c3[_oi_idx3][2])
+    else:
+        oi_y = None
+        oi_band = None
 
     # --- Column 4: Interest Exp + Other Non-Op + Pretax Income (split OI's band) ---
     col4_items = []
-    if interest_exp > 0:
-        col4_items.append(("Interest Exp.", interest_exp, 7, p_interest_exp))
-    if other_nonop > 0:
-        col4_items.append(("Other Non-Op", other_nonop, 7, p_other_nonop))
-    col4_items.append(("Pretax Income", pretax_income, 8, p_pretax_income))
+    if oi_band is not None:
+        if interest_exp > 0:
+            col4_items.append(("Interest Exp.", interest_exp, 7, p_interest_exp))
+        if other_nonop > 0:
+            col4_items.append(("Other Non-Op", other_nonop, 7, p_other_nonop))
+        if pretax_income > 0:
+            col4_items.append(("Pretax Income", pretax_income, 8, p_pretax_income))
 
-    # Sort col4 high → low
-    col4_items.sort(key=lambda t: t[1], reverse=True)
-    c4_vals = [v for _, v, *_ in col4_items]
-    c4 = _split_band(c4_vals, *oi_band)
-    for i, (lbl, val, ci, pv) in enumerate(col4_items):
-        add(lbl, val, ci, X4, c4[i][0], pv)
-    _pt_idx4 = next(i for i, it in enumerate(col4_items) if it[0] == "Pretax Income")
-    pt_y = c4[_pt_idx4][0]
-    pt_band = (c4[_pt_idx4][1], c4[_pt_idx4][2])
+    pt_y = None
+    pt_band = None
+    if col4_items:
+        # Sort col4 high → low
+        col4_items.sort(key=lambda t: t[1], reverse=True)
+        c4_vals = [v for _, v, *_ in col4_items]
+        c4 = _split_band(c4_vals, *oi_band)
+        for i, (lbl, val, ci, pv) in enumerate(col4_items):
+            add(lbl, val, ci, X4, c4[i][0], pv)
+        _pt_idx4 = next((i for i, it in enumerate(col4_items) if it[0] == "Pretax Income"), None)
+        if _pt_idx4 is not None:
+            pt_y = c4[_pt_idx4][0]
+            pt_band = (c4[_pt_idx4][1], c4[_pt_idx4][2])
 
     # --- Column 5: Tax + Net Income (split Pretax's band) ---
     col5_items = []
-    if tax > 0:
-        col5_items.append(("Income Tax", tax, 9, p_tax))
-    col5_items.append(("Net Income", net_income, 10, p_net_income))
+    if pt_band is not None:
+        if tax > 0:
+            col5_items.append(("Income Tax", tax, 9, p_tax))
+        if net_income > 0:
+            col5_items.append(("Net Income", net_income, 10, p_net_income))
 
-    # Sort col5 high → low
-    col5_items.sort(key=lambda t: t[1], reverse=True)
-    c5_vals = [v for _, v, *_ in col5_items]
-    c5 = _split_band(c5_vals, *pt_band)
-    for i, (lbl, val, ci, pv) in enumerate(col5_items):
-        add(lbl, val, ci, X5, c5[i][0], pv)
+    if col5_items:
+        # Sort col5 high → low
+        col5_items.sort(key=lambda t: t[1], reverse=True)
+        c5_vals = [v for _, v, *_ in col5_items]
+        c5 = _split_band(c5_vals, *pt_band)
+        for i, (lbl, val, ci, pv) in enumerate(col5_items):
+            add(lbl, val, ci, X5, c5[i][0], pv)
 
     srcs, tgts, vals, lcolors = [], [], [], []
 
@@ -4068,6 +4101,62 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(size=_font_sz, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif", color="#1e293b"))
     fig.update_layout(**_layout)
+
+    # ── Negative Accounts frame (top-right annotation) ──────────────────
+    # Lists accounts that are reported negative in the raw data, along with
+    # YoY % and dollar change. Appears as a small bordered red box in the
+    # top-right of the Sankey. Companion to the "drop zero/neg nodes" logic
+    # above — the Sankey hides those nodes, this frame explains why.
+    def _fmt_signed(v):
+        if v is None:
+            return "N/A"
+        if v < 0:
+            return "\u2212" + _fmt(abs(v))  # unicode minus sign for typographic clarity
+        return _fmt(v)
+
+    _neg_candidates = [
+        ("Gross Profit",     _raw_neg_gp_cur,     _raw_neg_gp_prev),
+        ("Operating Income", _raw_neg_oi_cur,     _raw_neg_oi_prev),
+        ("Pretax Income",    _raw_neg_pretax_cur, _raw_neg_pretax_prev),
+        ("Net Income",       _raw_neg_ni_cur,     _raw_neg_ni_prev),
+    ]
+    _negatives = [(n, c, p) for (n, c, p) in _neg_candidates if c is not None and c < 0]
+
+    if _negatives:
+        _neg_lines = ["<b style='color:#7f1d1d'>\u26A0  Negative Accounts</b>"]
+        for _nm, _cv, _pv in _negatives:
+            _cur_str = _fmt_signed(_cv)
+            if _pv is not None and _pv != 0:
+                _delta = _cv - _pv
+                _pct = (_delta / abs(_pv)) * 100
+                _arrow = "\u2191" if _delta >= 0 else "\u2193"
+                _delta_sign = "+" if _delta >= 0 else "\u2212"
+                _delta_str = f"{_delta_sign}{_fmt(abs(_delta))}"
+                # Improving (delta >= 0 means less negative) → green arrow
+                _yoy_color = "#16a34a" if _delta >= 0 else "#dc2626"
+                _yoy_html = (f"  <span style='color:{_yoy_color};font-size:10px'>"
+                             f"{_arrow}{_pct:+.1f}% · {_delta_str}</span>")
+            else:
+                _yoy_html = ""
+            _neg_lines.append(
+                f"<span style='color:#334155'>{_nm}:</span> "
+                f"<b style='color:#dc2626'>{_cur_str}</b>{_yoy_html}"
+            )
+        _neg_html = "<br>".join(_neg_lines)
+        fig.add_annotation(
+            xref="paper", yref="paper",
+            x=0.995, y=0.995, xanchor="right", yanchor="top",
+            text=_neg_html,
+            showarrow=False,
+            bgcolor="rgba(254, 242, 242, 0.94)",
+            bordercolor="#fca5a5",
+            borderwidth=1,
+            borderpad=8,
+            font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
+                      color="#7f1d1d"),
+            align="left",
+        )
+
     # Return fig + list of node names that exist in the Sankey
     _actual_nodes = [n for n in node_name_list if n in INCOME_NODE_METRICS]
     return fig, _actual_nodes
