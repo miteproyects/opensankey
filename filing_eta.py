@@ -512,7 +512,17 @@ def render_eta_info_html(eta: dict, css_class_prefix: str = "qc-eta") -> str:
     if not primary:
         return ""
 
-    help_text = _html.escape(get_filing_eta_help_text(eta), quote=True)
+    # HTML-escape the tooltip text, then convert real newlines to the numeric
+    # character reference `&#10;`. Browsers still render this as a line break
+    # inside `title="…"`, but the attribute value no longer contains a literal
+    # `\n` — which is critical because Streamlit's markdown renderer tokenises
+    # input line-by-line. A literal newline inside an attribute would terminate
+    # the current markdown block and blow up the surrounding `<table>` HTML,
+    # leaving every row empty.
+    help_text = (
+        _html.escape(get_filing_eta_help_text(eta), quote=True)
+        .replace("\n", "&#10;")
+    )
 
     return (
         f'<span class="{css_class_prefix}-primary">{primary}</span>'
