@@ -3238,18 +3238,38 @@ with st.sidebar:
                             # layout as the `render_eta_info_html` ⓘ hover on the
                             # sidebar / earnings page, so the UX is consistent
                             # across every surface that shows an ETA.
+                            # Each row shows the per-source projected ETA from
+                            # today, with the historical cadence gap in parens.
                             try:
-                                _e = _qs_cadence.get("edgar_median")
-                                _f = _qs_cadence.get("fmp_median")
+                                _e_med = _qs_cadence.get("edgar_median")
+                                _f_med = _qs_cadence.get("fmp_median")
                                 _primary = (_qs_cadence.get("primary_source") or "").lower()
+                                # Days between today and quarter-end (negative
+                                # when the quarter has already ended, which is
+                                # the case in this branch).
+                                _q_end_ts = pd.Timestamp(_q_end_date(_qi_i, _fy_i, _fy_m_sk))
+                                _q_end_offset = int((_q_end_ts - _today_ts).days)
+
                                 def _star(src, p=_primary):
                                     return " ★" if src == p else ""
-                                def _fmt_cad(v):
-                                    return f"~{v}d" if v is not None else "n/a"
+
+                                def _eta_from_cadence(med):
+                                    """ETA days from today given a historical
+                                    median filing gap, or None if no cadence."""
+                                    if med is None:
+                                        return None
+                                    return max(0, _q_end_offset + int(med))
+
+                                def _row(name, src_key, med):
+                                    if med is None:
+                                        return f"{name}{_star(src_key)}: n/a"
+                                    eta = _eta_from_cadence(med)
+                                    return f"{name}{_star(src_key)}: ~{eta}d ({med}d gap)"
+
                                 _help_lines = [
                                     "Filing ETA sources",
-                                    f"EDGAR{_star('edgar')}: {_fmt_cad(_e)}",
-                                    f"FMP{_star('fmp')}: {_fmt_cad(_f)}",
+                                    _row("EDGAR",   "edgar",   _e_med),
+                                    _row("FMP",     "fmp",     _f_med),
                                     "Finnhub: n/a",
                                     "★ = source used · ~ = estimate",
                                     "",
