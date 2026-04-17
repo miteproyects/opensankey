@@ -119,23 +119,35 @@ def _compute_surprise(actual, estimate) -> str:
         return "-"
 
 
-@st.cache_data(ttl=900, show_spinner=False)
-def _fetch_ticker_earnings(symbol: str) -> list[dict]:
-    """Fetch earnings for a specific ticker from Finnhub (past 2 years + next 6 months)."""
+# Short TTL on failure so transient errors don't stick for 15 minutes; full TTL on success.
+@st.cache_data(ttl=60, show_spinner=False)
+def _fetch_ticker_earnings_raw(symbol: str) -> dict:
+    """
+    Fetch earnings for a specific ticker from Finnhub (past 2 years + next 6 months).
+
+    Returns {'rows': list[dict], 'error': str|None, 'status_code': int|None}.
+    Wrapping in a dict so the caller can tell "no data" from "API error" and
+    show actionable feedback instead of a generic 'Verify the ticker' message.
+    """
     today = date.today()
     from_str = (today - timedelta(days=730)).isoformat()
     to_str = (today + timedelta(days=180)).isoformat()
 
+    status = None
     try:
         resp = requests.get(
             f"{_FINNHUB_BASE}/calendar/earnings",
             params={"symbol": symbol.upper(), "from": from_str, "to": to_str, "token": _FINNHUB_KEY},
             timeout=10,
         )
+        status = resp.status_code
         if resp.status_code == 200:
-            data = resp.json()
+            try:
+                data = resp.json()
+            except Exception as je:
+                return {"rows": [], "error": f"Bad JSON from Finnhub: {je}", "status_code": status}
             results = []
-            for item in data.get("earningsCalendar", []):
+            for item in data.get("earningsCalendar", []) or []:
                 results.append({
                     "ticker": item.get("symbol", symbol.upper()),
                     "company": item.get("symbol", symbol.upper()),
@@ -146,10 +158,36 @@ def _fetch_ticker_earnings(symbol: str) -> list[dict]:
                     "surprise_pct": _compute_surprise(item.get("epsActual"), item.get("epsEstimate")),
                     "date": item.get("date", ""),
                 })
-            return results
-    except Exception:
-        pass
-    return []
+            return {"rows": results, "error": None, "status_code": status}
+
+        # Non-200: surface a useful message so the user (and us) can tell what
+        # actually happened instead of the generic "Verify ticker" info box.
+        body_snippet = ""
+        try:
+            body_snippet = (resp.text or "")[:160].strip()
+        except Exception:
+            body_snippet = ""
+        if status == 429:
+            err = "Finnhub rate limit hit (HTTP 429). Try again in a minute."
+        elif status in (401, 403):
+            err = f"Finnhub auth error (HTTP {status}). Check FINNHUB_API_KEY."
+        elif status and status >= 500:
+            err = f"Finnhub server error (HTTP {status})."
+        else:
+            err = f"Finnhub returned HTTP {status}." + (f" Body: {body_snippet}" if body_snippet else "")
+        return {"rows": [], "error": err, "status_code": status}
+    except requests.exceptions.Timeout:
+        return {"rows": [], "error": "Finnhub request timed out.", "status_code": status}
+    except requests.exceptions.RequestException as re:
+        return {"rows": [], "error": f"Network error contacting Finnhub: {re}", "status_code": status}
+    except Exception as ex:
+        return {"rows": [], "error": f"{type(ex).__name__}: {ex}", "status_code": status}
+
+
+def _fetch_ticker_earnings(symbol: str) -> list[dict]:
+    """Back-compat wrapper. Returns just the rows; callers that need the error
+    context should use _fetch_ticker_earnings_raw directly."""
+    return _fetch_ticker_earnings_raw(symbol).get("rows") or []
 
 
 # ── Week helpers ──────────────────────────────────────────────────────
@@ -534,10 +572,23 @@ def _render_ticker_search(symbol: str):
     )
 
     with st.spinner(f"Fetching earnings for {symbol}..."):
-        results = _fetch_ticker_earnings(symbol)
+        fetch = _fetch_ticker_earnings_raw(symbol)
+    results = fetch.get("rows") or []
 
     if not results:
-        st.info(f"No earnings data found for **{symbol}**. Verify the ticker symbol and try again.")
+        err = fetch.get("error")
+        if err:
+            # API/network failure — give the user something actionable instead of
+            # the misleading "Verify the ticker symbol" message.
+            st.error(
+                f"Couldn't load earnings for **{symbol}** right now. {err}\n\n"
+                "This is a temporary data-source issue; please retry in a moment."
+            )
+        else:
+            st.info(
+                f"No earnings data found for **{symbol}**. "
+                "Verify the ticker symbol and try again."
+            )
         return
 
     today_str = date.today().isoformat()
