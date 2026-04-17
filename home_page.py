@@ -416,17 +416,17 @@ def render_home_page():
         <p>Powerful tools, zero learning curve. Explore any public company in a few clicks.</p>
     </div>
     <div class="features">
-        <a class="fcard" href="/?page=sankey&ticker=NVDA" target="_top">
-            <div class="ficon ic-blue">&#128256;</div>
-            <h3>Sankey Diagrams</h3>
-            <p>See exactly where revenue flows &#8212; from top-line sales through costs to net income &#8212; in one interactive visual.</p>
-            <span class="clink">Try NVDA Sankey &#8594;</span>
-        </a>
         <a class="fcard" href="/?page=charts&ticker=NVDA" target="_top">
             <div class="ficon ic-cyan">&#128200;</div>
             <h3>Income Statement Charts</h3>
             <p>Revenue, gross profit, operating &amp; net income on one chart. Toggle quarterly vs. annual, compare 1&#8211;10 years.</p>
             <span class="clink">View NVDA Charts &#8594;</span>
+        </a>
+        <a class="fcard" href="/?page=sankey&ticker=NVDA" target="_top">
+            <div class="ficon ic-blue">&#128256;</div>
+            <h3>Sankey Diagrams</h3>
+            <p>See exactly where revenue flows &#8212; from top-line sales through costs to net income &#8212; in one interactive visual.</p>
+            <span class="clink">Try NVDA Sankey &#8594;</span>
         </a>
         <a class="fcard" href="/?page=profile&ticker=NVDA" target="_top">
             <div class="ficon ic-green">&#127970;</div>
