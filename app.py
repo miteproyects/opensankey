@@ -3266,17 +3266,19 @@ with st.sidebar:
                                         return f"{name}{_star(src_key)}: n/a"
                                     return f"{name}{_star(src_key)}: ~{eta}d"
 
-                                _help_lines = [
-                                    "Filing ETA sources",
+                                _source_rows = [
                                     _row("EDGAR",   "edgar",   _e_med),
                                     _row("FMP",     "fmp",     _f_med),
                                     "Finnhub: n/a",
-                                    "★ = source used · ~ = estimate",
                                 ]
-                                _help_text = "\n".join(_help_lines)
+                                _help_text = (
+                                    "Filing ETA sources "
+                                    + " - ".join(_source_rows)
+                                    + " ★ = source used · ~ = estimate"
+                                )
                             except Exception:
                                 _help_text = (
-                                    "Filing ETA sources\n"
+                                    "Filing ETA sources "
                                     "★ = source used · ~ = estimate"
                                 )
                             st.button(
