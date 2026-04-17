@@ -2717,23 +2717,29 @@ with st.sidebar:
                 return _today_ts > q_end_ts
 
             def _q_actually_available(q, fy, fy_end):
-                """Check ACTUAL EDGAR data availability (cached), falling back
-                to the date-based heuristic on first render.
+                """Check ACTUAL EDGAR data availability (ground truth).
 
-                The sankey page caches which quarters truly have EDGAR
-                quarterly columns after the first data fetch.  Once cached,
-                we use that ground truth instead of the 45-day heuristic
-                (which is inaccurate for 10-K filings that take 60-90 days).
+                Calls get_edgar_available_qs (cached for 1h via
+                @st.cache_data) which fetches the real quarterly filings
+                from SEC EDGAR.  This is correct for both 10-Qs and 10-Ks
+                (unlike the 45-day filing-window heuristic, which is wrong
+                for 10-K/Q4 filings that take 60-90 days).
+
+                If the EDGAR fetch fails (network error, rate limit, etc.)
+                we fall back to the date heuristic so the UI still works.
                 """
                 _ticker_uc = (ticker.upper() if ticker else "")
-                _cached_ticker = st.session_state.get("_edgar_qs_ticker", "")
-                if _cached_ticker == _ticker_uc:
-                    _ckey = f"_edgar_qs_avail_{_ticker_uc}_{fy}"
-                    _cached = st.session_state.get(_ckey)
-                    if _cached is not None:
-                        return q in _cached
-                # First render — fall back to heuristic
-                return _q_data_available(q, fy, fy_end)
+                if not _ticker_uc:
+                    return _q_data_available(q, fy, fy_end)
+                try:
+                    from sankey_page import get_edgar_available_qs
+                    _avail = get_edgar_available_qs(_ticker_uc, fy, fy_end)
+                except Exception:
+                    _avail = None
+                if _avail is None:
+                    # EDGAR fetch failed — fall back to heuristic
+                    return _q_data_available(q, fy, fy_end)
+                return q in _avail
 
             def _completed_qs_in_fy(fy, fy_end):
                 """Return the number of quarters with SEC data available.
@@ -2859,74 +2865,16 @@ with st.sidebar:
                         st.session_state[f"sk_Yb_q{_qi}"] = (_default_q_prefix == "sk_Yb" and _qi == _default_q)
                     st.session_state[_init_key] = True
 
-                # ── Deselect quarters whose EDGAR data turned out missing ──
-                # On first render the heuristic might select e.g. Q4, but
-                # once the sankey page caches real availability we know Q4
-                # has no data.  Deselect those and fall back to the highest
-                # actually available Q.
-                _ticker_uc_ck = (ticker.upper() if ticker else "")
-                _cached_tkr = st.session_state.get("_edgar_qs_ticker", "")
-                if _cached_tkr == _ticker_uc_ck:
-                    _pa_fy_ck = int(st.session_state.get("sk_pa", str(_cur_fy)))
-                    _pb_fy_ck = _pa_fy_ck - 1
-                    _any_deselected = False
-                    for _qi in range(1, 5):
-                        # Period A quarters
-                        if st.session_state.get(f"sk_Ya_q{_qi}", False):
-                            if not _q_actually_available(_qi, _pa_fy_ck, _fy_m_sk):
-                                st.session_state[f"sk_Ya_q{_qi}"] = False
-                                _any_deselected = True
-                        # Period B quarters
-                        if st.session_state.get(f"sk_Yb_q{_qi}", False):
-                            if not _q_actually_available(_qi, _pb_fy_ck, _fy_m_sk):
-                                st.session_state[f"sk_Yb_q{_qi}"] = False
-                                _any_deselected = True
-                    # Ensure at least one Q stays selected
-                    if _any_deselected:
-                        _has_any = any(
-                            st.session_state.get(f"sk_Ya_q{x}", False) or
-                            st.session_state.get(f"sk_Yb_q{x}", False)
-                            for x in range(1, 5)
-                        )
-                        if not _has_any:
-                            # Select highest actually available Q in Period A
-                            for _qi in range(4, 0, -1):
-                                if _q_actually_available(_qi, _pa_fy_ck, _fy_m_sk):
-                                    st.session_state[f"sk_Ya_q{_qi}"] = True
-                                    break
-                            else:
-                                # No Q available in Period A — try previous year
-                                for _qi in range(4, 0, -1):
-                                    if _q_actually_available(_qi, _pb_fy_ck, _fy_m_sk):
-                                        st.session_state[f"sk_Yb_q{_qi}"] = True
-                                        break
+                # Note: correction pass removed.  _q_actually_available now
+                # consults EDGAR ground truth on every call (cached via
+                # @st.cache_data), so the initial default-Q picker above
+                # already chooses a filed quarter — nothing to correct.
 
-                # ── Detect Period A year change ──
-                # When user switches to a year with no available Qs (e.g. 2026),
-                # the previously selected sk_Ya Qs become invalid.  Migrate them
-                # to sk_Yb so they stay selected (they now represent prev year).
-                _prev_pa_key = "_sk_prev_pa"
-                _cur_pa = st.session_state.get("sk_pa", str(_cur_fy))
-                _prev_pa = st.session_state.get(_prev_pa_key, _cur_pa)
-                if _cur_pa != _prev_pa:
-                    _cq_new = _completed_qs_in_fy(int(_cur_pa), _fy_m_sk)
-                    if _cq_new == 0:
-                        # New year has no data — move sk_Ya selections → sk_Yb
-                        for _qi in range(1, 5):
-                            if st.session_state.get(f"sk_Ya_q{_qi}", False):
-                                st.session_state[f"sk_Yb_q{_qi}"] = True
-                                st.session_state[f"sk_Ya_q{_qi}"] = False
-                    else:
-                        # New year HAS data — reverse-migrate sk_Yb → sk_Ya
-                        # so quarters map to the selected year, not year-1
-                        for _qi in range(1, 5):
-                            if st.session_state.get(f"sk_Yb_q{_qi}", False):
-                                if _qi <= _cq_new:
-                                    # Quarter is available in new year → move to sk_Ya
-                                    st.session_state[f"sk_Ya_q{_qi}"] = True
-                                    st.session_state[f"sk_Yb_q{_qi}"] = False
-                # Always persist current Period A so next rerun can detect changes
-                st.session_state[_prev_pa_key] = _cur_pa
+                # Note: Period A year-change auto-migration removed.
+                # Previously we moved Q selections between sk_Ya and sk_Yb
+                # whenever Period A's year changed — this made the compare
+                # column (Period B) drift around behind the user's back.
+                # Leave the user's selections exactly as they are.
 
                 # Read current toggle state
                 _qa_nums = sorted([q for q in range(1, 5) if st.session_state.get(f"sk_Ya_q{q}", False)])

@@ -3208,6 +3208,76 @@ def _fetch_sankey_data(ticker: str, quarterly: bool = False):
         return pd.DataFrame(), pd.DataFrame(), {"shortName": ticker}
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_edgar_available_qs_map(ticker: str, fy_end: int):
+    """Return a dict {fiscal_year: set_of_qs_with_data} for the ticker's
+    entire EDGAR history.
+
+    This is the ground-truth availability check used by the sidebar Q
+    selector to decide the default quarter.  It bypasses the 45-day
+    filing-window heuristic entirely, so it's correct for both 10-Qs
+    (Q1-Q3) and 10-Ks (Q4, which take 60-90 days).
+
+    The whole map is built once (per ticker+fy_end combo, cached 1h)
+    because the sidebar probes many fiscal years when building the
+    year list and finding the default Q.
+
+    Returns:
+        dict[int, set[int]]  – mapping FY → set of filed Qs
+        None                 – fetch/build failed; caller should fall
+                               back to the date-based heuristic.
+    """
+    try:
+        if not ticker:
+            return None
+        cik = _ticker_to_cik(ticker)
+        if not cik:
+            return None
+        facts = _fetch_edgar_facts(cik)
+        qtr_income = _edgar_build_df(
+            facts, _XBRL_INCOME_TAGS,
+            form_filter="10-Q", quarterly_income=True,
+        )
+        if qtr_income is None or qtr_income.empty:
+            return {}
+        # Probe every FY present in the column dates (±1 year buffer)
+        years = set()
+        for c in qtr_income.columns:
+            try:
+                years.add(int(pd.Timestamp(c).year))
+            except Exception:
+                pass
+        if not years:
+            return {}
+        # fy labels can extend ±1 beyond calendar years because of fy_end
+        probe_fys = set()
+        for y in years:
+            probe_fys.update([y - 1, y, y + 1])
+        result = {}
+        for fy in probe_fys:
+            avail = set()
+            for q in range(1, 5):
+                s, _ = _aggregate_partial_year(qtr_income, fy, [q], fy_end, False)
+                if s is not None:
+                    avail.add(q)
+            if avail:
+                result[fy] = avail
+        return result
+    except Exception:
+        return None
+
+
+def get_edgar_available_qs(ticker: str, fy: int, fy_end: int):
+    """Thin wrapper returning the set of filed Qs for a single FY.
+    Uses the cached `get_edgar_available_qs_map`.  Returns None if the
+    underlying fetch failed, else a (possibly empty) set of ints.
+    """
+    m = get_edgar_available_qs_map(ticker, fy_end)
+    if m is None:
+        return None
+    return m.get(fy, set())
+
+
 def _inject_drag_persist_js(ticker, view):
     """Inject JS that:
     1. Saves node Y positions to localStorage after user drags a node.
@@ -4911,26 +4981,11 @@ def render_sankey_page():
             _raw_qtr_income_df = income_df.copy() if income_df is not None else None
             _raw_qtr_balance_df = balance_df.copy() if balance_df is not None else None
 
-            # ── Cache actual EDGAR Q availability for sidebar Q selector ──
-            # The sidebar uses a date-based heuristic that can be wrong (e.g.
-            # HOFT Q4 = 10-K filing, takes 60-90 days, not 45).  After we
-            # have the real quarterly DataFrame we know exactly which
-            # quarters have EDGAR data.  Store that in session state so the
-            # Q buttons disable quarters with no actual data.
-            _ticker_uc = ticker.upper() if ticker else ""
-            for _chk_fy in set([_fy_a, _fy_b, _fy_a - 1, _fy_b - 1]):
-                _ckey = f"_edgar_qs_avail_{_ticker_uc}_{_chk_fy}"
-                _avail_set = set()
-                if _raw_qtr_income_df is not None and not _raw_qtr_income_df.empty:
-                    for _qc in range(1, 5):
-                        _ser_chk, _ = _aggregate_partial_year(
-                            _raw_qtr_income_df, _chk_fy, [_qc], _fy_end, False
-                        )
-                        if _ser_chk is not None:
-                            _avail_set.add(_qc)
-                st.session_state[_ckey] = _avail_set
-            # Also store the ticker so app.py knows which ticker's cache to read
-            st.session_state["_edgar_qs_ticker"] = _ticker_uc
+            # Note: the old session_state availability cache populated here
+            # has been replaced by get_edgar_available_qs() (cached via
+            # @st.cache_data) which the sidebar calls directly — ground
+            # truth is now consulted BEFORE the sidebar renders, so no
+            # post-hoc correction is needed.
 
             # ── Track & add derived income rows for audit panel ──
             _derived_income_rows = {}  # row_name → footnote text
