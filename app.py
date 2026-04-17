@@ -3176,11 +3176,12 @@ with st.sidebar:
                     if not _avail:
                         _ended = _q_has_ended(_qi_i, _fy_i, _fy_m_sk)
                         _heuristic_says_avail = _q_data_available(_qi_i, _fy_i, _fy_m_sk)
+                        _base_lbl = f"FY{_fy_i} - " + _q_btn_label(_qi_i, _fy_i)
                         if _ended and _heuristic_says_avail:
                             # Quarter ended, heuristic says filing should be done,
                             # but actual EDGAR data is missing → "Not yet filed"
                             st.button(
-                                f"FY{_fy_i} - Q{_qi_i} — Not yet filed",
+                                f"{_base_lbl} — Not yet filed",
                                 key=_bid, use_container_width=True, disabled=True,
                                 help=f"Quarter ended but SEC filing data not yet available on EDGAR",
                             )
@@ -3188,7 +3189,7 @@ with st.sidebar:
                             # Quarter ended, within the normal filing window
                             _days = _days_until_q(_qi_i, _fy_i)
                             st.button(
-                                f"FY{_fy_i} - Q{_qi_i} — filing ~{_days}d",
+                                f"{_base_lbl} — filing ~{_days}d",
                                 key=_bid, use_container_width=True, disabled=True,
                                 help=f"Quarter ended, SEC filing pending (~45 days after quarter end) — [subscribe](https://quartercharts.com/pricing) to get notified",
                             )
@@ -3196,7 +3197,7 @@ with st.sidebar:
                             # Quarter hasn't ended yet
                             _days = _days_until_q(_qi_i, _fy_i)
                             st.button(
-                                f"FY{_fy_i} - Q{_qi_i} — in {_days}d",
+                                f"{_base_lbl} — in {_days}d",
                                 key=_bid, use_container_width=True, disabled=True,
                                 help=_tip,
                             )
