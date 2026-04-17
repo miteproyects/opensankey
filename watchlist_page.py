@@ -745,23 +745,82 @@ def render_watchlist_page():
             else:
                 candidates = [ticker_upper]
 
-            added = False
-            for candidate in candidates:
-                if candidate in st.session_state.watchlist_tickers:
-                    st.info(f"{candidate} is already in your watchlist.")
-                    added = True
-                    break
+            # ── Plan gate ────────────────────────────────────────────────
+            # Free-tier (and any other restricted-access plan) cannot add
+            # tickers outside their plan's allowed_tickers set. Same source
+            # of truth as the charts/sankey/dashboard gate in app.py.
+            # Admin user (info@quartercharts.com) bypasses the check.
+            try:
+                from database import get_user_plan_access as _wl_upa
+                _wl_uid = (st.session_state.get("user_id")
+                           if st.session_state.get("logged_in") else None)
+                _wl_access = _wl_upa(_wl_uid)
+                _wl_allowed = _wl_access.get("allowed_tickers")
+                if st.session_state.get("user_email") == "info@quartercharts.com":
+                    _wl_allowed = None  # Admin bypass
+            except Exception:
+                _wl_allowed = None  # Fail-open on any lookup error
 
-                result = _validate_ticker(candidate)
-                if result:
-                    st.session_state.watchlist_tickers.insert(0, candidate)
-                    _save_watchlist(st.session_state.watchlist_tickers)
-                    st.rerun()
-                    added = True
-                    break
+            plan_blocked = False
+            if _wl_allowed is not None:
+                _allowed_candidates = [c for c in candidates if c in _wl_allowed]
+                if not _allowed_candidates:
+                    plan_blocked = True
+                else:
+                    candidates = _allowed_candidates
 
-            if not added:
-                st.warning(f"Could not find '{query}'. Try using the ticker symbol (e.g. KO, AAPL, MSFT).")
+            if plan_blocked:
+                # In-page banner (not a browser popup, no permission prompt
+                # needed). Links to /?page=pricing so the user can upgrade.
+                _blocked_label = candidates[0] if candidates else query.upper()
+                st.markdown(
+                    f"""
+<div style="margin:12px 0;padding:16px 20px;
+     background:linear-gradient(135deg,#7c2d12 0%,#9a3412 100%);
+     border:1px solid #c2410c;border-radius:12px;
+     color:#ffedd5;font-family:Inter,system-ui,sans-serif;
+     display:flex;align-items:center;justify-content:space-between;
+     gap:16px;flex-wrap:wrap;">
+  <div style="min-width:0;flex:1 1 260px;">
+    <div style="font-weight:700;font-size:0.95rem;margin-bottom:4px;">
+      Upgrade required to add <strong>{_blocked_label}</strong>
+    </div>
+    <div style="font-size:0.85rem;color:#fed7aa;">
+      Your current plan only includes a limited set of tickers.
+      Upgrade to add any company to your watchlist.
+    </div>
+  </div>
+  <a href="/?page=pricing" target="_self"
+     style="display:inline-block;padding:9px 20px;
+            background:linear-gradient(135deg,#3b82f6,#a855f7);
+            color:#fff;font-weight:700;font-size:0.85rem;
+            text-decoration:none;border-radius:8px;
+            box-shadow:0 4px 12px rgba(59,130,246,0.35);
+            white-space:nowrap;">
+    See plans &rarr;
+  </a>
+</div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                added = False
+                for candidate in candidates:
+                    if candidate in st.session_state.watchlist_tickers:
+                        st.info(f"{candidate} is already in your watchlist.")
+                        added = True
+                        break
+
+                    result = _validate_ticker(candidate)
+                    if result:
+                        st.session_state.watchlist_tickers.insert(0, candidate)
+                        _save_watchlist(st.session_state.watchlist_tickers)
+                        st.rerun()
+                        added = True
+                        break
+
+                if not added:
+                    st.warning(f"Could not find '{query}'. Try using the ticker symbol (e.g. KO, AAPL, MSFT).")
 
     # Show limit info
     tickers = st.session_state.watchlist_tickers
