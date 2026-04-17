@@ -3463,6 +3463,9 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     _raw_neg_oi_cur     = operating_inc
     _raw_neg_pretax_cur = pretax_income
     _raw_neg_ni_cur     = net_income
+    # Tax is stored as abs() at the top — read the signed value fresh so we can
+    # detect tax benefits (negative tax provision) in the annotation frame.
+    _raw_neg_tax_cur    = _safe(income_df, "Tax Provision")
 
     # --- Previous period values for % change labels ---
     p_revenue       = _safe_prev(income_df, "Total Revenue")
@@ -3487,6 +3490,7 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     _raw_neg_oi_prev     = _safe_prev(income_df, "Operating Income")
     _raw_neg_pretax_prev = _safe_prev(income_df, "Pretax Income") or _safe_prev(income_df, "Income Before Tax")
     _raw_neg_ni_prev     = _safe_prev(income_df, "Net Income")
+    _raw_neg_tax_prev    = _safe_prev(income_df, "Tax Provision")
 
     # Derive missing previous-period residuals
     if p_other_opex == 0 and p_gross_profit > 0 and p_operating_inc > 0:
@@ -4122,8 +4126,27 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
     ]
     _negatives = [(n, c, p) for (n, c, p) in _neg_candidates if c is not None and c < 0]
 
-    if _negatives:
-        _neg_lines = ["<b style='color:#7f1d1d'>\u26A0  Negative Accounts</b>"]
+    # Tax benefit (negative Tax Provision) is a GOOD thing for the company —
+    # handle it separately so it gets green styling instead of red.
+    _tax_benefit = None
+    if _raw_neg_tax_cur is not None and _raw_neg_tax_cur < 0:
+        _tax_benefit = (_raw_neg_tax_cur, _raw_neg_tax_prev)
+
+    if _negatives or _tax_benefit:
+        # Frame header / border / bg adapts to what's inside.
+        if _negatives:
+            _frame_header = "<b style='color:#7f1d1d'>\u26A0  Negative Accounts</b>"
+            _frame_bg = "rgba(254, 242, 242, 0.94)"
+            _frame_border = "#fca5a5"
+        else:
+            # Tax benefit only → green frame, no warning icon.
+            _frame_header = "<b style='color:#14532d'>Tax Benefit</b>"
+            _frame_bg = "rgba(240, 253, 244, 0.94)"
+            _frame_border = "#86efac"
+
+        _neg_lines = [_frame_header]
+
+        # Negative accounts (red)
         for _nm, _cv, _pv in _negatives:
             _cur_str = _fmt_signed(_cv)
             if _pv is not None and _pv != 0:
@@ -4135,25 +4158,53 @@ def _build_income_sankey(income_df, info, compare_label="YoY", same_period=False
                 # Improving (delta >= 0 means less negative) → green arrow
                 _yoy_color = "#16a34a" if _delta >= 0 else "#dc2626"
                 _yoy_html = (f"  <span style='color:{_yoy_color};font-size:10px'>"
-                             f"{_arrow}{_pct:+.1f}% · {_delta_str}</span>")
+                             f"{_arrow}{_pct:+.1f}% \u00b7 {_delta_str}</span>")
             else:
                 _yoy_html = ""
             _neg_lines.append(
                 f"<span style='color:#334155'>{_nm}:</span> "
                 f"<b style='color:#dc2626'>{_cur_str}</b>{_yoy_html}"
             )
+
+        # Tax benefit (green) — shown as a positive dollar value since it's a credit
+        if _tax_benefit is not None:
+            _cv, _pv = _tax_benefit
+            _cur_str = _fmt(abs(_cv))  # shown as $5M, not −$5M (it's a benefit)
+            if _pv is not None and _pv != 0:
+                # For a tax benefit, MORE negative = better for the company.
+                # So "company improvement" = prev - cur (flipped sign).
+                _delta_company = _pv - _cv
+                _pct = (_delta_company / abs(_pv)) * 100
+                _arrow = "\u2191" if _delta_company >= 0 else "\u2193"
+                _delta_sign = "+" if _delta_company >= 0 else "\u2212"
+                _delta_str = f"{_delta_sign}{_fmt(abs(_delta_company))}"
+                _yoy_color = "#16a34a" if _delta_company >= 0 else "#dc2626"
+                _yoy_html = (f"  <span style='color:{_yoy_color};font-size:10px'>"
+                             f"{_arrow}{_pct:+.1f}% \u00b7 {_delta_str}</span>")
+            else:
+                _yoy_html = ""
+            # Divider line if we already have negatives above
+            if _negatives:
+                _neg_lines.append(
+                    "<span style='color:#94a3b8;font-size:9px'>\u2500\u2500\u2500\u2500\u2500\u2500</span>"
+                )
+            _neg_lines.append(
+                f"<span style='color:#334155'>Tax Benefit:</span> "
+                f"<b style='color:#16a34a'>{_cur_str}</b>{_yoy_html}"
+            )
+
         _neg_html = "<br>".join(_neg_lines)
         fig.add_annotation(
             xref="paper", yref="paper",
             x=0.995, y=0.995, xanchor="right", yanchor="top",
             text=_neg_html,
             showarrow=False,
-            bgcolor="rgba(254, 242, 242, 0.94)",
-            bordercolor="#fca5a5",
+            bgcolor=_frame_bg,
+            bordercolor=_frame_border,
             borderwidth=1,
             borderpad=8,
             font=dict(size=11, family="Inter, -apple-system, Helvetica Neue, Arial, sans-serif",
-                      color="#7f1d1d"),
+                      color="#1e293b"),
             align="left",
         )
 
