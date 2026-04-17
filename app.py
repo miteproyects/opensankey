@@ -2194,7 +2194,7 @@ with st.sidebar:
 
     ticker = st.session_state.ticker
 
-    if current_page not in ("profile", "home", "earnings"):
+    if current_page not in ("profile", "home", "earnings", "watchlist"):
 
         info = get_company_info(ticker)
 
