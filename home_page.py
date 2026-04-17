@@ -89,7 +89,27 @@ def render_home_page():
         else:
             amt_html = (f'<div class="amt">${price_monthly:.0f}</div>'
                         '<div class="per">/ month</div>')
-        items = "".join(f"<li>{f}</li>" for f in feats)
+        # Auto-prepend "Tickers available: …" for plans with a limited pool.
+        # Mirrors pricing_page.py: plans with allowed_tickers != "ALL" (and not
+        # empty) pull the live admin-managed list via get_ticker_pool(), so the
+        # NSFQ "🎯 Manage Available Tickers" tab is the single source of truth.
+        _tk_html = ""
+        _allowed_tk = (plan.get("allowed_tickers", "") or "").strip().upper()
+        if _allowed_tk and _allowed_tk != "ALL":
+            try:
+                from database import get_ticker_pool as _gtp
+                _pool = _gtp()
+            except Exception:
+                _pool = [t.strip() for t in _allowed_tk.split(",") if t.strip()]
+            if _pool:
+                if len(_pool) > 1:
+                    _tk_line = (f"Tickers available: {', '.join(_pool[:-1])} "
+                                f"&amp; {_pool[-1]}")
+                else:
+                    _tk_line = f"Tickers available: {_pool[0]}"
+                _tk_html = f"<li>{_tk_line}</li>"
+
+        items = _tk_html + "".join(f"<li>{f}</li>" for f in feats)
         pop_class = " pop" if is_popular else ""
         return (
             f'<div class="pcard{pop_class}">'
