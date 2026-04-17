@@ -480,22 +480,59 @@ def render_eta_info_html(eta: dict, css_class_prefix: str = "qc-eta") -> str:
 
     # Inline event handlers position the popover with position:fixed relative to
     # the viewport — impossible for any ancestor overflow:hidden to clip it.
-    # We also bind on touch/click so mobile works, and keep it open while the
-    # pointer is over either the trigger or the popover itself.
-    pos_handler = (
-        "window.__qcEtaShow&&window.__qcEtaShow(this)"
+    # Everything runs inline per-element — NO global init step is required, so
+    # there's no way for this to silently fail if a <script>/<img onerror>
+    # bootstrap doesn't run.
+    # The sidebar attribute selector uses &quot; so it survives the double-quoted
+    # HTML attribute boundary below.
+    show_js = (
+        "var w=this,p=w.querySelector('.qc-eta-pop');"
+        "if(!p)return;"
+        "if(w.__qct){clearTimeout(w.__qct);w.__qct=null;}"
+        "p.classList.add('qc-eta-pop-open');"
+        "var i=w.querySelector('.qc-eta-info')||w;"
+        "var r=i.getBoundingClientRect();"
+        "var sb=!!w.closest('section[data-testid=&quot;stSidebar&quot;]');"
+        "var pw=p.offsetWidth||(sb?220:300);"
+        "var ph=p.offsetHeight||140;"
+        "var below=(r.bottom+ph+8)<window.innerHeight;"
+        "var t=below?(r.bottom+8):Math.max(8,r.top-ph-8);"
+        "var l=sb?Math.max(8,r.right-pw):Math.min(window.innerWidth-pw-8,Math.max(8,r.left-10));"
+        "p.style.top=Math.round(t)+'px';"
+        "p.style.left=Math.round(l)+'px';"
+        "p.style.right='auto';"
+        "p.style.bottom='auto';"
     )
-    hide_handler = (
-        "window.__qcEtaHide&&window.__qcEtaHide(this)"
+    hide_js = (
+        "var w=this,p=w.querySelector('.qc-eta-pop');"
+        "if(!p)return;"
+        "if(w.__qct)clearTimeout(w.__qct);"
+        "w.__qct=setTimeout(function(){p.classList.remove('qc-eta-pop-open');},280);"
     )
+    # When the pointer enters the popover itself we must CANCEL the pending
+    # hide, otherwise moving mouse from trigger → popover closes it mid-read.
+    pop_enter_js = (
+        "var w=this.parentElement;"
+        "if(w&&w.__qct){clearTimeout(w.__qct);w.__qct=null;}"
+    )
+    pop_leave_js = (
+        "var w=this.parentElement,p=this;"
+        "if(!w)return;"
+        "if(w.__qct)clearTimeout(w.__qct);"
+        "w.__qct=setTimeout(function(){p.classList.remove('qc-eta-pop-open');},280);"
+    )
+    # onclick stops event from bubbling so the (hypothetical) click-outside
+    # closer never sees it; pointer stays inside the trigger.
+    click_js = show_js + "if(event){event.stopPropagation();}"
     return (
         f'<span class="{css_class_prefix}-wrap" tabindex="0" '
-        f'onmouseenter="{pos_handler}" onfocusin="{pos_handler}" '
-        f'onmouseleave="{hide_handler}" onfocusout="{hide_handler}" '
-        f'ontouchstart="{pos_handler}">'
+        f'onmouseenter="{show_js}" onfocusin="{show_js}" '
+        f'onmouseleave="{hide_js}" onfocusout="{hide_js}" '
+        f'ontouchstart="{click_js}" onclick="{click_js}">'
         f'<span class="{css_class_prefix}-primary">{primary}</span>'
         f'<span class="{css_class_prefix}-info" aria-label="Filing ETA sources">&#9432;</span>'
-        f'<span class="{css_class_prefix}-pop" role="tooltip">'
+        f'<span class="{css_class_prefix}-pop" role="tooltip" '
+        f'onmouseenter="{pop_enter_js}" onmouseleave="{pop_leave_js}">'
         f'<span class="{css_class_prefix}-pop-title">Filing ETA sources</span>'
         f'{body}'
         f'<span class="{css_class_prefix}-pop-note">\u2605 = source used &middot; ~ = estimate</span>'
@@ -503,11 +540,12 @@ def render_eta_info_html(eta: dict, css_class_prefix: str = "qc-eta") -> str:
     )
 
 
-# Reusable CSS + JS block — include once per page.
-# We use position: fixed so no ancestor's overflow:hidden can clip the popover.
-# A tiny init script (installed via <img onerror>, since <script> tags inside
-# st.markdown(unsafe_allow_html=True) aren't executed by browsers' innerHTML
-# parsing rules) sets window.__qcEtaShow / __qcEtaHide on first render.
+# Reusable CSS block — include once per page.
+# Popover is position:fixed (viewport-anchored) so no ancestor overflow:hidden
+# can clip it. All event wiring is inline on the element itself (see
+# render_eta_info_html), so we avoid the <script>/<img onerror> bootstrap trick
+# entirely — nothing to fail silently. No :has() / no outer overflow overrides,
+# so sidebar + column scrolling stays intact.
 ETA_INFO_CSS = """
 <style>
 .qc-eta-wrap {
@@ -515,6 +553,7 @@ ETA_INFO_CSS = """
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  cursor: default;
 }
 .qc-eta-primary { color: #fbbf24; font-weight: 600; }
 .qc-eta-info {
@@ -528,9 +567,8 @@ ETA_INFO_CSS = """
 }
 .qc-eta-info:hover { background: rgba(147,197,253,0.18); color: #bfdbfe; }
 
-/* Popover uses position:fixed — viewport-anchored, so no ancestor clips it.
-   Coordinates are set dynamically by the show handler (top/left in pixels).
-   Default hidden state; the .qc-eta-pop-open class is added on show. */
+/* Popover: viewport-fixed. Initial coords don't matter — JS sets top/left
+   every time the trigger fires show. Open state is toggled by class. */
 .qc-eta-pop {
   visibility: hidden; opacity: 0; pointer-events: none;
   position: fixed; z-index: 2147483000;
@@ -551,14 +589,11 @@ ETA_INFO_CSS = """
 .qc-eta-na .qc-eta-val { color: #475569; font-weight: 400; }
 .qc-eta-pop-note { display: block; margin-top: 8px; color: #64748b; font-size: 0.68rem; font-style: italic; }
 
-/* Tighter variant inside Streamlit's native sidebar — narrower and with
-   smaller text to match the compact sidebar rhythm. */
-section[data-testid="stSidebar"] .qc-eta-pop,
-.qc-eta-wrap.qc-eta-wrap-narrow + .qc-eta-pop {
+/* Tighter popover inside Streamlit's native sidebar. */
+section[data-testid="stSidebar"] .qc-eta-pop {
   min-width: 200px; max-width: 240px;
   padding: 8px 10px;
   font-size: 0.72rem;
 }
 </style>
-<img src="x" alt="" style="display:none" onerror="(function(){if(window.__qcEtaInit)return;window.__qcEtaInit=1;var PAD=8,POP_W=300,DELAY=180;function place(wrap){var pop=wrap.querySelector('.qc-eta-pop');if(!pop)return;var info=wrap.querySelector('.qc-eta-info')||wrap;var r=info.getBoundingClientRect();var vw=window.innerWidth,vh=window.innerHeight;var inSidebar=!!wrap.closest('section[data-testid=&quot;stSidebar&quot;]');pop.style.position='fixed';var pw=pop.offsetWidth||(inSidebar?220:POP_W);var ph=pop.offsetHeight||120;var placeAbove=(r.bottom+ph+PAD>vh)&&(r.top-ph-PAD>=0);var top=placeAbove?(r.top-ph-PAD):(r.bottom+PAD);var left;if(inSidebar){left=Math.max(PAD,r.right-pw);}else{left=r.left-8;left=Math.min(left,vw-pw-PAD);left=Math.max(PAD,left);}pop.style.top=Math.round(top)+'px';pop.style.left=Math.round(left)+'px';pop.style.right='auto';pop.style.bottom='auto';}window.__qcEtaShow=function(wrap){var pop=wrap.querySelector('.qc-eta-pop');if(!pop)return;if(wrap.__qcT){clearTimeout(wrap.__qcT);wrap.__qcT=null;}pop.classList.add('qc-eta-pop-open');place(wrap);requestAnimationFrame(function(){place(wrap);});};window.__qcEtaHide=function(wrap){var pop=wrap.querySelector('.qc-eta-pop');if(!pop)return;if(wrap.__qcT)clearTimeout(wrap.__qcT);wrap.__qcT=setTimeout(function(){pop.classList.remove('qc-eta-pop-open');},DELAY);};document.addEventListener('click',function(e){if(e.target.closest('.qc-eta-wrap'))return;document.querySelectorAll('.qc-eta-pop-open').forEach(function(p){p.classList.remove('qc-eta-pop-open');});},true);var reposition=function(){document.querySelectorAll('.qc-eta-pop-open').forEach(function(p){var w=p.parentElement;if(w)place(w);});};window.addEventListener('scroll',reposition,true);window.addEventListener('resize',reposition);})();this.remove();">
 """
