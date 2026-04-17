@@ -993,8 +993,11 @@ if _qp_page in ("home", "profile", "charts", "earnings", "watchlist", "sankey", 
     st.session_state.page = _qp_page
 
 # ── Ticker access gating on page load ──
-# If the page shows ticker data (charts, sankey, earnings, etc.) check access
-if _qp_ticker and _qp_page in ("charts", "sankey", "earnings", "dashboard"):
+# Only gate pages whose content is ticker-specific. Earnings Calendar and
+# Watchlist are market-wide / per-user pages that don't depend on the
+# URL's ticker param, so they must always stay reachable regardless of
+# whether the current ticker is on the user's plan.
+if _qp_ticker and _qp_page in ("charts", "sankey", "dashboard"):
     try:
         from database import get_user_plan_access as _gate_upa
         _gate_uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
