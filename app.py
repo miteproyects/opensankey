@@ -3526,11 +3526,11 @@ with st.sidebar:
                         if _eta_d:
                             _days_until = (_eta_d - _today_d).days
                             if _days_until <= 0:
-                                _eta_text = "filing any day"
+                                _eta_text = "~ filing any day"
                             elif _days_until == 1:
-                                _eta_text = "filing in 1d"
+                                _eta_text = "~ filing in 1d"
                             else:
-                                _eta_text = f"filing in {_days_until}d"
+                                _eta_text = f"~ filing in {_days_until}d"
                             _filing_eta_html = (
                                 f' <span style="color:#fbbf24;font-weight:500;">'
                                 f'&middot; {_eta_text}</span>'
