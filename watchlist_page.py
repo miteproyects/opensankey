@@ -45,6 +45,20 @@ def _save_name_cache(cache: dict):
         pass
 
 
+def _default_watchlist_from_pool() -> list:
+    """Return the admin-managed ticker pool (NSFQ → 'Manage Available Tickers')
+    as the default watchlist. Falls back to a hard-coded list if the DB is
+    unreachable, so the page always renders something sensible."""
+    try:
+        from database import get_ticker_pool
+        pool = get_ticker_pool() or []
+        if pool:
+            return list(pool)[:_MAX_COMPANIES]
+    except Exception:
+        pass
+    return ["NVDA", "AAPL", "GOOGL", "MSFT", "AMZN", "TSM", "META", "AVGO", "TSLA"]
+
+
 def _load_watchlist() -> list:
     """Load watchlist tickers from disk."""
     if os.path.exists(_WATCHLIST_FILE):
@@ -55,7 +69,7 @@ def _load_watchlist() -> list:
                 return data[:_MAX_COMPANIES]
         except Exception:
             pass
-    return ["NVDA", "AAPL", "GOOGL", "MSFT", "AMZN", "TSM", "META", "AVGO", "TSLA"]
+    return _default_watchlist_from_pool()
 
 
 def _save_watchlist(tickers: list):
@@ -754,11 +768,19 @@ def render_watchlist_page():
                     )
 
     # ── Quick-add popular tickers ─────────────────────────────────────────
-    popular = [
-        "NVDA", "AAPL", "GOOGL", "MSFT", "AMZN", "META", "TSLA",
-        "TSM", "AVGO", "JPM", "V", "WMT", "NFLX", "ADBE",
-        "KO", "PEP", "DIS", "NKE", "CRM", "AMD",
-    ]
+    # Source = admin-managed ticker pool (NSFQ → "Manage Available Tickers"),
+    # so updates there propagate here automatically.
+    try:
+        from database import get_ticker_pool
+        popular = list(get_ticker_pool() or [])
+    except Exception:
+        popular = []
+    if not popular:
+        popular = [
+            "NVDA", "AAPL", "GOOGL", "MSFT", "AMZN", "META", "TSLA",
+            "TSM", "AVGO", "JPM", "V", "WMT", "NFLX", "ADBE",
+            "KO", "PEP", "DIS", "NKE", "CRM", "AMD",
+        ]
     available = [t for t in popular if t not in tickers]
 
     if available and count < _MAX_COMPANIES:
