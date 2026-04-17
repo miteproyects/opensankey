@@ -493,15 +493,16 @@ def render_eta_info_html(eta: dict, css_class_prefix: str = "qc-eta") -> str:
 # Reusable CSS block — include once per page.
 ETA_INFO_CSS = """
 <style>
-/* Force Streamlit's sidebar + block containers to allow the popover to escape.
-   Without these overrides the popover gets clipped by overflow:hidden ancestors. */
-section[data-testid="stSidebar"],
-section[data-testid="stSidebar"] > div,
-section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"],
-section[data-testid="stSidebar"] [data-testid="stVerticalBlock"],
-section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+/* Only the tight ancestor chain around the popover is overridden. We DO NOT
+   touch the outer sidebar or column scroll containers, so scrolling stays
+   intact. :has() scopes the override strictly to elements containing a
+   popover trigger. */
 [data-testid="stMarkdownContainer"]:has(.qc-eta-wrap),
-[data-testid="stVerticalBlock"]:has(.qc-eta-wrap) {
+[data-testid="stMarkdownContainer"]:has(.qc-eta-wrap) > div,
+[data-testid="stVerticalBlock"]:has(.qc-eta-wrap),
+[data-testid="stHorizontalBlock"]:has(.qc-eta-wrap),
+[data-testid="column"]:has(.qc-eta-wrap),
+[data-testid="column"]:has(.qc-eta-wrap) > div {
   overflow: visible !important;
 }
 
@@ -524,10 +525,8 @@ section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
 }
 .qc-eta-info:hover { background: rgba(147,197,253,0.18); color: #bfdbfe; }
 
-/* Popover opens BELOW + to the RIGHT of the ⓘ icon so it extends into the
-   main content area (always visible) instead of back across the narrow
-   sidebar column. z-index is set to a very large value so it sits above
-   every Streamlit-managed container. */
+/* Default popover (earnings page / main content) — opens below-right with
+   comfortable width because there's plenty of horizontal room. */
 .qc-eta-pop {
   visibility: hidden; opacity: 0; pointer-events: none;
   position: absolute; z-index: 2147483000;
@@ -551,14 +550,23 @@ section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
 .qc-eta-na .qc-eta-val { color: #475569; font-weight: 400; }
 .qc-eta-pop-note { display: block; margin-top: 8px; color: #64748b; font-size: 0.68rem; font-style: italic; }
 
-/* When the popover is inside a sidebar where space to the right is limited,
-   flip it to open UP-AND-RIGHT from the icon so the body never falls outside
-   the sidebar's horizontal band. */
+/* Sidebar-specific overrides:
+   • Keep the popover inside the sidebar's horizontal band (narrower max-width,
+     anchored to the left edge of the ⓘ icon) so it never needs to escape the
+     scroll container.
+   • Smaller min-width + tighter padding fit in a ~260px sidebar.
+   • Opens UP-AND-LEFT so it doesn't drop below the box and never pushes other
+     sidebar content. */
 section[data-testid="stSidebar"] .qc-eta-pop {
   top: auto;
   bottom: calc(100% + 6px);
-  left: 0;
-  right: auto;
+  left: auto;
+  right: 0;
+  min-width: 190px; max-width: 220px;
+  padding: 8px 10px;
+  font-size: 0.72rem;
 }
+section[data-testid="stSidebar"] .qc-eta-pop-title { font-size: 0.7rem; margin-bottom: 4px; }
+section[data-testid="stSidebar"] .qc-eta-pop-note { font-size: 0.62rem; margin-top: 6px; }
 </style>
 """
