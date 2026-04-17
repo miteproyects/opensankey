@@ -2796,6 +2796,24 @@ with st.sidebar:
 
             st.markdown('<p style="font-size:1.26rem;font-weight:600;color:#495057;margin:0 0 6px;">Quarter Comparison</p>', unsafe_allow_html=True)
 
+            # ── Balance Sheet mode: point-in-time snapshots → only 1 Q allowed ──
+            # Balance sheets cannot be summed across quarters (they're snapshots,
+            # not flow measurements), so when viewing the Balance Sheet Sankey
+            # we restrict the Q selector to exactly one quarter at a time.
+            _is_balance_sankey = (
+                st.session_state.get("sankey_view", "income") == "balance"
+            )
+            if _is_balance_sankey:
+                st.markdown(
+                    '<div style="font-size:0.82rem;color:#64748b;'
+                    'background:#f1f5f9;border-left:3px solid #0ea5e9;'
+                    'padding:6px 10px;border-radius:4px;margin:0 0 10px;">'
+                    'Balance sheets are point-in-time snapshots — '
+                    'select <b>1 quarter</b> at a time.'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+
             # Always use Annual mode
             st.session_state.sankey_compare_quarterly = False
             if True:
@@ -3010,6 +3028,12 @@ with st.sidebar:
                         _drop = _on_keys.pop()  # drop oldest
                         st.session_state[_drop] = False
                         _changed = True
+                # Balance Sheet mode: max 1 quarter — snapshots can't be summed.
+                # Keeps the newest selection (on_keys[0]) and drops the rest.
+                if _is_balance_sankey:
+                    while len(_on_keys) > 1:
+                        _drop = _on_keys.pop()  # oldest; keeps the newest Q ON
+                        st.session_state[_drop] = False
                 # Enforce min 1
                 if not _on_keys:
                     _sel_pa_fy2 = int(st.session_state.get("sk_pa", str(_cur_fy)))
@@ -3054,7 +3078,19 @@ with st.sidebar:
                     return " & ".join(parts)
 
                 def _toggle_q(key):
-                    """Toggle with rules: min 1, max 4, max span 3."""
+                    """Toggle with rules: min 1, max 4, max span 3.
+                    Balance Sheet mode: behaves as a radio button (max 1,
+                    turning a new Q on deselects all others)."""
+                    # Balance-sheet: radio behaviour — only 1 Q at a time.
+                    if st.session_state.get("sankey_view", "income") == "balance":
+                        if st.session_state.get(key, False):
+                            return  # clicking the already-on Q is a no-op (min 1)
+                        # Deselect every other Q, then switch this one ON
+                        for _k in list(_key_to_idx.keys()):
+                            st.session_state[_k] = False
+                        st.session_state[key] = True
+                        st.session_state.pop("_qbtn_toast", None)
+                        return
                     _was_on = st.session_state.get(key, False)
                     if _was_on:
                         # Turning OFF — enforce min 1
@@ -3117,6 +3153,12 @@ with st.sidebar:
                             f" — [subscribe](https://quartercharts.com/pricing) to get notified"
                         )
                     _on = st.session_state.get(key, False)
+                    # Balance-sheet mode: radio behaviour — click replaces
+                    # the current selection.  No blocker tooltip needed.
+                    if st.session_state.get("sankey_view", "income") == "balance":
+                        if _on:
+                            return None  # already selected
+                        return "Balance Sheet allows 1 quarter — click to switch"
                     if _on:
                         return None  # ON button — no tooltip needed
                     # OFF button — check if it CAN be turned on
