@@ -3376,6 +3376,7 @@ with st.sidebar:
             _ne_qlabel = ""
             _nef = ""
             _ds_part = ""
+            _ne = {}
             try:
                 _ne = get_next_earnings(ticker)
                 if _ne and _ne.get("date"):
@@ -3409,6 +3410,106 @@ with st.sidebar:
             except Exception:
                 pass
 
+            # ── Filing ETA: "filing in Xd" when quarter ended but 10-Q/10-K not yet filed ──
+            # Primary: median historical gap between period_end and filing_date
+            # from the quarters we already have (FMP-sourced in data_fetcher).
+            # Fallback: Finnhub next-earnings date (retrieved above as _ne).
+            _filing_eta_html = ""
+            try:
+                from datetime import date as _ddate, timedelta as _dtd
+
+                def _last_day_of_month(_y, _m):
+                    if _m == 12:
+                        return _ddate(_y, 12, 31)
+                    return _ddate(_y, _m + 1, 1) - _dtd(days=1)
+
+                _today_d = _ddate.today()
+                _fy_m = int(_fy_month) if _fy_month else 12
+                # The four fiscal-quarter-end months for this ticker
+                _qe_months = [(((_fy_m - 1) + 3 * _k) % 12) + 1 for _k in range(4)]
+                # Candidate quarter-end dates across last ~24 months
+                _cands = []
+                for _y in range(_today_d.year - 2, _today_d.year + 2):
+                    for _m in _qe_months:
+                        try:
+                            _cands.append(_last_day_of_month(_y, _m))
+                        except Exception:
+                            pass
+                _cands = [d for d in _cands if d <= _today_d]
+                if _cands:
+                    _last_qe = max(_cands)
+                    _target_iso = _last_qe.isoformat()
+                    _target_ym = _target_iso[:7]  # "YYYY-MM"
+
+                    # Try exact-date match first (period_end == last day of month),
+                    # then widen to any quarter whose period_end falls in the same
+                    # month — handles tickers like NVDA whose fiscal quarters end
+                    # on the last Sunday rather than the calendar month end.
+                    _matched = next(
+                        (q for q in _fc_quarters
+                         if (q.get("period_end") or "")[:10] == _target_iso),
+                        None,
+                    )
+                    if _matched is None:
+                        _matched = next(
+                            (q for q in _fc_quarters
+                             if (q.get("period_end") or "")[:7] == _target_ym),
+                            None,
+                        )
+                    _is_filed = bool(_matched and _matched.get("filing_date"))
+
+                    if not _is_filed:
+                        # Primary: median historical (filing_date - period_end).days
+                        _gaps = []
+                        for _q in _fc_quarters:
+                            _pe = (_q.get("period_end") or "")[:10]
+                            _fd = (_q.get("filing_date") or "")[:10]
+                            if _pe and _fd:
+                                try:
+                                    _g = (pd.Timestamp(_fd) - pd.Timestamp(_pe)).days
+                                    if 0 < _g < 180:
+                                        _gaps.append(_g)
+                                except Exception:
+                                    pass
+                        # Use the matched quarter's real period_end if available
+                        # (e.g., NVDA's last-Sunday date), else fall back to the
+                        # calendar last-day-of-month we computed.
+                        _base_pe = None
+                        if _matched and _matched.get("period_end"):
+                            try:
+                                _base_pe = pd.Timestamp(_matched["period_end"]).date()
+                            except Exception:
+                                _base_pe = None
+                        if _base_pe is None:
+                            _base_pe = _last_qe
+
+                        _eta_d = None
+                        if _gaps:
+                            _gaps.sort()
+                            _med_gap = _gaps[len(_gaps) // 2]
+                            _eta_d = _base_pe + _dtd(days=int(_med_gap))
+                        elif _ne.get("date"):
+                            # Fallback: Finnhub's next-earnings date
+                            try:
+                                _eta_d = pd.Timestamp(_ne["date"]).date()
+                            except Exception:
+                                _eta_d = None
+
+                        if _eta_d:
+                            _days_until = (_eta_d - _today_d).days
+                            if _days_until <= 0:
+                                _eta_text = "filing any day"
+                            elif _days_until == 1:
+                                _eta_text = "filing in 1d"
+                            else:
+                                _eta_text = f"filing in {_days_until}d"
+                            _filing_eta_html = (
+                                f' <span style="color:#fbbf24;font-weight:500;">'
+                                f'&middot; {_eta_text}</span>'
+                            )
+            except Exception as _eta_err:
+                print(f"[Sidebar] Filing ETA error: {_eta_err}")
+
             # ── Build fiscal calendar 2x2 grid ──
             _fc_grid = ""
             _pairs = [(1, 3), (2, 4)]  # rows: Q1·Q3, Q2·Q4
@@ -3441,7 +3542,7 @@ with st.sidebar:
             _box1 = (
                 f'<div style="{_box}">'
                 f'<span style="{_title}">Latest from {ticker}:</span> '
-                f'<span style="{_val}">{_latest_label}{_months_part}</span>'
+                f'<span style="{_val}">{_latest_label}{_months_part}{_filing_eta_html}</span>'
                 f'</div>'
             )
 
