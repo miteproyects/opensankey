@@ -2695,11 +2695,39 @@ with st.sidebar:
                     end_cal_year -= 1
                 return end_cal_year
 
-            # SEC filing buffer: companies must file 10-Q within 40-45 days
-            # of quarter end.  A quarter's DATA is only available after filing.
+            # SEC filing buffer — computed per-ticker from historical EDGAR gaps
+            # (median of filing_date − period_end across the last ~8 quarters
+            # that FMP returns in get_fiscal_calendar). Falls back to a 45-day
+            # regulatory ceiling when no history is available. Clamped to a
+            # sane range to absorb outliers. This buffer drives both
+            # _q_data_available (ground-truth fallback heuristic) and
+            # _days_until_q (the "filing ~Nd" label on locked buttons).
             import calendar as _cal_mod
             from datetime import date as _date_cls
-            _SEC_FILING_BUFFER_DAYS = 45
+            _SEC_FILING_BUFFER_DAYS = 45  # default; overridden below if history exists
+            try:
+                from data_fetcher import get_fiscal_calendar as _gfc_sel
+                _sel_fc = _gfc_sel(ticker)
+                _sel_gaps = []
+                for _sq in (_sel_fc.get("quarters") or []):
+                    _pe = (_sq.get("period_end") or "")[:10]
+                    _fd = (_sq.get("filing_date") or "")[:10]
+                    if _pe and _fd:
+                        try:
+                            _gap = (pd.Timestamp(_fd) - pd.Timestamp(_pe)).days
+                            if 0 < _gap < 180:
+                                _sel_gaps.append(_gap)
+                        except Exception:
+                            pass
+                if _sel_gaps:
+                    _sel_gaps.sort()
+                    _median = _sel_gaps[len(_sel_gaps) // 2]
+                    # Clamp: don't unlock the button before the earliest plausible
+                    # filing (15d) and don't lock it longer than the 10-K ceiling
+                    # the regulator allows (75d).
+                    _SEC_FILING_BUFFER_DAYS = max(15, min(75, int(_median)))
+            except Exception as _sel_err:
+                print(f"[QuarterSelector] Per-ticker buffer calc failed for {ticker}: {_sel_err}")
 
             def _q_end_date(q, fy, fy_end):
                 """Return the calendar date when fiscal quarter q of FY fy ends."""
