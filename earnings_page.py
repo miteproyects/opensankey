@@ -840,14 +840,22 @@ def _render_earnings_table(earnings: list[dict], show_date: bool = False, show_f
     date_th = '<th>Date</th>' if show_date else ''
     filing_th = '<th>Filing</th>' if show_filing_eta else ''
 
-    _eta_css = ""
+    # IMPORTANT: inject ETA_INFO_CSS in a SEPARATE st.markdown call from the
+    # table HTML. app.py has a CSS rule (line ~145) that hides any
+    # stElementContainer containing a <style> tag via
+    # `position:absolute; height:0; overflow:hidden`. If we concatenate the
+    # <style> with the table HTML into one markdown block, the CSS rule
+    # collapses the whole table to zero height — rows are in the DOM but
+    # invisible. Emitting the <style> alone lets that rule hide only the style
+    # block (its intended purpose), leaving the table container in normal flow.
     try:
         from filing_eta import ETA_INFO_CSS as _eta_css
+        if _eta_css:
+            st.markdown(_eta_css, unsafe_allow_html=True)
     except Exception:
-        _eta_css = ""
+        pass
 
     table_html = (
-        f'{_eta_css}'
         f'<div class="ec-table-wrap"><table class="ec-table"><thead><tr>'
         f'<th>Symbol</th><th>Event</th>{date_th}'
         f'<th>Call Time</th><th>EPS Est.</th><th>Reported</th><th>Surprise</th>{filing_th}'

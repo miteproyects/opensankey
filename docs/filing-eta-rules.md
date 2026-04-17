@@ -50,6 +50,9 @@ This applies to **every** `_render_earnings_table` call — including the weekly
 - The popover HTML is **pure CSS**. It uses `<details>` / `<summary>` with `:hover` + `[open]` show rules — no inline `on*` event handlers (react-markdown strips them).
 - `<details>` is the **outermost** element of the rendered fragment, because the HTML parser pulls `<details>` out of any wrapping `<span>` / `<p>`.
 - `ETA_INFO_CSS` is injected once anywhere the popover is rendered. Missing CSS means the popover will be clipped by the sidebar or the table's `overflow:auto` container.
+- **CRITICAL — never concatenate `ETA_INFO_CSS` with visible HTML in the same `st.markdown` call inside the main block-container.** `app.py` line ~145 ships a global rule
+  `.block-container>.stVerticalBlock>[data-testid="stElementContainer"]:has(style):not(:has(.nav-bar)){position:absolute!important;height:0!important;overflow:hidden!important}`
+  whose job is to hide injected `<style>`-only blocks. `:has(style)` matches any `stElementContainer` that contains a `<style>` anywhere inside, so a combined `<style>…</style><div class="ec-table-wrap">…</div>` markdown collapses the whole table to `height:0` — rows end up in the DOM but invisibly stacked on top of each other. The fix is to inject `ETA_INFO_CSS` via its own `st.markdown(...)` (it will be hidden as intended) and render the content via a separate `st.markdown(...)`. The sidebar is not affected because sidebar elements are not direct `.block-container > .stVerticalBlock` children.
 - The source order in the popover is always **EDGAR, FMP, Finnhub** with `★` on the `primary_source`. Missing sources render `n/a` — they are never hidden.
 - `primary_source` is picked in priority order: EDGAR → FMP → Finnhub. Never lie about the source being used.
 
