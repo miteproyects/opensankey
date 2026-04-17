@@ -2108,25 +2108,7 @@ with st.sidebar:
         _redir_allowed = "charts"
     _placeholder_tickers = ", ".join(_demo_tickers[:4])
 
-    if _search_msg:
-        st.markdown(
-            '<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-2px 0 6px 0;">'
-            '<em>+10,000 available tickers &mdash; SEC&nbsp; Sync</em></div>',
-            unsafe_allow_html=True,
-        )
-    else:
-        _demo_links = " &middot; ".join(
-            f'<a href="/?page=sankey&ticker={t}" target="_top" '
-            f'style="color:#3b82f6;font-weight:600;text-decoration:none;"'
-            f' onmouseover="this.style.color=\'#60a5fa\';this.style.textDecoration=\'underline\'"'
-            f' onmouseout="this.style.color=\'#3b82f6\';this.style.textDecoration=\'none\'">{t}</a>'
-            for t in _demo_tickers
-        )
-        st.markdown(
-            f'<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:-2px 0 6px 0;">'
-            f'<em>Try for free:</em><br>{_demo_links}</div>',
-            unsafe_allow_html=True,
-        )
+    # ── Search form first — "Try for free" strip is rendered below it ──
     st.markdown("**Type a Ticker to Explore Data:**", unsafe_allow_html=True)
     with st.form("ticker_form", clear_on_submit=False, border=False):
         col_input, col_btn = st.columns([3, 2], vertical_alignment="bottom")
@@ -2140,6 +2122,27 @@ with st.sidebar:
             ).upper().strip()
         with col_btn:
             submitted = st.form_submit_button("GO")
+
+    # ── "Try for free" strip (rendered BELOW the search form) ──
+    if _search_msg:
+        st.markdown(
+            '<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:6px 0 6px 0;">'
+            '<em>+10,000 available tickers &mdash; SEC&nbsp; Sync</em></div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        _demo_links = " &middot; ".join(
+            f'<a href="/?page=sankey&ticker={t}" target="_top" '
+            f'style="color:#3b82f6;font-weight:600;text-decoration:none;"'
+            f' onmouseover="this.style.color=\'#60a5fa\';this.style.textDecoration=\'underline\'"'
+            f' onmouseout="this.style.color=\'#3b82f6\';this.style.textDecoration=\'none\'">{t}</a>'
+            for t in _demo_tickers
+        )
+        st.markdown(
+            f'<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:6px 0 6px 0;">'
+            f'<em>Try for free:</em><br>{_demo_links}</div>',
+            unsafe_allow_html=True,
+        )
 
     if submitted and new_ticker and new_ticker != st.session_state.ticker:
         # Auto-convert dot notation to dash (e.g. BRK.B → BRK-B)
