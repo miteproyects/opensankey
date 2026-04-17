@@ -458,8 +458,17 @@ def get_filing_eta(
 def render_eta_info_html(eta: dict, css_class_prefix: str = "qc-eta") -> str:
     """
     Return a self-contained HTML snippet: '~ filing in Xd ⓘ' where ⓘ is a
-    hover/click popover showing all 3 sources. Safe for any page that renders
-    with unsafe_allow_html=True.
+    click/hover popover showing all 3 sources.
+
+    IMPORTANT: Streamlit's `st.markdown(unsafe_allow_html=True)` renders through
+    react-markdown + rehype-raw. React-markdown converts HTML into React nodes
+    and REMOVES every `on*` event-handler attribute (onclick, onmouseenter,
+    onfocus, …) because React expects event handlers to be functions, not
+    strings. Every JS-based approach we've tried has failed for this reason.
+
+    The reliable fix is PURE CSS: a <details>/<summary> pair gives us native
+    click-to-toggle with zero JS, and :hover / :focus-within provide the hover
+    affordance for desktop. This markup survives react-markdown unchanged.
     """
     primary = eta.get("primary_label") or ""
     if not primary:
@@ -478,122 +487,159 @@ def render_eta_info_html(eta: dict, css_class_prefix: str = "qc-eta") -> str:
         + _line(f"Finnhub{star('finnhub')}", eta.get("finnhub_label"), eta.get("finnhub_days"))
     )
 
-    # Inline event handlers position the popover with position:fixed relative to
-    # the viewport — impossible for any ancestor overflow:hidden to clip it.
-    # Everything runs inline per-element — NO global init step is required, so
-    # there's no way for this to silently fail if a <script>/<img onerror>
-    # bootstrap doesn't run.
-    # The sidebar attribute selector uses &quot; so it survives the double-quoted
-    # HTML attribute boundary below.
-    show_js = (
-        "var w=this,p=w.querySelector('.qc-eta-pop');"
-        "if(!p)return;"
-        "if(w.__qct){clearTimeout(w.__qct);w.__qct=null;}"
-        "p.classList.add('qc-eta-pop-open');"
-        "var i=w.querySelector('.qc-eta-info')||w;"
-        "var r=i.getBoundingClientRect();"
-        "var sb=!!w.closest('section[data-testid=&quot;stSidebar&quot;]');"
-        "var pw=p.offsetWidth||(sb?220:300);"
-        "var ph=p.offsetHeight||140;"
-        "var below=(r.bottom+ph+8)<window.innerHeight;"
-        "var t=below?(r.bottom+8):Math.max(8,r.top-ph-8);"
-        "var l=sb?Math.max(8,r.right-pw):Math.min(window.innerWidth-pw-8,Math.max(8,r.left-10));"
-        "p.style.top=Math.round(t)+'px';"
-        "p.style.left=Math.round(l)+'px';"
-        "p.style.right='auto';"
-        "p.style.bottom='auto';"
-    )
-    hide_js = (
-        "var w=this,p=w.querySelector('.qc-eta-pop');"
-        "if(!p)return;"
-        "if(w.__qct)clearTimeout(w.__qct);"
-        "w.__qct=setTimeout(function(){p.classList.remove('qc-eta-pop-open');},280);"
-    )
-    # When the pointer enters the popover itself we must CANCEL the pending
-    # hide, otherwise moving mouse from trigger → popover closes it mid-read.
-    pop_enter_js = (
-        "var w=this.parentElement;"
-        "if(w&&w.__qct){clearTimeout(w.__qct);w.__qct=null;}"
-    )
-    pop_leave_js = (
-        "var w=this.parentElement,p=this;"
-        "if(!w)return;"
-        "if(w.__qct)clearTimeout(w.__qct);"
-        "w.__qct=setTimeout(function(){p.classList.remove('qc-eta-pop-open');},280);"
-    )
-    # onclick stops event from bubbling so the (hypothetical) click-outside
-    # closer never sees it; pointer stays inside the trigger.
-    click_js = show_js + "if(event){event.stopPropagation();}"
+    # STRUCTURE:
+    #   <details> is the OUTER wrapper — required because react-markdown's HTML
+    #   parser pulls <details> out of any <span>/<p> due to HTML block/inline
+    #   nesting rules. With <details> outermost, the node structure survives
+    #   intact and the popover stays DOM-linked to its trigger.
+    #   The primary label ("~ filing in 14d") sits inside <summary> alongside
+    #   the ⓘ icon, so clicking either part toggles the popover.
     return (
-        f'<span class="{css_class_prefix}-wrap" tabindex="0" '
-        f'onmouseenter="{show_js}" onfocusin="{show_js}" '
-        f'onmouseleave="{hide_js}" onfocusout="{hide_js}" '
-        f'ontouchstart="{click_js}" onclick="{click_js}">'
+        f'<details class="{css_class_prefix}-det">'
+        f'<summary class="{css_class_prefix}-sum" role="button" aria-label="Filing ETA sources" title="Click for Filing ETA sources">'
         f'<span class="{css_class_prefix}-primary">{primary}</span>'
-        f'<span class="{css_class_prefix}-info" aria-label="Filing ETA sources">&#9432;</span>'
-        f'<span class="{css_class_prefix}-pop" role="tooltip" '
-        f'onmouseenter="{pop_enter_js}" onmouseleave="{pop_leave_js}">'
+        f'<span class="{css_class_prefix}-info">&#9432;</span>'
+        f'</summary>'
+        f'<span class="{css_class_prefix}-pop" role="tooltip">'
         f'<span class="{css_class_prefix}-pop-title">Filing ETA sources</span>'
         f'{body}'
         f'<span class="{css_class_prefix}-pop-note">\u2605 = source used &middot; ~ = estimate</span>'
-        f'</span></span>'
+        f'</span>'
+        f'</details>'
     )
 
 
 # Reusable CSS block — include once per page.
-# Popover is position:fixed (viewport-anchored) so no ancestor overflow:hidden
-# can clip it. All event wiring is inline on the element itself (see
-# render_eta_info_html), so we avoid the <script>/<img onerror> bootstrap trick
-# entirely — nothing to fail silently. No :has() / no outer overflow overrides,
-# so sidebar + column scrolling stays intact.
+#
+# Pure-CSS popover. No JavaScript — Streamlit's markdown renderer (react-markdown
+# + rehype-raw) strips every on* event handler, so a JS solution cannot work.
+#
+# The <details>/<summary> pair gives us native click-to-toggle, and :hover /
+# :focus-within give a hover affordance. The popover is position:absolute inside
+# the <details>, which means ancestor `overflow: hidden` (e.g. markdown paragraph
+# wrappers) would clip it — so we target ONLY the narrow inline wrappers that
+# Streamlit puts around markdown output with `overflow: visible !important`.
+# Scroll containers (the sidebar body, horizontal blocks) are NOT touched, so
+# scroll behavior remains correct.
 ETA_INFO_CSS = """
 <style>
-.qc-eta-wrap {
+/* ── <details> = outer inline trigger, <summary> holds primary + ⓘ ──── */
+.qc-eta-det {
+  display: inline-block;
   position: relative;
+  line-height: 1.4;
+  vertical-align: baseline;
+}
+.qc-eta-det > summary.qc-eta-sum {
+  /* Strip default disclosure triangle */
+  list-style: none;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
 }
-.qc-eta-primary { color: #fbbf24; font-weight: 600; }
+.qc-eta-det > summary.qc-eta-sum::-webkit-details-marker { display: none; }
+.qc-eta-det > summary.qc-eta-sum::marker { content: ""; display: none; }
+
+.qc-eta-primary {
+  color: #fbbf24;
+  font-weight: 600;
+}
 .qc-eta-info {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; height: 14px; border-radius: 50%;
-  font-size: 11px; line-height: 1; cursor: pointer;
-  color: #93c5fd; background: rgba(147,197,253,0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  font-size: 11px; line-height: 1;
+  color: #93c5fd;
+  background: rgba(147,197,253,0.08);
   border: 1px solid rgba(147,197,253,0.35);
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
   flex: 0 0 auto;
 }
-.qc-eta-info:hover { background: rgba(147,197,253,0.18); color: #bfdbfe; }
-
-/* Popover: viewport-fixed. Initial coords don't matter — JS sets top/left
-   every time the trigger fires show. Open state is toggled by class. */
-.qc-eta-pop {
-  visibility: hidden; opacity: 0; pointer-events: none;
-  position: fixed; z-index: 2147483000;
-  top: 0; left: 0;
-  min-width: 240px; max-width: 300px; padding: 10px 12px;
-  background: #0f172a; border: 1px solid #1e293b; border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.55);
-  font-family: Inter, system-ui, sans-serif; font-size: 0.78rem;
-  color: #cbd5e1; transition: opacity 0.15s ease;
-  white-space: normal;
+.qc-eta-det > summary.qc-eta-sum:hover .qc-eta-info,
+.qc-eta-det[open] > summary.qc-eta-sum .qc-eta-info,
+.qc-eta-det > summary.qc-eta-sum:focus-visible .qc-eta-info {
+  background: rgba(147,197,253,0.22);
+  color: #bfdbfe;
 }
-.qc-eta-pop.qc-eta-pop-open { visibility: visible; opacity: 1; pointer-events: auto; }
-.qc-eta-pop-title { display: block; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; font-size: 0.75rem; letter-spacing: 0.02em; }
-.qc-eta-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; border-bottom: 1px dashed rgba(148,163,184,0.12); gap: 10px; }
+
+/* ── Popover: absolute, below-right of ⓘ ────────────────────────────── */
+.qc-eta-pop {
+  /* Hidden by default — shown when <details open> OR on hover/focus */
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;                       /* right-anchor keeps popover on-screen in sidebar */
+  min-width: 240px; max-width: 300px;
+  padding: 10px 12px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  z-index: 2147483000;
+  white-space: normal;
+  line-height: 1.4;
+  pointer-events: auto;
+}
+/* Show popover on click (<details open>) OR on hover.
+   We deliberately skip :focus-within: clicking the summary keeps focus on it,
+   which would cause the popover to stay open after a click-to-close. :hover
+   alone is enough because the popover lives INSIDE <details>, so moving the
+   mouse from summary → popover body stays within the :hover target. */
+.qc-eta-det[open] > .qc-eta-pop,
+.qc-eta-det:hover > .qc-eta-pop {
+  display: block;
+}
+
+.qc-eta-pop-title {
+  display: block; font-weight: 700;
+  color: #e2e8f0; margin-bottom: 6px;
+  font-size: 0.75rem; letter-spacing: 0.02em;
+}
+.qc-eta-row {
+  display: flex; justify-content: space-between;
+  align-items: baseline; padding: 3px 0;
+  border-bottom: 1px dashed rgba(148,163,184,0.12);
+  gap: 10px;
+}
 .qc-eta-row:last-of-type { border-bottom: none; }
 .qc-eta-src { color: #94a3b8; font-weight: 500; white-space: nowrap; }
 .qc-eta-val { color: #fbbf24; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .qc-eta-na .qc-eta-val { color: #475569; font-weight: 400; }
-.qc-eta-pop-note { display: block; margin-top: 8px; color: #64748b; font-size: 0.68rem; font-style: italic; }
+.qc-eta-pop-note {
+  display: block; margin-top: 8px;
+  color: #64748b; font-size: 0.68rem; font-style: italic;
+}
 
-/* Tighter popover inside Streamlit's native sidebar. */
+/* Tighter popover in Streamlit's native sidebar. */
 section[data-testid="stSidebar"] .qc-eta-pop {
   min-width: 200px; max-width: 240px;
   padding: 8px 10px;
   font-size: 0.72rem;
+}
+
+/* ── Escape ancestor overflow:hidden ──────────────────────────────────
+   Streamlit wraps each markdown block in a handful of nested divs, some of
+   which have `overflow: hidden` which would clip the absolute popover.
+   We override ONLY the inline / inline-block markdown wrappers — NOT the
+   sidebar scroll container or the outer page container — so scroll keeps
+   working normally. Using `:has()` narrowly scoped to elements that actually
+   contain our popover so these rules never affect unrelated markdown. */
+[data-testid="stMarkdown"]:has(.qc-eta-pop),
+[data-testid="stMarkdownContainer"]:has(.qc-eta-pop),
+[data-testid="stMarkdown"]:has(.qc-eta-pop) p,
+[data-testid="stMarkdownContainer"]:has(.qc-eta-pop) p,
+[data-testid="stMarkdown"]:has(.qc-eta-pop) div,
+[data-testid="stMarkdownContainer"]:has(.qc-eta-pop) div {
+  overflow: visible !important;
 }
 </style>
 """

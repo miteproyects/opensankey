@@ -119,26 +119,19 @@ def _compute_surprise(actual, estimate) -> str:
         return "-"
 
 
-# Short TTL on failure so transient errors don't stick for 15 minutes; full TTL on success.
-@st.cache_data(ttl=60, show_spinner=False)
-def _fetch_ticker_earnings_raw(symbol: str) -> dict:
-    """
-    Fetch earnings for a specific ticker from Finnhub (past 2 years + next 6 months).
+# FMP fallback when Finnhub is slow/down. FMP key is shared via env var.
+_FMP_KEY = os.environ.get("FMP_API_KEY", "")
+_FMP_BASE = "https://financialmodelingprep.com/api/v3"
 
-    Returns {'rows': list[dict], 'error': str|None, 'status_code': int|None}.
-    Wrapping in a dict so the caller can tell "no data" from "API error" and
-    show actionable feedback instead of a generic 'Verify the ticker' message.
-    """
-    today = date.today()
-    from_str = (today - timedelta(days=730)).isoformat()
-    to_str = (today + timedelta(days=180)).isoformat()
 
+def _finnhub_ticker_earnings(symbol: str, from_str: str, to_str: str, timeout_s: int) -> dict:
+    """Single Finnhub attempt. Returns {'rows': list, 'error': str|None, 'status_code': int|None}."""
     status = None
     try:
         resp = requests.get(
             f"{_FINNHUB_BASE}/calendar/earnings",
             params={"symbol": symbol.upper(), "from": from_str, "to": to_str, "token": _FINNHUB_KEY},
-            timeout=10,
+            timeout=timeout_s,
         )
         status = resp.status_code
         if resp.status_code == 200:
@@ -160,17 +153,15 @@ def _fetch_ticker_earnings_raw(symbol: str) -> dict:
                 })
             return {"rows": results, "error": None, "status_code": status}
 
-        # Non-200: surface a useful message so the user (and us) can tell what
-        # actually happened instead of the generic "Verify ticker" info box.
         body_snippet = ""
         try:
             body_snippet = (resp.text or "")[:160].strip()
         except Exception:
             body_snippet = ""
         if status == 429:
-            err = "Finnhub rate limit hit (HTTP 429). Try again in a minute."
+            err = "Finnhub rate limit hit (HTTP 429)."
         elif status in (401, 403):
-            err = f"Finnhub auth error (HTTP {status}). Check FINNHUB_API_KEY."
+            err = f"Finnhub auth error (HTTP {status})."
         elif status and status >= 500:
             err = f"Finnhub server error (HTTP {status})."
         else:
@@ -182,6 +173,124 @@ def _fetch_ticker_earnings_raw(symbol: str) -> dict:
         return {"rows": [], "error": f"Network error contacting Finnhub: {re}", "status_code": status}
     except Exception as ex:
         return {"rows": [], "error": f"{type(ex).__name__}: {ex}", "status_code": status}
+
+
+def _fmp_ticker_earnings(symbol: str, timeout_s: int = 20) -> dict:
+    """FMP fallback. Returns the same shape as _finnhub_ticker_earnings.
+    Uses /historical/earning_calendar/{symbol}, which returns both past and upcoming."""
+    if not _FMP_KEY:
+        return {"rows": [], "error": "FMP fallback unavailable (no FMP_API_KEY).", "status_code": None}
+    status = None
+    try:
+        resp = requests.get(
+            f"{_FMP_BASE}/historical/earning_calendar/{symbol.upper()}",
+            params={"apikey": _FMP_KEY},
+            timeout=timeout_s,
+        )
+        status = resp.status_code
+        if resp.status_code != 200:
+            return {"rows": [], "error": f"FMP returned HTTP {status}.", "status_code": status}
+        try:
+            rows = resp.json() or []
+        except Exception as je:
+            return {"rows": [], "error": f"Bad JSON from FMP: {je}", "status_code": status}
+
+        today = date.today()
+        cutoff_from = (today - timedelta(days=730)).isoformat()
+        cutoff_to = (today + timedelta(days=180)).isoformat()
+        results = []
+        for item in rows:
+            d = (item.get("date") or "")[:10]
+            if not d or d < cutoff_from or d > cutoff_to:
+                continue
+            # FMP 'time': 'bmo' | 'amc' | '' (no TAS/TNS distinction); map best-effort
+            ft = (item.get("time") or "").lower().strip()
+            if ft == "bmo":
+                call_time = "BMO"
+            elif ft == "amc":
+                call_time = "AMC"
+            else:
+                call_time = "TNS"
+            # Derive quarter/year from the period if present
+            period = (item.get("period") or "").upper()  # e.g. "Q1", "Q2"
+            # FMP also returns fiscalDateEnding; use it if period missing
+            fiscal_end = (item.get("fiscalDateEnding") or "")[:10]
+            event_label = f"{period} Earnings" if period else "Earnings"
+            if fiscal_end:
+                event_label = f"{period} {fiscal_end[:4]} Earnings" if period else f"{fiscal_end[:4]} Earnings"
+            results.append({
+                "ticker": item.get("symbol", symbol.upper()),
+                "company": item.get("symbol", symbol.upper()),
+                "event": event_label,
+                "call_time": call_time,
+                "eps_estimate": _safe_float(item.get("epsEstimated")),
+                "eps_actual": _safe_float(item.get("eps")),
+                "surprise_pct": _compute_surprise(item.get("eps"), item.get("epsEstimated")),
+                "date": d,
+            })
+        return {"rows": results, "error": None, "status_code": status}
+    except requests.exceptions.Timeout:
+        return {"rows": [], "error": "FMP request timed out.", "status_code": status}
+    except requests.exceptions.RequestException as re:
+        return {"rows": [], "error": f"Network error contacting FMP: {re}", "status_code": status}
+    except Exception as ex:
+        return {"rows": [], "error": f"{type(ex).__name__}: {ex}", "status_code": status}
+
+
+# Short TTL on failure so transient errors don't stick for 15 minutes; full TTL on success.
+@st.cache_data(ttl=60, show_spinner=False)
+def _fetch_ticker_earnings_raw(symbol: str) -> dict:
+    """
+    Fetch earnings for a specific ticker (past 2 years + next 6 months).
+
+    Strategy:
+      1. Try Finnhub with a generous timeout.
+      2. Retry Finnhub once on timeout / 5xx / connection error (short backoff).
+      3. Fall back to FMP's /historical/earning_calendar/{symbol}.
+    Returns {'rows': list[dict], 'error': str|None, 'status_code': int|None, 'source': str}.
+    The caller uses 'error' to surface actionable feedback when no rows are returned.
+    """
+    today = date.today()
+    from_str = (today - timedelta(days=730)).isoformat()
+    to_str = (today + timedelta(days=180)).isoformat()
+
+    # 1) Finnhub primary attempt (25s timeout).
+    first = _finnhub_ticker_earnings(symbol, from_str, to_str, timeout_s=25)
+    if first.get("rows"):
+        return {**first, "source": "finnhub"}
+
+    # 2) Retry Finnhub once if it timed out, 5xx'd, or hit a transient network error.
+    err1 = first.get("error") or ""
+    status1 = first.get("status_code")
+    transient = (
+        "timed out" in err1.lower()
+        or "network error" in err1.lower()
+        or (isinstance(status1, int) and status1 >= 500)
+    )
+    second = None
+    if transient:
+        time.sleep(0.6)
+        second = _finnhub_ticker_earnings(symbol, from_str, to_str, timeout_s=25)
+        if second.get("rows"):
+            return {**second, "source": "finnhub"}
+
+    # 3) FMP fallback for any Finnhub failure, OR for an empty-but-successful
+    #    Finnhub response (which happens occasionally for valid tickers).
+    finnhub_ok_empty = (first.get("error") is None and not first.get("rows"))
+    finnhub_failed = (first.get("error") is not None) and (second is None or second.get("error") is not None)
+    if finnhub_failed or finnhub_ok_empty:
+        fmp = _fmp_ticker_earnings(symbol, timeout_s=20)
+        if fmp.get("rows"):
+            return {**fmp, "source": "fmp"}
+        # Combine errors for diagnostics, prefer the original Finnhub error text.
+        combined_err = first.get("error") or (second.get("error") if second else None) or fmp.get("error")
+        if finnhub_ok_empty and not fmp.get("error"):
+            # Both APIs returned empty — treat as genuine "no data for this ticker".
+            return {"rows": [], "error": None, "status_code": first.get("status_code"), "source": "finnhub"}
+        return {"rows": [], "error": combined_err, "status_code": first.get("status_code"), "source": "none"}
+
+    # Shouldn't reach here, but return the best info we have.
+    return {**first, "source": "finnhub"}
 
 
 def _fetch_ticker_earnings(symbol: str) -> list[dict]:
