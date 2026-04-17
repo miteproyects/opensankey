@@ -554,5 +554,36 @@ def render_home_page():
             this.setSelectionRange(pos, pos);
         });
     })();
+
+    /* ── Delegated click for feature cards and pricing CTAs ──
+       Streamlit's iframe sandbox can block target="_top" on <a> clicks,
+       so intercept them and navigate the parent window explicitly
+       (same trick used by goSearch() and the popular tickers strip). */
+    (function() {
+        function parentNavigate(url) {
+            try {
+                var a = window.parent.document.createElement('a');
+                a.href = url;
+                a.style.display = 'none';
+                window.parent.document.body.appendChild(a);
+                a.click();
+                a.remove();
+            } catch (e) {
+                try { window.top.location.href = url; }
+                catch (e2) { window.location.href = url; }
+            }
+        }
+        document.addEventListener('click', function(ev) {
+            var a = ev.target.closest('a');
+            if (!a) return;
+            var href = a.getAttribute('href');
+            if (!href || href.charAt(0) === '#') return;
+            /* Only hijack in-app navigations (relative/same-origin URLs) */
+            var isInApp = href.charAt(0) === '/' || href.charAt(0) === '?';
+            if (!isInApp) return;
+            ev.preventDefault();
+            parentNavigate(href);
+        });
+    })();
     </script>
     """, height=2340, scrolling=False)
