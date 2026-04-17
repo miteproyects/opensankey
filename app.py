@@ -2213,6 +2213,27 @@ with st.sidebar:
                         st.session_state.layout_cols = ncols
                         st.rerun()
 
+            # ---- Quarterly / Annual period toggle ----
+            period_col = st.columns(2)
+            with period_col[0]:
+                if st.button(
+                    "Quarterly",
+                    use_container_width=True,
+                    type="primary" if st.session_state.quarterly else "secondary",
+                    key="period_quarterly",
+                ):
+                    st.session_state.quarterly = True
+                    st.rerun()
+            with period_col[1]:
+                if st.button(
+                    "Annual",
+                    use_container_width=True,
+                    type="primary" if not st.session_state.quarterly else "secondary",
+                    key="period_annual",
+                ):
+                    st.session_state.quarterly = False
+                    st.rerun()
+
         if current_page != "sankey":
             # ── FROM / TO quarter range (only remaining timeframe control) ──
             # Fetch available fiscal-quarter labels for this ticker.
