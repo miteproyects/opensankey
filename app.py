@@ -1030,7 +1030,10 @@ if _needs_sync:
 if "quarterly" not in st.session_state:
     st.session_state.quarterly = True
 if "timeframe" not in st.session_state:
-    st.session_state.timeframe = "2Y"
+    # Custom Timeframe is the default on the charts page (active + panel open).
+    # The sidebar auto-fills custom_from/custom_to with a ~2-year range on the
+    # first render once ticker periods are known.
+    st.session_state.timeframe = "CUSTOM"
 if "show_income" not in st.session_state:
     st.session_state.show_income = True
 if "show_cashflow" not in st.session_state:
@@ -2251,6 +2254,24 @@ with st.sidebar:
             # Session state defaults
             if "custom_mode" not in st.session_state:
                 st.session_state.custom_mode = "quarter"  # "quarter" or "year"
+
+            # Default-on behaviour: when timeframe is CUSTOM (the startup default)
+            # but no range has been chosen yet, seed a ~2-year range so the panel
+            # renders in its "active" visual state and charts show a sensible
+            # window immediately.  Mirrors the header-button auto-fill logic.
+            if (
+                st.session_state.timeframe == "CUSTOM"
+                and not st.session_state.get("custom_from")
+            ):
+                _default_mode = st.session_state.get("custom_mode", "quarter")
+                if _default_mode == "quarter" and _avail_q_periods:
+                    st.session_state.custom_from = _avail_q_periods[max(0, len(_avail_q_periods) - 8)]
+                    st.session_state.custom_to = _avail_q_periods[-1]
+                    st.session_state.quarterly = True
+                elif _avail_years:
+                    st.session_state.custom_from = _avail_years[max(0, len(_avail_years) - 2)]
+                    st.session_state.custom_to = _avail_years[-1]
+                    st.session_state.quarterly = False
 
             _is_custom = st.session_state.timeframe == "CUSTOM"
 
