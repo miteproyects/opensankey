@@ -123,7 +123,14 @@ def render_pricing_page():
         flex-shrink: 0;
         margin-top: 1px;
     }
-    .pricing-cta {
+    /* Using a.pricing-cta + !important to outrank Streamlit's global
+       <a> styling, which otherwise adds an underline and a dark link
+       color on top of our gradient buttons. */
+    a.pricing-cta,
+    a.pricing-cta:link,
+    a.pricing-cta:visited,
+    a.pricing-cta:hover,
+    a.pricing-cta:active {
         display: block;
         width: 100%;
         padding: 12px 20px;
@@ -134,23 +141,24 @@ def render_pricing_page():
         cursor: pointer;
         transition: all 0.15s ease;
         text-align: center;
-        text-decoration: none;
+        text-decoration: none !important;
         margin-top: auto;
+        color: #ffffff !important;
     }
-    .cta-default,
-    .cta-popular,
-    .cta-enterprise {
+    a.pricing-cta.cta-default,
+    a.pricing-cta.cta-popular,
+    a.pricing-cta.cta-enterprise {
         background: linear-gradient(135deg, #22d3ee, #3b82f6);
-        color: #fff;
         border: none;
         box-shadow: 0 4px 14px rgba(59,130,246,0.25);
     }
-    .cta-default:hover,
-    .cta-popular:hover,
-    .cta-enterprise:hover {
+    a.pricing-cta.cta-default:hover,
+    a.pricing-cta.cta-popular:hover,
+    a.pricing-cta.cta-enterprise:hover {
         background: linear-gradient(135deg, #06b6d4, #2563eb);
         box-shadow: 0 6px 20px rgba(59,130,246,0.4);
         transform: translateY(-1px);
+        color: #ffffff !important;
     }
     .pricing-faq {
         max-width: 640px;
