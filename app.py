@@ -3239,7 +3239,7 @@ with st.sidebar:
                             # sidebar / earnings page, so the UX is consistent
                             # across every surface that shows an ETA.
                             # Each row shows the per-source projected ETA from
-                            # today, with the historical cadence gap in parens.
+                            # today; cadence gap is not exposed in the tooltip.
                             try:
                                 _e_med = _qs_cadence.get("edgar_median")
                                 _f_med = _qs_cadence.get("fmp_median")
@@ -3261,10 +3261,10 @@ with st.sidebar:
                                     return max(0, _q_end_offset + int(med))
 
                                 def _row(name, src_key, med):
-                                    if med is None:
-                                        return f"{name}{_star(src_key)}: n/a"
                                     eta = _eta_from_cadence(med)
-                                    return f"{name}{_star(src_key)}: ~{eta}d ({med}d gap)"
+                                    if eta is None:
+                                        return f"{name}{_star(src_key)}: n/a"
+                                    return f"{name}{_star(src_key)}: ~{eta}d"
 
                                 _help_lines = [
                                     "Filing ETA sources",
@@ -3272,15 +3272,12 @@ with st.sidebar:
                                     _row("FMP",     "fmp",     _f_med),
                                     "Finnhub: n/a",
                                     "★ = source used · ~ = estimate",
-                                    "",
-                                    "[subscribe](https://quartercharts.com/pricing) to get notified",
                                 ]
                                 _help_text = "\n".join(_help_lines)
                             except Exception:
                                 _help_text = (
                                     "Filing ETA sources\n"
-                                    "★ = source used · ~ = estimate\n\n"
-                                    "[subscribe](https://quartercharts.com/pricing) to get notified"
+                                    "★ = source used · ~ = estimate"
                                 )
                             st.button(
                                 f"{_base_lbl} — filing ~{_days}d",
