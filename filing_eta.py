@@ -453,97 +453,82 @@ def get_filing_eta(
     }
 
 
-# ── Shared HTML: info popover ────────────────────────────────────────────
+# ── Shared HTML: help-text tooltip ───────────────────────────────────────
+#
+# The previous `<details>`-based popover has been replaced with a plain-text
+# browser tooltip attached via the HTML `title=""` attribute — the direct
+# analogue of the locked-quarter-button `_get_help_text()` pattern used by the
+# quarter selector (app.py line ~3168). Same ⓘ icon, same content, no custom
+# popover DOM, no `<style>` block that has to be juggled around Streamlit's
+# `:has(style)` sanitation rule.
+
+import html as _html
+
+
+def get_filing_eta_help_text(eta: dict) -> str:
+    """
+    Plain-text tooltip content for the Filing ETA ⓘ icon — the counterpart of
+    `_get_help_text()` in app.py for the quarter-selector buttons.
+
+    Returns a multi-line string suitable for an HTML `title=""` attribute.
+    Same content as the old `<details>`-based popover:
+
+        Filing ETA sources
+        EDGAR ★  ~ filing in 14d
+        FMP     n/a
+        Finnhub ~ filing in 12d
+        ★ = source used · ~ = estimate
+    """
+    if not eta:
+        return ""
+    primary_src = (eta.get("primary_source") or "").lower()
+
+    def _row(name: str, src_key: str, label):
+        star = " \u2605" if src_key == primary_src else ""
+        value = label if label else "n/a"
+        return f"{name}{star}: {value}"
+
+    lines = [
+        "Filing ETA sources",
+        _row("EDGAR",   "edgar",   eta.get("edgar_label")),
+        _row("FMP",     "fmp",     eta.get("fmp_label")),
+        _row("Finnhub", "finnhub", eta.get("finnhub_label")),
+        "\u2605 = source used \u00b7 ~ = estimate",
+    ]
+    return "\n".join(lines)
+
 
 def render_eta_info_html(eta: dict, css_class_prefix: str = "qc-eta") -> str:
     """
-    Return a self-contained HTML snippet: '~ filing in Xd ⓘ' where ⓘ is a
-    click/hover popover showing all 3 sources.
+    Return a small inline HTML snippet: '~ filing in Xd ⓘ' where ⓘ carries a
+    browser-native hover tooltip (HTML `title=""`) with the 3-source breakdown.
 
-    IMPORTANT: Streamlit's `st.markdown(unsafe_allow_html=True)` renders through
-    react-markdown + rehype-raw. React-markdown converts HTML into React nodes
-    and REMOVES every `on*` event-handler attribute (onclick, onmouseenter,
-    onfocus, …) because React expects event handlers to be functions, not
-    strings. Every JS-based approach we've tried has failed for this reason.
-
-    The reliable fix is PURE CSS: a <details>/<summary> pair gives us native
-    click-to-toggle with zero JS, and :hover / :focus-within provide the hover
-    affordance for desktop. This markup survives react-markdown unchanged.
+    This mirrors the locked-quarter-button tooltip style used by
+    `_get_help_text()` in app.py: a short, plain-text tooltip on hover. No
+    custom `<details>` popover, no `<style>` block in the same markdown call
+    (so the `app.py :has(style)` sanitation rule is irrelevant).
     """
     primary = eta.get("primary_label") or ""
     if not primary:
         return ""
 
-    def _line(name, label, days):
-        if label:
-            return f'<div class="{css_class_prefix}-row"><span class="{css_class_prefix}-src">{name}</span><span class="{css_class_prefix}-val">{label}</span></div>'
-        return f'<div class="{css_class_prefix}-row {css_class_prefix}-na"><span class="{css_class_prefix}-src">{name}</span><span class="{css_class_prefix}-val">n/a</span></div>'
+    help_text = _html.escape(get_filing_eta_help_text(eta), quote=True)
 
-    primary_src = (eta.get("primary_source") or "").lower()
-    star = lambda s: " \u2605" if s == primary_src else ""
-    body = (
-        _line(f"SEC EDGAR{star('edgar')}", eta.get("edgar_label"), eta.get("edgar_days"))
-        + _line(f"FMP{star('fmp')}", eta.get("fmp_label"), eta.get("fmp_days"))
-        + _line(f"Finnhub{star('finnhub')}", eta.get("finnhub_label"), eta.get("finnhub_days"))
-    )
-
-    # STRUCTURE:
-    #   <details> is the OUTER wrapper — required because react-markdown's HTML
-    #   parser pulls <details> out of any <span>/<p> due to HTML block/inline
-    #   nesting rules. With <details> outermost, the node structure survives
-    #   intact and the popover stays DOM-linked to its trigger.
-    #   The primary label ("~ filing in 14d") sits inside <summary> alongside
-    #   the ⓘ icon, so clicking either part toggles the popover.
     return (
-        f'<details class="{css_class_prefix}-det">'
-        f'<summary class="{css_class_prefix}-sum" role="button" aria-label="Filing ETA sources" title="Click for Filing ETA sources">'
         f'<span class="{css_class_prefix}-primary">{primary}</span>'
-        f'<span class="{css_class_prefix}-info">&#9432;</span>'
-        f'</summary>'
-        f'<span class="{css_class_prefix}-pop" role="tooltip">'
-        f'<span class="{css_class_prefix}-pop-title">Filing ETA sources</span>'
-        f'{body}'
-        f'<span class="{css_class_prefix}-pop-note">\u2605 = source used &middot; ~ = estimate</span>'
-        f'</span>'
-        f'</details>'
+        f'<span class="{css_class_prefix}-info" '
+        f'role="img" aria-label="Filing ETA sources" '
+        f'title="{help_text}">&#9432;</span>'
     )
 
 
-# Reusable CSS block — include once per page.
-#
-# Pure-CSS popover. No JavaScript — Streamlit's markdown renderer (react-markdown
-# + rehype-raw) strips every on* event handler, so a JS solution cannot work.
-#
-# The <details>/<summary> pair gives us native click-to-toggle, and :hover /
-# :focus-within give a hover affordance. The popover is position:absolute inside
-# the <details>, which means ancestor `overflow: hidden` (e.g. markdown paragraph
-# wrappers) would clip it — so we target ONLY the narrow inline wrappers that
-# Streamlit puts around markdown output with `overflow: visible !important`.
-# Scroll containers (the sidebar body, horizontal blocks) are NOT touched, so
-# scroll behavior remains correct.
+# Reusable style block — include once per page. Kept as a separate
+# `st.markdown(ETA_INFO_CSS, …)` call so the `:has(style)` sanitation rule in
+# app.py only hides this tiny style block, never the surrounding content.
+# Only the two classes emitted by `render_eta_info_html` need styling now —
+# the old popover CSS is gone along with the popover itself.
 ETA_INFO_CSS = """
 <style>
-/* ── <details> = outer inline trigger, <summary> holds primary + ⓘ ──── */
-.qc-eta-det {
-  display: inline-block;
-  position: relative;
-  line-height: 1.4;
-  vertical-align: baseline;
-}
-.qc-eta-det > summary.qc-eta-sum {
-  /* Strip default disclosure triangle */
-  list-style: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  user-select: none;
-  -webkit-user-select: none;
-  outline: none;
-}
-.qc-eta-det > summary.qc-eta-sum::-webkit-details-marker { display: none; }
-.qc-eta-det > summary.qc-eta-sum::marker { content: ""; display: none; }
-
 .qc-eta-primary {
   color: #fbbf24;
   font-weight: 600;
@@ -553,93 +538,19 @@ ETA_INFO_CSS = """
   align-items: center;
   justify-content: center;
   width: 14px; height: 14px;
+  margin-left: 4px;
   border-radius: 50%;
   font-size: 11px; line-height: 1;
   color: #93c5fd;
   background: rgba(147,197,253,0.08);
   border: 1px solid rgba(147,197,253,0.35);
+  cursor: help;
   transition: background 0.15s ease, color 0.15s ease;
-  flex: 0 0 auto;
+  vertical-align: baseline;
 }
-.qc-eta-det > summary.qc-eta-sum:hover .qc-eta-info,
-.qc-eta-det[open] > summary.qc-eta-sum .qc-eta-info,
-.qc-eta-det > summary.qc-eta-sum:focus-visible .qc-eta-info {
+.qc-eta-info:hover {
   background: rgba(147,197,253,0.22);
   color: #bfdbfe;
-}
-
-/* ── Popover: absolute, below-right of ⓘ ────────────────────────────── */
-.qc-eta-pop {
-  /* Hidden by default — shown when <details open> OR on hover/focus */
-  display: none;
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;                       /* right-anchor keeps popover on-screen in sidebar */
-  min-width: 240px; max-width: 300px;
-  padding: 10px 12px;
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.55);
-  font-family: Inter, system-ui, sans-serif;
-  font-size: 0.78rem;
-  color: #cbd5e1;
-  z-index: 2147483000;
-  white-space: normal;
-  line-height: 1.4;
-  pointer-events: auto;
-}
-/* Show popover on click (<details open>) OR on hover.
-   We deliberately skip :focus-within: clicking the summary keeps focus on it,
-   which would cause the popover to stay open after a click-to-close. :hover
-   alone is enough because the popover lives INSIDE <details>, so moving the
-   mouse from summary → popover body stays within the :hover target. */
-.qc-eta-det[open] > .qc-eta-pop,
-.qc-eta-det:hover > .qc-eta-pop {
-  display: block;
-}
-
-.qc-eta-pop-title {
-  display: block; font-weight: 700;
-  color: #e2e8f0; margin-bottom: 6px;
-  font-size: 0.75rem; letter-spacing: 0.02em;
-}
-.qc-eta-row {
-  display: flex; justify-content: space-between;
-  align-items: baseline; padding: 3px 0;
-  border-bottom: 1px dashed rgba(148,163,184,0.12);
-  gap: 10px;
-}
-.qc-eta-row:last-of-type { border-bottom: none; }
-.qc-eta-src { color: #94a3b8; font-weight: 500; white-space: nowrap; }
-.qc-eta-val { color: #fbbf24; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.qc-eta-na .qc-eta-val { color: #475569; font-weight: 400; }
-.qc-eta-pop-note {
-  display: block; margin-top: 8px;
-  color: #64748b; font-size: 0.68rem; font-style: italic;
-}
-
-/* Tighter popover in Streamlit's native sidebar. */
-section[data-testid="stSidebar"] .qc-eta-pop {
-  min-width: 200px; max-width: 240px;
-  padding: 8px 10px;
-  font-size: 0.72rem;
-}
-
-/* ── Escape ancestor overflow:hidden ──────────────────────────────────
-   Streamlit wraps each markdown block in a handful of nested divs, some of
-   which have `overflow: hidden` which would clip the absolute popover.
-   We override ONLY the inline / inline-block markdown wrappers — NOT the
-   sidebar scroll container or the outer page container — so scroll keeps
-   working normally. Using `:has()` narrowly scoped to elements that actually
-   contain our popover so these rules never affect unrelated markdown. */
-[data-testid="stMarkdown"]:has(.qc-eta-pop),
-[data-testid="stMarkdownContainer"]:has(.qc-eta-pop),
-[data-testid="stMarkdown"]:has(.qc-eta-pop) p,
-[data-testid="stMarkdownContainer"]:has(.qc-eta-pop) p,
-[data-testid="stMarkdown"]:has(.qc-eta-pop) div,
-[data-testid="stMarkdownContainer"]:has(.qc-eta-pop) div {
-  overflow: visible !important;
 }
 </style>
 """
