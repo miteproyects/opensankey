@@ -3234,25 +3234,38 @@ with st.sidebar:
                         elif _ended and not _heuristic_says_avail:
                             # Quarter ended, within the normal filing window
                             _days = _days_until_q(_qi_i, _fy_i)
-                            _src_line = ""
+                            # Build a Filing-ETA-style multi-row tooltip — same
+                            # layout as the `render_eta_info_html` ⓘ hover on the
+                            # sidebar / earnings page, so the UX is consistent
+                            # across every surface that shows an ETA.
                             try:
                                 _e = _qs_cadence.get("edgar_median")
                                 _f = _qs_cadence.get("fmp_median")
-                                _p = (_qs_cadence.get("primary_source") or "").upper()
-                                _src_line = (
-                                    f" &middot; Sources: EDGAR={_e if _e is not None else '—'}d, "
-                                    f"FMP={_f if _f is not None else '—'}d, Finnhub=n/a &middot; using **{_p or '—'}**"
-                                )
+                                _primary = (_qs_cadence.get("primary_source") or "").lower()
+                                def _star(src, p=_primary):
+                                    return " ★" if src == p else ""
+                                def _fmt_cad(v):
+                                    return f"~{v}d" if v is not None else "n/a"
+                                _help_lines = [
+                                    "Filing ETA sources",
+                                    f"EDGAR{_star('edgar')}: {_fmt_cad(_e)}",
+                                    f"FMP{_star('fmp')}: {_fmt_cad(_f)}",
+                                    "Finnhub: n/a",
+                                    "★ = source used · ~ = estimate",
+                                    "",
+                                    "[subscribe](https://quartercharts.com/pricing) to get notified",
+                                ]
+                                _help_text = "\n".join(_help_lines)
                             except Exception:
-                                pass
+                                _help_text = (
+                                    "Filing ETA sources\n"
+                                    "★ = source used · ~ = estimate\n\n"
+                                    "[subscribe](https://quartercharts.com/pricing) to get notified"
+                                )
                             st.button(
                                 f"{_base_lbl} — filing ~{_days}d",
                                 key=_bid, use_container_width=True, disabled=True,
-                                help=(
-                                    f"Quarter ended; SEC filing pending. `~` = estimate from per-ticker "
-                                    f"historical median filing gap (3-source cascade: SEC EDGAR → FMP → Finnhub)."
-                                    f"{_src_line}"
-                                ),
+                                help=_help_text,
                             )
                         else:
                             # Quarter hasn't ended yet
