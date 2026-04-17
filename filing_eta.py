@@ -478,11 +478,24 @@ def render_eta_info_html(eta: dict, css_class_prefix: str = "qc-eta") -> str:
         + _line(f"Finnhub{star('finnhub')}", eta.get("finnhub_label"), eta.get("finnhub_days"))
     )
 
+    # Inline event handlers position the popover with position:fixed relative to
+    # the viewport — impossible for any ancestor overflow:hidden to clip it.
+    # We also bind on touch/click so mobile works, and keep it open while the
+    # pointer is over either the trigger or the popover itself.
+    pos_handler = (
+        "window.__qcEtaShow&&window.__qcEtaShow(this)"
+    )
+    hide_handler = (
+        "window.__qcEtaHide&&window.__qcEtaHide(this)"
+    )
     return (
-        f'<span class="{css_class_prefix}-wrap" tabindex="0">'
+        f'<span class="{css_class_prefix}-wrap" tabindex="0" '
+        f'onmouseenter="{pos_handler}" onfocusin="{pos_handler}" '
+        f'onmouseleave="{hide_handler}" onfocusout="{hide_handler}" '
+        f'ontouchstart="{pos_handler}">'
         f'<span class="{css_class_prefix}-primary">{primary}</span>'
         f'<span class="{css_class_prefix}-info" aria-label="Filing ETA sources">&#9432;</span>'
-        f'<span class="{css_class_prefix}-pop">'
+        f'<span class="{css_class_prefix}-pop" role="tooltip">'
         f'<span class="{css_class_prefix}-pop-title">Filing ETA sources</span>'
         f'{body}'
         f'<span class="{css_class_prefix}-pop-note">\u2605 = source used &middot; ~ = estimate</span>'
@@ -490,28 +503,18 @@ def render_eta_info_html(eta: dict, css_class_prefix: str = "qc-eta") -> str:
     )
 
 
-# Reusable CSS block — include once per page.
+# Reusable CSS + JS block — include once per page.
+# We use position: fixed so no ancestor's overflow:hidden can clip the popover.
+# A tiny init script (installed via <img onerror>, since <script> tags inside
+# st.markdown(unsafe_allow_html=True) aren't executed by browsers' innerHTML
+# parsing rules) sets window.__qcEtaShow / __qcEtaHide on first render.
 ETA_INFO_CSS = """
 <style>
-/* Only the tight ancestor chain around the popover is overridden. We DO NOT
-   touch the outer sidebar or column scroll containers, so scrolling stays
-   intact. :has() scopes the override strictly to elements containing a
-   popover trigger. */
-[data-testid="stMarkdownContainer"]:has(.qc-eta-wrap),
-[data-testid="stMarkdownContainer"]:has(.qc-eta-wrap) > div,
-[data-testid="stVerticalBlock"]:has(.qc-eta-wrap),
-[data-testid="stHorizontalBlock"]:has(.qc-eta-wrap),
-[data-testid="column"]:has(.qc-eta-wrap),
-[data-testid="column"]:has(.qc-eta-wrap) > div {
-  overflow: visible !important;
-}
-
 .qc-eta-wrap {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  isolation: isolate;
 }
 .qc-eta-primary { color: #fbbf24; font-weight: 600; }
 .qc-eta-info {
@@ -525,14 +528,13 @@ ETA_INFO_CSS = """
 }
 .qc-eta-info:hover { background: rgba(147,197,253,0.18); color: #bfdbfe; }
 
-/* Default popover (earnings page / main content) — opens below-right with
-   comfortable width because there's plenty of horizontal room. */
+/* Popover uses position:fixed — viewport-anchored, so no ancestor clips it.
+   Coordinates are set dynamically by the show handler (top/left in pixels).
+   Default hidden state; the .qc-eta-pop-open class is added on show. */
 .qc-eta-pop {
   visibility: hidden; opacity: 0; pointer-events: none;
-  position: absolute; z-index: 2147483000;
-  top: calc(100% + 6px);
-  left: 0;
-  right: auto;
+  position: fixed; z-index: 2147483000;
+  top: 0; left: 0;
   min-width: 240px; max-width: 300px; padding: 10px 12px;
   background: #0f172a; border: 1px solid #1e293b; border-radius: 10px;
   box-shadow: 0 12px 32px rgba(0,0,0,0.55);
@@ -540,8 +542,7 @@ ETA_INFO_CSS = """
   color: #cbd5e1; transition: opacity 0.15s ease;
   white-space: normal;
 }
-.qc-eta-wrap:hover .qc-eta-pop,
-.qc-eta-wrap:focus-within .qc-eta-pop { visibility: visible; opacity: 1; pointer-events: auto; }
+.qc-eta-pop.qc-eta-pop-open { visibility: visible; opacity: 1; pointer-events: auto; }
 .qc-eta-pop-title { display: block; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; font-size: 0.75rem; letter-spacing: 0.02em; }
 .qc-eta-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; border-bottom: 1px dashed rgba(148,163,184,0.12); gap: 10px; }
 .qc-eta-row:last-of-type { border-bottom: none; }
@@ -550,23 +551,14 @@ ETA_INFO_CSS = """
 .qc-eta-na .qc-eta-val { color: #475569; font-weight: 400; }
 .qc-eta-pop-note { display: block; margin-top: 8px; color: #64748b; font-size: 0.68rem; font-style: italic; }
 
-/* Sidebar-specific overrides:
-   • Keep the popover inside the sidebar's horizontal band (narrower max-width,
-     anchored to the left edge of the ⓘ icon) so it never needs to escape the
-     scroll container.
-   • Smaller min-width + tighter padding fit in a ~260px sidebar.
-   • Opens UP-AND-LEFT so it doesn't drop below the box and never pushes other
-     sidebar content. */
-section[data-testid="stSidebar"] .qc-eta-pop {
-  top: auto;
-  bottom: calc(100% + 6px);
-  left: auto;
-  right: 0;
-  min-width: 190px; max-width: 220px;
+/* Tighter variant inside Streamlit's native sidebar — narrower and with
+   smaller text to match the compact sidebar rhythm. */
+section[data-testid="stSidebar"] .qc-eta-pop,
+.qc-eta-wrap.qc-eta-wrap-narrow + .qc-eta-pop {
+  min-width: 200px; max-width: 240px;
   padding: 8px 10px;
   font-size: 0.72rem;
 }
-section[data-testid="stSidebar"] .qc-eta-pop-title { font-size: 0.7rem; margin-bottom: 4px; }
-section[data-testid="stSidebar"] .qc-eta-pop-note { font-size: 0.62rem; margin-top: 6px; }
 </style>
+<img src="x" alt="" style="display:none" onerror="(function(){if(window.__qcEtaInit)return;window.__qcEtaInit=1;var PAD=8,POP_W=300,DELAY=180;function place(wrap){var pop=wrap.querySelector('.qc-eta-pop');if(!pop)return;var info=wrap.querySelector('.qc-eta-info')||wrap;var r=info.getBoundingClientRect();var vw=window.innerWidth,vh=window.innerHeight;var inSidebar=!!wrap.closest('section[data-testid=&quot;stSidebar&quot;]');pop.style.position='fixed';var pw=pop.offsetWidth||(inSidebar?220:POP_W);var ph=pop.offsetHeight||120;var placeAbove=(r.bottom+ph+PAD>vh)&&(r.top-ph-PAD>=0);var top=placeAbove?(r.top-ph-PAD):(r.bottom+PAD);var left;if(inSidebar){left=Math.max(PAD,r.right-pw);}else{left=r.left-8;left=Math.min(left,vw-pw-PAD);left=Math.max(PAD,left);}pop.style.top=Math.round(top)+'px';pop.style.left=Math.round(left)+'px';pop.style.right='auto';pop.style.bottom='auto';}window.__qcEtaShow=function(wrap){var pop=wrap.querySelector('.qc-eta-pop');if(!pop)return;if(wrap.__qcT){clearTimeout(wrap.__qcT);wrap.__qcT=null;}pop.classList.add('qc-eta-pop-open');place(wrap);requestAnimationFrame(function(){place(wrap);});};window.__qcEtaHide=function(wrap){var pop=wrap.querySelector('.qc-eta-pop');if(!pop)return;if(wrap.__qcT)clearTimeout(wrap.__qcT);wrap.__qcT=setTimeout(function(){pop.classList.remove('qc-eta-pop-open');},DELAY);};document.addEventListener('click',function(e){if(e.target.closest('.qc-eta-wrap'))return;document.querySelectorAll('.qc-eta-pop-open').forEach(function(p){p.classList.remove('qc-eta-pop-open');});},true);var reposition=function(){document.querySelectorAll('.qc-eta-pop-open').forEach(function(p){var w=p.parentElement;if(w)place(w);});};window.addEventListener('scroll',reposition,true);window.addEventListener('resize',reposition);})();this.remove();">
 """
