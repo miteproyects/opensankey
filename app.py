@@ -708,23 +708,19 @@ section[data-testid="stSidebar"] button[kind="primary"] {
     border-radius: 0 !important;
 }
 
-/* Connected segmented bar (applied via JS) */
+/* Connected segmented bar (applied via JS)
+   Visual styling intentionally matches the pre-class (separate-buttons-with-gaps)
+   state so adding `.seg-connected` ~1s post-load does not cause a layout shift.
+   The class is still used as a selector by the dim/restore JS (see below),
+   so it must keep being added — we only suppressed its visual effect. */
 .seg-connected {
-    gap: 0 !important;
-    border: 2px solid var(--accent) !important;
-    border-radius: 10px !important;
-    overflow: hidden !important;
+    /* no outer border / border-radius / gap override — keep default Streamlit row */
 }
 .seg-connected [data-testid="stColumn"] {
-    padding: 0 !important;
+    /* keep default column padding */
 }
 .seg-connected button {
-    border: none !important;
-    border-radius: 0 !important;
-    border-right: 1px solid rgba(36,117,252,0.3) !important;
-}
-.seg-connected [data-testid="stColumn"]:last-child button {
-    border-right: none !important;
+    /* keep the per-button border & squared corners from the sidebar button rule */
 }
 
 /* Custom Timeframe expander — styled dynamically via .ctf-active / .ctf-inactive classes */
