@@ -3492,7 +3492,7 @@ def _render_footer():
         _footer_tickers = ["GOOG", "META", "NVDA", "TSLA"]
         _footer_redir = "charts"
     _footer_links = " &middot; ".join(
-        f'<a href="/?page=sankey&ticker={t}" style="color:#93c5fd;text-decoration:none;"'
+        f'<a href="/?page=sankey&ticker={t}" target="_self" style="color:#93c5fd;text-decoration:none;"'
         f' onmouseover="this.style.textDecoration=\'underline\'"'
         f' onmouseout="this.style.textDecoration=\'none\'">{t}</a>'
         for t in _footer_tickers
@@ -3509,12 +3509,12 @@ def _render_footer():
         <div>
             <h3>Quick Links</h3>
             <p>
-                <a href="/?page=home">Home</a><br>
-                <a href="/?page=earnings">Earnings Calendar</a><br>
-                <a href="/?page=watchlist">Watchlist</a><br>
-                <a href="/?page=privacy">Privacy Policy</a><br>
-                <a href="/?page=terms">Terms of Service</a><br>
-                <a href="/?page=sitemap">Sitemap</a>
+                <a href="/?page=home" target="_self">Home</a><br>
+                <a href="/?page=earnings" target="_self">Earnings Calendar</a><br>
+                <a href="/?page=watchlist" target="_self">Watchlist</a><br>
+                <a href="/?page=privacy" target="_self">Privacy Policy</a><br>
+                <a href="/?page=terms" target="_self">Terms of Service</a><br>
+                <a href="/?page=sitemap" target="_self">Sitemap</a>
             </p>
         </div>
         <div>

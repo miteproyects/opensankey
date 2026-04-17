@@ -374,9 +374,30 @@ def render_home_page():
             var html = 'Try for free:&nbsp; ';
             for (var i = 0; i < tickers.length; i++) {
                 if (i > 0) html += ' \u00b7 ';
-                html += '<a href="/?page=' + destPage + '&ticker=' + tickers[i] + '" target="_top">' + tickers[i] + '</a>';
+                html += '<a href="#" data-ticker="' + tickers[i] + '" class="popular-link">' + tickers[i] + '</a>';
             }
             el.innerHTML = html;
+            /* Delegated click: iframe sandbox blocks target="_top" on some
+               browsers, so navigate the parent window explicitly (same trick
+               goSearch() uses). */
+            el.addEventListener('click', function(ev){
+                var a = ev.target.closest('a.popular-link');
+                if (!a) return;
+                ev.preventDefault();
+                var t = a.getAttribute('data-ticker');
+                if (!t) return;
+                var url = '/?page=' + destPage + '&ticker=' + encodeURIComponent(t);
+                try {
+                    var link = window.parent.document.createElement('a');
+                    link.href = url;
+                    link.style.display = 'none';
+                    window.parent.document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                } catch(e) {
+                    window.top.location.href = url;
+                }
+            });
         })();
         </script>
     </div>
