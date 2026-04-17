@@ -446,11 +446,11 @@ def render_home_page():
             <p>Save your favorite tickers and track them in one place. Instant access to charts, profiles, and Sankey diagrams.</p>
             <span class="clink">Go to Watchlist &#8594;</span>
         </a>
-        <a class="fcard" href="/?page=charts&ticker=NVDA" target="_top">
-            <div class="ficon ic-rose">&#128196;</div>
-            <h3>PDF Export</h3>
-            <p>Download publication-quality charts and reports as PDFs &#8212; perfect for presentations, research, and sharing.</p>
-            <span class="clink">Export a Chart &#8594;</span>
+        <a class="fcard" href="/?page=pricing" target="_top">
+            <div class="ficon ic-rose">&#128176;</div>
+            <h3>Pricing</h3>
+            <p>Simple, transparent plans &#8212; start free, upgrade when you need more tickers, unlimited lookups, or team dashboards.</p>
+            <span class="clink">View Pricing &#8594;</span>
         </a>
     </div>
 
