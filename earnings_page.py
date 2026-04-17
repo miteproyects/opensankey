@@ -734,10 +734,27 @@ def _compute_filing_eta_sources(ticker: str, event_label: str, finnhub_date_str:
         return {}
 
 
-def _render_earnings_table(earnings: list[dict], show_date: bool = False):
+def _render_earnings_table(earnings: list[dict], show_date: bool = False, show_filing_eta: bool | None = None):
+    """
+    Render the earnings table.
+
+    - show_date=True: adds a Date column. For future rows, the date is followed
+      inline by `~ filing in Xd ⓘ` (search view — rows have heterogeneous dates).
+    - show_filing_eta=True: adds a dedicated "Filing" column showing just
+      `~ filing in Xd ⓘ` for future rows. Used by the weekly day view where
+      every row shares the selected day, so a Date column would be redundant
+      but the per-ticker filing ETA is still useful.
+    - If show_filing_eta is None it defaults to False when show_date=True (the
+      inline format already covers it) and True when show_date=False (so the
+      weekly view always shows the 3-source ETA — see docs/filing-eta-rules.md).
+    """
     _auth_params = ""
     if st.session_state.get("session_token"):
         _auth_params = f"&_sid={st.session_state.session_token}"
+
+    # Default: inline ETA is enough when show_date=True; otherwise add a column.
+    if show_filing_eta is None:
+        show_filing_eta = not show_date
 
     order = {"BMO": 0, "AMC": 1, "TAS": 2, "TNS": 3}
     earnings_sorted = sorted(earnings, key=lambda x: (order.get(x.get("call_time", "TNS"), 3), x.get("ticker", "")))
@@ -786,31 +803,42 @@ def _render_earnings_table(earnings: list[dict], show_date: bool = False):
         ticker_link = f'/?page=charts&ticker={ticker}{_auth_params}'
 
         _d_str = e.get("date", "") or ""
-        _eta_suffix_html = ""
-        if show_date and _d_str and _d_str >= _today_iso:
+
+        # Compute the 3-source ETA inner HTML once per row; reused by either
+        # the inline-Date path or the dedicated Filing column.
+        _eta_inner = ""
+        if _d_str and _d_str >= _today_iso and (show_date or show_filing_eta):
             try:
                 _eta_sources = _compute_filing_eta_sources(ticker, event, _d_str)
                 if _eta_sources and _eta_sources.get("primary_label"):
                     try:
                         from filing_eta import render_eta_info_html
-                        _eta_inner = render_eta_info_html(_eta_sources)
+                        _eta_inner = render_eta_info_html(_eta_sources) or ""
                     except Exception:
                         _eta_inner = ""
-                    if _eta_inner:
-                        _eta_suffix_html = f' &middot; {_eta_inner}'
             except Exception:
-                _eta_suffix_html = ""
+                _eta_inner = ""
 
+        _eta_suffix_html = f' &middot; {_eta_inner}' if (show_date and _eta_inner) else ''
         date_col = f'<td>{_d_str}{_eta_suffix_html}</td>' if show_date else ''
+
+        filing_col = ''
+        if show_filing_eta:
+            filing_col = (
+                f'<td>{_eta_inner}</td>'
+                if _eta_inner
+                else '<td><span class="ec-eps-neutral">&ndash;</span></td>'
+            )
 
         rows_html += (
             f'<tr><td><a class="ec-ticker" href="{ticker_link}" target="_self">{ticker}</a></td>'
             f'<td><span class="ec-event">{event}</span></td>{date_col}'
             f'<td>{badge}</td><td>{eps_est_html}</td>'
-            f'<td>{eps_actual_html}</td><td>{surprise_html}</td></tr>'
+            f'<td>{eps_actual_html}</td><td>{surprise_html}</td>{filing_col}</tr>'
         )
 
     date_th = '<th>Date</th>' if show_date else ''
+    filing_th = '<th>Filing</th>' if show_filing_eta else ''
 
     _eta_css = ""
     try:
@@ -822,7 +850,7 @@ def _render_earnings_table(earnings: list[dict], show_date: bool = False):
         f'{_eta_css}'
         f'<div class="ec-table-wrap"><table class="ec-table"><thead><tr>'
         f'<th>Symbol</th><th>Event</th>{date_th}'
-        f'<th>Call Time</th><th>EPS Est.</th><th>Reported</th><th>Surprise</th>'
+        f'<th>Call Time</th><th>EPS Est.</th><th>Reported</th><th>Surprise</th>{filing_th}'
         f'</tr></thead><tbody>{rows_html}</tbody></table></div>'
     )
     st.markdown(table_html, unsafe_allow_html=True)
