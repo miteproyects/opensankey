@@ -568,6 +568,20 @@ def render_watchlist_page():
     .company-ticker a:hover {
         color: #2475fc;
     }
+    .wl-remove-link {
+        display: inline-block;
+        color: #b0b0b0;
+        font-size: 1.15rem;
+        line-height: 1;
+        text-decoration: none;
+        padding: 4px 8px;
+        border-radius: 6px;
+        transition: color 0.15s, background 0.15s;
+    }
+    .wl-remove-link:hover {
+        color: #dc2626;
+        background: #fee2e2;
+    }
     /* Style the search input */
     div[data-testid="stTextInput"] input {
         font-size: 16px;
@@ -599,6 +613,24 @@ def render_watchlist_page():
         'Track your favorite companies with live market data</p>',
         unsafe_allow_html=True,
     )
+
+    # ── Handle URL-based remove (?wl_remove=SYM) ──────────────────────────
+    # The Remove column in the table is a plain <a> because the table is
+    # rendered as raw HTML; clicks round-trip through the URL. We consume
+    # the param, mutate state, clear the param, and rerun to avoid the
+    # action re-firing on refresh.
+    _qp_remove = st.query_params.get("wl_remove")
+    if _qp_remove:
+        _sym_to_remove = str(_qp_remove).upper().strip()
+        if _sym_to_remove in st.session_state.watchlist_tickers:
+            st.session_state.watchlist_tickers.remove(_sym_to_remove)
+            _save_watchlist(st.session_state.watchlist_tickers)
+        # Strip the param so refresh doesn't re-trigger the removal.
+        try:
+            del st.query_params["wl_remove"]
+        except Exception:
+            pass
+        st.rerun()
 
     # ── Handle remove actions FIRST (before rendering) ─────────────────────
     for key in list(st.session_state.keys()):
@@ -703,6 +735,13 @@ def render_watchlist_page():
         return
 
     # ── Build table HTML ──────────────────────────────────────────────────
+    # Preserve the current ticker query-param (if any) so the URL round-trip
+    # for ?wl_remove= doesn't drop the rest of the address-bar state.
+    _cur_ticker_qp = st.query_params.get("ticker", "")
+    _base_qs = "page=watchlist"
+    if _cur_ticker_qp:
+        _base_qs += f"&ticker={_cur_ticker_qp}"
+
     rows_html = ""
     for _, row in df.iterrows():
         sym = row["symbol"]
@@ -718,6 +757,7 @@ def render_watchlist_page():
             earnings_html = earnings
         profile_url = f"?page=profile&ticker={sym}"
         charts_url = f"?page=charts&ticker={sym}"
+        remove_url = f"?{_base_qs}&wl_remove={sym}"
         rows_html += (
             f'<tr>'
             f'<td><div class="company-name"><a href="{profile_url}" target="_self">{name}</a></div>'
@@ -727,7 +767,11 @@ def render_watchlist_page():
             f'<td>{change}</td>'
             f'<td>{pe}</td>'
             f'<td>{earnings_html}</td>'
-            f'<td style="text-align:center;font-size:1.3rem;color:#ffc107;">★</td>'
+            f'<td style="text-align:center;">'
+            f'<a class="wl-remove-link" href="{remove_url}" target="_self"'
+            f' title="Remove {sym} from watchlist"'
+            f' aria-label="Remove {sym} from watchlist">&#x1F5D1;</a>'
+            f'</td>'
             f'</tr>'
         )
 
@@ -738,7 +782,7 @@ def render_watchlist_page():
         '<th>Name</th><th>Market Cap</th><th>Share Price</th>'
         '<th>1D Change</th><th>P/E Ratio</th>'
         '<th>Earnings date<br><span style="font-weight:400;color:#aaa;font-size:0.75rem;">can change</span></th>'
-        '<th>Actions</th>'
+        '<th style="text-align:center;">Remove</th>'
         '</tr></thead>'
         f'<tbody>{rows_html}</tbody></table>'
         '</div>'
