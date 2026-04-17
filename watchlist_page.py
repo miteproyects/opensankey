@@ -15,10 +15,42 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-_WATCHLIST_FILE = os.path.join(_BASE_DIR, "watchlist_data.json")
+_WATCHLIST_DIR = os.path.join(_BASE_DIR, "watchlist_data")
+# Legacy single-file location from earlier versions — still read as a
+# per-user migration source, never written to.
+_LEGACY_WATCHLIST_FILE = os.path.join(_BASE_DIR, "watchlist_data.json")
 _NAME_CACHE_FILE = os.path.join(_BASE_DIR, "watchlist_names_cache.json")
 
 _MAX_COMPANIES = 20
+
+
+def _current_user_id() -> str | None:
+    """Return the logged-in user id, or None for anonymous sessions."""
+    try:
+        if st.session_state.get("logged_in"):
+            uid = st.session_state.get("user_id")
+            if uid:
+                return str(uid)
+    except Exception:
+        pass
+    return None
+
+
+def _watchlist_file_for_user(uid: str | None) -> str | None:
+    """Return the on-disk watchlist file for a logged-in user, or None for
+    anonymous sessions (anonymous watchlists live in session state only so
+    each fresh visit starts from the admin-pool default)."""
+    if not uid:
+        return None
+    # Sanitize user id to a safe filename component.
+    safe = "".join(c for c in uid if c.isalnum() or c in ("-", "_"))
+    if not safe:
+        return None
+    try:
+        os.makedirs(_WATCHLIST_DIR, exist_ok=True)
+    except Exception:
+        return None
+    return os.path.join(_WATCHLIST_DIR, f"watchlist_{safe}.json")
 
 
 # ── Company name cache ────────────────────────────────────────────────────
@@ -60,22 +92,44 @@ def _default_watchlist_from_pool() -> list:
 
 
 def _load_watchlist() -> list:
-    """Load watchlist tickers from disk."""
-    if os.path.exists(_WATCHLIST_FILE):
+    """Load watchlist tickers for the current user.
+
+    - Logged-in user with a saved per-user file → return that file.
+    - Logged-in user with no per-user file yet  → return the admin pool
+      (NSFQ → "Manage Available Tickers").
+    - Anonymous visitor                         → return the admin pool.
+      Anonymous edits live in session state only and are not persisted
+      (so each fresh anonymous visit reliably shows the admin pool).
+
+    The old shared watchlist_data.json is intentionally ignored — it was
+    a single deployment-wide file that caused every visitor to see the
+    mutations of the last user who edited.
+    """
+    uid = _current_user_id()
+    path = _watchlist_file_for_user(uid)
+    if path and os.path.exists(path):
         try:
-            with open(_WATCHLIST_FILE, "r") as f:
+            with open(path, "r") as f:
                 data = json.load(f)
-            if isinstance(data, list):
-                return data[:_MAX_COMPANIES]
+            if isinstance(data, list) and data:
+                return [str(t).upper() for t in data][:_MAX_COMPANIES]
         except Exception:
             pass
     return _default_watchlist_from_pool()
 
 
 def _save_watchlist(tickers: list):
-    """Save watchlist tickers to disk."""
+    """Persist watchlist tickers for the current logged-in user.
+
+    No-op for anonymous visitors — their list lives in session state only,
+    ensuring the next fresh visit shows the admin-pool default again.
+    """
+    uid = _current_user_id()
+    path = _watchlist_file_for_user(uid)
+    if not path:
+        return
     try:
-        with open(_WATCHLIST_FILE, "w") as f:
+        with open(path, "w") as f:
             json.dump(tickers[:_MAX_COMPANIES], f)
     except Exception:
         pass
@@ -479,8 +533,14 @@ def render_watchlist_page():
     """Render the full Watchlist page."""
 
     # ── Initialize session state ───────────────────────────────────────────
-    if "watchlist_tickers" not in st.session_state:
+    # Reload whenever the effective user identity changes (login, logout,
+    # switch account) so each identity starts with its own saved list or,
+    # if none, the admin-pool default.
+    _wl_uid = _current_user_id()
+    if ("watchlist_tickers" not in st.session_state
+            or st.session_state.get("_watchlist_uid") != _wl_uid):
         st.session_state.watchlist_tickers = _load_watchlist()
+        st.session_state["_watchlist_uid"] = _wl_uid
 
     # ── Inject page-specific CSS ───────────────────────────────────────────
     st.markdown("""
