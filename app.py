@@ -3218,6 +3218,58 @@ with st.sidebar:
                             use_container_width=True,
                         )
 
+                # ── Auto-fit quarter button labels to 1 line ──
+                # Forces white-space:nowrap and progressively shrinks the
+                # font-size of each "FYxxxx - Qn ..." button until its text
+                # fits on a single line inside the button (down to a min).
+                components.html("""<script>
+(function(){
+    var fit = function(){
+        var sb = window.parent.document.querySelector('section[data-testid="stSidebar"]');
+        if (!sb) return false;
+        var btns = sb.querySelectorAll('div[data-testid="stButton"] > button');
+        var did = false;
+        for (var i = 0; i < btns.length; i++){
+            var b = btns[i];
+            var t = (b.innerText || b.textContent || '').trim();
+            if (!/^FY20\\d{2}\\s*-\\s*Q[1-4]/.test(t)) continue;
+            did = true;
+            // Target the inner text element if present (Streamlit wraps label in <div>/<p>)
+            var inner = b.querySelector('p') || b.querySelector('div') || b;
+            inner.style.setProperty('white-space', 'nowrap', 'important');
+            inner.style.setProperty('overflow', 'hidden', 'important');
+            inner.style.setProperty('text-overflow', 'clip', 'important');
+            inner.style.setProperty('display', 'block', 'important');
+            // Reset before measuring
+            inner.style.removeProperty('font-size');
+            inner.style.removeProperty('letter-spacing');
+            var min_px = 9;   // floor
+            var max_px = 14;  // cap (Streamlit default ~14px)
+            var size = max_px;
+            inner.style.setProperty('font-size', size + 'px', 'important');
+            // Shrink until text fits, or we hit the floor
+            var guard = 30;
+            while (inner.scrollWidth > (b.clientWidth - 4) && size > min_px && guard-- > 0){
+                size -= 0.5;
+                inner.style.setProperty('font-size', size + 'px', 'important');
+            }
+            if (size <= 11){
+                inner.style.setProperty('letter-spacing', '-0.01em', 'important');
+            }
+        }
+        return did;
+    };
+    if (!fit()){
+        var t = setInterval(function(){ if (fit()) clearInterval(t); }, 80);
+        setTimeout(function(){ clearInterval(t); }, 4000);
+    }
+    // Re-fit on window resize (sidebar width can change)
+    try {
+        window.parent.addEventListener('resize', function(){ fit(); });
+    } catch(e){}
+})();
+</script>""", height=0, scrolling=False)
+
                 # ── Show toast if a blocked button was clicked ──
                 _toast_msg = st.session_state.pop("_qbtn_toast", None)
                 if _toast_msg:
