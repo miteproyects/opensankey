@@ -2235,12 +2235,28 @@ with st.sidebar:
                     st.rerun()
 
         if current_page != "sankey":
-            # ── FROM / TO quarter range (only remaining timeframe control) ──
-            # Fetch available fiscal-quarter labels for this ticker.
-            _avail_q_periods = []  # quarterly labels like "Q1 2024"
+            # ── FROM / TO quarter range with SEC-filing-gated defaults ──
+            #
+            # Rules (same ground-truth source as the Sankey Q selector):
+            #   • Latest filed Q = newest fiscal Q present in
+            #     get_edgar_available_qs_map(ticker, fy_end).  Walks backwards
+            #     if the most-recent ended Q isn't filed yet.
+            #   • FROM combobox lists every Q from the earliest period we
+            #     have data for through the latest filed Q (inclusive).
+            #     Default selection = "Q1 2024" (fallback: earliest).
+            #   • TO combobox lists every Q in FROM plus the 4 Qs of the
+            #     current calendar year (even if not filed yet).  Unfiled
+            #     Qs are rendered with a "Filing ETA sources …" note and
+            #     snap back on selection so they cannot be chosen.
+            #     Default selection = latest filed Q.
+            from datetime import date as _date_cls
+            from filing_eta import get_filing_eta
+
+            _avail_q_periods = []  # fiscal labels like "Q1 2024" (chronological)
+            _fy_m_side = 12
             try:
                 from data_fetcher import relabel_df_to_fiscal as _rdf, _get_fy_end_month as _gfym
-                _fy_m_side = _gfym(ticker)
+                _fy_m_side = _gfym(ticker) or 12
                 _avail_q_df = get_income_statement(ticker, quarterly=True)
                 if not _avail_q_df.empty:
                     _avail_q_df = _rdf(_avail_q_df, _fy_m_side)
@@ -2248,18 +2264,153 @@ with st.sidebar:
             except Exception:
                 pass
 
-            # Seed default range (~2 years = 8 quarters) on first render.
-            if _avail_q_periods and not st.session_state.get("custom_from"):
-                st.session_state.custom_from = _avail_q_periods[max(0, len(_avail_q_periods) - 8)]
-                st.session_state.custom_to = _avail_q_periods[-1]
+            # EDGAR ground truth: {fy: set_of_filed_qs}
+            _filed_map = {}
+            try:
+                from sankey_page import get_edgar_available_qs_map
+                _filed_map = get_edgar_available_qs_map(ticker, _fy_m_side) or {}
+            except Exception:
+                pass
+
+            def _parse_q_label(lab):
+                """'Q1 2024' → (1, 2024).  Returns (None, None) on failure."""
+                try:
+                    parts = str(lab).strip().split()
+                    if (len(parts) == 2
+                            and parts[0].startswith("Q")
+                            and parts[0][1:].isdigit()
+                            and parts[1].isdigit()):
+                        return int(parts[0][1:]), int(parts[1])
+                except Exception:
+                    pass
+                return None, None
+
+            def _is_filed(lab):
+                q, fy = _parse_q_label(lab)
+                if q is None or fy is None:
+                    return False
+                return q in (_filed_map.get(fy) or set())
+
+            def _q_sort_key(lab):
+                q, fy = _parse_q_label(lab)
+                return (fy if fy is not None else -1, q if q is not None else -1)
+
+            # Latest SEC-filed quarter: walk newest→oldest over available data.
+            _latest_filed = None
+            for _lab in reversed(_avail_q_periods):
+                if _is_filed(_lab):
+                    _latest_filed = _lab
+                    break
+            # Degrade gracefully when EDGAR map is empty (network / rate limit).
+            if _latest_filed is None and _avail_q_periods:
+                _latest_filed = _avail_q_periods[-1]
+
+            # FROM list: all Qs up to and including the latest filed Q.
+            _from_list = list(_avail_q_periods)
+            if _latest_filed and _latest_filed in _from_list:
+                _from_list = _from_list[: _from_list.index(_latest_filed) + 1]
+
+            # TO list: everything in _avail_q_periods PLUS Q1-Q4 of the current
+            # calendar year (even if the company hasn't filed them yet).
+            _cur_cal_year = _date_cls.today().year
+            _cur_year_labels = [f"Q{q} {_cur_cal_year}" for q in range(1, 5)]
+            _to_list = list(_avail_q_periods)
+            for _cy_lab in _cur_year_labels:
+                if _cy_lab not in _to_list:
+                    _to_list.append(_cy_lab)
+            _to_list.sort(key=_q_sort_key)
+            _from_list.sort(key=_q_sort_key)
+
+            # Defaults
+            _default_from = (
+                "Q1 2024" if "Q1 2024" in _from_list
+                else (_from_list[0] if _from_list else None)
+            )
+            _default_to = _latest_filed
+
+            # Ticker-change reset: clear saved FROM/TO so defaults re-seed.
+            _ticker_uc_ch = (ticker.upper() if ticker else "")
+            _prev_ch_ticker = st.session_state.get("_ch_prev_ticker", "")
+            if _prev_ch_ticker and _prev_ch_ticker != _ticker_uc_ch:
+                for _rk in ("custom_from", "custom_to", "_cf_q_from", "_cf_q_to"):
+                    st.session_state.pop(_rk, None)
+            st.session_state["_ch_prev_ticker"] = _ticker_uc_ch
+
+            # First-render seed
+            if _to_list and not st.session_state.get("custom_from"):
+                st.session_state.custom_from = _default_from
+                st.session_state.custom_to = _default_to
                 st.session_state.custom_mode = "quarter"
                 st.session_state.quarterly = True
                 st.session_state.timeframe = "CUSTOM"
 
-            # Auto-apply callback — writes selectbox values back to custom_from/to.
+            # Unfiled TO entries (shown with ETA note, not selectable).
+            _to_unfiled = {lab for lab in _to_list if not _is_filed(lab)}
+
+            _eta_cache = {}
+
+            def _eta_label_for(lab):
+                if lab in _eta_cache:
+                    return _eta_cache[lab]
+                q, fy = _parse_q_label(lab)
+                if q is None or fy is None:
+                    _eta_cache[lab] = ""
+                    return ""
+                try:
+                    eta = get_filing_eta(ticker, event_label=f"Q{q} {fy} Earnings") or {}
+                except Exception:
+                    _eta_cache[lab] = ""
+                    return ""
+                primary = (eta.get("primary_source") or "").lower()
+
+                def _row(name, key):
+                    star = " \u2605" if key == primary else ""
+                    val = eta.get(f"{key}_label") or "n/a"
+                    return f"{name}{star}: {val}"
+
+                out = (
+                    f"Filing ETA sources {_row('EDGAR', 'edgar')}"
+                    f" - {_row('FMP', 'fmp')}"
+                    f" - {_row('Finnhub', 'finnhub')}"
+                    f" \u2605 = source used \u00b7 ~ = estimate"
+                )
+                _eta_cache[lab] = out
+                return out
+
+            def _display_to(lab):
+                if _is_filed(lab):
+                    return lab
+                eta_txt = _eta_label_for(lab)
+                return f"{lab} — {eta_txt}" if eta_txt else f"{lab} — (no SEC filing yet)"
+
+            # Most-recent-first for display
+            _from_options = list(reversed(_from_list))
+            _to_options = list(reversed(_to_list))
+
+            # Validate saved state against current option set.
+            _saved_qf = st.session_state.get("custom_from", _default_from)
+            _saved_qt = st.session_state.get("custom_to", _default_to)
+            if _saved_qf not in _from_options:
+                _saved_qf = (
+                    _default_from if _default_from in _from_options
+                    else (_from_options[0] if _from_options else None)
+                )
+                st.session_state.custom_from = _saved_qf
+            if (_saved_qt not in _to_options) or (_saved_qt in _to_unfiled):
+                _saved_qt = (
+                    _default_to if (_default_to in _to_options and _default_to not in _to_unfiled)
+                    else next((o for o in _to_options if o not in _to_unfiled), None)
+                )
+                st.session_state.custom_to = _saved_qt
+
             def _apply_custom_range():
                 qf = st.session_state.get("_cf_q_from", "")
                 qt = st.session_state.get("_cf_q_to", "")
+                # Snap back if the user picked an unfiled TO option.
+                if qt in _to_unfiled:
+                    prev = st.session_state.get("custom_to") or _default_to
+                    st.session_state["_cf_q_to"] = prev
+                    qt = prev
                 if qf and qt:
                     st.session_state.custom_from = qf
                     st.session_state.custom_to = qt
@@ -2267,27 +2418,14 @@ with st.sidebar:
                     st.session_state.quarterly = True
                     st.session_state.timeframe = "CUSTOM"
 
-            if len(_avail_q_periods) >= 2:
-                _saved_qf = st.session_state.get("custom_from", _avail_q_periods[0])
-                _saved_qt = st.session_state.get("custom_to", _avail_q_periods[-1])
-                if _saved_qf not in _avail_q_periods:
-                    _saved_qf = _avail_q_periods[0]
-                if _saved_qt not in _avail_q_periods:
-                    _saved_qt = _avail_q_periods[-1]
-
-                # Display options most-recent-first (chronological reverse) so
-                # the newest quarter sits at the top of each dropdown.  Seeding
-                # and range logic above keep using the original chronological
-                # list, so _saved_qf / _saved_qt stay valid lookups.
-                _q_options = list(reversed(_avail_q_periods))
-
+            if _from_options and _to_options and _saved_qf and _saved_qt:
                 st.markdown(
                     '<p style="color:#94a3b8;font-size:12px;margin:8px 0 4px;font-weight:600;">FROM</p>',
                     unsafe_allow_html=True,
                 )
                 st.selectbox(
-                    "From Quarter", _q_options,
-                    index=_q_options.index(_saved_qf),
+                    "From Quarter", _from_options,
+                    index=_from_options.index(_saved_qf) if _saved_qf in _from_options else 0,
                     key="_cf_q_from",
                     label_visibility="collapsed",
                     on_change=_apply_custom_range,
@@ -2297,8 +2435,9 @@ with st.sidebar:
                     unsafe_allow_html=True,
                 )
                 st.selectbox(
-                    "To Quarter", _q_options,
-                    index=_q_options.index(_saved_qt),
+                    "To Quarter", _to_options,
+                    index=_to_options.index(_saved_qt) if _saved_qt in _to_options else 0,
+                    format_func=_display_to,
                     key="_cf_q_to",
                     label_visibility="collapsed",
                     on_change=_apply_custom_range,
