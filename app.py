@@ -2695,39 +2695,26 @@ with st.sidebar:
                     end_cal_year -= 1
                 return end_cal_year
 
-            # SEC filing buffer — computed per-ticker from historical EDGAR gaps
-            # (median of filing_date − period_end across the last ~8 quarters
-            # that FMP returns in get_fiscal_calendar). Falls back to a 45-day
-            # regulatory ceiling when no history is available. Clamped to a
-            # sane range to absorb outliers. This buffer drives both
-            # _q_data_available (ground-truth fallback heuristic) and
-            # _days_until_q (the "filing ~Nd" label on locked buttons).
+            # SEC filing buffer — per-ticker median (filing_date − period_end) across
+            # historical filings. 3-source cascade:
+            #   1) SEC EDGAR — data.sec.gov submissions API (authoritative)
+            #   2) FMP       — fillingDate mirror (fallback when EDGAR unreachable)
+            #   3) Finnhub   — announcement-date proxy (last resort; no filing history)
+            # Clamped 15–75d to match regulatory 10-Q / 10-K deadlines. Drives both
+            # _q_data_available (data-availability heuristic) and _days_until_q
+            # (the "filing ~Nd" label on locked buttons).
             import calendar as _cal_mod
             from datetime import date as _date_cls
             _SEC_FILING_BUFFER_DAYS = 45  # default; overridden below if history exists
+            _qs_cadence = {"primary_median": None, "primary_source": None,
+                           "edgar_median": None, "fmp_median": None, "finnhub_median": None}
             try:
-                from data_fetcher import get_fiscal_calendar as _gfc_sel
-                _sel_fc = _gfc_sel(ticker)
-                _sel_gaps = []
-                for _sq in (_sel_fc.get("quarters") or []):
-                    _pe = (_sq.get("period_end") or "")[:10]
-                    _fd = (_sq.get("filing_date") or "")[:10]
-                    if _pe and _fd:
-                        try:
-                            _gap = (pd.Timestamp(_fd) - pd.Timestamp(_pe)).days
-                            if 0 < _gap < 180:
-                                _sel_gaps.append(_gap)
-                        except Exception:
-                            pass
-                if _sel_gaps:
-                    _sel_gaps.sort()
-                    _median = _sel_gaps[len(_sel_gaps) // 2]
-                    # Clamp: don't unlock the button before the earliest plausible
-                    # filing (15d) and don't lock it longer than the 10-K ceiling
-                    # the regulator allows (75d).
-                    _SEC_FILING_BUFFER_DAYS = max(15, min(75, int(_median)))
+                from filing_eta import get_filing_cadence as _gfc_cadence
+                _qs_cadence = _gfc_cadence(ticker) or _qs_cadence
+                if _qs_cadence.get("primary_median"):
+                    _SEC_FILING_BUFFER_DAYS = int(_qs_cadence["primary_median"])
             except Exception as _sel_err:
-                print(f"[QuarterSelector] Per-ticker buffer calc failed for {ticker}: {_sel_err}")
+                print(f"[QuarterSelector] 3-source cadence failed for {ticker}: {_sel_err}")
 
             def _q_end_date(q, fy, fy_end):
                 """Return the calendar date when fiscal quarter q of FY fy ends."""
@@ -3247,10 +3234,25 @@ with st.sidebar:
                         elif _ended and not _heuristic_says_avail:
                             # Quarter ended, within the normal filing window
                             _days = _days_until_q(_qi_i, _fy_i)
+                            _src_line = ""
+                            try:
+                                _e = _qs_cadence.get("edgar_median")
+                                _f = _qs_cadence.get("fmp_median")
+                                _p = (_qs_cadence.get("primary_source") or "").upper()
+                                _src_line = (
+                                    f" &middot; Sources: EDGAR={_e if _e is not None else '—'}d, "
+                                    f"FMP={_f if _f is not None else '—'}d, Finnhub=n/a &middot; using **{_p or '—'}**"
+                                )
+                            except Exception:
+                                pass
                             st.button(
                                 f"{_base_lbl} — filing ~{_days}d",
                                 key=_bid, use_container_width=True, disabled=True,
-                                help=f"Quarter ended, SEC filing pending (~45 days after quarter end) — [subscribe](https://quartercharts.com/pricing) to get notified",
+                                help=(
+                                    f"Quarter ended; SEC filing pending. `~` = estimate from per-ticker "
+                                    f"historical median filing gap (3-source cascade: SEC EDGAR → FMP → Finnhub)."
+                                    f"{_src_line}"
+                                ),
                             )
                         else:
                             # Quarter hasn't ended yet
@@ -3438,10 +3440,12 @@ with st.sidebar:
             except Exception:
                 pass
 
-            # ── Filing ETA: "filing in Xd" when quarter ended but 10-Q/10-K not yet filed ──
-            # Primary: median historical gap between period_end and filing_date
-            # from the quarters we already have (FMP-sourced in data_fetcher).
-            # Fallback: Finnhub next-earnings date (retrieved above as _ne).
+            # ── Filing ETA: "~ filing in Xd" when quarter ended but 10-Q/10-K not yet filed ──
+            # Uses 3-source cascade (all free REST APIs):
+            #   1) SEC EDGAR  — data.sec.gov submissions API (10-Q/10-K + 8-K)
+            #   2) FMP        — quarterly income-statement fillingDate / earning_calendar
+            #   3) Finnhub    — /calendar/earnings (announcement-date proxy, last resort)
+            # The shared info popover (ⓘ) shows the value from every source.
             _filing_eta_html = ""
             try:
                 from datetime import date as _ddate, timedelta as _dtd
@@ -3453,9 +3457,7 @@ with st.sidebar:
 
                 _today_d = _ddate.today()
                 _fy_m = int(_fy_month) if _fy_month else 12
-                # The four fiscal-quarter-end months for this ticker
                 _qe_months = [(((_fy_m - 1) + 3 * _k) % 12) + 1 for _k in range(4)]
-                # Candidate quarter-end dates across last ~24 months
                 _cands = []
                 for _y in range(_today_d.year - 2, _today_d.year + 2):
                     for _m in _qe_months:
@@ -3469,10 +3471,6 @@ with st.sidebar:
                     _target_iso = _last_qe.isoformat()
                     _target_ym = _target_iso[:7]  # "YYYY-MM"
 
-                    # Try exact-date match first (period_end == last day of month),
-                    # then widen to any quarter whose period_end falls in the same
-                    # month — handles tickers like NVDA whose fiscal quarters end
-                    # on the last Sunday rather than the calendar month end.
                     _matched = next(
                         (q for q in _fc_quarters
                          if (q.get("period_end") or "")[:10] == _target_iso),
@@ -3487,54 +3485,23 @@ with st.sidebar:
                     _is_filed = bool(_matched and _matched.get("filing_date"))
 
                     if not _is_filed:
-                        # Primary: median historical (filing_date - period_end).days
-                        _gaps = []
-                        for _q in _fc_quarters:
-                            _pe = (_q.get("period_end") or "")[:10]
-                            _fd = (_q.get("filing_date") or "")[:10]
-                            if _pe and _fd:
-                                try:
-                                    _g = (pd.Timestamp(_fd) - pd.Timestamp(_pe)).days
-                                    if 0 < _g < 180:
-                                        _gaps.append(_g)
-                                except Exception:
-                                    pass
-                        # Use the matched quarter's real period_end if available
-                        # (e.g., NVDA's last-Sunday date), else fall back to the
-                        # calendar last-day-of-month we computed.
-                        _base_pe = None
-                        if _matched and _matched.get("period_end"):
+                        try:
+                            from filing_eta import get_filing_eta, render_eta_info_html
+                            _finnhub_d = None
                             try:
-                                _base_pe = pd.Timestamp(_matched["period_end"]).date()
+                                _finnhub_d = (_ne or {}).get("date")
                             except Exception:
-                                _base_pe = None
-                        if _base_pe is None:
-                            _base_pe = _last_qe
-
-                        _eta_d = None
-                        if _gaps:
-                            _gaps.sort()
-                            _med_gap = _gaps[len(_gaps) // 2]
-                            _eta_d = _base_pe + _dtd(days=int(_med_gap))
-                        elif _ne.get("date"):
-                            # Fallback: Finnhub's next-earnings date
-                            try:
-                                _eta_d = pd.Timestamp(_ne["date"]).date()
-                            except Exception:
-                                _eta_d = None
-
-                        if _eta_d:
-                            _days_until = (_eta_d - _today_d).days
-                            if _days_until <= 0:
-                                _eta_text = "~ filing any day"
-                            elif _days_until == 1:
-                                _eta_text = "~ filing in 1d"
-                            else:
-                                _eta_text = f"~ filing in {_days_until}d"
-                            _filing_eta_html = (
-                                f' <span style="color:#fbbf24;font-weight:500;">'
-                                f'&middot; {_eta_text}</span>'
+                                _finnhub_d = None
+                            _eta_sources = get_filing_eta(
+                                ticker,
+                                event_label=None,
+                                finnhub_date=_finnhub_d,
                             )
+                            _eta_html = render_eta_info_html(_eta_sources)
+                            if _eta_html:
+                                _filing_eta_html = f' &middot; {_eta_html}'
+                        except Exception as _eta_err2:
+                            print(f"[Sidebar] Filing ETA (3-source) error: {_eta_err2}")
             except Exception as _eta_err:
                 print(f"[Sidebar] Filing ETA error: {_eta_err}")
 
@@ -3594,7 +3561,12 @@ with st.sidebar:
             )
 
             # ── Render: Latest → Fiscal Calendar → Next Earnings ──
-            st.markdown(f'{_box1}{_box3}{_box2}', unsafe_allow_html=True)
+            _eta_css = ""
+            try:
+                from filing_eta import ETA_INFO_CSS as _eta_css
+            except Exception:
+                _eta_css = ""
+            st.markdown(f'{_eta_css}{_box1}{_box3}{_box2}', unsafe_allow_html=True)
 
         except Exception as _fc_err:
             print(f"[Sidebar] Fiscal widget error: {_fc_err}")
