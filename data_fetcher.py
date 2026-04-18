@@ -91,9 +91,15 @@ def _sec_load_ticker_map() -> Dict[str, int]:
 
 
 def _sec_get_cik(ticker: str) -> Optional[int]:
-    """Get CIK number for a ticker symbol."""
+    """Get CIK number for a ticker symbol.
+
+    SEC's company_tickers.json stores dual-class symbols with a hyphen
+    (e.g. "BRK-B", "BF-B"), while user input and yfinance use a dot
+    ("BRK.B"). Normalize before the lookup so both forms resolve.
+    """
     mapping = _sec_load_ticker_map()
-    return mapping.get(ticker.upper())
+    key = ticker.upper().replace(".", "-")
+    return mapping.get(key)
 
 
 def _sec_fetch_company_facts(ticker: str) -> Optional[dict]:
