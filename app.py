@@ -62,6 +62,7 @@ from data_fetcher import (
     compute_expense_ratios,
     compute_ebitda,
     compute_effective_tax_rate,
+    compute_income_breakdown,
     get_revenue_by_product,
     get_revenue_by_geography,
     _opensankey_get_segments,
@@ -1106,6 +1107,92 @@ def _trim_timeframe(df: pd.DataFrame) -> pd.DataFrame:
     return df.tail(min(n, len(df)))
 
 
+def _sec_gate_quarterly_df(df: pd.DataFrame, filed_map: dict) -> pd.DataFrame:
+    """Drop quarterly rows whose (Q, fiscal-year) tuple is not in the
+    SEC-filed map.  Used before annual aggregation so unfiled Qs never
+    contaminate a partial-year sum (e.g. an early-published Q3 number
+    before Q1/Q2 are out).  A missing or empty filed_map is a no-op —
+    the full df is returned unchanged so the UI degrades gracefully
+    when EDGAR is unreachable.
+    """
+    if df is None or df.empty or not filed_map:
+        return df
+    keep = []
+    for lbl in df.index:
+        parts = str(lbl).strip().split()
+        if (len(parts) == 2
+                and parts[0].startswith("Q")
+                and parts[0][1:].isdigit()
+                and parts[1].isdigit()):
+            q = int(parts[0][1:])
+            fy = int(parts[1])
+            if q in (filed_map.get(fy) or set()):
+                keep.append(lbl)
+    return df.loc[keep] if keep else df.iloc[0:0]
+
+
+def _aggregate_quarterly_to_annual(df: pd.DataFrame, method: str = "sum") -> pd.DataFrame:
+    """Roll up a fiscal-quarter-labeled DataFrame into annual rows keyed
+    by year string ("2024", "2025", ...).
+
+      • method="sum"  — sum numeric columns per year.  Correct for
+                        flow-type metrics: revenue, expenses, cash-flow
+                        line items.
+      • method="last" — keep the latest (highest-Q) row per year.
+                        Correct for stock-type metrics: balance-sheet
+                        values like cash, total assets.
+
+    Partial years (e.g. 2026 with only Q1+Q2 filed) produce a single
+    year row whose sum reflects only the filed quarters.
+    """
+    if df is None or df.empty:
+        return df
+    valid_rows, years, qs = [], [], []
+    for lbl in df.index:
+        parts = str(lbl).strip().split()
+        if (len(parts) == 2
+                and parts[0].startswith("Q")
+                and parts[0][1:].isdigit()
+                and parts[1].isdigit()):
+            valid_rows.append(lbl)
+            qs.append(int(parts[0][1:]))
+            years.append(int(parts[1]))
+    if not valid_rows:
+        return df
+    sub = df.loc[valid_rows].copy()
+    sub["_yr"] = years
+    sub["_qi"] = qs
+    if method == "last":
+        sub = sub.sort_values(["_yr", "_qi"])
+        agg = sub.groupby("_yr", sort=True).last()
+        agg = agg.drop(columns=["_qi"], errors="ignore")
+    else:  # "sum"
+        num_cols = [
+            c for c in sub.columns
+            if c not in ("_yr", "_qi") and pd.api.types.is_numeric_dtype(sub[c])
+        ]
+        # Period-average columns (e.g. weighted-avg shares outstanding) are
+        # NOT additive across quarters — aggregate them with mean() so annual
+        # per-share math (Revenue / Shares) produces the correct magnitude.
+        _MEAN_COLS = {"Diluted Average Shares", "Basic Average Shares"}
+        sum_cols = [c for c in num_cols if c not in _MEAN_COLS]
+        mean_cols = [c for c in num_cols if c in _MEAN_COLS]
+        parts_agg = []
+        if sum_cols:
+            parts_agg.append(sub.groupby("_yr", sort=True)[sum_cols].sum(min_count=1))
+        if mean_cols:
+            parts_agg.append(sub.groupby("_yr", sort=True)[mean_cols].mean())
+        if parts_agg:
+            agg = pd.concat(parts_agg, axis=1)
+            # Preserve original column order
+            agg = agg[[c for c in num_cols if c in agg.columns]]
+        else:
+            agg = sub.groupby("_yr", sort=True).size().to_frame("_count").drop(columns=["_count"])
+    agg.index = [str(int(y)) for y in agg.index]
+    agg.index.name = None
+    return agg
+
+
 def _trim_segment_timeframe(df: pd.DataFrame) -> pd.DataFrame:
     """Trim segment DataFrame to match the selected timeframe.
 
@@ -1589,15 +1676,21 @@ def _render_blocked_overlay(chart_title: str, key: str):
     """, unsafe_allow_html=True)
 
 
-def render_charts(charts: list, section: str, blocked_charts=None):
+def render_charts(charts: list, section: str, blocked_charts=None,
+                  chart_captions=None):
     """Render a list of (figure, name) tuples in the selected column layout.
 
     Skips charts that have no data (empty traces) to avoid blank placeholders
-    in the grid layout.  
+    in the grid layout.
     Charts whose key appears in blocked_charts render a blur overlay instead.
+    `chart_captions` is an optional dict {chart_name: caption_str} — when a
+    caption is provided for a chart, it is rendered via st.caption() directly
+    below that chart.
     """
     if blocked_charts is None:
         blocked_charts = set()
+    if chart_captions is None:
+        chart_captions = {}
 
     # Filter out empty charts (no traces or all traces have empty x)
     valid = []
@@ -1638,6 +1731,9 @@ def render_charts(charts: list, section: str, blocked_charts=None):
                         _render_blocked_overlay(_ct, f"{section}_{name}_{idx}")
                     else:
                         _render_chart(fig, f"{section}_{name}_{idx}")
+                        _cap = chart_captions.get(name)
+                        if _cap:
+                            st.caption(_cap)
 
 
 def _section_header(title: str, emoji: str, state_key: str, cb_key: str = "",
@@ -2214,6 +2310,12 @@ with st.sidebar:
                         st.rerun()
 
             # ---- Quarterly / Annual period toggle ----
+            # Each mode keeps its own saved FROM/TO pair so switching back
+            # doesn't destroy the other mode's selection:
+            #   • custom_from_q / custom_to_q  → quarter labels ("Q1 2024")
+            #   • custom_from_y / custom_to_y  → year strings   ("2024")
+            # The ACTIVE pair is mirrored into custom_from / custom_to so
+            # _trim_timeframe() keeps working unchanged.
             period_col = st.columns(2)
             with period_col[0]:
                 if st.button(
@@ -2223,6 +2325,15 @@ with st.sidebar:
                     key="period_quarterly",
                 ):
                     st.session_state.quarterly = True
+                    st.session_state.custom_mode = "quarter"
+                    if st.session_state.get("custom_from_q"):
+                        st.session_state.custom_from = st.session_state.custom_from_q
+                        st.session_state.custom_to = st.session_state.custom_to_q
+                    else:
+                        # First time entering Quarterly → clear so sidebar
+                        # can re-seed with SEC-gated defaults.
+                        st.session_state.pop("custom_from", None)
+                        st.session_state.pop("custom_to", None)
                     st.rerun()
             with period_col[1]:
                 if st.button(
@@ -2232,23 +2343,24 @@ with st.sidebar:
                     key="period_annual",
                 ):
                     st.session_state.quarterly = False
+                    st.session_state.custom_mode = "year"
+                    if st.session_state.get("custom_from_y"):
+                        st.session_state.custom_from = st.session_state.custom_from_y
+                        st.session_state.custom_to = st.session_state.custom_to_y
+                    else:
+                        # First time entering Annual → clear so sidebar
+                        # can re-seed year defaults (2024 → latest filed).
+                        st.session_state.pop("custom_from", None)
+                        st.session_state.pop("custom_to", None)
                     st.rerun()
 
         if current_page != "sankey":
-            # ── FROM / TO quarter range with SEC-filing-gated defaults ──
+            # ── Shared: compute quarter periods + SEC-filed map ──
             #
-            # Rules (same ground-truth source as the Sankey Q selector):
-            #   • Latest filed Q = newest fiscal Q present in
-            #     get_edgar_available_qs_map(ticker, fy_end).  Walks backwards
-            #     if the most-recent ended Q isn't filed yet.
-            #   • FROM combobox lists every Q from the earliest period we
-            #     have data for through the latest filed Q (inclusive).
-            #     Default selection = "Q1 2024" (fallback: earliest).
-            #   • TO combobox lists every Q in FROM plus the 4 Qs of the
-            #     current calendar year (even if not filed yet).  Unfiled
-            #     Qs are rendered with a "Filing ETA sources …" note and
-            #     snap back on selection so they cannot be chosen.
-            #     Default selection = latest filed Q.
+            # Used by both the Quarterly FROM/TO block and the Annual
+            # FROM/TO block further down.  The Quarterly-mode rules are
+            # documented below; the Annual-mode block documents its own
+            # rules inline.
             from datetime import date as _date_cls
             from filing_eta import get_filing_eta
 
@@ -2295,153 +2407,314 @@ with st.sidebar:
                 q, fy = _parse_q_label(lab)
                 return (fy if fy is not None else -1, q if q is not None else -1)
 
-            # Latest SEC-filed quarter: walk newest→oldest over available data.
-            _latest_filed = None
-            for _lab in reversed(_avail_q_periods):
-                if _is_filed(_lab):
-                    _latest_filed = _lab
-                    break
-            # Degrade gracefully when EDGAR map is empty (network / rate limit).
-            if _latest_filed is None and _avail_q_periods:
-                _latest_filed = _avail_q_periods[-1]
-
-            # FROM list: all Qs up to and including the latest filed Q.
-            _from_list = list(_avail_q_periods)
-            if _latest_filed and _latest_filed in _from_list:
-                _from_list = _from_list[: _from_list.index(_latest_filed) + 1]
-
-            # TO list: everything in _avail_q_periods PLUS Q1-Q4 of the current
-            # calendar year (even if the company hasn't filed them yet).
             _cur_cal_year = _date_cls.today().year
-            _cur_year_labels = [f"Q{q} {_cur_cal_year}" for q in range(1, 5)]
-            _to_list = list(_avail_q_periods)
-            for _cy_lab in _cur_year_labels:
-                if _cy_lab not in _to_list:
-                    _to_list.append(_cy_lab)
-            _to_list.sort(key=_q_sort_key)
-            _from_list.sort(key=_q_sort_key)
 
-            # Defaults
-            _default_from = (
-                "Q1 2024" if "Q1 2024" in _from_list
-                else (_from_list[0] if _from_list else None)
-            )
-            _default_to = _latest_filed
-
-            # Ticker-change reset: clear saved FROM/TO so defaults re-seed.
+            # Ticker-change reset: clear both Quarterly & Annual pairs so
+            # defaults re-seed cleanly for the new ticker.
             _ticker_uc_ch = (ticker.upper() if ticker else "")
             _prev_ch_ticker = st.session_state.get("_ch_prev_ticker", "")
             if _prev_ch_ticker and _prev_ch_ticker != _ticker_uc_ch:
-                for _rk in ("custom_from", "custom_to", "_cf_q_from", "_cf_q_to"):
+                for _rk in (
+                    "custom_from", "custom_to",
+                    "custom_from_q", "custom_to_q",
+                    "custom_from_y", "custom_to_y",
+                    "_cf_q_from", "_cf_q_to",
+                    "_cf_y_from", "_cf_y_to",
+                ):
                     st.session_state.pop(_rk, None)
             st.session_state["_ch_prev_ticker"] = _ticker_uc_ch
 
-            # First-render seed
-            if _to_list and not st.session_state.get("custom_from"):
-                st.session_state.custom_from = _default_from
-                st.session_state.custom_to = _default_to
-                st.session_state.custom_mode = "quarter"
-                st.session_state.quarterly = True
-                st.session_state.timeframe = "CUSTOM"
+            if st.session_state.quarterly:
+                # ── Quarterly-mode FROM / TO (SEC-filing-gated) ──
+                #
+                #   • Latest filed Q = newest fiscal Q present in
+                #     get_edgar_available_qs_map(ticker, fy_end).
+                #   • FROM lists every Q from the earliest period we have
+                #     data for through the latest filed Q (inclusive).
+                #     Default selection = "Q1 2024" (fallback: earliest).
+                #   • TO lists every Q in FROM plus the 4 Qs of the current
+                #     calendar year (even if the company hasn't filed them
+                #     yet).  Unfiled Qs are rendered with a "Filing ETA
+                #     sources …" note and snap back on selection.
+                #     Default selection = latest filed Q.
 
-            # Unfiled TO entries (shown with ETA note, not selectable).
-            _to_unfiled = {lab for lab in _to_list if not _is_filed(lab)}
+                # Latest SEC-filed quarter.
+                _latest_filed = None
+                for _lab in reversed(_avail_q_periods):
+                    if _is_filed(_lab):
+                        _latest_filed = _lab
+                        break
+                if _latest_filed is None and _avail_q_periods:
+                    _latest_filed = _avail_q_periods[-1]
 
-            _eta_cache = {}
+                _from_list = list(_avail_q_periods)
+                if _latest_filed and _latest_filed in _from_list:
+                    _from_list = _from_list[: _from_list.index(_latest_filed) + 1]
 
-            def _eta_label_for(lab):
-                if lab in _eta_cache:
-                    return _eta_cache[lab]
-                q, fy = _parse_q_label(lab)
-                if q is None or fy is None:
-                    _eta_cache[lab] = ""
-                    return ""
-                try:
-                    eta = get_filing_eta(ticker, event_label=f"Q{q} {fy} Earnings") or {}
-                except Exception:
-                    _eta_cache[lab] = ""
-                    return ""
-                primary = (eta.get("primary_source") or "").lower()
+                _cur_year_labels = [f"Q{q} {_cur_cal_year}" for q in range(1, 5)]
+                _to_list = list(_avail_q_periods)
+                for _cy_lab in _cur_year_labels:
+                    if _cy_lab not in _to_list:
+                        _to_list.append(_cy_lab)
+                _to_list.sort(key=_q_sort_key)
+                _from_list.sort(key=_q_sort_key)
 
-                def _row(name, key):
-                    star = " \u2605" if key == primary else ""
-                    val = eta.get(f"{key}_label") or "n/a"
-                    return f"{name}{star}: {val}"
-
-                out = (
-                    f"Filing ETA sources {_row('EDGAR', 'edgar')}"
-                    f" - {_row('FMP', 'fmp')}"
-                    f" - {_row('Finnhub', 'finnhub')}"
-                    f" \u2605 = source used \u00b7 ~ = estimate"
+                _default_from = (
+                    "Q1 2024" if "Q1 2024" in _from_list
+                    else (_from_list[0] if _from_list else None)
                 )
-                _eta_cache[lab] = out
-                return out
+                _default_to = _latest_filed
 
-            def _display_to(lab):
-                if _is_filed(lab):
-                    return lab
-                eta_txt = _eta_label_for(lab)
-                return f"{lab} — {eta_txt}" if eta_txt else f"{lab} — (no SEC filing yet)"
-
-            # Most-recent-first for display
-            _from_options = list(reversed(_from_list))
-            _to_options = list(reversed(_to_list))
-
-            # Validate saved state against current option set.
-            _saved_qf = st.session_state.get("custom_from", _default_from)
-            _saved_qt = st.session_state.get("custom_to", _default_to)
-            if _saved_qf not in _from_options:
-                _saved_qf = (
-                    _default_from if _default_from in _from_options
-                    else (_from_options[0] if _from_options else None)
-                )
-                st.session_state.custom_from = _saved_qf
-            if (_saved_qt not in _to_options) or (_saved_qt in _to_unfiled):
-                _saved_qt = (
-                    _default_to if (_default_to in _to_options and _default_to not in _to_unfiled)
-                    else next((o for o in _to_options if o not in _to_unfiled), None)
-                )
-                st.session_state.custom_to = _saved_qt
-
-            def _apply_custom_range():
-                qf = st.session_state.get("_cf_q_from", "")
-                qt = st.session_state.get("_cf_q_to", "")
-                # Snap back if the user picked an unfiled TO option.
-                if qt in _to_unfiled:
-                    prev = st.session_state.get("custom_to") or _default_to
-                    st.session_state["_cf_q_to"] = prev
-                    qt = prev
-                if qf and qt:
-                    st.session_state.custom_from = qf
-                    st.session_state.custom_to = qt
+                # First-render seed (only when no Quarterly selection exists yet)
+                if _to_list and not st.session_state.get("custom_from_q"):
+                    st.session_state.custom_from_q = _default_from
+                    st.session_state.custom_to_q = _default_to
+                    st.session_state.custom_from = _default_from
+                    st.session_state.custom_to = _default_to
                     st.session_state.custom_mode = "quarter"
-                    st.session_state.quarterly = True
                     st.session_state.timeframe = "CUSTOM"
 
-            if _from_options and _to_options and _saved_qf and _saved_qt:
-                st.markdown(
-                    '<p style="color:#94a3b8;font-size:12px;margin:8px 0 4px;font-weight:600;">FROM</p>',
-                    unsafe_allow_html=True,
+                _to_unfiled = {lab for lab in _to_list if not _is_filed(lab)}
+
+                _eta_cache = {}
+
+                def _eta_label_for(lab):
+                    if lab in _eta_cache:
+                        return _eta_cache[lab]
+                    q, fy = _parse_q_label(lab)
+                    if q is None or fy is None:
+                        _eta_cache[lab] = ""
+                        return ""
+                    try:
+                        eta = get_filing_eta(ticker, event_label=f"Q{q} {fy} Earnings") or {}
+                    except Exception:
+                        _eta_cache[lab] = ""
+                        return ""
+                    primary = (eta.get("primary_source") or "").lower()
+
+                    def _row(name, key):
+                        star = " \u2605" if key == primary else ""
+                        val = eta.get(f"{key}_label") or "n/a"
+                        return f"{name}{star}: {val}"
+
+                    out = (
+                        f"Filing ETA sources {_row('EDGAR', 'edgar')}"
+                        f" - {_row('FMP', 'fmp')}"
+                        f" - {_row('Finnhub', 'finnhub')}"
+                        f" \u2605 = source used \u00b7 ~ = estimate"
+                    )
+                    _eta_cache[lab] = out
+                    return out
+
+                def _display_to(lab):
+                    if _is_filed(lab):
+                        return lab
+                    eta_txt = _eta_label_for(lab)
+                    return f"{lab} — {eta_txt}" if eta_txt else f"{lab} — (no SEC filing yet)"
+
+                _from_options = list(reversed(_from_list))
+                _to_options = list(reversed(_to_list))
+
+                _saved_qf = st.session_state.get("custom_from_q") or st.session_state.get("custom_from", _default_from)
+                _saved_qt = st.session_state.get("custom_to_q") or st.session_state.get("custom_to", _default_to)
+                if _saved_qf not in _from_options:
+                    _saved_qf = (
+                        _default_from if _default_from in _from_options
+                        else (_from_options[0] if _from_options else None)
+                    )
+                    st.session_state.custom_from_q = _saved_qf
+                    st.session_state.custom_from = _saved_qf
+                if (_saved_qt not in _to_options) or (_saved_qt in _to_unfiled):
+                    _saved_qt = (
+                        _default_to if (_default_to in _to_options and _default_to not in _to_unfiled)
+                        else next((o for o in _to_options if o not in _to_unfiled), None)
+                    )
+                    st.session_state.custom_to_q = _saved_qt
+                    st.session_state.custom_to = _saved_qt
+
+                def _apply_custom_range():
+                    qf = st.session_state.get("_cf_q_from", "")
+                    qt = st.session_state.get("_cf_q_to", "")
+                    if qt in _to_unfiled:
+                        prev = (
+                            st.session_state.get("custom_to_q")
+                            or st.session_state.get("custom_to")
+                            or _default_to
+                        )
+                        st.session_state["_cf_q_to"] = prev
+                        qt = prev
+                    if qf and qt:
+                        st.session_state.custom_from_q = qf
+                        st.session_state.custom_to_q = qt
+                        st.session_state.custom_from = qf
+                        st.session_state.custom_to = qt
+                        st.session_state.custom_mode = "quarter"
+                        st.session_state.quarterly = True
+                        st.session_state.timeframe = "CUSTOM"
+
+                if _from_options and _to_options and _saved_qf and _saved_qt:
+                    st.markdown(
+                        '<p style="color:#94a3b8;font-size:12px;margin:8px 0 4px;font-weight:600;">FROM</p>',
+                        unsafe_allow_html=True,
+                    )
+                    st.selectbox(
+                        "From Quarter", _from_options,
+                        index=_from_options.index(_saved_qf) if _saved_qf in _from_options else 0,
+                        key="_cf_q_from",
+                        label_visibility="collapsed",
+                        on_change=_apply_custom_range,
+                    )
+                    st.markdown(
+                        '<p style="color:#94a3b8;font-size:12px;margin:6px 0 4px;font-weight:600;">TO</p>',
+                        unsafe_allow_html=True,
+                    )
+                    st.selectbox(
+                        "To Quarter", _to_options,
+                        index=_to_options.index(_saved_qt) if _saved_qt in _to_options else 0,
+                        format_func=_display_to,
+                        key="_cf_q_to",
+                        label_visibility="collapsed",
+                        on_change=_apply_custom_range,
+                    )
+            else:
+                # ── Annual-mode FROM / TO (SEC-filing-gated) ──
+                #
+                #   • Each option is a calendar year labelled with the
+                #     filed quarters e.g. "2024 (Q1 + Q2 + Q3 + Q4)" or
+                #     "2026 (Q1 + Q2)" or "2026 - no available Quarters".
+                #   • FROM lists only years with ≥1 filed Q.  Default = 2024.
+                #   • TO always includes the current calendar year slot.
+                #     If 0 Qs are filed for the current year, that slot
+                #     is rendered as "YYYY - no available Quarters" and
+                #     snaps back on selection (not selectable); default
+                #     TO falls back to the previous year with filed data.
+                #   • Charts summe filed Qs per year (_aggregate_quarterly_to_annual).
+
+                # Years present in the ticker's data + the current calendar year.
+                _years_in_data = set()
+                for _lab in _avail_q_periods:
+                    _, _y = _parse_q_label(_lab)
+                    if _y is not None:
+                        _years_in_data.add(_y)
+                _years_in_data.add(_cur_cal_year)
+
+                def _filed_qs_sorted(y):
+                    return sorted((_filed_map.get(y) or set()))
+
+                def _year_label(y):
+                    qs = _filed_qs_sorted(y)
+                    if not qs:
+                        return f"{y} - no available Quarters"
+                    return f"{y} (" + " + ".join(f"Q{q}" for q in qs) + ")"
+
+                # FROM list: years with ≥1 filed Q.
+                _from_years = sorted(y for y in _years_in_data if _filed_qs_sorted(y))
+                # TO list: FROM + current year (always included).
+                _to_years = sorted(set(_from_years) | {_cur_cal_year})
+
+                # Unfiled TO entries (just the current-year slot when empty).
+                _to_unfiled_y = {_cur_cal_year} if not _filed_qs_sorted(_cur_cal_year) else set()
+
+                _default_from_y = 2024 if 2024 in _from_years else (_from_years[0] if _from_years else None)
+                # Latest year with ≥1 filed Q — falls back to previous year
+                # automatically when the current year has no filed data.
+                _default_to_y = _from_years[-1] if _from_years else None
+
+                # First-render seed (only when no Annual selection exists yet).
+                if _to_years and not st.session_state.get("custom_from_y"):
+                    _df_y_str = str(_default_from_y) if _default_from_y is not None else None
+                    _dt_y_str = str(_default_to_y) if _default_to_y is not None else None
+                    st.session_state.custom_from_y = _df_y_str
+                    st.session_state.custom_to_y = _dt_y_str
+                    st.session_state.custom_from = _df_y_str
+                    st.session_state.custom_to = _dt_y_str
+                    st.session_state.custom_mode = "year"
+                    st.session_state.timeframe = "CUSTOM"
+
+                _from_options_y = [str(y) for y in reversed(_from_years)]
+                _to_options_y = [str(y) for y in reversed(_to_years)]
+                _to_unfiled_y_str = {str(y) for y in _to_unfiled_y}
+
+                _saved_yf = (
+                    st.session_state.get("custom_from_y")
+                    or (str(_default_from_y) if _default_from_y is not None else None)
                 )
-                st.selectbox(
-                    "From Quarter", _from_options,
-                    index=_from_options.index(_saved_qf) if _saved_qf in _from_options else 0,
-                    key="_cf_q_from",
-                    label_visibility="collapsed",
-                    on_change=_apply_custom_range,
+                _saved_yt = (
+                    st.session_state.get("custom_to_y")
+                    or (str(_default_to_y) if _default_to_y is not None else None)
                 )
-                st.markdown(
-                    '<p style="color:#94a3b8;font-size:12px;margin:6px 0 4px;font-weight:600;">TO</p>',
-                    unsafe_allow_html=True,
-                )
-                st.selectbox(
-                    "To Quarter", _to_options,
-                    index=_to_options.index(_saved_qt) if _saved_qt in _to_options else 0,
-                    format_func=_display_to,
-                    key="_cf_q_to",
-                    label_visibility="collapsed",
-                    on_change=_apply_custom_range,
-                )
+                if _saved_yf not in _from_options_y:
+                    _saved_yf = (
+                        str(_default_from_y)
+                        if _default_from_y is not None and str(_default_from_y) in _from_options_y
+                        else (_from_options_y[0] if _from_options_y else None)
+                    )
+                    st.session_state.custom_from_y = _saved_yf
+                    st.session_state.custom_from = _saved_yf
+                if (_saved_yt not in _to_options_y) or (_saved_yt in _to_unfiled_y_str):
+                    _dt_ok = (
+                        _default_to_y is not None
+                        and str(_default_to_y) in _to_options_y
+                        and str(_default_to_y) not in _to_unfiled_y_str
+                    )
+                    _saved_yt = (
+                        str(_default_to_y) if _dt_ok
+                        else next((o for o in _to_options_y if o not in _to_unfiled_y_str), None)
+                    )
+                    st.session_state.custom_to_y = _saved_yt
+                    st.session_state.custom_to = _saved_yt
+
+                def _display_y(y_str):
+                    try:
+                        return _year_label(int(y_str))
+                    except Exception:
+                        return y_str
+
+                def _apply_custom_range_y():
+                    yf = st.session_state.get("_cf_y_from", "")
+                    yt = st.session_state.get("_cf_y_to", "")
+                    # Snap back if user picked the "no available Quarters" slot.
+                    if yt in _to_unfiled_y_str:
+                        prev = (
+                            st.session_state.get("custom_to_y")
+                            or (str(_default_to_y) if _default_to_y is not None else None)
+                        )
+                        st.session_state["_cf_y_to"] = prev
+                        yt = prev
+                    if yf and yt:
+                        st.session_state.custom_from_y = yf
+                        st.session_state.custom_to_y = yt
+                        st.session_state.custom_from = yf
+                        st.session_state.custom_to = yt
+                        st.session_state.custom_mode = "year"
+                        st.session_state.quarterly = False
+                        st.session_state.timeframe = "CUSTOM"
+
+                if _from_options_y and _to_options_y and _saved_yf and _saved_yt:
+                    st.markdown(
+                        '<p style="color:#94a3b8;font-size:12px;margin:8px 0 4px;font-weight:600;">FROM</p>',
+                        unsafe_allow_html=True,
+                    )
+                    st.selectbox(
+                        "From Year", _from_options_y,
+                        index=_from_options_y.index(_saved_yf) if _saved_yf in _from_options_y else 0,
+                        format_func=_display_y,
+                        key="_cf_y_from",
+                        label_visibility="collapsed",
+                        on_change=_apply_custom_range_y,
+                    )
+                    st.markdown(
+                        '<p style="color:#94a3b8;font-size:12px;margin:6px 0 4px;font-weight:600;">TO</p>',
+                        unsafe_allow_html=True,
+                    )
+                    st.selectbox(
+                        "To Year", _to_options_y,
+                        index=_to_options_y.index(_saved_yt) if _saved_yt in _to_options_y else 0,
+                        format_func=_display_y,
+                        key="_cf_y_to",
+                        label_visibility="collapsed",
+                        on_change=_apply_custom_range_y,
+                    )
 
             # ---- Analyst Forecast toggle ----
             st.markdown("---")
@@ -3611,12 +3884,15 @@ except Exception:
 
 quarterly = st.session_state.quarterly
 
-# Fetch all data in parallel (each is cached 1hr, but cold load benefits from concurrency)
+# Always fetch QUARTERLY data in parallel — Annual mode aggregates it
+# below using the SEC-filed-Q ground truth.  This lets us render a
+# partial-year bar for the current in-progress year (e.g. 2026 with
+# only Q1+Q2 filed → one 2026 bar summing Q1+Q2).
 from concurrent.futures import ThreadPoolExecutor as _TP
 with _TP(max_workers=4) as _pool:
-    _f_inc = _pool.submit(get_income_statement, ticker, quarterly)
-    _f_bal = _pool.submit(get_balance_sheet, ticker, quarterly)
-    _f_cf  = _pool.submit(get_cash_flow, ticker, quarterly)
+    _f_inc = _pool.submit(get_income_statement, ticker, True)
+    _f_bal = _pool.submit(get_balance_sheet, ticker, True)
+    _f_cf  = _pool.submit(get_cash_flow, ticker, True)
     _f_fc  = _pool.submit(get_analyst_forecast, ticker)
 income_df   = _f_inc.result()
 balance_df  = _f_bal.result()
@@ -3624,8 +3900,9 @@ cashflow_df = _f_cf.result()
 _forecast_future = _f_fc.result()  # used below
 
 # Quality check: if quarterly CF data has sparse quarters (only Q1+Q4, missing Q2+Q3),
-# try yfinance directly for better coverage
-if quarterly and not cashflow_df.empty:
+# try yfinance directly for better coverage.  Runs regardless of the
+# user's Quarterly/Annual mode because we always start from quarterly data.
+if not cashflow_df.empty:
     _q_prefixes = set(lbl.split()[0] for lbl in cashflow_df.index if lbl.startswith("Q"))
     if len(_q_prefixes) < 4:  # Missing some quarterly prefixes
         try:
@@ -3643,18 +3920,119 @@ if quarterly and not cashflow_df.empty:
             pass  # Keep existing CF data
 
 forecast = _forecast_future  # already fetched in parallel above
-# Apply timeframe trimming
-income_df = _trim_timeframe(income_df)
-balance_df = _trim_timeframe(balance_df)
-cashflow_df = _trim_timeframe(cashflow_df)
 
-# Relabel SEC calendar-quarter labels → fiscal-quarter labels so charts,
-# sidebar, and earnings calendar all use the same convention.
+# Relabel SEC calendar-quarter labels → fiscal-quarter labels FIRST so
+# downstream logic (trim + annual aggregation + chart axes) all use the
+# same fiscal convention.
 from data_fetcher import relabel_df_to_fiscal, _get_fy_end_month
 _fy_m = _get_fy_end_month(ticker)
 income_df = relabel_df_to_fiscal(income_df, _fy_m)
 balance_df = relabel_df_to_fiscal(balance_df, _fy_m)
 cashflow_df = relabel_df_to_fiscal(cashflow_df, _fy_m)
+
+# Annual mode: aggregate quarterly rows into year rows, SEC-gated so
+# unfiled Qs never contaminate a partial-year sum.  Flow-type statements
+# (income, cash flow) are summed; the balance sheet is a stock snapshot
+# so we take the latest filed quarter of each year.
+_filed_map_agg: dict = {}
+_partial_fy = None               # current open FY (1–3 filed Qs), int or None
+_partial_qs: set = set()         # filed quarters of _partial_fy
+if not quarterly:
+    try:
+        from sankey_page import get_edgar_available_qs_map as _geaq_map_agg
+        _filed_map_agg = _geaq_map_agg(ticker, _fy_m or 12) or {}
+    except Exception:
+        _filed_map_agg = {}
+    income_df_q_fiscal   = income_df   # keep quarterly fiscal-labeled copies
+    balance_df_q_fiscal  = balance_df  # (used for QC gating / balance-date caption)
+    cashflow_df_q_fiscal = cashflow_df
+    income_df   = _sec_gate_quarterly_df(income_df,   _filed_map_agg)
+    balance_df  = _sec_gate_quarterly_df(balance_df,  _filed_map_agg)
+    cashflow_df = _sec_gate_quarterly_df(cashflow_df, _filed_map_agg)
+    income_df   = _aggregate_quarterly_to_annual(income_df,   "sum")
+    balance_df  = _aggregate_quarterly_to_annual(balance_df,  "last")
+    cashflow_df = _aggregate_quarterly_to_annual(cashflow_df, "sum")
+    # Detect current partial FY — only the LATEST FY probed by EDGAR, and
+    # only when it has 1–3 filed Qs. Older FYs with incomplete XBRL coverage
+    # (e.g. GOOG 2014 has only Q3+Q4 in SEC's data) must NOT be captioned as
+    # "partial" — they are not the current in-progress year. Scoping to just
+    # max(_filed_map_agg) avoids that misattribution.
+    if _filed_map_agg:
+        _latest_fy = max(_filed_map_agg.keys())
+        _qs_latest = set(_filed_map_agg.get(_latest_fy) or set())
+        if 1 <= len(_qs_latest) <= 3:
+            _partial_fy = int(_latest_fy)
+            _partial_qs = _qs_latest
+
+
+def _partial_fy_qs_phrase() -> str:
+    """'Q1', 'Q1+Q2', 'Q1+Q2+Q3' — in fiscal-quarter order."""
+    if not _partial_qs:
+        return ""
+    return "+".join(f"Q{q}" for q in sorted(_partial_qs))
+
+
+def _partial_fy_caption_income() -> str:
+    if _partial_fy is None:
+        return ""
+    return (f"FY {_partial_fy} shows only {_partial_fy_qs_phrase()} "
+            f"(SEC-filed quarters summed; other quarters not yet reported).")
+
+
+def _partial_fy_caption_cashflow() -> str:
+    if _partial_fy is None:
+        return ""
+    return (f"FY {_partial_fy} shows only {_partial_fy_qs_phrase()} "
+            f"(SEC-filed quarters summed; other quarters not yet reported).")
+
+
+def _partial_fy_caption_balance() -> str:
+    """Balance sheet caption — includes the approximate Q-end date of the
+    most-recent filed quarter in the partial FY."""
+    if _partial_fy is None:
+        return ""
+    _bs_date = ""
+    try:
+        _latest_q = max(_partial_qs)
+        _fy_end_m = _fy_m if _fy_m else 12
+        # Fiscal Qn ends at month (fy_end_month + n*3) mod 12
+        _end_m = (_fy_end_m + _latest_q * 3) % 12
+        if _end_m == 0:
+            _end_m = 12
+        # Calendar year of that Q-end: if end_m <= fy_end_m → same FY year;
+        # else → previous calendar year.  Same convention as
+        # sec_to_fiscal_label / _fiscal_to_calendar_label.
+        _cal_year = _partial_fy if _end_m <= _fy_end_m else _partial_fy - 1
+        # Last day of _end_m in _cal_year (leap-safe via pandas).
+        _ts = pd.Timestamp(year=_cal_year, month=_end_m, day=1) + pd.offsets.MonthEnd(0)
+        _bs_date = _ts.strftime("%b %d, %Y")
+    except Exception:
+        _bs_date = ""
+    if _bs_date:
+        return (f"FY {_partial_fy} shown as of {_bs_date} "
+                f"(Q{max(_partial_qs)} filing; FY not yet closed).")
+    return (f"FY {_partial_fy} shown as of the Q{max(_partial_qs)} filing "
+            f"(FY not yet closed).")
+
+
+def _partial_fy_caption_keymetrics() -> str:
+    if _partial_fy is None:
+        return ""
+    return (f"FY {_partial_fy} shows only {_partial_fy_qs_phrase()} — "
+            f"partial year excluded from P/E chart.")
+
+
+def _partial_fy_caption_yoy() -> str:
+    if _partial_fy is None:
+        return ""
+    return f"YoY excludes partial FY {_partial_fy}."
+
+# Apply timeframe trimming — operates on fiscal quarter labels in
+# Quarterly mode, year-string labels in Annual mode (handled by the
+# mode="year" branch of _trim_timeframe).
+income_df = _trim_timeframe(income_df)
+balance_df = _trim_timeframe(balance_df)
+cashflow_df = _trim_timeframe(cashflow_df)
 
 # Store last chart period label so the sidebar widget matches chart x-axis
 if not income_df.empty:
@@ -3663,26 +4041,81 @@ if not income_df.empty:
 # Compute derived data
 margins_df = compute_margins(income_df)
 eps_df = compute_eps(income_df, info)
-# Use full data for YoY (needs history), then trim and relabel
-yoy_df = relabel_df_to_fiscal(
-    _trim_timeframe(compute_revenue_yoy(get_income_statement(ticker, quarterly=quarterly))),
-    _fy_m,
-)
+# YoY: in Quarterly mode use periods=4 (same-Q last year); in Annual mode
+# use periods=1 (prior year).  Operate directly on the already-trimmed &
+# aggregated income_df so the x-axis alignment matches the main chart.
+_yoy_periods = 4 if quarterly else 1
+yoy_df = compute_revenue_yoy(income_df, periods=_yoy_periods)
+# Exclude current partial FY from YoY in Annual mode (comparing a 1–3-Q
+# sum to a full 4-Q prior year is misleading).
+if not quarterly and _partial_fy is not None and not yoy_df.empty:
+    _pfy_lbl = str(_partial_fy)
+    if _pfy_lbl in yoy_df.index:
+        yoy_df = yoy_df.drop(_pfy_lbl)
+# QoQ: only meaningful on quarterly data — hide entirely in Annual mode.
+if quarterly:
+    qoq_df = compute_qoq_revenue(income_df, periods=1)
+else:
+    qoq_df = pd.DataFrame()
 shares = info.get("shares_outstanding")
-per_share_df = compute_per_share(income_df, cashflow_df, shares)
-qoq_df = relabel_df_to_fiscal(
-    _trim_timeframe(compute_qoq_revenue(get_income_statement(ticker, quarterly=quarterly))),
-    _fy_m,
-)
+per_share_df = compute_per_share(income_df, cashflow_df, fallback_shares=shares)
 expense_ratios_df = compute_expense_ratios(income_df, cashflow_df)
 ebitda_df = compute_ebitda(income_df, cashflow_df)
 tax_rate_df = compute_effective_tax_rate(income_df)
 
-# Try quarterchart.com source for Expense Ratios / Per Share / EBITDA (more reliable data)
+# ── QuarterChart.com override source for Expense Ratios / Per-Share /
+#    EBITDA / Income Breakdown.  In Annual mode we always fetch quarterly
+#    then SEC-gate and aggregate ourselves so QC's partial-FY rows never
+#    contaminate the year total (F6).  In Quarterly mode we fetch quarterly
+#    directly and just trim to timeframe.
+def _qc_fetch_panel(chart_index: int, method: str = "sum") -> pd.DataFrame:
+    """Fetch a QC chart, put it on the same fiscal-quarter / annual axis as
+    the rest of the page.
+      - Quarterly mode: fetch quarterly → relabel to fiscal → trim.
+      - Annual mode: fetch quarterly → relabel to fiscal → SEC-gate → F6
+        skip (drop FYs where QC is missing any Q that SEC has) →
+        aggregate by `method` → trim.
+    """
+    try:
+        raw = _opensankey_get_segments(ticker, chart_index, quarterly=True)
+    except Exception:
+        return pd.DataFrame()
+    if raw is None or raw.empty:
+        return pd.DataFrame()
+    # QC returns calendar-quarter labels — convert back to fiscal so it
+    # lines up with income_df / balance_df / cashflow_df.
+    df = relabel_df_to_fiscal(raw, _fy_m)
+    if quarterly:
+        return _trim_timeframe(df)
+    # --- Annual mode pipeline ---
+    if _filed_map_agg:
+        df = _sec_gate_quarterly_df(df, _filed_map_agg)
+        # F6: drop FYs where QC is missing any Q that SEC has filed.
+        qc_by_year: dict = {}
+        for _lbl in df.index:
+            _parts = str(_lbl).strip().split()
+            if (len(_parts) == 2 and _parts[0].startswith("Q")
+                    and _parts[0][1:].isdigit() and _parts[1].isdigit()):
+                qc_by_year.setdefault(int(_parts[1]), set()).add(int(_parts[0][1:]))
+        _keep = []
+        for _lbl in df.index:
+            _parts = str(_lbl).strip().split()
+            if (len(_parts) == 2 and _parts[0].startswith("Q")
+                    and _parts[0][1:].isdigit() and _parts[1].isdigit()):
+                _fy = int(_parts[1])
+                _sec_qs = set(_filed_map_agg.get(_fy) or set())
+                _qc_qs = qc_by_year.get(_fy, set())
+                if _sec_qs and _sec_qs.issubset(_qc_qs):
+                    _keep.append(_lbl)
+        df = df.loc[_keep] if _keep else df.iloc[0:0]
+    df = _aggregate_quarterly_to_annual(df, method)
+    return _trim_timeframe(df)
+
+
+# Expense Ratios (QC chart 14)
 try:
-    _qc_expense = _trim_timeframe(_opensankey_get_segments(ticker, 14, quarterly=quarterly))
+    _qc_expense = _qc_fetch_panel(14, method="sum")
     if not _qc_expense.empty and len(_qc_expense) >= 2:
-        # Rename to match chart expectations
         _rename = {}
         for c in _qc_expense.columns:
             cl = c.lower()
@@ -3697,9 +4130,12 @@ try:
 except Exception:
     pass
 
+# Per-Share (QC chart 13).  NOTE: in Annual mode the local compute_per_share
+# already uses period-average diluted shares (correct magnitude), so we only
+# fall back to QC if the local panel is empty.
 try:
-    _qc_pershare = _trim_timeframe(_opensankey_get_segments(ticker, 13, quarterly=quarterly))
-    if not _qc_pershare.empty and len(_qc_pershare) >= 2:
+    _qc_pershare = _qc_fetch_panel(13, method="sum")
+    if not _qc_pershare.empty and len(_qc_pershare) >= 2 and per_share_df.empty:
         _rename = {}
         for c in _qc_pershare.columns:
             cl = c.lower()
@@ -3714,20 +4150,29 @@ try:
 except Exception:
     pass
 
+# EBITDA (QC chart 5)
 try:
-    _qc_ebitda = _trim_timeframe(_opensankey_get_segments(ticker, 5, quarterly=quarterly))
+    _qc_ebitda = _qc_fetch_panel(5, method="sum")
     if not _qc_ebitda.empty and len(_qc_ebitda) >= 2:
         ebitda_df = _qc_ebitda
 except Exception:
     pass
 
+# Income Breakdown (QC chart 12) with local fallback from income_df.
 income_breakdown_df = pd.DataFrame()
 try:
-    _qc_incbreak = _trim_timeframe(_opensankey_get_segments(ticker, 12, quarterly=quarterly))
+    _qc_incbreak = _qc_fetch_panel(12, method="sum")
     if not _qc_incbreak.empty and len(_qc_incbreak) >= 2:
         income_breakdown_df = _qc_incbreak
 except Exception:
     pass
+if income_breakdown_df.empty:
+    try:
+        _local_incbreak = compute_income_breakdown(income_df)
+        if not _local_incbreak.empty and len(_local_incbreak) >= 2:
+            income_breakdown_df = _local_incbreak
+    except Exception:
+        pass
 # Revenue segmentation (product & geography)
 product_seg_df = _trim_segment_timeframe(get_revenue_by_product(ticker, quarterly=quarterly))
 geo_seg_df = _trim_segment_timeframe(get_revenue_by_geography(ticker, quarterly=quarterly))
@@ -3790,6 +4235,9 @@ except Exception:
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 _section_header("Income Statement", "Ã°ÂÂÂ", "show_income", "cb_income", charts_key="income")
+_c_inc = _partial_fy_caption_income()
+if _c_inc:
+    st.caption(_c_inc)
 
 if st.session_state.show_income:
     income_charts = [
@@ -3833,11 +4281,40 @@ if st.session_state.show_income:
 
     if not income_breakdown_df.empty:
         income_charts.append((create_income_breakdown_chart(income_breakdown_df), "income_breakdown"))
+    else:
+        # Neutral blank panel so users know the slot exists but data is unavailable
+        # for this ticker (no QuarterChart feed and no local breakdown columns).
+        try:
+            import plotly.graph_objects as _go
+            _blank_fig = _go.Figure()
+            _blank_fig.add_trace(_go.Scatter(
+                x=[0], y=[0], mode="markers",
+                marker=dict(size=0, opacity=0),
+                hoverinfo="skip", showlegend=False,
+            ))
+            _blank_fig.add_annotation(
+                text="Income breakdown data not available for this ticker.",
+                xref="paper", yref="paper", x=0.5, y=0.5,
+                showarrow=False, font=dict(size=14, color="#888"),
+            )
+            _blank_fig.update_layout(
+                title="Income Breakdown", height=420,
+                xaxis=dict(visible=False), yaxis=dict(visible=False),
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+            )
+            income_charts.append((_blank_fig, "income_breakdown"))
+        except Exception:
+            pass
 
     if not per_share_df.empty:
         income_charts.append((create_per_share_chart(per_share_df), "per_share"))
 
-    render_charts(income_charts, "income", _blocked_chart_keys)
+    _inc_captions = {}
+    _yoy_cap = _partial_fy_caption_yoy()
+    if _yoy_cap:
+        _inc_captions["yoy"] = _yoy_cap
+    render_charts(income_charts, "income", _blocked_chart_keys,
+                  chart_captions=_inc_captions)
 
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
@@ -3845,6 +4322,9 @@ if st.session_state.show_income:
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 _section_header("Cash Flow Statement", "Ã°ÂÂÂ°", "show_cashflow", "cb_cf", charts_key="cashflow")
+_c_cf = _partial_fy_caption_cashflow()
+if _c_cf:
+    st.caption(_c_cf)
 
 if st.session_state.show_cashflow:
     render_charts([
@@ -3859,6 +4339,9 @@ if st.session_state.show_cashflow:
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 _section_header("Balance Sheet", "Ã°ÂÂÂ¦", "show_balance", "cb_bs", charts_key="balance")
+_c_bs = _partial_fy_caption_balance()
+if _c_bs:
+    st.caption(_c_bs)
 
 if st.session_state.show_balance:
     render_charts([
@@ -3873,6 +4356,9 @@ if st.session_state.show_balance:
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 _section_header("Key Metrics", "Ã°ÂÂÂ", "show_metrics", "cb_km", charts_key="keymetrics")
+_c_km = _partial_fy_caption_keymetrics()
+if _c_km:
+    st.caption(_c_km)
 
 if st.session_state.show_metrics:
     km_charts = []
@@ -3883,6 +4369,11 @@ if st.session_state.show_metrics:
         price = info["current_price"]
         pe_df["P/E Ratio"] = (price / eps_df["EPS"].replace(0, np.nan)).round(2)
         pe_df = pe_df.dropna()
+        # Exclude current partial FY (EPS would be 1–3-Q sum vs full-year price).
+        if not quarterly and _partial_fy is not None and not pe_df.empty:
+            _pfy_lbl = str(_partial_fy)
+            if _pfy_lbl in pe_df.index:
+                pe_df = pe_df.drop(_pfy_lbl)
         if not pe_df.empty:
             km_charts.append((create_pe_chart(pe_df), "pe_ratio"))
 
@@ -3911,7 +4402,12 @@ if st.session_state.show_metrics:
             st.metric("Revenue Growth", _fmt(info.get("revenue_growth"), pct=True))
 
     if km_charts:
-        render_charts(km_charts, "keymetrics", _blocked_chart_keys)
+        _km_captions = {}
+        _pe_cap = _partial_fy_caption_keymetrics()
+        if _pe_cap:
+            _km_captions["pe_ratio"] = _pe_cap
+        render_charts(km_charts, "keymetrics", _blocked_chart_keys,
+                      chart_captions=_km_captions)
 
 
 
