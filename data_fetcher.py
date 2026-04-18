@@ -1441,6 +1441,268 @@ def get_company_info(ticker: str) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Per-quarter historical gap-fill (SEC → FMP → Finnhub → yfinance).
+# ---------------------------------------------------------------------------
+# When the primary source (SEC EDGAR) returns a quarterly series with one or
+# more missing quarters in the middle of its range, we try to backfill just
+# those missing quarters from the other sources in the documented order.
+# This preserves SEC as the authoritative source for Qs it has filed, while
+# recovering history that SEC didn't include (e.g. pre-IPO restatements,
+# revised filings, or XBRL concept gaps for older filings).
+#
+# QuarterChart.com is deliberately excluded from this chain — it's reserved
+# for derived panels (expense ratios, per-share, EBITDA, income breakdown).
+
+# Finnhub friendly-name map — same output column names as SEC/FMP/yfinance.
+_FINNHUB_INCOME_MAP: Dict[str, List[str]] = {
+    "Revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax",
+                "SalesRevenueNet",
+                "RevenueFromContractWithCustomerIncludingAssessedTax"],
+    "Cost Of Revenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold",
+                         "CostOfGoodsSold"],
+    "Gross Profit": ["GrossProfit"],
+    "Operating Expenses": ["OperatingExpenses"],
+    "Operating Income": ["OperatingIncomeLoss"],
+    "R&D Expenses": ["ResearchAndDevelopmentExpense"],
+    "SGA Expenses": ["SellingGeneralAndAdministrativeExpense"],
+    "Net Income": ["NetIncomeLoss"],
+    "Interest Expense": ["InterestExpense"],
+    "Income Tax Expense": ["IncomeTaxExpenseBenefit"],
+    "Pretax Income": [
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+    ],
+    "Basic EPS": ["EarningsPerShareBasic"],
+    "Diluted EPS": ["EarningsPerShareDiluted"],
+    "Basic Average Shares": ["WeightedAverageNumberOfSharesOutstandingBasic"],
+    "Diluted Average Shares": ["WeightedAverageNumberOfDilutedSharesOutstanding"],
+}
+_FINNHUB_BS_MAP: Dict[str, List[str]] = {
+    "Total Assets": ["Assets"],
+    "Current Assets": ["AssetsCurrent"],
+    "Non-Current Assets": ["AssetsNoncurrent"],
+    "Total Liabilities": ["Liabilities"],
+    "Current Liabilities": ["LiabilitiesCurrent"],
+    "Non-Current Liabilities": ["LiabilitiesNoncurrent"],
+    "Stockholders Equity": [
+        "StockholdersEquity",
+        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+    ],
+    "Cash and Cash Equivalents": [
+        "CashAndCashEquivalentsAtCarryingValue",
+        "CashCashEquivalentsAndShortTermInvestments",
+        "Cash",
+    ],
+    "Long Term Debt": ["LongTermDebt", "LongTermDebtNoncurrent"],
+    "Total Debt": ["LongTermDebtAndCapitalLeaseObligations", "DebtCurrent"],
+}
+_FINNHUB_CF_MAP: Dict[str, List[str]] = {
+    "Operating CF": ["NetCashProvidedByUsedInOperatingActivities"],
+    "Investing CF": ["NetCashProvidedByUsedInInvestingActivities"],
+    "Financing CF": ["NetCashProvidedByUsedInFinancingActivities"],
+    "CapEx": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    "Stock Based Compensation": [
+        "ShareBasedCompensation", "AllocatedShareBasedCompensationExpense",
+    ],
+    "D&A": [
+        "DepreciationDepletionAndAmortization",
+        "DepreciationAndAmortization", "Depreciation",
+    ],
+}
+
+
+def _finnhub_fetch_statement(ticker: str, statement: str) -> pd.DataFrame:
+    """Fetch a single Finnhub quarterly statement (income/balance/cashflow).
+
+    Returns a DataFrame with fiscal-calendar labels ("Q1 2024") and friendly
+    column names aligned with SEC/FMP/yfinance output.
+    """
+    section_map = {"income": "ic", "balance": "bs", "cashflow": "cf"}
+    field_map_map = {
+        "income": _FINNHUB_INCOME_MAP,
+        "balance": _FINNHUB_BS_MAP,
+        "cashflow": _FINNHUB_CF_MAP,
+    }
+    if statement not in section_map:
+        return pd.DataFrame()
+    try:
+        token = _finnhub_key()
+        if not token:
+            return pd.DataFrame()
+        r = _requests.get(
+            "https://finnhub.io/api/v1/stock/financials-reported",
+            params={"symbol": ticker.upper(), "freq": "quarterly", "token": token},
+            timeout=15,
+        )
+        if r.status_code != 200:
+            return pd.DataFrame()
+        data = (r.json() or {}).get("data", []) or []
+    except Exception as exc:
+        print(f"[Finnhub] financials-reported/{ticker}: {exc}")
+        return pd.DataFrame()
+    if not data:
+        return pd.DataFrame()
+    section = section_map[statement]
+    field_map = field_map_map[statement]
+    rows: Dict[str, Dict[str, float]] = {}
+    for rec in data:
+        q, y = rec.get("quarter"), rec.get("year")
+        if not (q and y):
+            continue
+        try:
+            q_i, y_i = int(q), int(y)
+        except Exception:
+            continue
+        # Finnhub publishes Q0 for annual summaries — skip those for quarterly.
+        if q_i == 0:
+            continue
+        label = f"Q{q_i} {y_i}"
+        report = (rec.get("report") or {}).get(section, []) or []
+        if not isinstance(report, list):
+            continue
+        row: Dict[str, float] = {}
+        for item in report:
+            concept = str(item.get("concept", ""))
+            # Strip namespace prefixes ("us-gaap:" or "us-gaap_")
+            concept = concept.split(":")[-1].replace("us-gaap_", "")
+            try:
+                val = float(item.get("value"))
+            except Exception:
+                continue
+            for out_name, cands in field_map.items():
+                if concept in cands and out_name not in row:
+                    row[out_name] = val
+        if row:
+            # Prefer the first entry for a label (Finnhub may include amended
+            # filings; the first record is the most recent in API order).
+            if label not in rows:
+                rows[label] = row
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame.from_dict(rows, orient="index")
+    df.index.name = "Period"
+    df = _sort_df_chronological(df)
+    return df
+
+
+def _enumerate_expected_qs(labels) -> List[str]:
+    """Given an iterable of "Q# YYYY" labels, return the full continuous
+    quarterly sequence from earliest to latest (inclusive).  Non-quarterly
+    labels are ignored.
+    """
+    tuples: List[Tuple[int, int]] = []
+    for lbl in labels:
+        try:
+            parts = str(lbl).strip().split()
+            if (len(parts) == 2 and parts[0].startswith("Q")
+                    and parts[0][1:].isdigit() and parts[1].isdigit()):
+                tuples.append((int(parts[1]), int(parts[0][1:])))
+        except Exception:
+            continue
+    if not tuples:
+        return []
+    tuples.sort()
+    (y0, q0), (y1, q1) = tuples[0], tuples[-1]
+    out: List[str] = []
+    y, q = y0, q0
+    while (y, q) <= (y1, q1):
+        out.append(f"Q{q} {y}")
+        q += 1
+        if q > 4:
+            q = 1
+            y += 1
+    return out
+
+
+def _fetch_source_quarterly(ticker: str, statement: str, source: str) -> pd.DataFrame:
+    """Dispatch to a single non-SEC source for a single quarterly statement.
+
+    Returns a DataFrame indexed by "Q# YYYY" calendar-quarter labels with
+    friendly column names aligned with SEC output.  Empty DataFrame if the
+    source is unavailable or returns no data.
+    """
+    try:
+        if source == "fmp":
+            if not _fmp_available():
+                return pd.DataFrame()
+            endpoint_map = {
+                "income":   ("income-statement",        _FMP_INCOME_MAP),
+                "balance":  ("balance-sheet-statement", _FMP_BS_MAP),
+                "cashflow": ("cash-flow-statement",     _FMP_CF_MAP),
+            }
+            endpoint, fmap = endpoint_map[statement]
+            data = _fetch_fmp_statement(ticker, endpoint, limit=40, quarterly=True)
+            if not isinstance(data, list) or not data:
+                return pd.DataFrame()
+            return _fmp_json_to_df(data, fmap, quarterly=True)
+        elif source == "finnhub":
+            return _finnhub_fetch_statement(ticker, statement)
+        elif source == "yfinance":
+            stock = yf.Ticker(ticker)
+            raw_attr_map = {
+                "income":   ("financials",    "quarterly_income_stmt",   _INCOME_MAP),
+                "balance":  ("balance-sheet", "quarterly_balance_sheet", _BS_MAP),
+                "cashflow": ("cash-flow",     "quarterly_cashflow",      _CF_MAP),
+            }
+            api_name, attr, fmap = raw_attr_map[statement]
+            raw = _fetch_extended_quarterly_raw(ticker, api_name)
+            if raw is None or raw.empty:
+                raw = getattr(stock, attr, None)
+            if raw is None or raw.empty:
+                return pd.DataFrame()
+            return _build_period_df(raw, fmap, quarterly=True)
+    except Exception as exc:
+        print(f"[gap-fill:{source}] {ticker}/{statement}: {exc}")
+    return pd.DataFrame()
+
+
+def _gap_fill_quarterly(primary_df: pd.DataFrame, ticker: str, statement: str,
+                         primary: str = "sec") -> pd.DataFrame:
+    """Backfill missing quarters in `primary_df` from the remaining sources
+    in order: FMP → Finnhub → yfinance (skipping whichever source was primary).
+
+    Only fills gaps WITHIN the existing range (min Q to max Q); does not
+    forward-fill future quarters the primary hasn't published yet.
+    """
+    if primary_df is None or primary_df.empty:
+        return primary_df
+    expected = _enumerate_expected_qs(primary_df.index)
+    if not expected:
+        return primary_df
+    have = set(primary_df.index)
+    missing = [q for q in expected if q not in have]
+    if not missing:
+        return primary_df
+
+    source_order = [s for s in ("fmp", "finnhub", "yfinance") if s != primary]
+    merged = primary_df.copy()
+    for src_name in source_order:
+        if not missing:
+            break
+        src_df = _fetch_source_quarterly(ticker, statement, src_name)
+        if src_df is None or src_df.empty:
+            continue
+        fillable = [q for q in missing if q in src_df.index]
+        if not fillable:
+            continue
+        cols_in_both = [c for c in merged.columns if c in src_df.columns]
+        if not cols_in_both:
+            continue
+        # Build rows aligned to merged's columns (NaN for missing cols)
+        add = pd.DataFrame(index=fillable, columns=merged.columns, dtype=float)
+        for c in cols_in_both:
+            add[c] = src_df.loc[fillable, c]
+        # Preserve any non-numeric columns by leaving them as NaN.
+        merged = pd.concat([merged, add], axis=0)
+        for q in fillable:
+            missing.remove(q)
+        print(f"[gap-fill:{src_name}] {ticker}/{statement}: filled {len(fillable)} Qs "
+              f"({fillable[0]} … {fillable[-1]})")
+
+    return _sort_df_chronological(merged)
+
+
+# ---------------------------------------------------------------------------
 # Income Statement
 # ---------------------------------------------------------------------------
 
@@ -1487,6 +1749,8 @@ def get_income_statement(ticker: str, quarterly: bool = True) -> pd.DataFrame:
         df = _sec_get_income_statement(ticker, quarterly=quarterly)
         if not df.empty and len(df) >= 4:
             print(f"[SEC] income-statement/{ticker}: {len(df)} periods")
+            if quarterly:
+                df = _gap_fill_quarterly(df, ticker, "income", primary="sec")
             return df
     except Exception as exc:
         print(f"[SEC] income-statement/{ticker} error: {exc}")
@@ -1498,6 +1762,8 @@ def get_income_statement(ticker: str, quarterly: bool = True) -> pd.DataFrame:
             if isinstance(fmp_data, list) and fmp_data:
                 df = _fmp_json_to_df(fmp_data, _FMP_INCOME_MAP, quarterly=quarterly)
                 if not df.empty:
+                    if quarterly:
+                        df = _gap_fill_quarterly(df, ticker, "income", primary="fmp")
                     return df
         except Exception as exc:
             print(f"[FMP] income-statement fallback: {exc}")
@@ -1515,7 +1781,10 @@ def get_income_statement(ticker: str, quarterly: bool = True) -> pd.DataFrame:
             raw = getattr(stock, "income_stmt", None)
             if raw is None or raw.empty:
                 raw = stock.financials
-        return _build_period_df(raw, _INCOME_MAP, quarterly=quarterly)
+        df = _build_period_df(raw, _INCOME_MAP, quarterly=quarterly)
+        if quarterly and df is not None and not df.empty:
+            df = _gap_fill_quarterly(df, ticker, "income", primary="yfinance")
+        return df
     except Exception as exc:
         print(f"[data_fetcher] get_income_statement({ticker}): {exc}")
         return pd.DataFrame()
@@ -1571,6 +1840,8 @@ def get_balance_sheet(ticker: str, quarterly: bool = True) -> pd.DataFrame:
         df = _sec_get_balance_sheet(ticker, quarterly=quarterly)
         if not df.empty and len(df) >= 4:
             print(f"[SEC] balance-sheet/{ticker}: {len(df)} periods")
+            if quarterly:
+                df = _gap_fill_quarterly(df, ticker, "balance", primary="sec")
             return df
     except Exception as exc:
         print(f"[SEC] balance-sheet/{ticker} error: {exc}")
@@ -1582,6 +1853,8 @@ def get_balance_sheet(ticker: str, quarterly: bool = True) -> pd.DataFrame:
             if isinstance(fmp_data, list) and fmp_data:
                 df = _fmp_json_to_df(fmp_data, _FMP_BS_MAP, quarterly=quarterly)
                 if not df.empty:
+                    if quarterly:
+                        df = _gap_fill_quarterly(df, ticker, "balance", primary="fmp")
                     return df
         except Exception as exc:
             print(f"[FMP] balance-sheet fallback: {exc}")
@@ -1597,7 +1870,10 @@ def get_balance_sheet(ticker: str, quarterly: bool = True) -> pd.DataFrame:
             raw = getattr(stock, "balance_sheet", None)
         if raw is None or raw.empty:
             raw = pd.DataFrame()
-        return _build_period_df(raw, _BS_MAP, quarterly=quarterly)
+        df = _build_period_df(raw, _BS_MAP, quarterly=quarterly)
+        if quarterly and df is not None and not df.empty:
+            df = _gap_fill_quarterly(df, ticker, "balance", primary="yfinance")
+        return df
     except Exception as exc:
         print(f"[data_fetcher] get_balance_sheet({ticker}): {exc}")
         return pd.DataFrame()
@@ -1663,6 +1939,8 @@ def get_cash_flow(ticker: str, quarterly: bool = True) -> pd.DataFrame:
                 _has_all_q = True
             if _has_recent and _has_all_q:
                 print(f"[SEC] cash-flow/{ticker}: {len(df)} periods")
+                if quarterly:
+                    df = _gap_fill_quarterly(df, ticker, "cashflow", primary="sec")
                 return df
             else:
                 print(f"[SEC] cash-flow/{ticker}: sparse quarters ({list(df.index[:6])}…), skipping")
@@ -1676,6 +1954,8 @@ def get_cash_flow(ticker: str, quarterly: bool = True) -> pd.DataFrame:
             if isinstance(fmp_data, list) and fmp_data:
                 df = _fmp_json_to_df(fmp_data, _FMP_CF_MAP, quarterly=quarterly)
                 if not df.empty:
+                    if quarterly:
+                        df = _gap_fill_quarterly(df, ticker, "cashflow", primary="fmp")
                     return df
         except Exception as exc:
             print(f"[FMP] cash-flow fallback: {exc}")
@@ -1691,7 +1971,10 @@ def get_cash_flow(ticker: str, quarterly: bool = True) -> pd.DataFrame:
             raw = getattr(stock, "cashflow", None)
         if raw is None or raw.empty:
             raw = pd.DataFrame()
-        return _build_period_df(raw, _CF_MAP, quarterly=quarterly)
+        df = _build_period_df(raw, _CF_MAP, quarterly=quarterly)
+        if quarterly and df is not None and not df.empty:
+            df = _gap_fill_quarterly(df, ticker, "cashflow", primary="yfinance")
+        return df
     except Exception as exc:
         print(f"[data_fetcher] get_cash_flow({ticker}): {exc}")
         return pd.DataFrame()
@@ -1730,14 +2013,20 @@ def compute_eps(income_df: pd.DataFrame, info: Dict[str, Any]) -> pd.DataFrame:
     return out
 
 
-def compute_revenue_yoy(income_df: pd.DataFrame) -> pd.DataFrame:
-    """Compute year-over-year revenue growth %."""
+def compute_revenue_yoy(income_df: pd.DataFrame, periods: int = 4) -> pd.DataFrame:
+    """Compute revenue growth vs `periods` rows earlier.
+
+    Default periods=4 — for quarterly data, 4 rows back = 1 year (YoY).
+    For annual data (labels like "2024"), pass periods=1.
+    """
     if income_df.empty or "Revenue" not in income_df.columns:
         return pd.DataFrame()
     rev = income_df["Revenue"]
-    yoy = rev.pct_change(periods=4) * 100  # 4 quarters back = 1 year for quarterly
-    if len(rev) <= 4:
-        yoy = rev.pct_change() * 100  # fallback
+    if len(rev) <= periods:
+        # Not enough history for requested lag — fall back to 1-step change
+        yoy = rev.pct_change() * 100
+    else:
+        yoy = rev.pct_change(periods=periods) * 100
     out = pd.DataFrame({"Revenue YoY Growth %": yoy.round(2)}, index=income_df.index)
     return out.dropna()
 
@@ -1745,32 +2034,78 @@ def compute_revenue_yoy(income_df: pd.DataFrame) -> pd.DataFrame:
 def compute_per_share(
     income_df: pd.DataFrame,
     cf_df: pd.DataFrame,
-    shares: Optional[float],
+    fallback_shares: Optional[float] = None,
 ) -> pd.DataFrame:
-    """Compute per-share metrics."""
-    if shares is None or shares == 0:
+    """Compute per-share metrics using per-period share counts.
+
+    Root fix: prefers the ``Diluted Average Shares`` column (or ``Basic Average
+    Shares`` fallback) from ``income_df``, which gives the correct share count
+    FOR THAT PERIOD. Older behavior divided every historical flow by today's
+    shares outstanding, which distorted historical Revenue/share & NI/share
+    whenever the share count had changed materially (buybacks, issuances).
+
+    If the income DataFrame has no per-period shares column, falls back to the
+    spot ``fallback_shares`` value so behavior degrades gracefully.
+    """
+    if income_df.empty:
         return pd.DataFrame()
+
+    # Per-period shares (prefer Diluted)
+    shares_series: Optional[pd.Series] = None
+    for col in ("Diluted Average Shares", "Basic Average Shares"):
+        if col in income_df.columns:
+            s = pd.to_numeric(income_df[col], errors="coerce").replace(0, np.nan)
+            if s.notna().sum() > 0:
+                shares_series = s
+                break
+
+    has_spot = fallback_shares is not None and fallback_shares != 0
+    if shares_series is None and not has_spot:
+        return pd.DataFrame()
+
+    def _per_share(numer: pd.Series) -> pd.Series:
+        """Divide numer by per-period shares where available, spot shares otherwise."""
+        if shares_series is not None:
+            denom = shares_series.reindex(numer.index)
+            result = numer / denom
+            if has_spot:
+                # Fill NaN rows where per-period shares were missing
+                result = result.where(result.notna(), numer / fallback_shares)
+            return result
+        return numer / fallback_shares
+
     out = pd.DataFrame(index=income_df.index)
     if "Revenue" in income_df.columns:
-        out["Revenue Per Share"] = (income_df["Revenue"] / shares).round(4)
+        out["Revenue Per Share"] = _per_share(income_df["Revenue"]).round(4)
     if "Net Income" in income_df.columns:
-        out["Net Income Per Share"] = (income_df["Net Income"] / shares).round(4)
+        out["Net Income Per Share"] = _per_share(income_df["Net Income"]).round(4)
     if not cf_df.empty and "Operating CF" in cf_df.columns:
-        # Align on common periods
         common = out.index.intersection(cf_df.index)
         if len(common):
-            out.loc[common, "Operating Cash Flow Per Share"] = (
-                cf_df.loc[common, "Operating CF"] / shares
-            ).round(4)
+            # Align per-period shares onto cf_df rows for the intersection
+            if shares_series is not None:
+                denom = shares_series.reindex(common)
+                res = cf_df.loc[common, "Operating CF"] / denom
+                if has_spot:
+                    res = res.where(res.notna(),
+                                    cf_df.loc[common, "Operating CF"] / fallback_shares)
+            else:
+                res = cf_df.loc[common, "Operating CF"] / fallback_shares
+            out.loc[common, "Operating Cash Flow Per Share"] = res.round(4)
     return out
 
 
-def compute_qoq_revenue(income_df: pd.DataFrame) -> pd.DataFrame:
-    """Compute quarter-over-quarter revenue growth %."""
+def compute_qoq_revenue(income_df: pd.DataFrame, periods: int = 1) -> pd.DataFrame:
+    """Compute revenue growth vs the previous period.
+
+    Default periods=1 — for quarterly data that's Q-over-Q. For annual data,
+    QoQ is semantically identical to YoY (pct_change(1)); callers may prefer
+    to hide this panel entirely in Annual mode.
+    """
     if income_df.empty or "Revenue" not in income_df.columns:
         return pd.DataFrame()
     rev = income_df["Revenue"]
-    qoq = rev.pct_change() * 100
+    qoq = rev.pct_change(periods=periods) * 100
     out = pd.DataFrame({"QoQ Revenue Growth %": qoq.round(2)}, index=income_df.index)
     return out.dropna()
 
@@ -1840,6 +2175,34 @@ def compute_ebitda(income_df: pd.DataFrame, cf_df: pd.DataFrame) -> pd.DataFrame
     ebitda = income_df["Operating Income"] + da_mapped
     out = pd.DataFrame({"EBITDA": ebitda}, index=income_df.index)
     return out.dropna()
+
+
+def compute_income_breakdown(income_df: pd.DataFrame) -> pd.DataFrame:
+    """Build a waterfall-ready DataFrame (Revenue → Net Income) from an income
+    statement. Used as a LOCAL fallback when QuarterChart's income-breakdown
+    feed is unavailable.
+
+    Columns returned (in order; any missing source columns are simply omitted):
+        Revenue, Cost of Revenue, Gross Profit, Operating Expenses,
+        Operating Income, Net Income
+    """
+    if income_df.empty or "Revenue" not in income_df.columns:
+        return pd.DataFrame()
+    col_map = [
+        ("Revenue", "Revenue"),
+        ("Cost Of Revenue", "Cost of Revenue"),
+        ("Gross Profit", "Gross Profit"),
+        ("Operating Expenses", "Operating Expenses"),
+        ("Operating Income", "Operating Income"),
+        ("Net Income", "Net Income"),
+    ]
+    out = pd.DataFrame(index=income_df.index)
+    for src, dst in col_map:
+        if src in income_df.columns:
+            out[dst] = income_df[src]
+    # Drop rows that are entirely NaN
+    out = out.dropna(how="all")
+    return out
 
 
 def compute_effective_tax_rate(income_df: pd.DataFrame) -> pd.DataFrame:
