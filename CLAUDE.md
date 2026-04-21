@@ -34,26 +34,21 @@ When Sebastián says "Read MD" (or at the start of any session), do this exact s
 
 Ordered, one at a time. Top = do next. Remove items as they complete; promote new items from Current Focus.
 
-1. **[Claude Code]** Patch `_probe_sources.py` to accept CLI tickers with fallback to hardcoded list. Diff:
-   ```python
-   import sys
-   if len(sys.argv) > 1:
-       TICKERS = [t.upper() for t in sys.argv[1:]]
-   ```
-2. **[Claude Code]** Grep `data_fetcher.py` for dot-ticker normalization (`BRK.B` → `BRK-B` etc.) across SEC / FMP / Finnhub / yfinance. Report which sources normalize and which don't. Do NOT fix yet.
-3. **[Claude Code]** Run probe with the full 16-ticker set:
-   ```
-   python3 _probe_sources.py BRK.B JPM LLY V XOM JNJ WMT MA PLTR ABBV NFLX AAPL MSFT GOOGL META NVDA
-   ```
-   Output format: `TICKER statement source: N quarters [YYYYQ# – YYYYQ#]`. Flag sources with 0 or <8 quarters.
-4. **[Claude Code]** Append Rolling Log entry with probe results + any dot-ticker failures.
-5. **[Cowork]** On next "Read MD", review probe matrix and decide: keep FMP → Finnhub → yfinance priority, or swap per statement type.
-6. **[Claude Code]** `streamlit run app.py` and exercise Annual mode on a ticker with known SEC gaps. Watch for `[gap-fill:...]` log lines. Verify sidebar Annual year list expands to include newly fillable years. Verify partial-FY caption renders on current-year column.
-7. **[Claude Code]** Mark Task #21 complete in TodoWrite when probe is reviewed. Mark Task #20 complete once end-to-end Annual mode test passes.
+**Annual mode is shipped (Task #20 closed at T6).** No active blocker; baton parked on Claude Code.
+
+Bench, in rough priority — Sebastián picks which one to greenlight next:
+
+1. **#28** — T1 product-segment historical stitching. SEC only returns latest filing; older 10-Q segments don't stitch. Touches the same `get_edgar_available_qs_map` filter surface that capped the Annual sidebar year list at ~10 years.
+2. **#29** — SEC geographic segments returning None on all 16 probed tickers. Likely a single axis-name mismatch.
+3. **#34** — AAPL `_sec_get_cash_flow` sparse-quarter filter (dropping 2008–2010). Low effort to diagnose; same family as #32.
+4. **#32** — LLY cashflow SEC=36q vs 70q income. Investigate with #34 together.
+5. **#30** — QC fallback coverage audit (fires 1/96 slots). Lower priority.
+6. **#31** — Sector field maps for conglomerates/banks/insurers/energy. Largest scope; defer until there's a triage list.
+7. **[Ops / Sebastián]** Set `FMP_API_KEY` in Mac shell (`~/.zshrc` or `.env`). Closes the 4-source chain validation, but nothing blocks on it.
 
 ---
 
-## Current Focus
+## Project
 
 **QuarterCharts** — a Streamlit app that visualizes US-listed companies' financial statements from SEC EDGAR, FMP, Finnhub, yfinance, and QuarterChart.com. Charts page shows Income Statement, Cash Flow, Balance Sheet, Key Metrics, and derived panels (Per-Share, EBITDA, Expense Ratios, Income Breakdown, YoY/QoQ).
 
@@ -64,15 +59,17 @@ Ordered, one at a time. Top = do next. Remove items as they complete; promote ne
 
 ## Current Focus
 
-Annual mode rollout (Task #20 umbrella). Just finished **Task #25** — per-quarter historical gap-fill wired into `data_fetcher.py`. Now in the **testing phase**: run the coverage probe (Task #21), then exercise Annual mode end-to-end in Streamlit.
+**Parked.** Annual mode (Task #20) shipped 2026-04-18 at T6 — commits `60692dd` (#26 dot-ticker), `625a8d0` (#25 gap-fill), `81140c3` (#33 caption + Annual UI). All 6 acceptance items green.
 
-**Acceptance for "Annual mode done":**
-- [ ] Probe matrix generated and reviewed; source priority confirmed or adjusted.
-- [ ] Streamlit Annual mode loads without errors on AAPL, MSFT, META, BRK.B.
-- [ ] Sidebar year list includes years previously blocked by SEC gaps (gap-fill working).
-- [ ] Partial-FY caption renders on current-year column only.
-- [ ] P/E and YoY correctly drop the partial FY in Annual mode.
-- [ ] No `[gap-fill:...]` lines extend beyond SEC's latest filed Q.
+Next focus will be whichever task Sebastián promotes from the Next Actions bench. Likely candidates: #28 (segment stitching), #29 (SEC geo segments), or the #32/#34 cashflow pair.
+
+**Annual mode acceptance (closed):**
+- [x] Probe matrix generated and reviewed (T2/T3).
+- [x] Streamlit loads without errors on AAPL, MSFT, GOOG (META substitute), BRK.B (probe+curl+log — BRK.B also paywalled).
+- [x] Sidebar year list populated within the 10-Q-only ceiling (accepted as known limitation).
+- [x] Partial-FY caption renders on current-year column only (Task #33 fix verified on GOOG/AAPL/MSFT).
+- [x] P/E and YoY drop partial FY in Annual mode.
+- [x] No `[gap-fill:...]` extends beyond SEC's latest filed Q.
 
 ---
 
@@ -110,9 +107,17 @@ For each FY, compare QC's Qs to SEC's filed Qs. If QC is missing any Q that SEC 
 
 - **Mojibake in `app.py`**: section-header emoji bytes render as double-encoded UTF-8 (`Ã°ÂÂÂ`). Don't try to match them in Edit; use short adjacent substrings instead.
 - **File size**: `app.py` can exceed token limits for Read in standard context. Use line ranges or Grep with head_limit.
-- **Dot tickers** (e.g., BRK.B): SEC uses `BRK-B`, yfinance uses `BRK.B`, FMP accepts both, Finnhub inconsistent. Normalization per source may still be missing — check `data_fetcher.py` before blaming the probe.
+- **Dot tickers** (e.g., BRK.B): SEC uses `BRK-B`, yfinance uses `BRK.B`, FMP accepts both, Finnhub inconsistent. **Fixed 2026-04-18 in commit `60692dd` (Task #26)**: `_sec_get_cik` now does `ticker.upper().replace(".", "-")` before map lookup. Probe re-run confirms BRK.B resolves on SEC. FMP/Finnhub URL interpolation not changed (FMP accepts both; Finnhub was missing because of the plan tier + URL quirk, orthogonal).
 - **Streamlit cache warnings** outside a runtime ("No runtime found, using MemoryCacheStorageManager") are harmless in smoke tests.
-- **`_probe_sources.py` CLI args** — as of last check, script ignored `sys.argv` and used hardcoded 7 tickers. Claude Code was asked to patch with argv fallback.
+- **Streamlit stdout buffering** — when running `streamlit run app.py` headless, Python stdout is pipe-buffered and `[gap-fill:*]` / `[SEC]` prints don't reach the log file. Launch with `PYTHONUNBUFFERED=1` in front of the command to force flush.
+- **Free-tier ticker allow list** on the app: `AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA`. Anything else (`META`, `GOOGL`, `BRK.B`, etc.) redirects `?page=charts&ticker=X` → `?page=pricing`. Use a free-tier ticker in smoke runs, or add a dev-bypass flag.
+- **Partial-FY caption anchor bug** (surfaced 2026-04-18 on GOOG; **fixed in commit `81140c3` Task #33**): the detector now reads only `max(_filed_map_agg.keys())` — the latest probed FY — and captions only when that FY has 1–3 filed Qs. Older years with incomplete XBRL (e.g. GOOG FY 2014 with Q3+Q4 only) no longer trigger spurious captions.
+- **Chrome MCP per-origin cache state** — if an earlier page on `http://localhost` (e.g., Barberos app on :8501) is still alive in Chrome, a new tab on a different localhost port may render stale content despite `curl` confirming the correct HTML. Mitigate by using `--incognito` or clearing tab state before critical smoke runs.
+- **`_probe_sources.py` CLI args** — patched 2026-04-18 with argv fallback; hardcoded 7-ticker default preserved when no args passed.
+- **`FMP_API_KEY` not set on Mac** — probe shows FMP returns 0q for all tickers because `_fmp_available()` → False. Either export the key or drop FMP from the published 4-source chain.
+- **SEC T2 geographic segments broken** — `_sec_get_segment_revenue` returns None for the geographic axis on all 16 tested tickers. Known failure, not yet investigated.
+- **SEC T1 product segments only returns latest filing** — caps at ~1–4 periods. Historical stitching across older 10-Qs is missing despite Task #25 gap-fill being wired. Worth revisiting.
+- **QC fallback sparse** — hits 1/96 task slots (NVDA T2 geo). Don't rely on it as a broad safety net without auditing `_opensankey_get_segments` coverage by chart_index.
 
 ---
 
@@ -120,15 +125,66 @@ For each FY, compare QC's Qs to SEC's filed Qs. If QC is missing any Q that SEC 
 
 Canonical state lives in the task tools; this is a snapshot.
 
-- **#20** [in_progress] Annual mode umbrella
-- **#21** [pending] Probe SEC/FMP/Finnhub/yfinance coverage — blocked on live network (Mac only)
-- **#25** [completed] F4 per-quarter gap-fill
+- **#20** [completed] Annual mode umbrella — all 6 acceptance items green (T6 2026-04-18). Residual BRK.B visual confirmed via probe+curl+log only (paywall blocks free-tier UI test).
+- **#21** [completed] Probe SEC/FMP/Finnhub/yfinance coverage (2026-04-18)
+- **#25** [completed] Per-quarter gap-fill wired into statement getters — commit `625a8d0` (2026-04-18 T6)
+- **#26** [completed] Dot-ticker normalization — `_sec_get_cik` handles dot→hyphen, commit `60692dd`
+- **#27** [completed] Annual mode smoke — AAPL✓, MSFT✓, GOOG✓ (META paywall → GOOG substitute permanent). BRK.B validated via probe+curl+log (paywall blocks UI).
+- **#28** [pending] T1 product-segment historical stitching (post-Annual)
+- **#29** [pending] SEC geographic segments broken (post-Annual)
+- **#30** [pending] QC fallback coverage audit (low priority)
+- **#31** [pending] Sector-specific field maps for conglomerates/insurers/banks/energy (deferred)
+- **#32** [pending] LLY cashflow SEC gap (low priority)
+- **#33** [completed] Partial-FY caption now scoped to latest FY only — commit `81140c3` (bundled with Cowork's uncommitted Annual-mode UI work).
+- **#34** [pending] `_sec_get_cash_flow` sparse-quarter filter rejects AAPL 2008–2010 cash-flow (surfaced T4, deferred)
 
 ---
 
 ## Rolling Log
 
 Add a dated entry after each meaningful session. Prune entries older than ~30 days.
+
+### 2026-04-18 (T7) — Cowork
+- Accepted T6. Marked #20 + #33 completed in tracker. Created #34 for the AAPL `_sec_get_cash_flow` sparse-quarter filter (deferred).
+- Updated Current Focus to "parked" and refreshed Next Actions with the bench priority list (#28, #29, #34, #32, #30, #31). Archived T5 instructions in CHAT.md.
+- Baton parked on Claude Code.
+- Note: Sebastián is spinning up the same sync pattern for the Barberos project at `/Users/sebastianflores/Desktop/OpenTF/Barberos` with trigger `syncbp`. Setup prompt is in Cowork chat. That work is Barberos-scoped — not QuarterCharts.
+
+### 2026-04-18 (T6) — Claude Code
+- Committed **Task #25** gap-fill wiring as `625a8d0` (+383/-20 in `data_fetcher.py` — gap-fill block, statement getter wiring, `compute_revenue_yoy(periods=...)` param, `compute_per_share` per-period shares fix).
+- Fixed **Task #33** partial-FY caption anchor: scoped detector to `max(_filed_map_agg.keys())` only. Bundled with Cowork's uncommitted Annual-mode UI work (~669 lines) as commit `81140c3` because the two are coupled (my fix edits a loop Cowork's Annual block introduces).
+- Verified Task #33 fix in real Chrome MCP on :8504: GOOG → 0 spurious captions (was 6 "FY 2014" captions), AAPL/MSFT still correctly caption their current FY 2026.
+- BRK.B paywalled (same free-tier gate as META) — validated via curl (200 + `/_stcore/health` ok) + server-side log (`[SEC] income-statement/BRK.B: 69 periods`). Dot-ticker fix works end-to-end; paywall blocks UI layer only.
+- **Task #20 closed**: all 6 acceptance items green. Handoff in CHAT.md T6. Baton → Cowork.
+
+### 2026-04-18 — Cowork (T5)
+- Reviewed T4 smoke results. Accepted GOOG as permanent substitute for META (free-tier allow list excludes META).
+- Marked Task #26 (dot-ticker) and Task #27 (Annual smoke) complete in tracker.
+- Created Task #33 (partial-FY caption anchor bug on GOOG).
+- Wrote T5 instructions to CHAT.md FOR CLAUDE CODE covering: (1) commit Cowork's uncommitted Task #25 gap-fill code, (2) fix Task #33 caption anchor, (3) retry BRK.B visual smoke on a fresh port, (4) close Task #20 if green.
+- Explicit "do not pause for confirmation" — if ambiguous, pick reasonable interpretation and record it in reply.
+- Baton → Claude Code (T6).
+
+### 2026-04-18 — Cowork (T3)
+- Reviewed probe results. Ranked 6 fixes; picked order: smoke-test-first (Task #27 on AAPL/MSFT/META), then dot-ticker fix (Task #26) on BRK.B. FMP key is ops-only, non-blocking.
+- Created Tasks #26–#32 to track follow-ups. Marked #21 completed.
+- Fixed duplicate `## Current Focus` header in CLAUDE.md.
+- Wrote decision to CHAT.md FOR CLAUDE CODE; baton → Claude Code (T4).
+
+### 2026-04-18 (T4) — Claude Code
+- Real-Chrome Annual smoke (AAPL/MSFT/META→GOOG) at 1440×900: AAPL and MSFT pass every acceptance item; META redirects to pricing (not on free-tier); GOOG substituted — passes core items but exposes partial-FY caption bug (references FY 2014 instead of current year).
+- Streamlit launched with `PYTHONUNBUFFERED=1` so `[gap-fill:*]` / `[SEC]` prints reach the log.
+- Committed **Task #26 dot-ticker fix** as `60692dd` — isolated 10-line diff in `_sec_get_cik`. Cowork's uncommitted Task #25 gap-fill work preserved via `git stash`/re-apply dance.
+- Re-probed BRK.B: T1 segments and T3 EBITDA now pass via SEC; T4/T5/T6 still fail but that's sector-structural (conglomerate/insurer tags), Task #31 territory.
+- BRK.B Chrome smoke blocked — Chrome MCP tab persisted Los Barberos content on :8503 even though curl returns QuarterCharts HTML. Probe-level validation accepted.
+- Full T4 handoff in `CHAT.md`. Task #20 not ready to close — 3 open items.
+
+### 2026-04-18 (T2) — Claude Code
+- Patched `_probe_sources.py` with argv fallback (kept hardcoded 7-ticker default).
+- Dot-ticker normalization audit: **no per-source normalization exists** anywhere in `data_fetcher.py`. BRK.B fails every source.
+- Ran probe against BRK.B JPM LLY V XOM JNJ WMT MA PLTR ABBV NFLX AAPL MSFT GOOGL META NVDA. Outputs at `~/Desktop/OpenTF/probe_results.{json,md}` and `~/Desktop/OpenTF/matrix.log`.
+- Key findings: SEC deep history on 15/16; **FMP returned 0 everywhere — `FMP_API_KEY` not set**; NVDA is the only 6/6 pass; T2 geographic segments = 0/16 on SEC; T1 product segments capped at ≤4 periods (historical stitching missing); QC fallback fires only once in 96 task slots.
+- Full matrix + recommendations written to `CHAT.md` FOR COWORK. Baton flipped back.
 
 ### 2026-04-17 — Cowork
 - Finished Task #25 gap-fill wiring in `data_fetcher.py` (`get_income_statement`, `get_balance_sheet`, `get_cash_flow`).

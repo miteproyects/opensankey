@@ -35,7 +35,7 @@ When triggered:
    - Whose baton now.
    - Your proposed first action.
 
-7. **Act.** If the inbox instructions are clear, execute them. If ambiguous, ask one clarifying question before proceeding.
+7. **Act — no pausing for clarifying questions.** If the inbox is unambiguous, execute. If it's ambiguous, pick the most reasonable interpretation, **note the interpretation choice in your FOR COWORK / FOR CLAUDE CODE reply**, and proceed. Do not stop and wait for Sebastián to answer mid-turn — the whole point of the handoff file is that Sebastián just types `syncqc` on each side and walks away. Exceptions where you *should* stop: (a) destructive actions (rm, force push, DB migrations), (b) something that would cost real money, (c) hard blocker (missing credentials, unreachable service, broken env). In those cases write `BLOCKED: <reason>` and flip baton.
 
 ## After Finishing Your Turn
 

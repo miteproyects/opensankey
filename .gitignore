@@ -27,3 +27,6 @@ BUILD_TS
 super_audit_history.json
 audit_history.json
 watchlist_names_cache.json
+
+# Smoke-test scratch
+.smoke-screenshots/
