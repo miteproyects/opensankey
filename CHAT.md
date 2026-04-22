@@ -38,94 +38,240 @@ When Sebastián says `read chat`:
 
 > This is what Claude Code reads when Sebastián types `syncqc` on the Mac.
 
-### T10 — Verify KO regression still reproduces on live, then plan the fix
+### T10 — Clear the pending-tasks bench, in order
 
-**Session update (2026-04-21 Cowork refresh).** The paywall-removal diff you had uncommitted in T10's original framing has been **reverted** via `git checkout -- app.py dashboard_page.py`. Live is now at **`23ca1d7`** (`run.command: use port 8503 to avoid Barberos :8501 collision`), on top of `488febe` (handoff-file updates). The NSFQ pricing tab / free-tier allow list (`AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA`) is **back in force** — Sebastián explicitly confirmed that's the rule we must preserve. So the T10 assumption "everything is free now, just remove the last gate" no longer holds.
+**Session context (2026-04-21 Cowork refresh).** Paywall-removal diff was reverted (`git checkout -- app.py dashboard_page.py`). Live is at `23ca1d7`. Working tree should be clean. Port for local dev is **:8503** via `run.command` (:8501 is Los Barberos). NSFQ pricing rule is in force and MUST be preserved — free-tier allow list stays `AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA`.
 
-Local dev port is now **:8503** (not :8504). Launch with `run.command` in the repo root or `streamlit run app.py --server.port 8503`. Port 8501 is Los Barberos.
+**This turn's goal:** march through the bench queue in the order listed, one task at a time. Each task is self-contained. After each: commit, update `CLAUDE.md` task tracker, write a one-line summary to FOR COWORK, move to the next. Do NOT pause between tasks for confirmation. **Stop conditions** (flip baton, don't keep going): (a) two consecutive tasks BLOCKED, (b) any task would need >60 lines across >3 files and feels architecturally risky, (c) you run out of API quota or hit a hard env issue. Otherwise keep going.
 
-### What the KO screenshot actually means (re-read)
+**Order:** #35 → #29 → #28 → #34 → #32 → #30 → #31 → 30-ticker smoke.
 
-Sebastián's screenshot showed the landing page rejecting `ko` with "'KO' not found" and a "Try for free" badge list of `AAPL · AMZN · GOOG · META · MSFT · NVDA · TSLA`. **That was almost certainly taken while the paywall-removal diff was still applied in his working tree** — which is why META appeared (previously paywalled) and why the landing-page allow-list check was what surfaced the "not found" error. With the diff reverted, the live allow list should be the original `AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA` and KO should load.
+---
 
-**The KO regression may or may not still reproduce on live.** Your job is to confirm which before changing any code.
+### #35 — Landing-page KO regression
 
-### Step 1 — Test whether the KO regression still exists on live
-
-1. `cd ~/Desktop/OpenTF/miteproyects && git status && git log --oneline -5` — confirm working tree clean, tip is `23ca1d7`.
-2. `./run.command` (or double-click) to launch streamlit on :8503.
-3. In a browser (doesn't matter if Chrome MCP or manual) open `http://localhost:8503/` — landing page.
-4. Type `ko` (lowercase) into the ticker input, submit.
-5. Three possible outcomes:
-   - **(a) KO loads the chart page normally** → no regression. Skip Step 2. Go straight to Step 5 (smoke run, which is still blocked on Chrome auth).
-   - **(b) KO redirects to pricing/paywall** → free-tier gate works but `.upper()` normalization may be missing. Small fix — Step 2.
-   - **(c) KO shows "'KO' not found"** → genuine regression, grep for the validator. Step 2.
-6. Also verify `KO` (uppercase) for completeness — tells us whether it's a case-sensitivity issue vs. a list membership issue.
-
-Paste the outcome + a screenshot (or page-text dump) into your T11 FOR COWORK so I can see exactly what happened.
-
-### Step 2 — Diagnose (only if Step 1 reproduces (b) or (c))
-
-Grep starting points:
-
+**Step 1 — verify it still reproduces on live.**
 ```
-grep -n "not found" app.py dashboard_page.py sankey_page.py | head -30
-grep -n "Try for free" app.py dashboard_page.py sankey_page.py | head -20
-grep -n "free_tier\|FREE_TIER\|FREE_TICKERS\|allow_list\|ALLOWED_TICKERS\|ALLOWLIST" app.py dashboard_page.py sankey_page.py auth.py | head -40
+cd ~/Desktop/OpenTF/miteproyects && git status && git log --oneline -5
+./run.command &
+```
+Wait for `Local URL: http://localhost:8503`. Then open `http://localhost:8503/` (can be Chrome MCP or curl-style text extraction). Type `ko` in the ticker input, submit.
+
+Outcomes:
+- **(a) KO loads the chart page** → no regression. Mark #35 completed in CLAUDE.md. Move to #29.
+- **(b) redirects to `?page=pricing`** → likely missing `.upper().strip()` on input. Step 2.
+- **(c) shows `'KO' not found`** → landing-page validator rejecting it. Step 2.
+
+Also test `KO` (uppercase) to disambiguate case-sensitivity vs list-membership.
+
+**Step 2 — diagnose (if (b) or (c)).**
+```
+grep -n "not found" app.py dashboard_page.py sankey_page.py
+grep -n "free_tier\|FREE_TIER\|FREE_TICKERS\|allow_list\|ALLOWED_TICKERS\|ALLOWLIST" app.py dashboard_page.py sankey_page.py auth.py
+grep -n "Try for free" app.py dashboard_page.py sankey_page.py
 ```
 
-Known paywall gate locations (from CLAUDE.md audit): `app.py` lines 992, 1008, 2269, 3877–3888 and `dashboard_page.py` lines 95–107. Check the **landing-page ticker-input validator** path specifically — that's distinct from the charts-page paywall gate. The input probably hits a `validate_ticker()` or similar before it ever reaches the paywall redirect.
+Known paywall gates: `app.py` lines 992, 1008, 2269, 3877–3888; `dashboard_page.py` lines 95–107. The landing-page input validator is a separate path — find it.
 
-Likely root causes:
-1. Input not `.upper().strip()`ed before membership test against the free-tier allow list.
-2. A separate "known tickers" lookup (Finnhub search / SEC `company_tickers.json`) that doesn't have KO indexed for some reason.
-3. Two allow lists that drifted — one for the landing page input, one for the `?page=charts&ticker=X` route gate.
-
-Confirm the hypothesis with a targeted read before editing. **Do NOT remove the paywall** — the rule is: tickers must keep following the NSFQ pricing tab, so free-tier is still limited to the 7 allow-list tickers.
-
-### Step 3 — Fix it (only if Step 1 reproduced)
-
-The goal: **any ticker on the free-tier allow list (`AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA`) entered in any casing should load the chart page for free users. Tickers not on the allow list should still redirect to pricing. Truly invalid symbols (e.g., `ZZZZZ`) should still show "not found".**
-
-Minimum-viable fix is almost certainly one of:
-- Add `.upper().strip()` to the input before the allow-list check.
-- Fix the allow list if it diverged from the canonical 7.
-- Align the two gates so they share one constant.
-
-Commit with a descriptive message:
+**Step 3 — fix (minimum viable).** `.upper().strip()` normalization, or realign the two gates to share one allow-list constant. **Do NOT remove the paywall.** Commit:
 ```
-git add <files_changed>
-git commit -m "Fix KO landing-page input normalization (Task #35)"
+git add <files> && git commit -m "Fix landing-page ticker input normalization (Task #35)"
 ```
 
-### Step 4 — Verify the fix (only if Step 3 happened)
+**Step 4 — verify.** As signed-out free user on :8503:
+- `ko`, `KO` → load chart page.
+- `AAPL, AMZN, GOOG, MSFT, NVDA, TSLA` → load chart page.
+- `BRK.B, JPM, LLY, META` → redirect to pricing.
+- `ZZZZZ` → "not found".
 
-On :8503, as a signed-out free user, test:
-- `ko`, `KO`, `Ko` → all load the chart page.
-- `AAPL`, `AMZN`, `GOOG`, `MSFT`, `NVDA`, `TSLA` → all load the chart page.
-- `BRK.B`, `JPM`, `LLY`, `META` → all redirect to pricing (paywalled, correct behavior).
-- `ZZZZZ` → rejected with "not found" (correct behavior).
+Mark #35 completed in CLAUDE.md tracker. Move to #29.
 
-If any free-tier ticker fails to load or any paywalled ticker slips through, stop and write `BLOCKED: <specific failure>` — don't keep layering fixes.
+---
 
-### Step 5 — 30-ticker smoke (still blocked on Chrome auth)
+### #29 — SEC geographic segments returning None
 
-The original T8/T10 smoke needs to hit paywalled tickers (META, BRK.B, JPM, LLY, V, XOM, UNH, MA, AVGO, JNJ, WMT, HD, PG, COST, ORCL, MRK, CVX, ABBV, BAC, CRM, NFLX, PEP — 22 of the 30). With the paywall back, **Chrome MCP must be driving an authenticated tab**, same blocker as T9.
+T2 probe finding: `_sec_get_segment_revenue` with geographic axis returns None across 16/16 tickers. Only NVDA got T2 geo data, via QC fallback.
 
-**Do NOT sign in yourself.** Pre-flight: navigate to `http://localhost:8503/?page=charts&ticker=META` — if it renders the chart page, auth is live. If it redirects to pricing, write `BLOCKED: not signed in on Chrome, please sign in on :8503 then syncqc again` and flip baton.
+**Step 1 — locate the function.**
+```
+grep -n "_sec_get_segment_revenue\|get_segment_revenue\|geographic" data_fetcher.py | head -30
+```
 
-If auth IS live, run the smoke per the archived T8 spec below (30 tickers in order, one screenshot per ticker to `.smoke-screenshots/30/<T>-annual.png`, append rows to `.smoke-screenshots/30/report.md` as you go, stop conditions unchanged).
+**Step 2 — diagnose.** Likely causes:
+1. Axis dimension name mismatch (us-gaap uses `srt:StatementGeographicalAxis` but the function may filter on a different axis string).
+2. Concept name mismatch — geographic revenue is usually `us-gaap:Revenues` filtered by axis, not a standalone concept.
+3. Filer-specific axes (`aapl:ProductOrServiceAxis` instead of standard srt).
 
-### Step 6 — Report back
+Run a targeted probe on a known geo-reporting ticker (AAPL, MSFT, NVDA) and dump the raw SEC facts for the segments concept. Compare what axes exist vs what the function looks for.
 
-Write to FOR COWORK:
-- Step 1 outcome: (a), (b), or (c), with screenshot or page-text.
-- If fix landed: commit hash + diagnosis (root cause + file/line).
-- Step 4 verify table.
-- Smoke status: either `X/30 passed …` with report.md link, or `BLOCKED: not signed in`.
-- Any new gotchas for CLAUDE.md.
+**Step 3 — fix.** Likely broaden the axis filter to accept both `StatementGeographicalAxis` and the deprecated `srt:GeographicalAreasAxis`, and/or iterate over all axes rather than pinning to one. If the fix is >50 lines or needs a new helper, diagnosis-only turn is acceptable — write up the root cause in FOR COWORK and flip baton.
 
-Flip STATUS → T11, baton → COWORK. Prepend Log entry.
+**Step 4 — verify.** Re-run `python3 _probe_sources.py AAPL MSFT NVDA JPM XOM` and confirm T2 geo now shows >0 periods on at least 3/5 tickers. Commit:
+```
+git commit -m "Broaden SEC geographic segment axis filter (Task #29)"
+```
+
+Mark #29 completed. Move to #28.
+
+---
+
+### #28 — T1 product-segment historical stitching
+
+T2 probe finding: product segments top out at ≤4 periods for 10/16 tickers — only the latest 10-Q parses, historical `SegmentReportingInformationLineItems` across older filings isn't being stitched.
+
+**Step 1 — find the product-segment path.**
+```
+grep -n "SegmentReportingInformation\|_sec_get_product_segments\|product.*segment" data_fetcher.py | head -30
+```
+
+**Step 2 — diagnose.** Compare to how `_sec_get_income_statement` stitches 70+ quarters from multiple filings vs how the segment path only reads the latest. Likely the segment function reads only the most recent filing's XBRL facts instead of iterating all filings in the company's submission list.
+
+**Step 3 — fix.** Mirror the multi-filing iteration pattern from the income-statement path. Dedupe by `(period_end, segment_name)` keeping the most recently filed value. Target: AAPL should return 12+ periods (3+ years of quarterly product segments).
+
+**Step 4 — verify.** `python3 _probe_sources.py AAPL MSFT JNJ WMT` — T1 product segments should return ≥12 periods for at least 3/4. Commit:
+```
+git commit -m "Stitch product segments across historical filings (Task #28)"
+```
+
+Mark #28 completed. Move to #34.
+
+---
+
+### #34 — AAPL cashflow sparse-quarter filter
+
+T4 finding: `[SEC] cash-flow/AAPL: sparse quarters (['Q4 2008', 'Q2 2009', ...]), skipping`. Filter rejects AAPL's older cash-flow data.
+
+**Step 1 — locate the filter.**
+```
+grep -n "sparse quarters\|_sec_get_cash_flow" data_fetcher.py | head -20
+```
+
+**Step 2 — diagnose.** The filter threshold is probably too aggressive. Check: is it dropping quarters with any missing line item, or dropping only fully-empty rows? AAPL's 2008-2010 cashflow likely has some missing tags but isn't fully empty.
+
+**Step 3 — fix.** Relax filter to drop only fully-empty rows (all cash-flow tags None), not rows with 1-2 missing tags. Alternatively, flag sparse rows but still include them (with gap-fill from secondary sources). Keep the behavior symmetric with income-statement handling.
+
+**Step 4 — verify.** `python3 _probe_sources.py AAPL MSFT GOOGL` — AAPL cashflow should now return >45 periods (was 36 or fewer). No regression on MSFT/GOOGL. Commit:
+```
+git commit -m "Relax SEC cashflow sparse-quarter filter (Task #34)"
+```
+
+Mark #34 completed. Move to #32.
+
+---
+
+### #32 — LLY cashflow SEC gap (36q vs 70q income)
+
+T2 probe: LLY cashflow returned 36 quarters while income-statement returned 70 from the same SEC source.
+
+**Step 1 — diagnose.** If #34 fixed AAPL, try LLY first — the root cause may be the same filter. If LLY is still short, something LLY-specific is at play.
+
+```
+python3 _probe_sources.py LLY
+```
+
+If 36q → 60+q after the #34 fix, #32 is likely resolved by #34. Mark completed with a note.
+
+If still 36q, grep LLY's cashflow XBRL for whichever tags are missing — LLY may use legacy concept names (`NetCashProvidedByUsedInOperatingActivitiesContinuingOperations` vs `NetCashProvidedByUsedInOperatingActivities`).
+
+**Step 2 — fix if needed.** Add concept aliasing for the LLY-specific tags.
+
+**Step 3 — verify.** Probe LLY again: cashflow should be ≥60 periods. Commit:
+```
+git commit -m "Add legacy cashflow concept aliases (Task #32)"
+```
+
+Mark #32 completed. Move to #30.
+
+---
+
+### #30 — QC fallback coverage audit
+
+T2 probe: QC fired once in 96 task slots. Low priority — diagnostic task, not a user-facing bug.
+
+**Step 1 — audit.**
+```
+grep -n "_opensankey_get\|chart_index" data_fetcher.py | head -30
+```
+
+Enumerate all `chart_index` values that `_opensankey_get_*` helpers check against. Compare to the actual chart_index values QC returns in production. Identify which (ticker, chart_index) combos are unreachable.
+
+**Step 2 — deliverable.** Write a short audit to `docs/qc_fallback_coverage.md`:
+- List of chart_index values the codebase queries.
+- List of chart_index values QC actually serves (from 2-3 sample ticker fetches).
+- Set difference — which are unreachable.
+
+No code change required this turn — the fix is scope-heavy and belongs in #31's orbit. Commit just the audit:
+```
+git add docs/qc_fallback_coverage.md
+git commit -m "Audit QC fallback coverage by chart_index (Task #30)"
+```
+
+Mark #30 completed. Move to #31.
+
+---
+
+### #31 — Sector-specific field maps (banks/insurers/energy)
+
+Probe found JPM/V/MA/XOM score 2/6 because derived panels (EBITDA, waterfall, expense ratios) need sector-specific us-gaap concepts: `InterestIncome`, `NoninterestIncome`, `ProvisionForLoanLosses`, `UpstreamAndDownstream` families.
+
+**Scope warning:** this is the biggest task on the bench. If the previous tasks took >2h combined, **defer #31** and write in FOR COWORK: `#31 deferred — previous tasks consumed budget`. Flip to the smoke run.
+
+**If budget allows — Step 1:** draft a sector classification mapping (ticker → sector → field map). Start with a minimum viable set:
+- Banks: JPM, BAC (and add `InterestIncome`, `NoninterestIncome`, `ProvisionForLoanLosses`, `NoninterestExpense`).
+- Insurers: (none in the 30-ticker smoke list).
+- Energy: XOM, CVX (upstream/downstream revenue families).
+- Card issuers: V, MA (interchange revenue, data-processing revenue).
+
+**Step 2 — wire into existing derived-panel code.** Find where `COGS` and `GrossProfit` are fetched; add sector-branch fallbacks that pull the equivalent sector concepts.
+
+**Step 3 — verify.** `python3 _probe_sources.py JPM V MA XOM CVX BAC` — each should now pass at least 4/6 tasks (was 2/6).
+
+**Step 4 — commit.**
+```
+git commit -m "Add sector-specific field maps for banks/energy/card-issuers (Task #31)"
+```
+
+Mark #31 completed.
+
+---
+
+### Step 8 — 30-ticker smoke run (unblocks if Chrome auth is live)
+
+After the bench is clear (or as many tasks as you can ship this turn), attempt the extended Annual-mode smoke.
+
+**Pre-flight.** Navigate Chrome MCP to `http://localhost:8503/?page=charts&ticker=META`. If it renders the chart page, auth is live — proceed. If it redirects to `?page=pricing`, write `BLOCKED: not signed in on Chrome, please sign in on :8503 then syncqc again` and flip baton. **Do NOT sign in yourself.**
+
+**Run.** Same spec as archived T8 below:
+- 30 tickers: `AAPL MSFT NVDA AMZN GOOGL META GOOG BRK.B TSLA JPM LLY V XOM UNH MA AVGO JNJ WMT HD PG COST ORCL MRK CVX ABBV BAC KO CRM NFLX PEP`
+- Navigate via `/?page=charts&ticker=<T>`, toggle Annual mode.
+- Per ticker: capture loads, year-only x-axis, year-range, gap-fill source+count, caption scope, P/E drops partial, YoY drops partial, gap-fill within SEC range, tracebacks.
+- One screenshot to `.smoke-screenshots/30/<T>-annual.png`.
+- Append row to `.smoke-screenshots/30/report.md` after each ticker (don't wait).
+- Stop conditions: auth drop → BLOCKED; streamlit crash → restart + note + resume; Chrome cache stale → close all localhost tabs + reopen; 3+ identical failures → BLOCKED with pattern.
+
+---
+
+### Step 9 — Report back
+
+Write to FOR COWORK a summary table per task:
+
+| Task | Outcome | Commit | Notes |
+|---|---|---|---|
+| #35 | closed-no-fix / fixed | `<hash>` or `—` | 1-line diagnosis |
+| #29 | fixed / diag-only / BLOCKED | `<hash>` or `—` | ditto |
+| #28 | … | … | … |
+| #34 | … | … | … |
+| #32 | … | … | … |
+| #30 | … | … | … |
+| #31 | … / DEFERRED | … | … |
+| smoke | `X/30 passed` / BLOCKED | — | link to `.smoke-screenshots/30/report.md` |
+
+Plus:
+- Any new gotchas to add to CLAUDE.md.
+- Any new tasks surfaced during the bench-clear (create them in the task tracker).
+- If you hit the (b) stop condition (task too risky to ship this turn), describe it so I can rescope.
+
+Flip STATUS → T11, baton → COWORK. Prepend Log entry with the full commit-hash list.
 
 <details>
 <summary>T8 original 30-ticker smoke instructions — superseded by T10 but referenced in Step 5</summary>
@@ -551,7 +697,7 @@ Awaiting your call on (a) which fix to tackle first, and (b) whether to proceed 
 
 ## Log (newest first, append-only)
 
-- 2026-04-21 — Cowork — Session cleanup + T10 refresh, three commits landed. Pushed `488febe` (earlier handoff-file updates), `23ca1d7` (`run.command` → port :8503 to avoid Barberos :8501 collision), and a third push containing this CHAT.md refresh (T10 rewrite + this Log entry). Reverted the uncommitted paywall-removal diff in `app.py` + `dashboard_page.py` via `git checkout --` before the run.command push — live still enforces NSFQ pricing rules (free-tier allow list unchanged: AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA). Rewrote T10 FOR CLAUDE CODE to reflect reverted state: Step 1 is now "test whether KO regression still reproduces on live" (three outcomes a/b/c) instead of "surface uncommitted paywall-removal diff" (which no longer exists). Preserved paywall = explicit Sebastián rule. 30-ticker smoke still deferred pending Chrome MCP auth. Baton remains CLAUDE CODE — next `syncqc` on Mac picks up the refreshed T10.
+- 2026-04-21 — Cowork — Session cleanup + T10 bench-clear plan. Three commits landed earlier this session: `488febe` (handoff-file updates), `23ca1d7` (`run.command` → port :8503 to avoid Barberos :8501 collision), and the CHAT.md refresh. Reverted the uncommitted paywall-removal diff in `app.py` + `dashboard_page.py` via `git checkout --` — live still enforces NSFQ pricing rules (free-tier allow list unchanged: AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA). **Expanded T10 into a full bench-clear plan** for Claude Code: march through #35 → #29 → #28 → #34 → #32 → #30 → #31 → 30-ticker smoke, in order, one commit per task, don't pause between tasks. Stop conditions defined (2 consecutive BLOCKED, single-task scope >60 lines + >3 files, env hard-fail). Paywall must be preserved across all fixes. Baton remains CLAUDE CODE.
 - 2026-04-18 T10 — Cowork — Sebastián showed screenshot: landing-page ticker input rejected `ko` with "'KO' not found." after he asked Claude Code (outside handoff) to remove the paywall. "Try for free" badge list now shows META but not KO (opposite of pre-T6 state). Created Task #35. T10 FOR CLAUDE CODE supersedes the T8 smoke: (1) surface uncommitted paywall-removal diff, (2) diagnose KO-not-found (hardcoded allow list vs broken lookup path), (3) remove the gate entirely so any valid US ticker works, (4) verify with KO/BRK.B/JPM/LLY plus invalid ZZZZZ, (5) THEN run 30-ticker smoke. Baton → Claude Code.
 - 2026-04-18 T9 — Claude Code — **BLOCKED: not signed in on Chrome.** T8 pre-flight: navigating :8504 (deviated from spec'd :8505 because :8504 was clean + live) to `?page=charts&ticker=META` redirected to `?page=pricing`. Per T8 Step 2 explicit rule, wrote BLOCKED and flipped without proceeding. Killed unused :8505. No `.smoke-screenshots/30/` dir created. 0/30 tickers processed. Awaiting Sebastián manual sign-in then re-syncqc.
 - 2026-04-18 T8 — Cowork — Unparked. Tasked Claude Code with extended Annual-mode smoke across the top 30 S&P 500 tickers (AAPL…PEP). Sebastián will sign in to QuarterCharts manually in Chrome so the free-tier paywall doesn't block META/BRK.B/etc. — Claude Code drives the authenticated tab via Chrome MCP, must NOT sign in itself. Per-ticker acceptance: loads, year-only x-axis, gap-fill within SEC range, caption scoped to current FY, P/E + YoY drop partial. Output: `.smoke-screenshots/30/report.md`. Baton → Claude Code.
