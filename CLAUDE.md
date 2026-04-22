@@ -118,6 +118,9 @@ For each FY, compare QC's Qs to SEC's filed Qs. If QC is missing any Q that SEC 
 - **SEC T2 geographic segments broken** — `_sec_get_segment_revenue` returns None for the geographic axis on all 16 tested tickers. Known failure, not yet investigated.
 - **SEC T1 product segments only returns latest filing** — caps at ~1–4 periods. Historical stitching across older 10-Qs is missing despite Task #25 gap-fill being wired. Worth revisiting.
 - **QC fallback sparse** — hits 1/96 task slots (NVDA T2 geo). Don't rely on it as a broad safety net without auditing `_opensankey_get_segments` coverage by chart_index.
+- **Admin allow-list** lives in `auth.ADMIN_EMAILS` — currently `{info@quartercharts.com, sebasflores@gmail.com}`. Import `is_admin(email)` instead of inlining email comparisons. Admins get permanent full-ticker access in all 4 paywall gates regardless of the testing-mode toggle.
+- **`testing_mode_enabled` DB flag** (Task #36, commit `d2c35a2`) — admin-only toggle at `/?page=pricing` under "🔧 Admin controls". When ON, the free-tier paywall is bypassed for every visitor. Default OFF. Helpers: `database.get_testing_mode_enabled()` (fails-closed False), `database.set_testing_mode_enabled(enabled, admin_email)`. Every new paywall gate must check this flag via the same `is_admin(...) or get_testing_mode_enabled()` pattern used in `app.py` / `dashboard_page.py`.
+- **Do NOT reintroduce `_gate_allowed = None  # TEMP`** as a shortcut — the admin toggle replaces it. Bypasses that aren't wired to `is_admin` + `get_testing_mode_enabled` will silently open the paywall permanently and will fail the post-commit review on the next sweep.
 
 ---
 
@@ -137,12 +140,20 @@ Canonical state lives in the task tools; this is a snapshot.
 - **#32** [pending] LLY cashflow SEC gap (low priority)
 - **#33** [completed] Partial-FY caption now scoped to latest FY only — commit `81140c3` (bundled with Cowork's uncommitted Annual-mode UI work).
 - **#34** [pending] `_sec_get_cash_flow` sparse-quarter filter rejects AAPL 2008–2010 cash-flow (surfaced T4, deferred)
+- **#35** [pending] Landing-page KO regression (verify on :8503 with NSFQ paywall re-enabled post #36).
+- **#36** [completed] Admin testing-mode toggle on pricing page — commit `d2c35a2` (2026-04-21 T10). Replaces `e8bd1d4` TEMP paywall bypass with a DB-backed, admin-only toggle. Default OFF (NSFQ enforced). Admins (info@quartercharts.com, sebasflores@gmail.com) get permanent ticker bypass regardless of toggle.
 
 ---
 
 ## Rolling Log
 
 Add a dated entry after each meaningful session. Prune entries older than ~30 days.
+
+### 2026-04-21 (T10) — Claude Code
+- Shipped **Task #36** (admin testing-mode toggle) as commit `d2c35a2`. Added `auth.is_admin()` + `ADMIN_EMAILS` single-source-of-truth; replaced 4 inline admin-email checks across `app.py` + `dashboard_page.py`. Added `database.get/set_testing_mode_enabled()` on top of existing `app_config` table (reused — no new migration). Rebuilt all 4 paywall gate sites: now `is_admin(...) → bypass`, else `get_testing_mode_enabled() → bypass`, else enforce plan's `allowed_tickers`. Added `🔧 Admin controls` block at top of `pricing_page.py` (hidden for non-admins).
+- Local verification on :8503: toggle-OFF signed-out enforces paywall (KO ✓, META → pricing); toggle-ON signed-out bypasses (META/BRK.B load); toggle-OFF re-enforces; admin UI not visible to non-admins.
+- Net effect on live: `e8bd1d4`'s TEMP unconditional bypass is GONE; NSFQ rules enforced by default. Admins can flip the toggle for smoke runs.
+- **Next:** #35 KO regression verify → #29 → #28 → #34 → #32 → #30 → #31 → 30-smoke per T10 plan.
 
 ### 2026-04-18 (T7) — Cowork
 - Accepted T6. Marked #20 + #33 completed in tracker. Created #34 for the AAPL `_sec_get_cash_flow` sparse-quarter filter (deferred).
