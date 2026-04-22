@@ -28,8 +28,8 @@ When Sebastián says `read chat`:
 
 ## STATUS
 
-- **Turn:** 10
-- **Last write:** 2026-04-18 — Cowork
+- **Turn:** 10 (refreshed 2026-04-21)
+- **Last write:** 2026-04-21 — Cowork
 - **Baton:** CLAUDE CODE (you act next)
 
 ---
@@ -38,88 +38,92 @@ When Sebastián says `read chat`:
 
 > This is what Claude Code reads when Sebastián types `syncqc` on the Mac.
 
-### T10 — Fix "KO not found" regression, then run 30-ticker smoke
+### T10 — Verify KO regression still reproduces on live, then plan the fix
 
-**Situation change since T9 blocked.** Sebastián — outside this handoff file — asked you to remove the free-tier paywall and make all tickers available. After that change, he tested the landing page by typing `ko` into the ticker input and got **"'KO' not found."** (screenshot shared with me). The "Try for free" badge list in that screenshot shows `AAPL · AMZN · GOOG · META · MSFT · NVDA · TSLA` — note KO was dropped and META was added (the opposite of the pre-T6 free-tier list `AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA`).
+**Session update (2026-04-21 Cowork refresh).** The paywall-removal diff you had uncommitted in T10's original framing has been **reverted** via `git checkout -- app.py dashboard_page.py`. Live is now at **`23ca1d7`** (`run.command: use port 8503 to avoid Barberos :8501 collision`), on top of `488febe` (handoff-file updates). The NSFQ pricing tab / free-tier allow list (`AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA`) is **back in force** — Sebastián explicitly confirmed that's the rule we must preserve. So the T10 assumption "everything is free now, just remove the last gate" no longer holds.
 
-So there are three interlocking issues to sort out before the smoke run:
+Local dev port is now **:8503** (not :8504). Launch with `run.command` in the repo root or `streamlit run app.py --server.port 8503`. Port 8501 is Los Barberos.
 
-A. **Your paywall-removal change is uncommitted** — I don't have its diff. First thing: report what's in your working tree.
-B. **Landing-page ticker input validator is rejecting KO with "not found"** — this is a lookup/validation failure, not a paywall redirect. That's the user-visible regression.
-C. **"Try for free" badge list is out of sync** — showing META (which was previously paywalled) and missing KO (which was previously free). If all tickers are meant to be free now, the whole badge-list UI is misleading.
+### What the KO screenshot actually means (re-read)
 
-### Step 1 — Surface the current state
+Sebastián's screenshot showed the landing page rejecting `ko` with "'KO' not found" and a "Try for free" badge list of `AAPL · AMZN · GOOG · META · MSFT · NVDA · TSLA`. **That was almost certainly taken while the paywall-removal diff was still applied in his working tree** — which is why META appeared (previously paywalled) and why the landing-page allow-list check was what surfaced the "not found" error. With the diff reverted, the live allow list should be the original `AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA` and KO should load.
 
-1. `cd ~/Desktop/OpenTF/miteproyects && git status && git diff --stat` — show me exactly what you touched for the paywall-removal work.
-2. `git log --oneline -5` — confirm we're still at `81140c3 / 625a8d0 / 60692dd` tip, with your new work uncommitted.
-3. Paste both outputs into your T11 FOR COWORK so I can see the scope.
+**The KO regression may or may not still reproduce on live.** Your job is to confirm which before changing any code.
 
-### Step 2 — Diagnose the "KO not found" path
+### Step 1 — Test whether the KO regression still exists on live
 
-Grep starting points — don't just fix the first thing you find, trace the full call path:
+1. `cd ~/Desktop/OpenTF/miteproyects && git status && git log --oneline -5` — confirm working tree clean, tip is `23ca1d7`.
+2. `./run.command` (or double-click) to launch streamlit on :8503.
+3. In a browser (doesn't matter if Chrome MCP or manual) open `http://localhost:8503/` — landing page.
+4. Type `ko` (lowercase) into the ticker input, submit.
+5. Three possible outcomes:
+   - **(a) KO loads the chart page normally** → no regression. Skip Step 2. Go straight to Step 5 (smoke run, which is still blocked on Chrome auth).
+   - **(b) KO redirects to pricing/paywall** → free-tier gate works but `.upper()` normalization may be missing. Small fix — Step 2.
+   - **(c) KO shows "'KO' not found"** → genuine regression, grep for the validator. Step 2.
+6. Also verify `KO` (uppercase) for completeness — tells us whether it's a case-sensitivity issue vs. a list membership issue.
+
+Paste the outcome + a screenshot (or page-text dump) into your T11 FOR COWORK so I can see exactly what happened.
+
+### Step 2 — Diagnose (only if Step 1 reproduces (b) or (c))
+
+Grep starting points:
 
 ```
-grep -n "not found" app.py sankey_page.py | head -30
-grep -n "Try for free" app.py sankey_page.py | head -20
-grep -n "free_tier\|FREE_TIER\|allow_list\|ALLOWED_TICKERS\|ALLOWLIST" app.py sankey_page.py | head -40
+grep -n "not found" app.py dashboard_page.py sankey_page.py | head -30
+grep -n "Try for free" app.py dashboard_page.py sankey_page.py | head -20
+grep -n "free_tier\|FREE_TIER\|FREE_TICKERS\|allow_list\|ALLOWED_TICKERS\|ALLOWLIST" app.py dashboard_page.py sankey_page.py auth.py | head -40
 ```
 
-Likely culprits, in order of suspicion:
-1. A **hardcoded allow list** that the landing-page input checks against (separate from the paywall redirect). Your paywall-removal edit probably didn't touch it. If the list is now `AAPL, AMZN, GOOG, META, MSFT, NVDA, TSLA`, KO fails the check.
-2. A **ticker lookup** that hits Finnhub/yfinance/SEC and returns empty for KO due to a 2-letter-ticker guard or a case-sensitivity bug (input comes in as `ko`, not `KO`).
-3. **Two code paths for the same check** — the route handler (`?page=charts&ticker=X`) uses one gate, the landing-page input uses another. Your edit may have covered only the first.
+Known paywall gate locations (from CLAUDE.md audit): `app.py` lines 992, 1008, 2269, 3877–3888 and `dashboard_page.py` lines 95–107. Check the **landing-page ticker-input validator** path specifically — that's distinct from the charts-page paywall gate. The input probably hits a `validate_ticker()` or similar before it ever reaches the paywall redirect.
 
-Confirm the hypothesis with a targeted read of the relevant block before editing.
+Likely root causes:
+1. Input not `.upper().strip()`ed before membership test against the free-tier allow list.
+2. A separate "known tickers" lookup (Finnhub search / SEC `company_tickers.json`) that doesn't have KO indexed for some reason.
+3. Two allow lists that drifted — one for the landing page input, one for the `?page=charts&ticker=X` route gate.
 
-### Step 3 — Fix it
+Confirm the hypothesis with a targeted read before editing. **Do NOT remove the paywall** — the rule is: tickers must keep following the NSFQ pricing tab, so free-tier is still limited to the 7 allow-list tickers.
 
-The goal (per Sebastián's instruction to you): **any valid US ticker entered on the landing page should be accepted and take the user to the charts page, no paywall.**
+### Step 3 — Fix it (only if Step 1 reproduced)
 
-- If a hardcoded allow list is the gate, remove the gate entirely — don't just add KO back. All 500+ S&P tickers should work.
-- If the "not found" error comes from a ticker-existence lookup, ensure the input is `.upper().strip()`ed before the lookup and that the lookup itself (probably SEC `company_tickers.json` via `_sec_get_cik` which now handles dot→hyphen) is what's called. If it's Finnhub search, fall back to SEC mapping as secondary before giving up.
-- Keep the "Try for free" badge visible but update its label to something like "Popular tickers:" (or whatever feels right) — the "try for free" framing no longer matches reality. Minimum viable change: rename the label, leave the 7 tickers as examples. If it's trivial, replace the 7-ticker list with a more current top-by-cap set (AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA) but that's optional.
+The goal: **any ticker on the free-tier allow list (`AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA`) entered in any casing should load the chart page for free users. Tickers not on the allow list should still redirect to pricing. Truly invalid symbols (e.g., `ZZZZZ`) should still show "not found".**
 
-Commit the fix:
+Minimum-viable fix is almost certainly one of:
+- Add `.upper().strip()` to the input before the allow-list check.
+- Fix the allow list if it diverged from the canonical 7.
+- Align the two gates so they share one constant.
+
+Commit with a descriptive message:
 ```
 git add <files_changed>
-git commit -m "Remove free-tier gate on landing-page ticker input (fixes 'KO not found')"
+git commit -m "Fix KO landing-page input normalization (Task #35)"
 ```
 
-If your earlier paywall-removal edit is also uncommitted, commit it separately first with its own message describing what it did, so the history reads cleanly.
+### Step 4 — Verify the fix (only if Step 3 happened)
 
-### Step 4 — Verify
+On :8503, as a signed-out free user, test:
+- `ko`, `KO`, `Ko` → all load the chart page.
+- `AAPL`, `AMZN`, `GOOG`, `MSFT`, `NVDA`, `TSLA` → all load the chart page.
+- `BRK.B`, `JPM`, `LLY`, `META` → all redirect to pricing (paywalled, correct behavior).
+- `ZZZZZ` → rejected with "not found" (correct behavior).
 
-Use Chrome MCP (no sign-in needed now — everything's free):
+If any free-tier ticker fails to load or any paywalled ticker slips through, stop and write `BLOCKED: <specific failure>` — don't keep layering fixes.
 
-1. Navigate `http://localhost:8504/` (landing page).
-2. Type `ko` → hit GO → confirm it loads the chart page (not "not found", not pricing redirect).
-3. Repeat with 3 more previously-paywalled tickers that exercise different code paths:
-   - `BRK.B` — dot ticker, tests the `60692dd` SEC-CIK fix end-to-end through the UI.
-   - `JPM` — bank, tests that structural sector-failure tickers still at least load the page.
-   - `LLY` — pharma, previously on probe as 3/6 pass.
-4. Also type something genuinely invalid like `ZZZZZ` — confirm the landing page DOES still reject invalid tickers gracefully (with "not found" being appropriate there).
+### Step 5 — 30-ticker smoke (still blocked on Chrome auth)
 
-If any of the 4 valid tickers still fail, stop and BLOCKED: describe the specific failure, don't keep layering fixes.
+The original T8/T10 smoke needs to hit paywalled tickers (META, BRK.B, JPM, LLY, V, XOM, UNH, MA, AVGO, JNJ, WMT, HD, PG, COST, ORCL, MRK, CVX, ABBV, BAC, CRM, NFLX, PEP — 22 of the 30). With the paywall back, **Chrome MCP must be driving an authenticated tab**, same blocker as T9.
 
-### Step 5 — 30-ticker smoke (what was T8)
+**Do NOT sign in yourself.** Pre-flight: navigate to `http://localhost:8503/?page=charts&ticker=META` — if it renders the chart page, auth is live. If it redirects to pricing, write `BLOCKED: not signed in on Chrome, please sign in on :8503 then syncqc again` and flip baton.
 
-Once Steps 1–4 are green, proceed with the full extended smoke. Same spec as T8, restated tersely:
-
-- 30 tickers in this order: `AAPL MSFT NVDA AMZN GOOGL META GOOG BRK.B TSLA JPM LLY V XOM UNH MA AVGO JNJ WMT HD PG COST ORCL MRK CVX ABBV BAC KO CRM NFLX PEP`
-- Navigate via direct URL `/?page=charts&ticker=<T>` + toggle Annual mode.
-- For each, capture: loads?, year-only x-axis?, year-range, gap-fill source+count, partial-FY caption scope, P/E drops partial, YoY drops partial, gap-fill within SEC range, tracebacks.
-- One screenshot per ticker to `.smoke-screenshots/30/<T>-annual.png`.
-- Append each row to `.smoke-screenshots/30/report.md` immediately after processing — don't wait for the whole run to finish before flushing.
-- Stop conditions unchanged: streamlit crash → restart + note + resume; Chrome cache stale → close all localhost tabs + reopen; 3+ identical failures in a row → BLOCKED with pattern description.
+If auth IS live, run the smoke per the archived T8 spec below (30 tickers in order, one screenshot per ticker to `.smoke-screenshots/30/<T>-annual.png`, append rows to `.smoke-screenshots/30/report.md` as you go, stop conditions unchanged).
 
 ### Step 6 — Report back
 
 Write to FOR COWORK:
-- git status/diff outputs from Step 1 (or confirmation if you'd already committed before reading this).
-- Diagnosis of the KO bug (root cause + file/line reference) and the fix commit hash.
-- Verify results from Step 4 (`ko`, `BRK.B`, `JPM`, `LLY`, `ZZZZZ`) — pass or fail per ticker.
-- 30-ticker smoke summary: `X/30 passed all acceptance items`, grouped failures, link to `.smoke-screenshots/30/report.md`.
-- Any new gotchas worth adding to CLAUDE.md.
+- Step 1 outcome: (a), (b), or (c), with screenshot or page-text.
+- If fix landed: commit hash + diagnosis (root cause + file/line).
+- Step 4 verify table.
+- Smoke status: either `X/30 passed …` with report.md link, or `BLOCKED: not signed in`.
+- Any new gotchas for CLAUDE.md.
 
 Flip STATUS → T11, baton → COWORK. Prepend Log entry.
 
@@ -547,6 +551,7 @@ Awaiting your call on (a) which fix to tackle first, and (b) whether to proceed 
 
 ## Log (newest first, append-only)
 
+- 2026-04-21 — Cowork — Session cleanup + T10 refresh. Pushed `488febe` (handoff-file updates) and `23ca1d7` (`run.command` → port :8503 to avoid Barberos :8501 collision). Reverted the uncommitted paywall-removal diff in `app.py` + `dashboard_page.py` via `git checkout --` before push — live at `23ca1d7` still enforces NSFQ pricing rules (free-tier allow list unchanged: AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA). Rewrote T10 FOR CLAUDE CODE to reflect reverted state: Step 1 is now "test whether KO regression still reproduces on live" (three outcomes a/b/c) instead of "surface uncommitted paywall-removal diff" (which no longer exists). Preserved paywall = explicit Sebastián rule. 30-ticker smoke still deferred pending Chrome MCP auth. Baton remains CLAUDE CODE.
 - 2026-04-18 T10 — Cowork — Sebastián showed screenshot: landing-page ticker input rejected `ko` with "'KO' not found." after he asked Claude Code (outside handoff) to remove the paywall. "Try for free" badge list now shows META but not KO (opposite of pre-T6 state). Created Task #35. T10 FOR CLAUDE CODE supersedes the T8 smoke: (1) surface uncommitted paywall-removal diff, (2) diagnose KO-not-found (hardcoded allow list vs broken lookup path), (3) remove the gate entirely so any valid US ticker works, (4) verify with KO/BRK.B/JPM/LLY plus invalid ZZZZZ, (5) THEN run 30-ticker smoke. Baton → Claude Code.
 - 2026-04-18 T9 — Claude Code — **BLOCKED: not signed in on Chrome.** T8 pre-flight: navigating :8504 (deviated from spec'd :8505 because :8504 was clean + live) to `?page=charts&ticker=META` redirected to `?page=pricing`. Per T8 Step 2 explicit rule, wrote BLOCKED and flipped without proceeding. Killed unused :8505. No `.smoke-screenshots/30/` dir created. 0/30 tickers processed. Awaiting Sebastián manual sign-in then re-syncqc.
 - 2026-04-18 T8 — Cowork — Unparked. Tasked Claude Code with extended Annual-mode smoke across the top 30 S&P 500 tickers (AAPL…PEP). Sebastián will sign in to QuarterCharts manually in Chrome so the free-tier paywall doesn't block META/BRK.B/etc. — Claude Code drives the authenticated tab via Chrome MCP, must NOT sign in itself. Per-ticker acceptance: loads, year-only x-axis, gap-fill within SEC range, caption scoped to current FY, P/E + YoY drop partial. Output: `.smoke-screenshots/30/report.md`. Baton → Claude Code.
