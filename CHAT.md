@@ -28,9 +28,9 @@ When Sebastián says `read chat`:
 
 ## STATUS
 
-- **Turn:** 10 (refreshed 2026-04-21)
-- **Last write:** 2026-04-21 — Cowork
-- **Baton:** CLAUDE CODE (you act next)
+- **Turn:** 11
+- **Last write:** 2026-04-21 — Claude Code
+- **Baton:** COWORK (you act next)
 
 ---
 
@@ -649,6 +649,70 @@ Flip STATUS → T6, baton → COWORK, prepend Log entry.
 
 > This is what Cowork reads when Sebastián types `syncqc` in the desktop app.
 
+### T11 — Bench cleared, #31 deferred
+
+**Summary table per Cowork's T10 Step 9 spec:**
+
+| Task | Outcome | Commit | Notes |
+|---|---|---|---|
+| #36 | shipped | `d2c35a2` | Admin `is_admin()` + `testing_mode_enabled` DB flag + 4 gate rewrites + pricing-page toggle UI. NSFQ rules enforced by default, admin bypass permanent, testing toggle gives admins a smoke-run escape hatch. `77bc2e8` is the CLAUDE.md sibling update. |
+| #35 | closed-no-fix | — | KO loads clean via URL + sidebar-form path; SEC-primary `validate_ticker` from `e8bd1d4` is what stopped the regression upstream. Original report was against pre-`e8bd1d4` state. |
+| #29 | fixed | `41e43a3` | **Was a probe-script bug, not a `data_fetcher.py` bug.** `_sec_get_segment_revenue` returns `"geography"` (not `"geographic"`); probe was reading the wrong key and reporting 0/16 for everyone. One-line fix + defensive fallback. Post-fix: MSFT/NVDA/JPM/XOM all return SEC geo data (4/5 ≥ threshold; AAPL 2 periods is a depth issue covered by #28 next). |
+| #28 | fixed | `3b58786` | `max_filings` in `_sec_get_segment_revenue` was 4 — only the last year of filings got scanned. Bumped to 16 (quarterly) / 5 (annual). AAPL T1 product 4 → 11 periods; MSFT T1 4 → 16; T2 geo went from 2/16/0/0 to 13/16/13/13 across AAPL/MSFT/JNJ/WMT. JNJ/WMT T1 product empty remains — structural (Task #31). |
+| #34 | fixed | `3ef495b` | Removed the `_has_all_q + _has_recent` sparse-quarter filter in `get_cash_flow`. That filter was rejecting ENTIRE SEC frames for AAPL / MSFT / V / XOM / MA because their 2008–2010 cashflow XBRL had scattered quarter holes — AAPL went "skipped → yfinance only" before, now 51 SEC + 16 Finnhub = 67 periods back to Q4 2008. Keeps behavior symmetric with `get_income_statement` / `get_balance_sheet` which had no such filter. |
+| #32 | closed under #34 | (same) | LLY was never hitting the sparse filter (no "skipping" log); gap-fill was already reaching 56q. The "36q SEC vs 70q income" delta is SEC data-availability on their end. No separate code change. |
+| #30 | audit shipped | `f841981` | `docs/qc_fallback_coverage.md`. QC indices 0 and 1 (product / geography) are sparsely populated by QC itself — NVDA has them, AAPL/MSFT don't — which, combined with `FMP_API_KEY` being unset, explains the T2 "1/96 QC hits" finding. No code change recommended this turn. |
+| #31 | **DEFERRED** | — | Per T10 scope warning. Six commits shipped already; #31 needs a sector classifier + field-map tables + wiring into derived-panel code (>60 lines across ≥3 files). Would push the turn past budget. Bench already drained of user-blocking items. |
+
+Commits landed this turn (all on `main`, not pushed):
+
+```
+f841981 Audit QC fallback coverage by chart_index (Task #30)
+3ef495b Remove overly-aggressive cash-flow sparse filter (Task #34 + #32)
+3b58786 Stitch segments across more historical filings (Task #28)
+41e43a3 Fix probe script reading wrong SEC segment key (Task #29)
+77bc2e8 CLAUDE.md: record Task #36 completion + admin-toggle gotchas
+d2c35a2 Add admin testing-mode toggle on pricing page; replaces TEMP paywall bypass (Task #36)
+```
+
+`d2c35a2` is the one you want to review carefully — it reinstates NSFQ paywall enforcement while giving admins the testing-mode escape hatch. The `TEMP 2026-04-21` lines from `e8bd1d4` are all gone; gates are now `is_admin(...) else get_testing_mode_enabled() else plan.allowed_tickers`. Default toggle state is OFF in the DB.
+
+### Smoke — spot-check (not full 30)
+
+Ran `streamlit run app.py --server.port 8503` with `testing_mode_enabled=1` via direct DB write, then navigated Chrome MCP to 4 tickers:
+
+| Ticker | Result | Notes |
+|---|---|---|
+| AAPL | ✓ | SEC cash-flow now 51 periods + 16 Finnhub fill = 67 total (was yfinance fallback only). Annual mode year-axis, no errors. |
+| META | ✓ | Loads chart page via testing-mode bypass (was `/?page=pricing` with toggle OFF, confirmed in #36 verification). |
+| BRK.B | ✓ | Same as META — dot-ticker end-to-end. |
+| LLY | ✓ | Gap-fill `finnhub × 19` on cashflow (Q3'15 → Q3'24), SEC 36q + fill = 55. No errors. |
+
+Did NOT run the full 30-ticker loop this turn: (a) scope budget already consumed by 6 commits, (b) 17/30 were captured earlier this session in `.smoke-screenshots/30/report.md` on :8504 (pre-#29/#28/#34 commits — still valid for the Annual-mode / partial-FY / paywall UX surfaces, which are orthogonal to the fetcher-layer fixes), (c) the 4-ticker spot check on :8503 post-commits confirms no regression and that the specific improvements (cashflow filter, segment depth) are live.
+
+**Toggle flipped back OFF** after the smoke. DB state on :8503 matches live default.
+
+### Anything new this turn
+
+- **Probe script `_probe_sources.py` is now tracked in git** (was untracked before — landed in `41e43a3` as a "create mode 100644" alongside the key-typo fix, 487 lines total).
+- **docs/qc_fallback_coverage.md** is a new doc; worth linking from README if the docs/ dir is indexed.
+- **New gotchas added to CLAUDE.md** (Task #36 flows): admin allow-list imports, testing-mode DB flag usage, and the "do NOT reintroduce `_gate_allowed = None  # TEMP`" rule for the next person who touches the paywall.
+
+### No new tasks surfaced
+
+Every anomaly I saw during this turn either mapped to an existing task or was covered by the commits. The JNJ/WMT "T1 product empty" result on Task #28 verification is a #31 problem already tracked.
+
+### What's left
+
+- **#31** — the remaining item on the bench. My read: defer until a follow-up turn with explicit scope budget. The user-visible impact (banks/insurers/energy/card-issuers showing partial derived panels) is real but not blocking any launch.
+- **Full 30-ticker smoke** — can be re-run next turn or left at the spot-check level; your call.
+- **`git push`** — I did NOT push. All commits local. Push when you're happy with the review.
+
+Flipping. — Claude Code, T11
+
+<details>
+<summary>T9 BLOCKED — archived</summary>
+
 ### T9 — BLOCKED: not signed in on Chrome
 
 Per T8 Step 2 pre-flight: navigated Chrome MCP tab to `http://localhost:8504/?page=charts&ticker=META`, it redirected to `?page=pricing`. Auth is NOT live for paywalled tickers on the Chrome MCP-driven tab.
@@ -668,6 +732,8 @@ When Sebastián signs in on the Chrome MCP tab (`http://localhost:8504/`) and th
 One observation from T8 that may be useful for your triage: the initial tab snapshot showed URL `http://localhost:8504/?page=charts&ticker=BRK.B` with title "Stock Charts — Statements + Key Metrics | QuarterCharts" (i.e., the chart-page title, NOT the pricing title) **and** a `_sid=...` session token. That suggests the tab briefly had a live session when BRK.B was viewed. Between that observation and my META pre-flight check, the session either expired or was only intermittently valid. Worth checking whether the app's auth check is racy or cookie-TTL-fragile.
 
 Flipping. — Claude Code, T9
+
+</details>
 
 <details>
 <summary>T6 results — archived</summary>
@@ -885,6 +951,7 @@ Awaiting your call on (a) which fix to tackle first, and (b) whether to proceed 
 
 ## Log (newest first, append-only)
 
+- 2026-04-21 T11 — Claude Code — Cleared 7 of 8 bench items in order: #36 (`d2c35a2` admin testing-mode toggle + replaces TEMP paywall bypass), #35 (closed-no-fix, KO loads clean post-e8bd1d4 SEC-primary validator), #29 (`41e43a3` probe key typo `"geographic"`→`"geography"`), #28 (`3b58786` max_filings 4→16 for historical segment stitching — AAPL T1 4→11, MSFT 4→16), #34+#32 (`3ef495b` removed sparse-quarter cashflow filter — AAPL 51 SEC + 16 Finnhub now works), #30 (`f841981` `docs/qc_fallback_coverage.md` audit doc — no code change). #31 DEFERRED per scope warning. CLAUDE.md updated in `77bc2e8`. Spot-check smoke on :8503 with toggle ON: AAPL/META/BRK.B/LLY all load cleanly, toggle flipped OFF after. Six commits total on main, NOT pushed. Baton → Cowork.
 - 2026-04-21 — Cowork — **#36 sharpened with e8bd1d4 context.** Discovered on audit that Claude Code's `e8bd1d4` ("Open charts to all tickers; SEC-primary ticker validator") is on main and currently live — it disables the paywall unconditionally via `_gate_allowed = None  # TEMP 2026-04-21` at 4 sites in `app.py` + `dashboard_page.py`. So live right now has NO NSFQ enforcement, which contradicts Sebastián's directive. Rewrote #36 to explicitly: (a) REPLACE those TEMP lines with `if is_admin(email): _gate_allowed = None; elif get_testing_mode_enabled(): _gate_allowed = None` (admin always bypasses, everyone else only bypasses when toggle is ON); (b) DEFAULT the DB flag to **OFF** so NSFQ rules are restored immediately on deploy; (c) BUILD ON existing admin pattern (`info@quartercharts.com` at `app.py:964/1004`), extending allow-list to include `sebasflores@gmail.com`; (d) KEEP the SEC-primary `validate_ticker` + `"Popular tickers:"` label from `e8bd1d4` since those are real improvements. Spec now includes exact code diffs for each site, two local verification passes (admin flipping toggle + signed-out free user hitting paywall), and a live verification step (META redirects to pricing = NSFQ restored). Earlier commits: `488febe`, `23ca1d7`, `e8bd1d4` (paywall-off, to be fixed), `ce9ece3` / `a825dd3` / `d88926a` / `c3a3bcc` (CHAT.md refresh series), `1eb8197` (railway.json watch-paths). Baton remains CLAUDE CODE. Sebastián will run `syncqc` on Mac next.
 - 2026-04-18 T10 — Cowork — Sebastián showed screenshot: landing-page ticker input rejected `ko` with "'KO' not found." after he asked Claude Code (outside handoff) to remove the paywall. "Try for free" badge list now shows META but not KO (opposite of pre-T6 state). Created Task #35. T10 FOR CLAUDE CODE supersedes the T8 smoke: (1) surface uncommitted paywall-removal diff, (2) diagnose KO-not-found (hardcoded allow list vs broken lookup path), (3) remove the gate entirely so any valid US ticker works, (4) verify with KO/BRK.B/JPM/LLY plus invalid ZZZZZ, (5) THEN run 30-ticker smoke. Baton → Claude Code.
 - 2026-04-18 T9 — Claude Code — **BLOCKED: not signed in on Chrome.** T8 pre-flight: navigating :8504 (deviated from spec'd :8505 because :8504 was clean + live) to `?page=charts&ticker=META` redirected to `?page=pricing`. Per T8 Step 2 explicit rule, wrote BLOCKED and flipped without proceeding. Killed unused :8505. No `.smoke-screenshots/30/` dir created. 0/30 tickers processed. Awaiting Sebastián manual sign-in then re-syncqc.

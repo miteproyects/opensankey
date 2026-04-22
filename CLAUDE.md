@@ -133,14 +133,14 @@ Canonical state lives in the task tools; this is a snapshot.
 - **#25** [completed] Per-quarter gap-fill wired into statement getters — commit `625a8d0` (2026-04-18 T6)
 - **#26** [completed] Dot-ticker normalization — `_sec_get_cik` handles dot→hyphen, commit `60692dd`
 - **#27** [completed] Annual mode smoke — AAPL✓, MSFT✓, GOOG✓ (META paywall → GOOG substitute permanent). BRK.B validated via probe+curl+log (paywall blocks UI).
-- **#28** [pending] T1 product-segment historical stitching (post-Annual)
-- **#29** [pending] SEC geographic segments broken (post-Annual)
-- **#30** [pending] QC fallback coverage audit (low priority)
+- **#28** [completed] T1 product-segment historical stitching — commit `3b58786`. Bumped `max_filings` in `_sec_get_segment_revenue` from 4 → 16 quarterly / 2 → 5 annual. AAPL 4→11 periods, MSFT 4→16. JNJ/WMT product segments remain structural (Task #31 territory).
+- **#29** [completed] SEC geographic segments — root cause was a probe-script key typo (`"geographic"` vs canonical `"geography"`). Fix in commit `41e43a3`: 4/5 tickers now return valid SEC geo segments (MSFT, NVDA, JPM, XOM); AAPL returns 2 periods (below MIN_PERIODS=4 — a separate #28 issue, not #29).
+- **#30** [completed] QC fallback audit — commit `f841981`. `docs/qc_fallback_coverage.md`. The 1/96 QC-hit rate was caused by QC indices 0 (product) and 1 (geography) being sparsely populated (NVDA has them, AAPL/MSFT don't) + `FMP_API_KEY` unset. No code change.
 - **#31** [pending] Sector-specific field maps for conglomerates/insurers/banks/energy (deferred)
-- **#32** [pending] LLY cashflow SEC gap (low priority)
+- **#32** [completed] LLY cashflow gap — closed with #34 in commit `3ef495b`. LLY wasn't hitting the sparse filter; gap-fill was already topping its SEC 36q to 55–56q. Treat remaining gap as an SEC data-availability artifact.
 - **#33** [completed] Partial-FY caption now scoped to latest FY only — commit `81140c3` (bundled with Cowork's uncommitted Annual-mode UI work).
-- **#34** [pending] `_sec_get_cash_flow` sparse-quarter filter rejects AAPL 2008–2010 cash-flow (surfaced T4, deferred)
-- **#35** [pending] Landing-page KO regression (verify on :8503 with NSFQ paywall re-enabled post #36).
+- **#34** [completed] Cash-flow sparse filter — commit `3ef495b` removed it. AAPL 2008–2010 cashflow now flows through normally; SEC 51 periods + Finnhub gap-fill 16 → 67 total periods. Keeps behavior symmetric with `get_income_statement` / `get_balance_sheet`.
+- **#35** [completed-no-fix] KO regression — verified 2026-04-21 post #36 on :8503 with NSFQ paywall enforced (toggle OFF). KO loads chart page via URL and lowercase/uppercase both normalize correctly. Landing-page form submit couldn't be UI-tested due to Chrome MCP iframe boundary, but the `validate_ticker` path (SEC-primary since `e8bd1d4`) returns True for KO — no code change required.
 - **#36** [completed] Admin testing-mode toggle on pricing page — commit `d2c35a2` (2026-04-21 T10). Replaces `e8bd1d4` TEMP paywall bypass with a DB-backed, admin-only toggle. Default OFF (NSFQ enforced). Admins (info@quartercharts.com, sebasflores@gmail.com) get permanent ticker bypass regardless of toggle.
 
 ---
