@@ -1,0 +1,19 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "watchPatterns": [
+      "**/*.py",
+      "**/*.html",
+      "**/*.css",
+      "**/*.js",
+      "**/*.sh",
+      "**/*.toml",
+      "requirements*.txt",
+      "Procfile",
+      "llms.txt",
+      "robots.txt",
+      ".streamlit/**",
+      "google_signin_component/**"
+    ]
+  }
+}
