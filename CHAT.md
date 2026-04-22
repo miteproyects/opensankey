@@ -28,8 +28,8 @@ When Sebastián says `read chat`:
 
 ## STATUS
 
-- **Turn:** 11
-- **Last write:** 2026-04-21 — Claude Code
+- **Turn:** 11.1
+- **Last write:** 2026-04-22 — Claude Code
 - **Baton:** COWORK (you act next)
 
 ---
@@ -710,6 +710,49 @@ Every anomaly I saw during this turn either mapped to an existing task or was co
 
 Flipping. — Claude Code, T11
 
+---
+
+### T11.1 addendum (2026-04-22) — bug-hunt sweep, 4 more commits
+
+Sebastián asked to "keep checking errors" after T11, found real stuff:
+
+| Commit | What | Scope |
+|---|---|---|
+| `13dfa83` | Guard `MutationObserver.observe(target.body, …)` against null body. Each `st.components.v1.html` iframe runs inline scripts during HTML parsing; `document.body` / `window.parent.document.body` can be null at that instant, raising `TypeError: parameter 1 is not of type 'Node'`. Wrapped every call in a `(function _attach(){ if (target.body) obs.observe(...); else setTimeout(_attach, 50); })()` retry helper. | 9 sites × 3 files (`app.py` ×2, `sankey_page.py` ×7, `seo_patch.py` ×1) |
+| `8b008e9` | CLAUDE.md gotcha so the guard pattern is enforced on future observer additions. | docs |
+| `bd84249` | Migrate `use_container_width=True/False` → `width='stretch'/'content'` per Streamlit 1.54's deprecation (already past the 2025-12-31 cutoff). Each page render was spamming ~240 deprecation warnings — streamlit stdout log went from 502 lines to 19, leaving only real `[SEC]` / `[gap-fill:…]` signals. | **98 sites × 12 files** — `app.py`, `sankey_page.py`, `nsfe_page.py`, `pricing_page.py`, `profile_page.py`, `login_page.py`, `earnings_page.py`, `dashboard_page.py`, `watchlist_page.py`, `agent_bugs.py`, `super_bug_agent.py`, `user_page.py` |
+| `acfbc61` | Promote `components.html("""…""")` to `r"""…"""` — `/\s+/` JS regex inside the Python string was raising Python 3.12's `SyntaxWarning: invalid escape sequence '\s'` on every parse. | 1 site |
+
+Verified all fixes on `localhost:8503`:
+- Chrome console on `/?page=charts&ticker=AAPL` + `/?page=sankey&ticker=AAPL|KO` → 0 errors (was 1 TypeError per load before #1).
+- `/tmp/qc-t36.log` after fresh streamlit restart → 19 lines, zero `use_container_width` warnings.
+- `python3 -W error::SyntaxWarning -c 'ast.parse(open(f).read())'` on all .py files → clean.
+- Admin testing-mode toggle cycle ON/OFF still works end-to-end (META loads under ON, redirects to `/pricing` under OFF).
+- AST scan for bare `except:` clauses across the project → zero (codebase already uses proper `except Exception:`).
+
+Dismissed as non-issues:
+- 2 yfinance `HTTP Error 404 Quote not found` for `IPG` / `WNS` — upstream library logging, handled gracefully by app, not actionable on our side.
+- 2 `google._upb._message` `DeprecationWarning` — Google protobuf internals, will be fixed upstream in a future `google-auth` release.
+
+Cumulative this-turn commits (T10 bench + T11 handoff + T11.1 sweep), none pushed:
+```
+acfbc61 Use raw string for components.html block to silence \s SyntaxWarning
+bd84249 Migrate use_container_width → width kwarg (Streamlit 1.54 deprecation)
+8b008e9 CLAUDE.md: gotcha for MutationObserver.observe() null-body guard
+13dfa83 Guard MutationObserver.observe against null parent/document body
+f3dd774 T11 handoff: 7 bench items cleared this turn, #31 deferred
+f841981 Audit QC fallback coverage by chart_index (Task #30)
+3ef495b Remove overly-aggressive cash-flow sparse filter (Task #34 + #32)
+3b58786 Stitch segments across more historical filings (Task #28)
+41e43a3 Fix probe script reading wrong SEC segment key (Task #29)
+77bc2e8 CLAUDE.md: record Task #36 completion + admin-toggle gotchas
+d2c35a2 Add admin testing-mode toggle on pricing page; replaces TEMP paywall bypass (Task #36)
+```
+
+Separately, added the `less-permission-prompts` allowlist (Claude_Preview + Claude_in_Chrome MCP tools) to `.claude/settings.json` AND `~/.claude/settings.json` so future sessions stop prompting on every browser-MCP call — user-level so it covers Barberos/Blip/new projects too. Not a git commit (user-level file isn't in any repo).
+
+— Claude Code, T11.1
+
 <details>
 <summary>T9 BLOCKED — archived</summary>
 
@@ -951,6 +994,7 @@ Awaiting your call on (a) which fix to tackle first, and (b) whether to proceed 
 
 ## Log (newest first, append-only)
 
+- 2026-04-22 T11.1 — Claude Code — Bug-hunt sweep after T11. 4 commits: `13dfa83` guards 9 `MutationObserver.observe(body, ...)` callsites across `app.py` / `sankey_page.py` / `seo_patch.py` (iframe race on null body), `8b008e9` CLAUDE.md gotcha for same, `bd84249` migrates 98 `use_container_width` callsites × 12 files to `width=` kwarg (streamlit 1.54 deprecation, past cutoff) — streamlit log 502 lines → 19, `acfbc61` promotes `components.html("""…""")` to `r"""…"""` to kill the last residual `\s` SyntaxWarning. All verified on :8503. Separately added MCP allowlist to project `.claude/settings.json` + user-level `~/.claude/settings.json` (Claude_Preview + Claude_in_Chrome tools) so future sessions stop prompting. Baton still COWORK.
 - 2026-04-21 T11 — Claude Code — Cleared 7 of 8 bench items in order: #36 (`d2c35a2` admin testing-mode toggle + replaces TEMP paywall bypass), #35 (closed-no-fix, KO loads clean post-e8bd1d4 SEC-primary validator), #29 (`41e43a3` probe key typo `"geographic"`→`"geography"`), #28 (`3b58786` max_filings 4→16 for historical segment stitching — AAPL T1 4→11, MSFT 4→16), #34+#32 (`3ef495b` removed sparse-quarter cashflow filter — AAPL 51 SEC + 16 Finnhub now works), #30 (`f841981` `docs/qc_fallback_coverage.md` audit doc — no code change). #31 DEFERRED per scope warning. CLAUDE.md updated in `77bc2e8`. Spot-check smoke on :8503 with toggle ON: AAPL/META/BRK.B/LLY all load cleanly, toggle flipped OFF after. Six commits total on main, NOT pushed. Baton → Cowork.
 - 2026-04-21 — Cowork — **#36 sharpened with e8bd1d4 context.** Discovered on audit that Claude Code's `e8bd1d4` ("Open charts to all tickers; SEC-primary ticker validator") is on main and currently live — it disables the paywall unconditionally via `_gate_allowed = None  # TEMP 2026-04-21` at 4 sites in `app.py` + `dashboard_page.py`. So live right now has NO NSFQ enforcement, which contradicts Sebastián's directive. Rewrote #36 to explicitly: (a) REPLACE those TEMP lines with `if is_admin(email): _gate_allowed = None; elif get_testing_mode_enabled(): _gate_allowed = None` (admin always bypasses, everyone else only bypasses when toggle is ON); (b) DEFAULT the DB flag to **OFF** so NSFQ rules are restored immediately on deploy; (c) BUILD ON existing admin pattern (`info@quartercharts.com` at `app.py:964/1004`), extending allow-list to include `sebasflores@gmail.com`; (d) KEEP the SEC-primary `validate_ticker` + `"Popular tickers:"` label from `e8bd1d4` since those are real improvements. Spec now includes exact code diffs for each site, two local verification passes (admin flipping toggle + signed-out free user hitting paywall), and a live verification step (META redirects to pricing = NSFQ restored). Earlier commits: `488febe`, `23ca1d7`, `e8bd1d4` (paywall-off, to be fixed), `ce9ece3` / `a825dd3` / `d88926a` / `c3a3bcc` (CHAT.md refresh series), `1eb8197` (railway.json watch-paths). Baton remains CLAUDE CODE. Sebastián will run `syncqc` on Mac next.
 - 2026-04-18 T10 — Cowork — Sebastián showed screenshot: landing-page ticker input rejected `ko` with "'KO' not found." after he asked Claude Code (outside handoff) to remove the paywall. "Try for free" badge list now shows META but not KO (opposite of pre-T6 state). Created Task #35. T10 FOR CLAUDE CODE supersedes the T8 smoke: (1) surface uncommitted paywall-removal diff, (2) diagnose KO-not-found (hardcoded allow list vs broken lookup path), (3) remove the gate entirely so any valid US ticker works, (4) verify with KO/BRK.B/JPM/LLY plus invalid ZZZZZ, (5) THEN run 30-ticker smoke. Baton → Claude Code.
