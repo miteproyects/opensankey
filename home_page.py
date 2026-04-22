@@ -406,7 +406,7 @@ def render_home_page():
                     </svg>
                 </div>
                 <input id="ticker" type="text"
-                       placeholder="Try AAPL for free ..."
+                       placeholder="Try AAPL, BRK.B, TSLA, KO ..."
                        autocomplete="off" spellcheck="false" required />
                 <button type="submit">GO</button>
             </form>
@@ -430,7 +430,7 @@ def render_home_page():
             var el = document.getElementById('popular-tickers');
             var tickers = __TICKER_POOL;
             var destPage = 'sankey';
-            var html = 'Try for free:&nbsp; ';
+            var html = 'Popular tickers:&nbsp; ';
             for (var i = 0; i < tickers.length; i++) {
                 if (i > 0) html += ' \u00b7 ';
                 html += '<a href="#" data-ticker="' + tickers[i] + '" class="popular-link">' + tickers[i] + '</a>';
@@ -563,7 +563,7 @@ def render_home_page():
         function rotatePlaceholder() {
             if (document.activeElement === inp || inp.value.length > 0) return;
             idx = (idx + 1) % tickers.length;
-            inp.placeholder = 'Try ' + tickers[idx] + ' for free ...';
+            inp.placeholder = 'Try ' + tickers[idx] + ' ...';
         }
         setInterval(rotatePlaceholder, 2200);
 

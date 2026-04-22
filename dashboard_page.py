@@ -102,6 +102,8 @@ def render_dashboard_page():
                     _dash_allowed = _access["allowed_tickers"]
                     if st.session_state.get("user_email") == "info@quartercharts.com":
                         _dash_allowed = None
+                    # TEMP 2026-04-21 — paywall disabled; see app.py:992.
+                    _dash_allowed = None
                     if _dash_allowed is not None and t not in _dash_allowed:
                         _blocked = True
                         _redir = _access["redirect_blocked"]

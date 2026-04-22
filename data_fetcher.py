@@ -2271,7 +2271,25 @@ def get_analyst_forecast(ticker: str) -> Dict[str, Any]:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def validate_ticker(ticker: str) -> bool:
-    """Check whether *ticker* resolves to a valid equity on Yahoo Finance."""
+    """Check whether *ticker* is a real US-listed equity.
+
+    Priority: SEC EDGAR ticker map (authoritative, cached locally, no rate
+    limits) → Yahoo Finance (fallback for foreign / ADR tickers SEC may not
+    have). yfinance alone is too flaky for the landing-page validator: it
+    rate-limits easily, returns partial dicts missing `regularMarketPrice`,
+    and mishandles dot-tickers (e.g. `BRK.B` returns 404 while `BRK-B`
+    works). SEC fixes all of those because `_sec_get_cik` already
+    normalizes dot→hyphen (commit 60692dd, Task #26).
+    """
+    if not ticker:
+        return False
+    # 1) SEC EDGAR — cached company_tickers.json. Handles BRK.B, BF.B, etc.
+    try:
+        if _sec_get_cik(ticker) is not None:
+            return True
+    except Exception:
+        pass
+    # 2) yfinance fallback — for foreign/ADR tickers SEC doesn't list.
     try:
         stock = yf.Ticker(ticker)
         info = stock.info

@@ -1003,6 +1003,10 @@ if _qp_ticker and _qp_page in ("charts", "sankey", "dashboard"):
         # Admin bypass: admin user gets full access
         if st.session_state.get("user_email") == "info@quartercharts.com":
             _gate_allowed = None
+        # TEMP 2026-04-21 — paywall disabled; open to all tickers until the
+        # new subscriber-block UX ships. Sibling gates at app.py:2265 and
+        # app.py:~3880 get the same treatment. Re-enable all three together.
+        _gate_allowed = None
         if _gate_allowed is not None and _qp_ticker not in _gate_allowed:
             _gate_redir = _gate_access.get("redirect_blocked", "pricing")
             st.query_params.update({"page": _gate_redir, "ticker": _qp_ticker})
@@ -2238,7 +2242,7 @@ with st.sidebar:
         )
         st.markdown(
             f'<div style="text-align:left;font-size:0.82rem;color:#64748b;margin:6px 0 6px 0;">'
-            f'<em>Try for free:</em><br>{_demo_links}</div>',
+            f'<em>Popular tickers:</em><br>{_demo_links}</div>',
             unsafe_allow_html=True,
         )
 
@@ -2262,6 +2266,8 @@ with st.sidebar:
                 # Admin bypass
                 if st.session_state.get("user_email") == "info@quartercharts.com":
                     _allowed = None
+                # TEMP 2026-04-21 — paywall disabled; see app.py:992.
+                _allowed = None
                 if _allowed is not None and new_ticker not in _allowed:
                     _blocked = True
                     _redir = _access["redirect_blocked"]
@@ -3874,6 +3880,8 @@ try:
     # Admin bypass
     if st.session_state.get("user_email") == "info@quartercharts.com":
         _final_allowed = None
+    # TEMP 2026-04-21 — paywall disabled; see app.py:992.
+    _final_allowed = None
     if _final_allowed is not None and ticker not in _final_allowed:
         _final_redir = _final_access.get("redirect_blocked", "pricing")
         st.query_params.update({"page": _final_redir, "ticker": ticker})
