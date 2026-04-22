@@ -771,9 +771,17 @@ def _sec_get_segment_revenue(ticker: str, quarterly: bool = True) -> Dict[str, p
     primary_docs = recent.get("primaryDocument", [])
     filing_dates = recent.get("filingDate", [])
 
-    # 2) Find recent 10-Q and 10-K filings (up to 8 for quarterly)
+    # 2) Find recent 10-Q and 10-K filings.
+    #
+    # History depth: a 10-K plus three 10-Qs per year = 4 filings/year. Scan
+    # the last 16 filings (~4 years) for quarterly and the last 5 10-Ks
+    # (~5 years) for annual so the returned segment frames have enough
+    # periods to render meaningful trend charts. The per-filing cost is a
+    # few hundred ms (FilingSummary.xml + 1–3 R-report HTMLs), so 16 scans
+    # is well under the 1h cache TTL set by `_cached_revenue_by_*`. Tickers
+    # with smaller histories just return whatever exists.
     target_forms = {"10-Q", "10-K"} if quarterly else {"10-K"}
-    max_filings = 4 if quarterly else 2
+    max_filings = 16 if quarterly else 5
     filing_urls = []
 
     for i, form in enumerate(forms):
