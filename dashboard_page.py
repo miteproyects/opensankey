@@ -96,14 +96,17 @@ def render_dashboard_page():
                 _blocked = False
                 _redir = "pricing"
                 try:
-                    from database import get_user_plan_access
+                    from database import get_user_plan_access, get_testing_mode_enabled
+                    from auth import is_admin
                     _uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
                     _access = get_user_plan_access(_uid)
                     _dash_allowed = _access["allowed_tickers"]
-                    if st.session_state.get("user_email") == "info@quartercharts.com":
+                    # Admin bypass (permanent)
+                    if is_admin(st.session_state.get("user_email")):
                         _dash_allowed = None
-                    # TEMP 2026-04-21 — paywall disabled; see app.py:992.
-                    _dash_allowed = None
+                    # Admin testing-mode toggle — see app.py:~1005 for pattern.
+                    elif get_testing_mode_enabled():
+                        _dash_allowed = None
                     if _dash_allowed is not None and t not in _dash_allowed:
                         _blocked = True
                         _redir = _access["redirect_blocked"]

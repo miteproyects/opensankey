@@ -1083,3 +1083,33 @@ def get_ticker_pool() -> list[str]:
 def set_ticker_pool(tickers: list[str]) -> bool:
     """Persist the ticker pool to DB."""
     return set_config("ticker_pool", ",".join(sorted(t.strip().upper() for t in tickers if t.strip())))
+
+
+# ── Testing mode (admin-only paywall bypass) ──────────────────────────────
+# When enabled, every ticker is treated as free-tier allowed for every user,
+# regardless of plan. Used for full-site smoke tests and private beta runs.
+# Toggle is admin-only — see `auth.is_admin` and the UI block in
+# `pricing_page.py`. Default OFF so NSFQ subscription rules are enforced
+# unless an admin explicitly flips it. Fails closed (False) on any DB error.
+
+def get_testing_mode_enabled() -> bool:
+    """Read the admin testing-mode flag. Fails closed (False) on DB errors."""
+    try:
+        return get_config("testing_mode_enabled", "0").strip() == "1"
+    except Exception:
+        return False
+
+
+def set_testing_mode_enabled(enabled: bool, admin_email: str = "") -> bool:
+    """Write the admin testing-mode flag. Records the admin email that
+    toggled it for audit purposes (stored alongside as `testing_mode_updated_by`).
+
+    Caller is responsible for admin-authorisation checks BEFORE calling this.
+    """
+    ok = set_config("testing_mode_enabled", "1" if enabled else "0")
+    if ok and admin_email:
+        try:
+            set_config("testing_mode_updated_by", admin_email.lower().strip())
+        except Exception:
+            pass  # Audit stamp is best-effort; don't fail the toggle over it.
+    return ok

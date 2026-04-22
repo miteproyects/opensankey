@@ -44,7 +44,7 @@ except Exception as _e:
     print(f"[prerender] Injection failed: {_e}", flush=True)
 
 # ── Auth module ──
-from auth import restore_session, get_auth_params, clear_session_state
+from auth import restore_session, get_auth_params, clear_session_state, is_admin
 
 from data_fetcher import (
     get_company_info,
@@ -70,7 +70,7 @@ from data_fetcher import (
 from info_data import get_company_icon
 
 # ─── Database module ───────────────────────────────────────────────────────
-from database import initialize_schema, is_db_ready
+from database import initialize_schema, is_db_ready, get_testing_mode_enabled
 
 # Lazy-load page modules: only import when their page is active (saves ~2s)
 # from profile_page import render_profile_page   Ã¢ÂÂ imported in page routing
@@ -1000,13 +1000,15 @@ if _qp_ticker and _qp_page in ("charts", "sankey", "dashboard"):
         _gate_uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
         _gate_access = _gate_upa(_gate_uid)
         _gate_allowed = _gate_access["allowed_tickers"]
-        # Admin bypass: admin user gets full access
-        if st.session_state.get("user_email") == "info@quartercharts.com":
+        # Admin bypass: admin user gets full access (permanent)
+        if is_admin(st.session_state.get("user_email")):
             _gate_allowed = None
-        # TEMP 2026-04-21 — paywall disabled; open to all tickers until the
-        # new subscriber-block UX ships. Sibling gates at app.py:2265 and
-        # app.py:~3880 get the same treatment. Re-enable all three together.
-        _gate_allowed = None
+        # Admin testing-mode toggle (see `/?page=pricing` → "🔧 Admin controls")
+        # — when ON, all tickers are free for every user, regardless of plan.
+        # Default OFF so NSFQ subscription rules are enforced.  Sibling gates
+        # at app.py:~2268 and app.py:~3883 mirror this pattern.
+        elif get_testing_mode_enabled():
+            _gate_allowed = None
         if _gate_allowed is not None and _qp_ticker not in _gate_allowed:
             _gate_redir = _gate_access.get("redirect_blocked", "pricing")
             st.query_params.update({"page": _gate_redir, "ticker": _qp_ticker})
@@ -2263,11 +2265,12 @@ with st.sidebar:
                 _access = get_user_plan_access(_uid)
                 _allowed = _access["allowed_tickers"]
                 _redir_ok = _access.get("redirect_allowed", "charts")
-                # Admin bypass
-                if st.session_state.get("user_email") == "info@quartercharts.com":
+                # Admin bypass (permanent)
+                if is_admin(st.session_state.get("user_email")):
                     _allowed = None
-                # TEMP 2026-04-21 — paywall disabled; see app.py:992.
-                _allowed = None
+                # Admin testing-mode toggle — see app.py:~1005 for pattern.
+                elif get_testing_mode_enabled():
+                    _allowed = None
                 if _allowed is not None and new_ticker not in _allowed:
                     _blocked = True
                     _redir = _access["redirect_blocked"]
@@ -3877,11 +3880,12 @@ try:
     _final_uid = st.session_state.get("user_id") if st.session_state.get("logged_in") else None
     _final_access = _final_upa(_final_uid)
     _final_allowed = _final_access["allowed_tickers"]
-    # Admin bypass
-    if st.session_state.get("user_email") == "info@quartercharts.com":
+    # Admin bypass (permanent)
+    if is_admin(st.session_state.get("user_email")):
         _final_allowed = None
-    # TEMP 2026-04-21 — paywall disabled; see app.py:992.
-    _final_allowed = None
+    # Admin testing-mode toggle — see app.py:~1005 for pattern.
+    elif get_testing_mode_enabled():
+        _final_allowed = None
     if _final_allowed is not None and ticker not in _final_allowed:
         _final_redir = _final_access.get("redirect_blocked", "pricing")
         st.query_params.update({"page": _final_redir, "ticker": ticker})

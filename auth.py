@@ -21,10 +21,33 @@ Best practices (Google guidance):
 import secrets
 import logging
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 import streamlit as st
 
 logger = logging.getLogger(__name__)
+
+# ── Admin allow-list ─────────────────────────────────────────────────────────
+# Single source of truth for which accounts get admin privileges (full ticker
+# access regardless of plan, access to the pricing-page testing-mode toggle,
+# etc.). Import `is_admin` everywhere instead of inline email comparisons so
+# there's one place to add or remove admins.
+ADMIN_EMAILS = {
+    "info@quartercharts.com",
+    "sebasflores@gmail.com",
+}
+
+
+def is_admin(user_email: Optional[str]) -> bool:
+    """Return True if *user_email* belongs to the admin allow-list.
+
+    Case-insensitive and whitespace-tolerant. Returns False for None / empty
+    / anonymous users.
+    """
+    if not user_email:
+        return False
+    return user_email.lower().strip() in ADMIN_EMAILS
+
 
 # ── Password hashing ─────────────────────────────────────────────────────────
 
