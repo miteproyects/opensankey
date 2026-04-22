@@ -52,118 +52,185 @@ Rationale for #36 first: it's an admin-only "testing mode" toggle on the pricing
 
 ### #36 — Admin "testing mode" toggle on the NSFQ (pricing) page
 
-**New task. Create it in CLAUDE.md tracker as `#36 pending → in-progress`.**
+**New task. Create it in CLAUDE.md tracker as `#36 in-progress`.**
 
 Sebastián's spec (verbatim): *"in NSFQ (pricing tab) add a feature called: Make all tickers available for testing: YES / NO. When it is YES, then all 10000+ tickers are available to all users (even those in free plan). When it is NO, the website has to follow current rules of subscription."*
 
-Critical constraint: **this toggle must be admin-only.** If any logged-in or free-tier user could flip it, the paywall is meaningless. Only admins (Sebastián first) see and can flip it.
+**CRITICAL CONTEXT — current state of the paywall on live.** Your commit `e8bd1d4` ("Open charts to all tickers; SEC-primary ticker validator") is currently on main and in production. It unconditionally sets `_gate_allowed = None  # TEMP 2026-04-21` at 4 locations, which means **the paywall is currently OFF for everyone on live.** Sebastián wants it back ON (NSFQ rules enforced by default), with a toggle that admins can flip to bypass it for testing. The `# TEMP 2026-04-21` lines you added are exactly what this task replaces.
 
-**Step 1 — Persistence layer.** Store the flag in the database (not a file or env var — file won't survive Railway deploys, env vars require restart). Simplest approach:
+What to **keep** from `e8bd1d4` (don't revert these — they're real improvements):
+- The SEC-primary `validate_ticker` rewrite in `data_fetcher.py` (fixes BRK.B/dot-tickers).
+- The `"Popular tickers:"` label rename and neutral placeholder in `home_page.py`.
 
-1. Add a `app_settings` table with a singleton row, or extend an existing settings/config table if one exists. Grep first:
-   ```
-   grep -n "settings\|Settings\|CREATE TABLE" database.py | head -20
-   ```
-2. Schema (if creating new):
-   ```sql
-   CREATE TABLE IF NOT EXISTS app_settings (
-       id INTEGER PRIMARY KEY CHECK (id = 1),
-       testing_mode_enabled BOOLEAN NOT NULL DEFAULT 0,
-       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-       updated_by TEXT
-   );
-   INSERT OR IGNORE INTO app_settings (id, testing_mode_enabled) VALUES (1, 0);
-   ```
-3. Helpers in `database.py` (or a new `settings.py`):
-   ```python
-   def get_testing_mode_enabled() -> bool: ...
-   def set_testing_mode_enabled(enabled: bool, admin_email: str) -> None: ...
-   ```
+What to **replace**:
+- The 4–5 `_gate_allowed = None  # TEMP 2026-04-21` lines (they become conditional on the toggle).
 
-**Step 2 — Admin identity.** Grep for existing admin concept:
-```
-grep -n "is_admin\|admin\|ADMIN" auth.py database.py | head -20
-```
+Also critical: the toggle must be **admin-only**. If any user could flip it, the paywall is meaningless.
 
-If no admin concept exists, add the simplest possible version: hardcoded allow-list constant in `auth.py`:
+**Existing admin pattern (already in the codebase):** `app.py:964` and `app.py:1004` use `info@quartercharts.com` as an admin-email check. Build on that instead of inventing a new `is_admin`. Extend the allow-list to include `sebasflores@gmail.com` too so Sebastián can flip the toggle from his personal account.
+
+---
+
+**Step 1 — Admin allow-list.** In `auth.py` (or a utility module imported by both `app.py` and `pricing_page.py`):
+
 ```python
-ADMIN_EMAILS = {"sebasflores@gmail.com"}
-def is_admin(user_email: str) -> bool:
+ADMIN_EMAILS = {"info@quartercharts.com", "sebasflores@gmail.com"}
+
+def is_admin(user_email: str | None) -> bool:
+    if not user_email:
+        return False
     return user_email.lower().strip() in ADMIN_EMAILS
 ```
-If an `is_admin` column already exists on users, use that instead.
 
-**Step 3 — Wire into every paywall gate.** Known gate locations (CLAUDE.md audit):
-- `app.py` lines 992, 1008, 2269, 3877–3888
-- `dashboard_page.py` lines 95–107
-- Landing-page ticker-input validator (find via `grep -n "Try for free\|FREE_TICKERS\|allow_list" app.py dashboard_page.py`)
+Replace the two inline `user_email == "info@quartercharts.com"` checks in `app.py` with `is_admin(user_email)` so there's one source of truth.
 
-At each gate, add a short-circuit at the top:
+**Step 2 — DB persistence.** Grep `database.py` for existing table patterns:
+```
+grep -n "CREATE TABLE\|initialize_schema" database.py | head -20
+```
+
+Add to `initialize_schema()` (or the equivalent one-time migration path):
+
+```sql
+CREATE TABLE IF NOT EXISTS app_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    testing_mode_enabled BOOLEAN NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by TEXT
+);
+INSERT OR IGNORE INTO app_settings (id, testing_mode_enabled) VALUES (1, 0);
+```
+
+**Default is `0` = OFF** — meaning NSFQ rules are enforced by default after this ships. That's the opposite of the current live behavior (paywall fully off), which is the point: we're restoring paywall enforcement while giving admins an escape hatch.
+
+Helpers in `database.py`:
+
 ```python
-if get_testing_mode_enabled():
-    # Testing mode ON — all tickers available to all users
-    pass  # or the equivalent of "allow"
-else:
-    # ... existing paywall logic unchanged
-```
+def get_testing_mode_enabled() -> bool:
+    """Read the singleton testing-mode flag. Fails closed (False) on any error."""
+    try:
+        conn = get_connection()  # or whatever pattern this file uses
+        row = conn.execute("SELECT testing_mode_enabled FROM app_settings WHERE id = 1").fetchone()
+        return bool(row[0]) if row else False
+    except Exception:
+        return False
 
-Cache the DB read for the request lifetime with `@st.cache_data(ttl=5)` or a session-scoped lookup so you don't hit the DB 5 times per render.
-
-**Step 4 — UI on the pricing tab.** Find the pricing page:
-```
-grep -rn "page=pricing\|pricing_page\|NSFQ\|render_pricing" *.py | head -20
-```
-
-At the top of the pricing page render function, show the toggle **only** if the current user is admin:
-```python
-if st.session_state.get("logged_in") and is_admin(st.session_state.get("user_email", "")):
-    st.markdown("### Admin controls")
-    current = get_testing_mode_enabled()
-    new_value = st.toggle(
-        "Make all tickers available for testing",
-        value=current,
-        help="YES: all 10000+ tickers available to every user (paywall bypassed for testing). "
-             "NO: normal NSFQ subscription rules apply.",
-        key="testing_mode_toggle",
+def set_testing_mode_enabled(enabled: bool, admin_email: str) -> None:
+    conn = get_connection()
+    conn.execute(
+        "UPDATE app_settings SET testing_mode_enabled = ?, updated_at = CURRENT_TIMESTAMP, updated_by = ? WHERE id = 1",
+        (1 if enabled else 0, admin_email),
     )
-    if new_value != current:
-        set_testing_mode_enabled(new_value, st.session_state.get("user_email", ""))
-        st.success(f"Testing mode: {'ON' if new_value else 'OFF'}")
-        st.rerun()
-    # Visible status line for the admin
-    st.caption(f"Testing mode is currently **{'ON — paywall bypassed' if current else 'OFF — normal rules'}**")
+    conn.commit()
+```
+
+Cache the read with `@st.cache_data(ttl=3)` (or session-scoped) so a single page render doesn't hit the DB 5 times.
+
+**Step 3 — Replace the 4–5 paywall gates.** Each `_gate_allowed = None  # TEMP 2026-04-21` line gets swapped for a conditional. Grep to find them all:
+
+```
+grep -n "_gate_allowed = None\|# TEMP 2026-04-21\|_allowed = None" app.py dashboard_page.py
+```
+
+Expected locations (from `e8bd1d4` + CLAUDE.md audit):
+- `app.py:1009` (page-load gate, inside the `if _qp_ticker and _qp_page in ("charts", "sankey", "dashboard")` block)
+- `app.py:~2265` (sidebar search form gate)
+- `app.py:~3880` (final pre-render safety gate)
+- `dashboard_page.py:~95` (dashboard-tile click-through gate)
+- Any landing-page validator that also has the `_allowed = None` pattern
+
+The transformation at each site:
+
+```python
+# BEFORE (from e8bd1d4):
+_gate_allowed = _gate_access["allowed_tickers"]
+if st.session_state.get("user_email") == "info@quartercharts.com":
+    _gate_allowed = None
+# TEMP 2026-04-21 — paywall disabled; open to all tickers...
+_gate_allowed = None   # ← kill this line
+
+# AFTER:
+_gate_allowed = _gate_access["allowed_tickers"]
+if is_admin(st.session_state.get("user_email")):
+    _gate_allowed = None  # Admin bypass — permanent
+elif get_testing_mode_enabled():
+    _gate_allowed = None  # Testing mode — all tickers free while ON
+# (no more unconditional override — the normal gate below now fires for free-tier users)
+```
+
+Same pattern at all 4–5 sites. Preserve the admin bypass as a permanent fallback so admins always get full access regardless of toggle state.
+
+**Step 4 — Pricing-page UI.** Find the pricing page entry point:
+```
+grep -n "page=pricing\|render_pricing\|pricing_page" app.py pricing_page.py | head -20
+```
+
+At the top of `pricing_page.py`'s main render function (above any existing plan cards), add:
+
+```python
+from auth import is_admin
+from database import get_testing_mode_enabled, set_testing_mode_enabled
+
+_current_email = st.session_state.get("user_email", "")
+if is_admin(_current_email):
+    current = get_testing_mode_enabled()
+    with st.container(border=True):
+        st.markdown("#### 🔧 Admin controls")
+        new_value = st.toggle(
+            "Make all tickers available for testing",
+            value=current,
+            help="YES: all 10000+ tickers available to every user (paywall bypassed for testing). "
+                 "NO: normal NSFQ subscription rules apply — free-tier users see only the 7 allow-list tickers.",
+            key="testing_mode_toggle",
+        )
+        if new_value != current:
+            set_testing_mode_enabled(new_value, _current_email)
+            st.cache_data.clear()  # invalidate the cached read
+            st.success(f"Testing mode: {'ON — paywall bypassed for all users' if new_value else 'OFF — NSFQ rules enforced'}")
+            st.rerun()
+        status_text = "ON — paywall bypassed" if current else "OFF — NSFQ rules enforced"
+        st.caption(f"Status: **{status_text}**")
     st.divider()
 ```
 
 Non-admin users never see this block.
 
-**Step 5 — Verify.** Two test passes:
+**Step 5 — Verify as a real user on local (:8503).** Launch `./run.command`. Run two passes:
 
-Pass A, **toggle OFF** (default):
-- Sign in as a free-tier account (or signed-out). `/?page=charts&ticker=META` → redirects to pricing. ✓ paywall works.
-- `/?page=charts&ticker=KO` → loads. ✓ free tier works.
-- Pricing page as non-admin → no admin block visible.
-- Pricing page as `sebasflores@gmail.com` → admin block visible, toggle reads OFF.
+Pass A — sign in as `sebasflores@gmail.com` (admin):
+- Open `/?page=pricing` → see the "🔧 Admin controls" block. Toggle should read OFF (DB default).
+- Flip toggle to ON. Page reruns, status shows "ON — paywall bypassed".
+- In a private/incognito tab (or sign out in main tab), hit `/?page=charts&ticker=META` → loads chart page (not pricing redirect). ✓ bypass works.
+- `/?page=charts&ticker=BRK.B`, `JPM`, `LLY` → all load.
+- Flip toggle back to OFF.
 
-Pass B, flip toggle ON (as admin), then:
-- Sign out and hit `/?page=charts&ticker=META` → loads the chart page (not pricing). ✓ bypass works.
-- `/?page=charts&ticker=BRK.B`, `JPM`, `LLY` → all load. ✓ comprehensive bypass.
-- Landing page → type `ko` → loads. ✓ input validator also bypassed.
-- Non-admin users still don't see the toggle. ✓ admin gating intact.
+Pass B — signed out, toggle OFF (NSFQ enforced):
+- `/?page=charts&ticker=KO` → loads (on free-tier allow list). ✓
+- `/?page=charts&ticker=AAPL`, `AMZN`, `GOOG`, `MSFT`, `NVDA`, `TSLA` → all load.
+- `/?page=charts&ticker=META` → redirects to `?page=pricing`. ✓ paywall works.
+- `/?page=charts&ticker=BRK.B`, `JPM`, `LLY` → redirect to pricing. ✓
+- Landing page → type `ZZZZZ` → rejected with "not found" (from `validate_ticker`). ✓
+- As non-admin: `/?page=pricing` → NO admin controls visible. ✓
 
-Flip back OFF before moving on so the KO test in #35 reflects real free-tier behavior.
+If any line above fails, stop and report the exact failure in FOR COWORK.
 
-**Step 6 — Commit.**
+**Step 6 — Verify on live after push.** After commit + push + Railway deploy completes:
+- Hit https://quartercharts.com/?page=charts&ticker=META while signed out → should redirect to pricing. (This means `e8bd1d4`'s unconditional bypass is now replaced by the toggle-default-OFF behavior — NSFQ rules restored on live.)
+- Sign in as admin on live, go to /?page=pricing, confirm the toggle is visible and flips correctly. Leave it OFF.
+
+**Step 7 — Commit.**
 ```
-git add <files>
-git commit -m "Add admin testing-mode toggle on pricing page (Task #36)"
+git add auth.py database.py app.py dashboard_page.py pricing_page.py
+git commit -m "Add admin testing-mode toggle on pricing page; replaces TEMP paywall bypass (Task #36)"
+git push
 ```
 
-**Step 7 — Update CLAUDE.md.** Add to Gotchas section:
-- `testing_mode_enabled` DB flag — admin-only toggle at /?page=pricing. When ON, all paywall gates short-circuit. Check this flag at the top of every new paywall gate going forward.
-- Admin allow-list: `sebasflores@gmail.com` (in `auth.py ADMIN_EMAILS` or equivalent).
+**Step 8 — Update CLAUDE.md.** Add to Gotchas:
+- `testing_mode_enabled` DB flag — admin-only toggle at `/?page=pricing`. When ON, free-tier paywall is bypassed for all users. Default is OFF (NSFQ rules enforced). Check this flag in every new paywall gate going forward via the `get_testing_mode_enabled()` helper.
+- Admin allow-list (`auth.py ADMIN_EMAILS`): `{info@quartercharts.com, sebasflores@gmail.com}`. Admins get permanent full-ticker access regardless of toggle state.
+- `e8bd1d4` TEMP paywall bypass lines are now REMOVED — do not reintroduce `_gate_allowed = None  # TEMP` as a shortcut. Use the toggle.
 
-Mark #36 completed. Move to #35.
+Mark #36 completed in CLAUDE.md task tracker. Move to #35.
 
 ---
 
@@ -818,7 +885,7 @@ Awaiting your call on (a) which fix to tackle first, and (b) whether to proceed 
 
 ## Log (newest first, append-only)
 
-- 2026-04-21 — Cowork — T10 bench-clear plan + new Task #36. Added a new first task to the queue per Sebastián's spec: **#36 admin testing-mode toggle on the NSFQ pricing page** — a YES/NO switch that when ON bypasses the free-tier paywall across every gate (for all users), when OFF restores normal subscription rules. Must be admin-only (`sebasflores@gmail.com` allow-list) so regular users can't flip it. Storage: DB flag on an `app_settings` singleton. Wire into all known gates (`app.py` 992/1008/2269/3877-3888, `dashboard_page.py` 95-107, landing-page validator). UI renders only for admins. Unblocks the 30-ticker smoke permanently (no more Chrome-MCP sign-in dance). Updated T10 order to **#36 → #35 → #29 → #28 → #34 → #32 → #30 → #31 → smoke**. Earlier commits this session: `488febe` (handoff files), `23ca1d7` (run.command → :8503), plus CHAT.md refresh. Paywall revert preserved (NSFQ allow list: AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA). Baton remains CLAUDE CODE.
+- 2026-04-21 — Cowork — **#36 sharpened with e8bd1d4 context.** Discovered on audit that Claude Code's `e8bd1d4` ("Open charts to all tickers; SEC-primary ticker validator") is on main and currently live — it disables the paywall unconditionally via `_gate_allowed = None  # TEMP 2026-04-21` at 4 sites in `app.py` + `dashboard_page.py`. So live right now has NO NSFQ enforcement, which contradicts Sebastián's directive. Rewrote #36 to explicitly: (a) REPLACE those TEMP lines with `if is_admin(email): _gate_allowed = None; elif get_testing_mode_enabled(): _gate_allowed = None` (admin always bypasses, everyone else only bypasses when toggle is ON); (b) DEFAULT the DB flag to **OFF** so NSFQ rules are restored immediately on deploy; (c) BUILD ON existing admin pattern (`info@quartercharts.com` at `app.py:964/1004`), extending allow-list to include `sebasflores@gmail.com`; (d) KEEP the SEC-primary `validate_ticker` + `"Popular tickers:"` label from `e8bd1d4` since those are real improvements. Spec now includes exact code diffs for each site, two local verification passes (admin flipping toggle + signed-out free user hitting paywall), and a live verification step (META redirects to pricing = NSFQ restored). Earlier commits: `488febe`, `23ca1d7`, `e8bd1d4` (paywall-off, to be fixed), `ce9ece3` / `a825dd3` / `d88926a` / `c3a3bcc` (CHAT.md refresh series), `1eb8197` (railway.json watch-paths). Baton remains CLAUDE CODE. Sebastián will run `syncqc` on Mac next.
 - 2026-04-18 T10 — Cowork — Sebastián showed screenshot: landing-page ticker input rejected `ko` with "'KO' not found." after he asked Claude Code (outside handoff) to remove the paywall. "Try for free" badge list now shows META but not KO (opposite of pre-T6 state). Created Task #35. T10 FOR CLAUDE CODE supersedes the T8 smoke: (1) surface uncommitted paywall-removal diff, (2) diagnose KO-not-found (hardcoded allow list vs broken lookup path), (3) remove the gate entirely so any valid US ticker works, (4) verify with KO/BRK.B/JPM/LLY plus invalid ZZZZZ, (5) THEN run 30-ticker smoke. Baton → Claude Code.
 - 2026-04-18 T9 — Claude Code — **BLOCKED: not signed in on Chrome.** T8 pre-flight: navigating :8504 (deviated from spec'd :8505 because :8504 was clean + live) to `?page=charts&ticker=META` redirected to `?page=pricing`. Per T8 Step 2 explicit rule, wrote BLOCKED and flipped without proceeding. Killed unused :8505. No `.smoke-screenshots/30/` dir created. 0/30 tickers processed. Awaiting Sebastián manual sign-in then re-syncqc.
 - 2026-04-18 T8 — Cowork — Unparked. Tasked Claude Code with extended Annual-mode smoke across the top 30 S&P 500 tickers (AAPL…PEP). Sebastián will sign in to QuarterCharts manually in Chrome so the free-tier paywall doesn't block META/BRK.B/etc. — Claude Code drives the authenticated tab via Chrome MCP, must NOT sign in itself. Per-ticker acceptance: loads, year-only x-axis, gap-fill within SEC range, caption scoped to current FY, P/E + YoY drop partial. Output: `.smoke-screenshots/30/report.md`. Baton → Claude Code.
