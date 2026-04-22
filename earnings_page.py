@@ -546,7 +546,7 @@ def render_earnings_page():
         st.markdown('<div class="ec-nav-wrap">', unsafe_allow_html=True)
         nav_l, nav_center, nav_r = st.columns([1, 5, 1])
         with nav_l:
-            if st.button("\u2190 Prev", key="ec_prev", use_container_width=True):
+            if st.button("\u2190 Prev", key="ec_prev", width='stretch'):
                 st.session_state.ec_week_offset -= 1
                 st.rerun()
         with nav_center:
@@ -557,7 +557,7 @@ def render_earnings_page():
                 unsafe_allow_html=True,
             )
         with nav_r:
-            if st.button("Next \u2192", key="ec_next", use_container_width=True):
+            if st.button("Next \u2192", key="ec_next", width='stretch'):
                 st.session_state.ec_week_offset += 1
                 st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
@@ -626,7 +626,7 @@ def render_earnings_page():
             if st.button(
                 label,
                 key=f"ec_day_{d.isoformat()}",
-                use_container_width=True,
+                width='stretch',
                 type="primary" if is_active else "secondary",
             ):
                 st.session_state.ec_selected_day = d.isoformat()

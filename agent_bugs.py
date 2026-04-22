@@ -592,7 +592,7 @@ def _render_manual_audit():
     # Run button
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        run_clicked = st.button("🚀 Run Full Audit", use_container_width=True,
+        run_clicked = st.button("🚀 Run Full Audit", width='stretch',
                                 type="primary", key="ab_run_audit")
 
     # Show last audit results if stored in session
@@ -743,7 +743,7 @@ def _render_scan_history():
 
         if trend_data:
             df = pd.DataFrame(trend_data)
-            st.line_chart(df.set_index("Date"), use_container_width=True, height=200)
+            st.line_chart(df.set_index("Date"), width='stretch', height=200)
     else:
         st.caption("Run at least 2 audits to see the trend chart.")
 
@@ -956,7 +956,7 @@ def _render_live_monitor():
         "Page": list(results.keys()),
         "Load Time (s)": [r["time"] for r in results.values()],
     }).set_index("Page")
-    st.bar_chart(chart_data, use_container_width=True, height=250)
+    st.bar_chart(chart_data, width='stretch', height=250)
 
     # ── Historical trend (from audit history) ──
     st.markdown("### Health Trend (from audits)")
@@ -974,7 +974,7 @@ def _render_live_monitor():
                 pass
         if trend_data:
             df = pd.DataFrame(trend_data).set_index("Date")
-            st.line_chart(df, use_container_width=True, height=250)
+            st.line_chart(df, width='stretch', height=250)
     else:
         st.caption("Run at least 2 audits to see historical trends here.")
 

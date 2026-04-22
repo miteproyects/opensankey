@@ -89,7 +89,7 @@ def render_dashboard_page():
             key="dash_ticker", label_visibility="collapsed",
         )
     with search_col2:
-        if st.button("Explore", use_container_width=True, type="primary", key="dash_go"):
+        if st.button("Explore", width='stretch', type="primary", key="dash_go"):
             t = new_ticker.strip().upper()
             if t:
                 # ── Ticker access gating ──

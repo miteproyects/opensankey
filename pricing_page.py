@@ -262,13 +262,13 @@ def render_pricing_page():
     with toggle_cols[1]:
         tc = st.columns(2)
         with tc[0]:
-            if st.button("Monthly", use_container_width=True,
+            if st.button("Monthly", width='stretch',
                          type="primary" if st.session_state.billing_cycle == "monthly" else "secondary",
                          key="billing_monthly"):
                 st.session_state.billing_cycle = "monthly"
                 st.rerun()
         with tc[1]:
-            if st.button("Annual (Save 20%)", use_container_width=True,
+            if st.button("Annual (Save 20%)", width='stretch',
                          type="primary" if st.session_state.billing_cycle == "annual" else "secondary",
                          key="billing_annual"):
                 st.session_state.billing_cycle = "annual"

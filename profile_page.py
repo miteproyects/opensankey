@@ -440,7 +440,7 @@ def render_profile_page(ticker: str) -> None:
             is_selected = st.session_state.chart_period == value
             if st.button(
                 label, key=f"period_{value}",
-                use_container_width=True,
+                width='stretch',
                 type="primary" if is_selected else "secondary",
             ):
                 st.session_state.chart_period = value
@@ -449,7 +449,7 @@ def render_profile_page(ticker: str) -> None:
     # Render the candlestick chart
     candle_fig = _fetch_candlestick_chart(ticker, st.session_state.chart_period)
     if candle_fig:
-        st.plotly_chart(candle_fig, use_container_width=True, config={
+        st.plotly_chart(candle_fig, width='stretch', config={
             "displayModeBar": "hover",
             "displaylogo": False,
             "scrollZoom": False,
@@ -990,14 +990,14 @@ def render_profile_page(ticker: str) -> None:
                 public_pct=ownership_data.get("public_pct", 0),
                 company_name=name,
             )
-            st.plotly_chart(pie_fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
+            st.plotly_chart(pie_fig, width='stretch', config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
 
         with own_col_right:
             # Institutional holders
             institutional_holders = ownership_data.get("institutional_holders", [])
             if institutional_holders:
                 bar_fig = create_institutional_bar(institutional_holders)
-                st.plotly_chart(bar_fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
+                st.plotly_chart(bar_fig, width='stretch', config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
             else:
                 st.info("No institutional holding data available.")
 
@@ -1017,7 +1017,7 @@ def render_profile_page(ticker: str) -> None:
             monthly_data = insider_trades.get("monthly_activity", [])
             if monthly_data:
                 activity_fig = create_insider_activity_chart(monthly_data)
-                st.plotly_chart(activity_fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
+                st.plotly_chart(activity_fig, width='stretch', config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]})
             else:
                 st.info("No monthly insider activity data available.")
 
@@ -1029,7 +1029,7 @@ def render_profile_page(ticker: str) -> None:
                 st.markdown("#### Last 10 Insiders' Trades")
                 st.dataframe(
                     trades_df,
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True,
                     column_config={
                         "insider_name": "Insider",

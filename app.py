@@ -1630,7 +1630,7 @@ def _render_chart(fig, key: str):
                     )
 
     fig.update_layout(dragmode=False)
-    st.plotly_chart(fig, use_container_width=True, key=key, config={
+    st.plotly_chart(fig, width='stretch', key=key, config={
         "displayModeBar": "hover",
         "displaylogo": False,
         "scrollZoom": False,
@@ -1761,7 +1761,7 @@ def _section_header(title: str, emoji: str, state_key: str, cb_key: str = "",
         if st.button(
             f"{_ticker} {title}  {arrow}",
             key=btn_key,
-            use_container_width=True,
+            width='stretch',
         ):
             new_val = not is_open
             st.session_state[state_key] = new_val
@@ -2311,7 +2311,7 @@ with st.sidebar:
                 with lc[i]:
                     if st.button(
                         icon,
-                        use_container_width=True,
+                        width='stretch',
                         type="primary" if st.session_state.layout_cols == ncols else "secondary",
                         key=f"layout_{ncols}",
                     ):
@@ -2329,7 +2329,7 @@ with st.sidebar:
             with period_col[0]:
                 if st.button(
                     "Quarterly",
-                    use_container_width=True,
+                    width='stretch',
                     type="primary" if st.session_state.quarterly else "secondary",
                     key="period_quarterly",
                 ):
@@ -2347,7 +2347,7 @@ with st.sidebar:
             with period_col[1]:
                 if st.button(
                     "Annual",
-                    use_container_width=True,
+                    width='stretch',
                     type="primary" if not st.session_state.quarterly else "secondary",
                     key="period_annual",
                 ):
@@ -3345,7 +3345,7 @@ with st.sidebar:
                             # but actual EDGAR data is missing → "Not yet filed"
                             st.button(
                                 f"{_base_lbl} — Not yet filed",
-                                key=_bid, use_container_width=True, disabled=True,
+                                key=_bid, width='stretch', disabled=True,
                                 help=f"Quarter ended but SEC filing data not yet available on EDGAR",
                             )
                         elif _ended and not _heuristic_says_avail:
@@ -3400,7 +3400,7 @@ with st.sidebar:
                                 )
                             st.button(
                                 f"{_base_lbl} — filing ~{_days}d",
-                                key=_bid, use_container_width=True, disabled=True,
+                                key=_bid, width='stretch', disabled=True,
                                 help=_help_text,
                             )
                         else:
@@ -3408,7 +3408,7 @@ with st.sidebar:
                             _days = _days_until_q(_qi_i, _fy_i)
                             st.button(
                                 f"{_base_lbl} — in {_days}d",
-                                key=_bid, use_container_width=True, disabled=True,
+                                key=_bid, width='stretch', disabled=True,
                                 help=_tip,
                             )
                     elif _on:
@@ -3417,7 +3417,7 @@ with st.sidebar:
                             key=_bid, type="primary",
                             help=_tip,
                             on_click=_toggle_q, args=(_key,),
-                            use_container_width=True,
+                            width='stretch',
                         )
                     else:
                         st.button(
@@ -3425,7 +3425,7 @@ with st.sidebar:
                             key=_bid,
                             help=_tip,
                             on_click=_toggle_q, args=(_key,),
-                            use_container_width=True,
+                            width='stretch',
                         )
 
                 # ── Auto-fit quarter button labels to 1 line ──

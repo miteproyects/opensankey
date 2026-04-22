@@ -105,7 +105,7 @@ def render_login_page():
                                        placeholder="Re-enter password",
                                        key="set_pw_confirm")
 
-            if st.button("Set Password & Sign In", use_container_width=True, type="primary", key="set_pw_btn"):
+            if st.button("Set Password & Sign In", width='stretch', type="primary", key="set_pw_btn"):
                 if new_pw != confirm_pw:
                     st.error("Passwords don't match.")
                 else:
@@ -125,7 +125,7 @@ def render_login_page():
             st.markdown('<p style="text-align:center;color:#9ca3af;font-size:14px;">Or just use Google</p>', unsafe_allow_html=True)
             _render_google_button()
 
-            if st.button("Back to Sign In", use_container_width=True, key="back_to_login"):
+            if st.button("Back to Sign In", width='stretch', key="back_to_login"):
                 st.session_state.auth_mode = "login"
                 st.rerun()
         return  # Don't show the normal login form
@@ -162,7 +162,7 @@ def render_login_page():
                                  key="auth_password")
 
         btn_label = "Sign In" if mode == "login" else "Create Account"
-        if st.button(btn_label, use_container_width=True, type="primary"):
+        if st.button(btn_label, width='stretch', type="primary"):
             from auth import login_with_email, register_with_email, get_auth_params
             if mode == "login":
                 success, error = login_with_email(email, password)
@@ -189,12 +189,12 @@ def render_login_page():
         st.markdown("<hr style='border-color:#374151;margin:24px 0 16px;'>", unsafe_allow_html=True)
         if mode == "login":
             st.markdown('<p style="text-align:center;color:#9ca3af;font-size:14px;">Don\'t have an account?</p>', unsafe_allow_html=True)
-            if st.button("Create an account", use_container_width=True, key="switch_signup"):
+            if st.button("Create an account", width='stretch', key="switch_signup"):
                 st.session_state.auth_mode = "signup"
                 st.rerun()
         else:
             st.markdown('<p style="text-align:center;color:#9ca3af;font-size:14px;">Already have an account?</p>', unsafe_allow_html=True)
-            if st.button("Sign in", use_container_width=True, key="switch_login"):
+            if st.button("Sign in", width='stretch', key="switch_login"):
                 st.session_state.auth_mode = "login"
                 st.rerun()
 

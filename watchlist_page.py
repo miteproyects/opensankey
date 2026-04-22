@@ -725,7 +725,7 @@ def render_watchlist_page():
         )
     with add_col2:
         add_clicked = st.button("Add", key="watchlist_add_btn",
-                                use_container_width=True, type="primary")
+                                width='stretch', type="primary")
 
     if add_clicked and new_ticker:
         query = new_ticker.strip()

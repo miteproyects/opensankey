@@ -2723,7 +2723,7 @@ def _render_command_center():
         )
         ea1, ea2, ea3 = st.columns(3)
         with ea1:
-            if st.button("📅 + This Week", key="sba_earn_this", use_container_width=True):
+            if st.button("📅 + This Week", key="sba_earn_this", width='stretch'):
                 with st.spinner("Fetching this week's earnings..."):
                     merged, added = _merge_earnings_into_audit_tickers(0)
                 if added > 0:
@@ -2732,7 +2732,7 @@ def _render_command_center():
                 else:
                     st.toast("No new tickers to add — all already in list", icon="ℹ️")
         with ea2:
-            if st.button("📅 + Next Week", key="sba_earn_next", use_container_width=True):
+            if st.button("📅 + Next Week", key="sba_earn_next", width='stretch'):
                 with st.spinner("Fetching next week's earnings..."):
                     merged, added = _merge_earnings_into_audit_tickers(1)
                 if added > 0:
@@ -2741,7 +2741,7 @@ def _render_command_center():
                 else:
                     st.toast("No new tickers to add — all already in list", icon="ℹ️")
         with ea3:
-            if st.button("📅 Replace → This Week Only", key="sba_earn_replace", use_container_width=True):
+            if st.button("📅 Replace → This Week Only", key="sba_earn_replace", width='stretch'):
                 with st.spinner("Fetching this week's earnings..."):
                     tickers = _fetch_earnings_week_tickers(0)
                 if tickers:
@@ -2761,7 +2761,7 @@ def _render_command_center():
         )
         tc1, tc2 = st.columns(2)
         with tc1:
-            if st.button("💾 Save Tickers", key="sba_save_tickers", use_container_width=True):
+            if st.button("💾 Save Tickers", key="sba_save_tickers", width='stretch'):
                 parsed = [t.strip().upper() for t in new_tickers_str.split(",") if t.strip()]
                 if parsed:
                     _save_audit_tickers(parsed)
@@ -2770,7 +2770,7 @@ def _render_command_center():
                 else:
                     st.toast("Please enter at least one ticker.", icon="⚠️")
         with tc2:
-            if st.button("↩️ Reset to Defaults", key="sba_reset_tickers", use_container_width=True):
+            if st.button("↩️ Reset to Defaults", key="sba_reset_tickers", width='stretch'):
                 _save_audit_tickers(_DEFAULT_AUDIT_TICKERS)
                 st.toast(f"Reset to defaults: {', '.join(_DEFAULT_AUDIT_TICKERS)}", icon="✅")
                 st.rerun()
@@ -2846,7 +2846,7 @@ def _render_command_center():
                         if st.button(
                             f"Batch {batch_idx + 1} — {badge}",
                             key=btn_key,
-                            use_container_width=True,
+                            width='stretch',
                             type=btn_type,
                         ):
                             st.session_state["_sba_run_batch"] = batch_idx
@@ -2894,7 +2894,7 @@ def _render_command_center():
     # Run button
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        run = st.button("🚀 Run All 20 Agents", use_container_width=True, type="primary", key="sba_run")
+        run = st.button("🚀 Run All 20 Agents", width='stretch', type="primary", key="sba_run")
 
     if run:
         bar = st.progress(0, text="Initializing agents...")
@@ -3039,7 +3039,7 @@ def _render_history():
                 pass
         if trend:
             df = pd.DataFrame(trend).set_index("Audit")
-            st.line_chart(df, height=200, use_container_width=True)
+            st.line_chart(df, height=200, width='stretch')
 
     # ── Latest vs Previous ──
     if len(history) >= 2:
@@ -3183,4 +3183,4 @@ def _render_live_status():
         "Page": list(results.keys()),
         "Seconds": [v["time"] for v in results.values()],
     }).set_index("Page")
-    st.bar_chart(chart_df, height=250, use_container_width=True)
+    st.bar_chart(chart_df, height=250, width='stretch')

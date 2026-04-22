@@ -120,7 +120,7 @@ def render_user_page():
     # ── Sign Out ──
     st.markdown("---")
     st.markdown("")
-    if st.button("Sign Out", type="primary", use_container_width=True, key="btn_signout"):
+    if st.button("Sign Out", type="primary", width="stretch", key="btn_signout"):
         clear_session_state()
         st.session_state.page = "home"
         st.query_params.clear()

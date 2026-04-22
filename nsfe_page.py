@@ -894,10 +894,10 @@ def _render_dashboard():
     # ── Action Buttons ──
     _btn_col1, _btn_col2, _btn_col3 = st.columns([1, 1, 2])
     with _btn_col1:
-        if st.button("💾 Save All Statuses", use_container_width=True, type="primary", key="save_dash"):
+        if st.button("💾 Save All Statuses", width='stretch', type="primary", key="save_dash"):
             st.toast("✅ All statuses saved!", icon="💾")
     with _btn_col2:
-        if st.button("🔄 Refresh from DB", use_container_width=True, key="refresh_dash"):
+        if st.button("🔄 Refresh from DB", width='stretch', key="refresh_dash"):
             st.toast("🔄 Data refreshed from database!", icon="🔄")
             st.rerun()
 
@@ -1130,10 +1130,10 @@ def _render_security():
     # ── Action Buttons ──
     _btn_col1, _btn_col2, _btn_col3 = st.columns([1, 1, 2])
     with _btn_col1:
-        if st.button("💾 Save All Statuses", use_container_width=True, type="primary", key="save_sec"):
+        if st.button("💾 Save All Statuses", width='stretch', type="primary", key="save_sec"):
             st.toast("✅ All statuses saved!", icon="💾")
     with _btn_col2:
-        if st.button("🔄 Refresh from DB", use_container_width=True, key="refresh_sec"):
+        if st.button("🔄 Refresh from DB", width='stretch', key="refresh_sec"):
             st.toast("🔄 Data refreshed from database!", icon="🔄")
             st.rerun()
 
@@ -1162,7 +1162,7 @@ def _render_settings():
             <div style="font-size:0.8rem;color:#64748B;">Auth, users, config</div>
         </div>
         """, unsafe_allow_html=True)
-        st.link_button("Open Firebase", "https://console.firebase.google.com", use_container_width=True)
+        st.link_button("Open Firebase", "https://console.firebase.google.com", width='stretch')
     with col2:
         st.markdown(f"""
         <div class="step-card" style="text-align:center;padding:20px;">
@@ -1173,7 +1173,7 @@ def _render_settings():
             <div style="font-size:0.8rem;color:#64748B;">Deploys, DB, logs</div>
         </div>
         """, unsafe_allow_html=True)
-        st.link_button("Open Railway", "https://railway.app/dashboard", use_container_width=True)
+        st.link_button("Open Railway", "https://railway.app/dashboard", width='stretch')
     with col3:
         st.markdown(f"""
         <div class="step-card" style="text-align:center;padding:20px;">
@@ -1184,7 +1184,7 @@ def _render_settings():
             <div style="font-size:0.8rem;color:#64748B;">Billing, subscriptions</div>
         </div>
         """, unsafe_allow_html=True)
-        st.link_button("Open Stripe", "https://dashboard.stripe.com", use_container_width=True)
+        st.link_button("Open Stripe", "https://dashboard.stripe.com", width='stretch')
 
     st.markdown("---")
     st.markdown("### \U0001f4e6 Repository" + _info_tip("Repository &amp; Deployment — Links to the source code repository and the live production site. The QuarterCharts app auto-deploys from the GitHub main branch to Railway whenever new commits are pushed, ensuring the live site always reflects the latest code."), unsafe_allow_html=True)
@@ -1199,7 +1199,7 @@ def _render_settings():
             <div style="font-size:0.8rem;color:#64748B;">Code, issues, PRs</div>
         </div>
         """, unsafe_allow_html=True)
-        st.link_button("Open GitHub", "https://github.com/miteproyects/opensankey", use_container_width=True)
+        st.link_button("Open GitHub", "https://github.com/miteproyects/opensankey", width='stretch')
     with col2:
         st.markdown(f"""
         <div class="step-card" style="text-align:center;padding:20px;">
@@ -1210,7 +1210,7 @@ def _render_settings():
             <div style="font-size:0.8rem;color:#64748B;">quartercharts.com</div>
         </div>
         """, unsafe_allow_html=True)
-        st.link_button("Open Live Site", "https://quartercharts.com", use_container_width=True)
+        st.link_button("Open Live Site", "https://quartercharts.com", width='stretch')
 
     st.markdown("---")
     st.markdown("### \u26a1 System Info" + _info_tip("System Information — Overview of the current tech stack and platform configuration powering QuarterCharts. Displays the hosting platform, database, authentication provider, payment processor, domain, deployment pipeline, and security settings at a glance."), unsafe_allow_html=True)
@@ -1232,10 +1232,10 @@ def _render_settings():
     # ── Action Buttons ──
     _btn_col1, _btn_col2, _btn_col3 = st.columns([1, 1, 2])
     with _btn_col1:
-        if st.button("💾 Save All Statuses", use_container_width=True, type="primary", key="save_set"):
+        if st.button("💾 Save All Statuses", width='stretch', type="primary", key="save_set"):
             st.toast("✅ All statuses saved!", icon="💾")
     with _btn_col2:
-        if st.button("🔄 Refresh from DB", use_container_width=True, key="refresh_set"):
+        if st.button("🔄 Refresh from DB", width='stretch', key="refresh_set"):
             st.toast("🔄 Data refreshed from database!", icon="🔄")
             st.rerun()
 
@@ -1372,7 +1372,7 @@ def _render_chat():
     cols = st.columns(2)
     for i, prompt in enumerate(quick_prompts):
         with cols[i % 2]:
-            if st.button(prompt, key=f"qp_{i}", use_container_width=True):
+            if st.button(prompt, key=f"qp_{i}", width='stretch'):
                 st.session_state.nsfe_chat_history.append({"role": "user", "content": prompt})
                 st.rerun()
 
@@ -1704,9 +1704,9 @@ def _render_certifications():
     # ââ Update button ââ
     col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
     with col_btn1:
-        save_clicked = st.button("\U0001f4be Save All Statuses", type="primary", use_container_width=True)
+        save_clicked = st.button("\U0001f4be Save All Statuses", type="primary", width='stretch')
     with col_btn2:
-        refresh_clicked = st.button("\U0001f504 Refresh from DB", use_container_width=True)
+        refresh_clicked = st.button("\U0001f504 Refresh from DB", width='stretch')
 
     if save_clicked:
         try:
@@ -1892,7 +1892,7 @@ def _render_certifications():
                         import pandas as pd
                         df = pd.DataFrame(rows, columns=["Task", "From", "To", "By", "When"])
                         df["When"] = pd.to_datetime(df["When"]).dt.strftime("%Y-%m-%d %H:%M")
-                        st.dataframe(df, use_container_width=True, hide_index=True)
+                        st.dataframe(df, width='stretch', hide_index=True)
                     else:
                         st.info("No status changes recorded yet. Change a task status and click Save.")
                 else:
@@ -1902,7 +1902,7 @@ def _render_certifications():
 
     # ── Export Compliance Report ──
     st.markdown("---")
-    if st.button("📄 Export Compliance Report", use_container_width=False):
+    if st.button("📄 Export Compliance Report", width='content'):
         report_lines = [
             "# ISO 27001 / SOC 2 Compliance Report",
             f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
@@ -2104,16 +2104,16 @@ def _render_team_admin():
 
     _qa1, _qa2, _qa3, _qa4 = st.columns(4)
     with _qa1:
-        if st.button("\U0001f504 Force Redeploy", use_container_width=True, key="admin_redeploy"):
+        if st.button("\U0001f504 Force Redeploy", width='stretch', key="admin_redeploy"):
             st.toast("\U0001f680 Redeployment triggered!", icon="\U0001f504")
     with _qa2:
-        if st.button("\U0001f5d1\ufe0f Clear Cache", use_container_width=True, key="admin_cache"):
+        if st.button("\U0001f5d1\ufe0f Clear Cache", width='stretch', key="admin_cache"):
             st.toast("\U0001f5d1\ufe0f Cache cleared!", icon="\u2705")
     with _qa3:
-        if st.button("\U0001f4e4 Export Logs", use_container_width=True, key="admin_logs"):
+        if st.button("\U0001f4e4 Export Logs", width='stretch', key="admin_logs"):
             st.toast("\U0001f4e4 Logs exported!", icon="\U0001f4cb")
     with _qa4:
-        if st.button("\U0001f50d Run Health Check", use_container_width=True, key="admin_health"):
+        if st.button("\U0001f50d Run Health Check", width='stretch', key="admin_health"):
             st.toast("\u2705 All systems healthy!", icon="\U0001f49a")
 
     # System Configuration
@@ -2152,10 +2152,10 @@ def _render_team_admin():
     # \u2500\u2500 Action Buttons \u2500\u2500
     _btn_col1, _btn_col2, _btn_col3 = st.columns([1, 1, 2])
     with _btn_col1:
-        if st.button("\U0001f4be Save All Statuses", use_container_width=True, type="primary", key="save_team"):
+        if st.button("\U0001f4be Save All Statuses", width='stretch', type="primary", key="save_team"):
             st.toast("\u2705 All statuses saved!", icon="\U0001f4be")
     with _btn_col2:
-        if st.button("\U0001f504 Refresh from DB", use_container_width=True, key="refresh_team"):
+        if st.button("\U0001f504 Refresh from DB", width='stretch', key="refresh_team"):
             st.toast("\U0001f504 Data refreshed from database!", icon="\U0001f504")
             st.rerun()
 
@@ -2486,9 +2486,9 @@ def _render_seo():
     # ── Save / Export buttons ──
     col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
     with col_btn1:
-        save_clicked = st.button("💾 Save All Statuses", key="seo_save", use_container_width=True, type="primary")
+        save_clicked = st.button("💾 Save All Statuses", key="seo_save", width='stretch', type="primary")
     with col_btn2:
-        export_clicked = st.button("📋 Export Report", key="seo_export", use_container_width=True)
+        export_clicked = st.button("📋 Export Report", key="seo_export", width='stretch')
 
     if save_clicked:
         try:
@@ -2720,7 +2720,7 @@ def _render_pricing_admin():
     # ── Add New Plan button ──
     add_col, _, _ = st.columns([1, 1, 4])
     with add_col:
-        if st.button("➕ Add New Plan", use_container_width=True, key="price_add_btn"):
+        if st.button("➕ Add New Plan", width='stretch', key="price_add_btn"):
             st.session_state["_price_adding"] = True
 
     if st.session_state.get("_price_adding"):
@@ -2759,7 +2759,7 @@ def _render_pricing_admin():
         with _tk_add_col:
             _new_tickers = st.text_input("Add tickers", placeholder="e.g. NFLX, AMD, DIS",
                                           key="_tk_pool_add", label_visibility="collapsed")
-            if st.button("➕ Add", key="_tk_pool_add_btn", use_container_width=True):
+            if st.button("➕ Add", key="_tk_pool_add_btn", width='stretch'):
                 if _new_tickers.strip():
                     added = []
                     for t in _new_tickers.split(","):
@@ -2775,7 +2775,7 @@ def _render_pricing_admin():
             if st.session_state["_ticker_pool"]:
                 _rm_ticker = st.selectbox("Remove ticker", options=sorted(st.session_state["_ticker_pool"]),
                                            key="_tk_pool_rm", label_visibility="collapsed")
-                if st.button("🗑️ Remove", key="_tk_pool_rm_btn", use_container_width=True):
+                if st.button("🗑️ Remove", key="_tk_pool_rm_btn", width='stretch'):
                     st.session_state["_ticker_pool"].remove(_rm_ticker)
                     set_ticker_pool(st.session_state["_ticker_pool"])
                     st.toast(f"Removed {_rm_ticker}", icon="🗑️")
@@ -2999,7 +2999,7 @@ def _render_pricing_admin():
         st.markdown("<div style='margin-top:1rem'></div>", unsafe_allow_html=True)
         btn_cols = st.columns(plan_widths)
         btn_cols[0].markdown("")
-        _save_all = st.form_submit_button("💾 Save All Changes", type="primary", use_container_width=True)
+        _save_all = st.form_submit_button("💾 Save All Changes", type="primary", width='stretch')
 
     if _save_all:
         _ok = 0
@@ -3236,7 +3236,7 @@ def _render_users_admin():
                 new_plan = st.selectbox("Plan", options=list(plan_options.keys()),
                                          index=list(plan_options.keys()).index(_plan_name) if _plan_name in plan_options else 0,
                                          key=f"u_plan_{u['id']}", label_visibility="collapsed")
-                if st.button("Apply Plan", key=f"u_apply_{u['id']}", use_container_width=True, type="primary"):
+                if st.button("Apply Plan", key=f"u_apply_{u['id']}", width='stretch', type="primary"):
                     if assign_user_plan(u["id"], plan_options[new_plan]):
                         st.toast(f"Assigned {new_plan} to {u['email']}", icon="✅")
                         st.rerun()
@@ -3245,12 +3245,12 @@ def _render_users_admin():
 
                 st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
                 if u.get("is_active"):
-                    if st.button("🚫 Disable Account", key=f"u_dis_{u['id']}", use_container_width=True):
+                    if st.button("🚫 Disable Account", key=f"u_dis_{u['id']}", width='stretch'):
                         toggle_user_active(u["id"], False)
                         st.toast(f"Disabled {u['email']}", icon="🚫")
                         st.rerun()
                 else:
-                    if st.button("✅ Enable Account", key=f"u_en_{u['id']}", use_container_width=True):
+                    if st.button("✅ Enable Account", key=f"u_en_{u['id']}", width='stretch'):
                         toggle_user_active(u["id"], True)
                         st.toast(f"Enabled {u['email']}", icon="✅")
                         st.rerun()
@@ -3444,10 +3444,10 @@ def _render_memory():
     # ── Mode toggle ──
     mode_col1, mode_col2, mode_col3 = st.columns([1, 1, 4])
     with mode_col1:
-        section_mode = st.button("📑 Section Editor", use_container_width=True,
+        section_mode = st.button("📑 Section Editor", width='stretch',
                                   type="primary" if not st.session_state.get("mem_raw_mode") else "secondary")
     with mode_col2:
-        raw_mode = st.button("📝 Raw Editor", use_container_width=True,
+        raw_mode = st.button("📝 Raw Editor", width='stretch',
                               type="primary" if st.session_state.get("mem_raw_mode") else "secondary")
 
     if section_mode:
@@ -3469,12 +3469,12 @@ def _render_memory():
         )
         c1, c2, c3 = st.columns([1, 1, 6])
         with c1:
-            if st.button("💾 Save", type="primary", use_container_width=True, key="mem_raw_save"):
+            if st.button("💾 Save", type="primary", width='stretch', key="mem_raw_save"):
                 _write_context(new_text)
                 st.toast("✅ CONTEXT.md saved!", icon="💾")
                 st.rerun()
         with c2:
-            if st.button("🔄 Reload", use_container_width=True, key="mem_raw_reload"):
+            if st.button("🔄 Reload", width='stretch', key="mem_raw_reload"):
                 st.rerun()
 
         # Preview
@@ -3526,13 +3526,13 @@ def _render_memory():
         st.markdown("<div style='margin-top:1rem'></div>", unsafe_allow_html=True)
         save_col1, save_col2, _ = st.columns([1, 1, 6])
         with save_col1:
-            if st.button("💾 Save All Changes", type="primary", use_container_width=True, key="mem_sec_save"):
+            if st.button("💾 Save All Changes", type="primary", width='stretch', key="mem_sec_save"):
                 new_md = _rebuild_md(edited, full_text)
                 _write_context(new_md)
                 st.toast("✅ All sections saved to CONTEXT.md!", icon="💾")
                 st.rerun()
         with save_col2:
-            if st.button("↩️ Discard", use_container_width=True, key="mem_sec_discard"):
+            if st.button("↩️ Discard", width='stretch', key="mem_sec_discard"):
                 st.rerun()
     else:
         st.markdown("<div style='text-align:center;color:#94a3b8;font-size:0.82rem;margin-top:1.5rem'>✓ All sections up to date</div>", unsafe_allow_html=True)
@@ -3750,7 +3750,7 @@ def _render_analytics():
             plot_bgcolor="#fff", paper_bgcolor="#fff", hovermode="x unified",
             dragmode=False,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     # ── Breakdown tables ──
     tc1, tc2 = st.columns(2)
@@ -3871,7 +3871,7 @@ def render_nsfe_page():
         with col2:
             pwd = st.text_input("Password", type="password", key="nsfe_pwd",
                                 placeholder="Enter password\u2026", label_visibility="collapsed")
-            if st.button("Unlock Dashboard", use_container_width=True, type="primary"):
+            if st.button("Unlock Dashboard", width='stretch', type="primary"):
                 if pwd == _PASSWORD:
                     st.session_state.nsfe_auth = True
                     st.rerun()

@@ -1843,7 +1843,7 @@ def _show_metric_popup(ticker, node_label, view):
         for i, lbl in enumerate(["Quarterly", "Annual"]):
             if fc[i].button(lbl, key=f"{freq_key}_{lbl}",
                             type="primary" if st.session_state[freq_key] == lbl else "secondary",
-                            use_container_width=True):
+                            width='stretch'):
                 st.session_state[freq_key] = lbl
 
     # Render period selector
@@ -1853,7 +1853,7 @@ def _show_metric_popup(ticker, node_label, view):
         for i, lbl in enumerate(["1Y", "2Y", "4Y", "MAX"]):
             if pc[i].button(lbl, key=f"{period_key}_{lbl}",
                             type="primary" if st.session_state[period_key] == lbl else "secondary",
-                            use_container_width=True):
+                            width='stretch'):
                 st.session_state[period_key] = lbl
 
     # ââ Navigation pills inside popup ââ
@@ -2035,7 +2035,7 @@ def _show_metric_popup(ticker, node_label, view):
         hovermode="x unified",
     )
 
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}, key=f"hist_{freq}_{period}")
+    st.plotly_chart(fig, width='stretch', config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}, key=f"hist_{freq}_{period}")
     # ââ Node info: "What it means" + "How to read it" ââ
     info_map = INCOME_NODE_INFO if view == "income" else BALANCE_NODE_INFO
     node_info = info_map.get(clean_label, {})
@@ -5574,14 +5574,14 @@ def render_sankey_page():
     with _tab_col2:
         _tc1, _tc2 = st.columns(2)
         with _tc1:
-            if st.button("Income Statement", use_container_width=True,
+            if st.button("Income Statement", width='stretch',
                          type="primary" if sankey_view == "income" else "secondary",
                          key="_sankey_tab_income"):
                 st.session_state.sankey_view = "income"
                 st.query_params["view"] = "income"
                 st.rerun()
         with _tc2:
-            if st.button("Balance Sheet", use_container_width=True,
+            if st.button("Balance Sheet", width='stretch',
                          type="primary" if sankey_view == "balance" else "secondary",
                          key="_sankey_tab_balance"):
                 st.session_state.sankey_view = "balance"
@@ -5703,7 +5703,7 @@ def render_sankey_page():
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
             with st.container(key="sankey_income_scroll"):
-                st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
+                st.plotly_chart(fig, width='stretch', config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS, section="income")
@@ -5785,7 +5785,7 @@ def render_sankey_page():
         if fig:
             _chart_cfg = {"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}
             with st.container(key="sankey_balance_scroll"):
-                st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
+                st.plotly_chart(fig, width='stretch', config=_chart_cfg)
 
             # Bridge: click Sankey node â auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS, section="balance")
@@ -5995,7 +5995,7 @@ def render_sankey_page():
             if _tbl_a is not None:
                 _lbl_a = _build_period_label(_main_fy_a, _audit_qa, _audit_qb) if (_audit_qa or _audit_qb) else f"FY{_main_fy_a}"
                 st.markdown(f'<p class="audit-header">📊 Income Statement — Period A: {_lbl_a}</p>', unsafe_allow_html=True)
-                st.dataframe(_tbl_a, use_container_width=True)
+                st.dataframe(_tbl_a, width='stretch')
                 if _fn_a:
                     _fn_lines_a = "  \n".join([f"\\*{n} *{row}*: derived from {desc}" for n, row, desc in _fn_a])
                     st.caption(_fn_lines_a)
@@ -6008,7 +6008,7 @@ def render_sankey_page():
             if _tbl_b is not None:
                 _lbl_b = _build_period_label(_main_fy_b, _audit_qa, _audit_qb) if (_audit_qa or _audit_qb) else f"FY{_main_fy_b}"
                 st.markdown(f'<p class="audit-header">📊 Income Statement — Period B: {_lbl_b}</p>', unsafe_allow_html=True)
-                st.dataframe(_tbl_b, use_container_width=True)
+                st.dataframe(_tbl_b, width='stretch')
                 if _fn_b:
                     _fn_lines_b = "  \n".join([f"\\*{n} *{row}*: derived from {desc}" for n, row, desc in _fn_b])
                     st.caption(_fn_lines_b)
@@ -6047,7 +6047,7 @@ def render_sankey_page():
                     if row_name in _bs_fn_map and formatted != "—":
                         formatted = f"{formatted} *{_bs_fn_map[row_name]}"
                     _disp_balance.at[row_name, col] = formatted
-            st.dataframe(_disp_balance, use_container_width=True)
+            st.dataframe(_disp_balance, width='stretch')
             if _bs_footnotes:
                 _bs_fn_lines = "  \n".join([f"\\*{n} *{row}*: derived from {desc}" for n, row, desc in _bs_footnotes])
                 st.caption(_bs_fn_lines)
@@ -6067,7 +6067,7 @@ def render_sankey_page():
                     "Check": r["check"],
                     "Detail": r["detail"],
                 })
-            st.dataframe(pd.DataFrame(_check_rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(_check_rows), width='stretch', hide_index=True)
         else:
             st.success("All automatic checks passed — no issues detected.")
 
@@ -6085,7 +6085,7 @@ def render_sankey_page():
                     "Recomputed (Pandas)": f"${c['recomputed']:,.0f}" if c['recomputed'] else "—",
                     "Difference": f"${c['diff']:,.0f}" if c['diff'] else "$0",
                 })
-            st.dataframe(pd.DataFrame(_xv_rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(_xv_rows), width='stretch', hide_index=True)
         else:
             st.info("Cross-validation not available (raw quarterly data needed)")
 
@@ -6152,7 +6152,7 @@ def render_sankey_page():
                  "Left Side": _fmt_v(_pt), "Right Side": f"{_fmt_v(_tx)} + {_fmt_v(_ni)} = {_fmt_v(_l4_sum)}",
                  "Diff": _fmt_v(_pt - _l4_sum), "Status": "✅" if _l4_ok else "❌"},
             ]
-            st.dataframe(pd.DataFrame(_flow_rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(_flow_rows), width='stretch', hide_index=True)
 
             # ── Percentage breakdown table ──
             st.markdown(f'<p class="audit-header" style="font-size:1rem;margin-top:12px;">📐 Margins & YoY Changes</p>', unsafe_allow_html=True)
@@ -6182,7 +6182,7 @@ def render_sankey_page():
                 {"Metric": "Net Income", "Value": _fmt_v(_ni), "% of Revenue": _pct_of(_ni, _rev),
                  "Previous": _fmt_v(_sr_prev.get("Net Income", 0)), "YoY %": _yoy_pct(_ni, _sr_prev.get("Net Income", 0))},
             ]
-            st.dataframe(pd.DataFrame(_pct_rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(_pct_rows), width='stretch', hide_index=True)
 
             # ── Margin verification (recomputed vs displayed) ──
             st.markdown(f'<p class="audit-header" style="font-size:1rem;margin-top:12px;">🧮 Margin Cross-Check (Value ÷ Revenue)</p>', unsafe_allow_html=True)
@@ -6213,7 +6213,7 @@ def render_sankey_page():
                     "Previous": f"{prev_pct:.1f}%",
                     "Change (pp)": f"{change:+.1f}pp",
                 })
-            st.dataframe(pd.DataFrame(_margin_checks), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(_margin_checks), width='stretch', hide_index=True)
         else:
             st.info("Sankey reconciliation data not available.")
 
@@ -6233,7 +6233,7 @@ def render_sankey_page():
                     "% Change": f"{v['pct_change']:+.1f}%" if v['pct_change'] is not None else "N/A",
                     "$ Change": f"${v['dollar_change']:,.0f}" if v['dollar_change'] is not None else "N/A",
                 })
-            st.dataframe(pd.DataFrame(_m_rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(_m_rows), width='stretch', hide_index=True)
 
         # ── Section 7: XBRL tags used ──
         st.markdown("---")
@@ -6244,5 +6244,5 @@ def render_sankey_page():
                 "Metric": display_name,
                 "XBRL Tags (priority order)": " → ".join(tags) if tags else "Derived",
             })
-        st.dataframe(pd.DataFrame(_tag_data), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(_tag_data), width='stretch', hide_index=True)
 """"""
