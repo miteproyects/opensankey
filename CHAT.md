@@ -44,7 +44,126 @@ When Sebastián says `read chat`:
 
 **This turn's goal:** march through the bench queue in the order listed, one task at a time. Each task is self-contained. After each: commit, update `CLAUDE.md` task tracker, write a one-line summary to FOR COWORK, move to the next. Do NOT pause between tasks for confirmation. **Stop conditions** (flip baton, don't keep going): (a) two consecutive tasks BLOCKED, (b) any task would need >60 lines across >3 files and feels architecturally risky, (c) you run out of API quota or hit a hard env issue. Otherwise keep going.
 
-**Order:** #35 → #29 → #28 → #34 → #32 → #30 → #31 → 30-ticker smoke.
+**Order:** **#36 (new — build first)** → #35 → #29 → #28 → #34 → #32 → #30 → #31 → 30-ticker smoke.
+
+Rationale for #36 first: it's an admin-only "testing mode" toggle on the pricing tab. Flipping it ON bypasses the free-tier paywall for everyone, which **unblocks the 30-ticker smoke without Chrome-MCP sign-in** (resolves the T9 blocker permanently) and makes #28/#29/#34/#32 probe-through-the-UI trivial. Build it once, reuse for the rest of this turn and all future dev work.
+
+---
+
+### #36 — Admin "testing mode" toggle on the NSFQ (pricing) page
+
+**New task. Create it in CLAUDE.md tracker as `#36 pending → in-progress`.**
+
+Sebastián's spec (verbatim): *"in NSFQ (pricing tab) add a feature called: Make all tickers available for testing: YES / NO. When it is YES, then all 10000+ tickers are available to all users (even those in free plan). When it is NO, the website has to follow current rules of subscription."*
+
+Critical constraint: **this toggle must be admin-only.** If any logged-in or free-tier user could flip it, the paywall is meaningless. Only admins (Sebastián first) see and can flip it.
+
+**Step 1 — Persistence layer.** Store the flag in the database (not a file or env var — file won't survive Railway deploys, env vars require restart). Simplest approach:
+
+1. Add a `app_settings` table with a singleton row, or extend an existing settings/config table if one exists. Grep first:
+   ```
+   grep -n "settings\|Settings\|CREATE TABLE" database.py | head -20
+   ```
+2. Schema (if creating new):
+   ```sql
+   CREATE TABLE IF NOT EXISTS app_settings (
+       id INTEGER PRIMARY KEY CHECK (id = 1),
+       testing_mode_enabled BOOLEAN NOT NULL DEFAULT 0,
+       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       updated_by TEXT
+   );
+   INSERT OR IGNORE INTO app_settings (id, testing_mode_enabled) VALUES (1, 0);
+   ```
+3. Helpers in `database.py` (or a new `settings.py`):
+   ```python
+   def get_testing_mode_enabled() -> bool: ...
+   def set_testing_mode_enabled(enabled: bool, admin_email: str) -> None: ...
+   ```
+
+**Step 2 — Admin identity.** Grep for existing admin concept:
+```
+grep -n "is_admin\|admin\|ADMIN" auth.py database.py | head -20
+```
+
+If no admin concept exists, add the simplest possible version: hardcoded allow-list constant in `auth.py`:
+```python
+ADMIN_EMAILS = {"sebasflores@gmail.com"}
+def is_admin(user_email: str) -> bool:
+    return user_email.lower().strip() in ADMIN_EMAILS
+```
+If an `is_admin` column already exists on users, use that instead.
+
+**Step 3 — Wire into every paywall gate.** Known gate locations (CLAUDE.md audit):
+- `app.py` lines 992, 1008, 2269, 3877–3888
+- `dashboard_page.py` lines 95–107
+- Landing-page ticker-input validator (find via `grep -n "Try for free\|FREE_TICKERS\|allow_list" app.py dashboard_page.py`)
+
+At each gate, add a short-circuit at the top:
+```python
+if get_testing_mode_enabled():
+    # Testing mode ON — all tickers available to all users
+    pass  # or the equivalent of "allow"
+else:
+    # ... existing paywall logic unchanged
+```
+
+Cache the DB read for the request lifetime with `@st.cache_data(ttl=5)` or a session-scoped lookup so you don't hit the DB 5 times per render.
+
+**Step 4 — UI on the pricing tab.** Find the pricing page:
+```
+grep -rn "page=pricing\|pricing_page\|NSFQ\|render_pricing" *.py | head -20
+```
+
+At the top of the pricing page render function, show the toggle **only** if the current user is admin:
+```python
+if st.session_state.get("logged_in") and is_admin(st.session_state.get("user_email", "")):
+    st.markdown("### Admin controls")
+    current = get_testing_mode_enabled()
+    new_value = st.toggle(
+        "Make all tickers available for testing",
+        value=current,
+        help="YES: all 10000+ tickers available to every user (paywall bypassed for testing). "
+             "NO: normal NSFQ subscription rules apply.",
+        key="testing_mode_toggle",
+    )
+    if new_value != current:
+        set_testing_mode_enabled(new_value, st.session_state.get("user_email", ""))
+        st.success(f"Testing mode: {'ON' if new_value else 'OFF'}")
+        st.rerun()
+    # Visible status line for the admin
+    st.caption(f"Testing mode is currently **{'ON — paywall bypassed' if current else 'OFF — normal rules'}**")
+    st.divider()
+```
+
+Non-admin users never see this block.
+
+**Step 5 — Verify.** Two test passes:
+
+Pass A, **toggle OFF** (default):
+- Sign in as a free-tier account (or signed-out). `/?page=charts&ticker=META` → redirects to pricing. ✓ paywall works.
+- `/?page=charts&ticker=KO` → loads. ✓ free tier works.
+- Pricing page as non-admin → no admin block visible.
+- Pricing page as `sebasflores@gmail.com` → admin block visible, toggle reads OFF.
+
+Pass B, flip toggle ON (as admin), then:
+- Sign out and hit `/?page=charts&ticker=META` → loads the chart page (not pricing). ✓ bypass works.
+- `/?page=charts&ticker=BRK.B`, `JPM`, `LLY` → all load. ✓ comprehensive bypass.
+- Landing page → type `ko` → loads. ✓ input validator also bypassed.
+- Non-admin users still don't see the toggle. ✓ admin gating intact.
+
+Flip back OFF before moving on so the KO test in #35 reflects real free-tier behavior.
+
+**Step 6 — Commit.**
+```
+git add <files>
+git commit -m "Add admin testing-mode toggle on pricing page (Task #36)"
+```
+
+**Step 7 — Update CLAUDE.md.** Add to Gotchas section:
+- `testing_mode_enabled` DB flag — admin-only toggle at /?page=pricing. When ON, all paywall gates short-circuit. Check this flag at the top of every new paywall gate going forward.
+- Admin allow-list: `sebasflores@gmail.com` (in `auth.py ADMIN_EMAILS` or equivalent).
+
+Mark #36 completed. Move to #35.
 
 ---
 
@@ -235,11 +354,13 @@ Mark #31 completed.
 
 ---
 
-### Step 8 — 30-ticker smoke run (unblocks if Chrome auth is live)
+### Step 8 — 30-ticker smoke run (unblocked by #36 toggle ON)
 
 After the bench is clear (or as many tasks as you can ship this turn), attempt the extended Annual-mode smoke.
 
-**Pre-flight.** Navigate Chrome MCP to `http://localhost:8503/?page=charts&ticker=META`. If it renders the chart page, auth is live — proceed. If it redirects to `?page=pricing`, write `BLOCKED: not signed in on Chrome, please sign in on :8503 then syncqc again` and flip baton. **Do NOT sign in yourself.**
+**Pre-flight.** Flip the #36 testing-mode toggle to **ON** (as admin, on :8503 pricing page). Then navigate Chrome MCP to `http://localhost:8503/?page=charts&ticker=META`. Should render the chart page directly — no sign-in needed. If it redirects to pricing, the toggle isn't wired into that gate; go back to #36 Step 5 Pass B. **Do NOT sign in yourself.**
+
+**After the smoke completes, flip the toggle OFF again** so live behavior is normal before the commit of the smoke results.
 
 **Run.** Same spec as archived T8 below:
 - 30 tickers: `AAPL MSFT NVDA AMZN GOOGL META GOOG BRK.B TSLA JPM LLY V XOM UNH MA AVGO JNJ WMT HD PG COST ORCL MRK CVX ABBV BAC KO CRM NFLX PEP`
@@ -697,7 +818,7 @@ Awaiting your call on (a) which fix to tackle first, and (b) whether to proceed 
 
 ## Log (newest first, append-only)
 
-- 2026-04-21 — Cowork — Session cleanup + T10 bench-clear plan. Three commits landed earlier this session: `488febe` (handoff-file updates), `23ca1d7` (`run.command` → port :8503 to avoid Barberos :8501 collision), and the CHAT.md refresh. Reverted the uncommitted paywall-removal diff in `app.py` + `dashboard_page.py` via `git checkout --` — live still enforces NSFQ pricing rules (free-tier allow list unchanged: AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA). **Expanded T10 into a full bench-clear plan** for Claude Code: march through #35 → #29 → #28 → #34 → #32 → #30 → #31 → 30-ticker smoke, in order, one commit per task, don't pause between tasks. Stop conditions defined (2 consecutive BLOCKED, single-task scope >60 lines + >3 files, env hard-fail). Paywall must be preserved across all fixes. Baton remains CLAUDE CODE.
+- 2026-04-21 — Cowork — T10 bench-clear plan + new Task #36. Added a new first task to the queue per Sebastián's spec: **#36 admin testing-mode toggle on the NSFQ pricing page** — a YES/NO switch that when ON bypasses the free-tier paywall across every gate (for all users), when OFF restores normal subscription rules. Must be admin-only (`sebasflores@gmail.com` allow-list) so regular users can't flip it. Storage: DB flag on an `app_settings` singleton. Wire into all known gates (`app.py` 992/1008/2269/3877-3888, `dashboard_page.py` 95-107, landing-page validator). UI renders only for admins. Unblocks the 30-ticker smoke permanently (no more Chrome-MCP sign-in dance). Updated T10 order to **#36 → #35 → #29 → #28 → #34 → #32 → #30 → #31 → smoke**. Earlier commits this session: `488febe` (handoff files), `23ca1d7` (run.command → :8503), plus CHAT.md refresh. Paywall revert preserved (NSFQ allow list: AAPL, AMZN, GOOG, KO, MSFT, NVDA, TSLA). Baton remains CLAUDE CODE.
 - 2026-04-18 T10 — Cowork — Sebastián showed screenshot: landing-page ticker input rejected `ko` with "'KO' not found." after he asked Claude Code (outside handoff) to remove the paywall. "Try for free" badge list now shows META but not KO (opposite of pre-T6 state). Created Task #35. T10 FOR CLAUDE CODE supersedes the T8 smoke: (1) surface uncommitted paywall-removal diff, (2) diagnose KO-not-found (hardcoded allow list vs broken lookup path), (3) remove the gate entirely so any valid US ticker works, (4) verify with KO/BRK.B/JPM/LLY plus invalid ZZZZZ, (5) THEN run 30-ticker smoke. Baton → Claude Code.
 - 2026-04-18 T9 — Claude Code — **BLOCKED: not signed in on Chrome.** T8 pre-flight: navigating :8504 (deviated from spec'd :8505 because :8504 was clean + live) to `?page=charts&ticker=META` redirected to `?page=pricing`. Per T8 Step 2 explicit rule, wrote BLOCKED and flipped without proceeding. Killed unused :8505. No `.smoke-screenshots/30/` dir created. 0/30 tickers processed. Awaiting Sebastián manual sign-in then re-syncqc.
 - 2026-04-18 T8 — Cowork — Unparked. Tasked Claude Code with extended Annual-mode smoke across the top 30 S&P 500 tickers (AAPL…PEP). Sebastián will sign in to QuarterCharts manually in Chrome so the free-tier paywall doesn't block META/BRK.B/etc. — Claude Code drives the authenticated tab via Chrome MCP, must NOT sign in itself. Per-ticker acceptance: loads, year-only x-axis, gap-fill within SEC range, caption scoped to current FY, P/E + YoY drop partial. Output: `.smoke-screenshots/30/report.md`. Baton → Claude Code.
