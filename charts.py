@@ -592,3 +592,121 @@ def create_analyst_forecast_chart(forecast: Dict[str, Any]) -> go.Figure:
     fig.update_layout(**_layout("Analyst Price Targets", height=350))
     fig.update_yaxes(tickprefix="$")
     return fig
+
+
+# ---------------------------------------------------------------------------
+# Key Metrics — Group A charts (Task #36 Phase 1)
+# ---------------------------------------------------------------------------
+# All six charts below consume the DataFrame produced by
+# ``info_data.compute_key_metrics_group_a``. Each picks its own column
+# out of that wide frame and renders a bar or line in the standard
+# _layout(). Colors reuse the existing ``COLORS`` palette to stay visually
+# consistent with the income/cashflow/balance chart groups.
+
+def create_shares_variation_chart(df: pd.DataFrame) -> go.Figure:
+    """Line chart — Shares YoY % + (optional) Net Buyback Yield TTM %.
+
+    Two series, same axis. Phase 1 renders just the blue ``Shares YoY %``
+    line. Phase 2 (Task #36 Commit 3) also passes a
+    ``Net Buyback Yield TTM %`` column — we trace that in yellow when
+    present, skip when absent. Same pattern as ``create_margins_chart``.
+    """
+    if df.empty:
+        return _empty_fig()
+    x = _x(df)
+    fig = go.Figure()
+    traces = [
+        ("Shares YoY %", COLORS["blue"]),
+        ("Net Buyback Yield TTM %", COLORS["yellow"]),
+    ]
+    any_present = False
+    for col, color in traces:
+        if col in df.columns and df[col].notna().any():
+            fig.add_trace(go.Scatter(
+                x=x, y=df[col], name=col, mode="lines+markers",
+                line=dict(width=2.5, color=color),
+                marker=dict(size=7, color=color),
+            ))
+            any_present = True
+    if not any_present:
+        return _empty_fig()
+    fig.update_layout(**_layout("Shares Variation (%)"))
+    fig.update_yaxes(ticksuffix="%")
+    # Zero-line reference makes dilution vs buyback visually obvious.
+    fig.add_hline(y=0, line_dash="dot", line_color="rgba(128,128,128,0.4)")
+    return fig
+
+
+def create_bvps_chart(df: pd.DataFrame) -> go.Figure:
+    """Bar — Book Value Per Share."""
+    col = "BVPS"
+    if df.empty or col not in df.columns or not df[col].notna().any():
+        return _empty_fig()
+    x = _x(df)
+    fig = go.Figure(go.Bar(
+        x=x, y=df[col], name=col, marker_color=COLORS["blue"],
+    ))
+    fig.update_layout(**_layout("Book Value Per Share"))
+    fig.update_yaxes(tickprefix="$")
+    return fig
+
+
+def create_cash_per_share_chart(df: pd.DataFrame) -> go.Figure:
+    """Bar — Cash & Equivalents Per Share."""
+    col = "Cash/Share"
+    if df.empty or col not in df.columns or not df[col].notna().any():
+        return _empty_fig()
+    x = _x(df)
+    fig = go.Figure(go.Bar(
+        x=x, y=df[col], name=col, marker_color=COLORS["green"],
+    ))
+    fig.update_layout(**_layout("Cash Per Share"))
+    fig.update_yaxes(tickprefix="$")
+    return fig
+
+
+def create_fcf_per_share_chart(df: pd.DataFrame) -> go.Figure:
+    """Bar — Free Cash Flow Per Share."""
+    col = "FCF/Share"
+    if df.empty or col not in df.columns or not df[col].notna().any():
+        return _empty_fig()
+    x = _x(df)
+    fig = go.Figure(go.Bar(
+        x=x, y=df[col], name=col, marker_color=COLORS["yellow"],
+    ))
+    fig.update_layout(**_layout("Free Cash Flow Per Share"))
+    fig.update_yaxes(tickprefix="$")
+    return fig
+
+
+def create_roe_chart(df: pd.DataFrame) -> go.Figure:
+    """Line — Return on Equity as a time series."""
+    col = "ROE %"
+    if df.empty or col not in df.columns or not df[col].notna().any():
+        return _empty_fig()
+    x = _x(df)
+    fig = go.Figure(go.Scatter(
+        x=x, y=df[col], name="ROE", mode="lines+markers",
+        line=dict(width=3, color=COLORS["purple"]),
+        marker=dict(size=8, color=COLORS["purple"]),
+    ))
+    fig.update_layout(**_layout("Return on Equity (%)"))
+    fig.update_yaxes(ticksuffix="%")
+    fig.add_hline(y=0, line_dash="dot", line_color="rgba(128,128,128,0.4)")
+    return fig
+
+
+def create_graham_chart(df: pd.DataFrame) -> go.Figure:
+    """Line — Graham Number = √(22.5 × EPS × BVPS), intrinsic-value anchor."""
+    col = "Graham Number"
+    if df.empty or col not in df.columns or not df[col].notna().any():
+        return _empty_fig()
+    x = _x(df)
+    fig = go.Figure(go.Scatter(
+        x=x, y=df[col], name="Graham #", mode="lines+markers",
+        line=dict(width=3, color=COLORS["orange"]),
+        marker=dict(size=8, color=COLORS["orange"]),
+    ))
+    fig.update_layout(**_layout("Graham Number"))
+    fig.update_yaxes(tickprefix="$")
+    return fig

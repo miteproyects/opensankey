@@ -67,7 +67,12 @@ from data_fetcher import (
     get_revenue_by_geography,
     _opensankey_get_segments,
 )
-from info_data import get_company_icon
+from info_data import (
+    get_company_icon,
+    get_sic_sector,
+    is_turnover_applicable,
+    compute_key_metrics_group_a,
+)
 
 # ─── Database module ───────────────────────────────────────────────────────
 from database import initialize_schema, is_db_ready, get_testing_mode_enabled
@@ -103,6 +108,13 @@ from charts import (
     create_revenue_by_product_chart,
     create_revenue_by_geography_chart,
     create_income_breakdown_chart,
+    # Task #36 Phase 1 Key Metrics charts
+    create_shares_variation_chart,
+    create_bvps_chart,
+    create_cash_per_share_chart,
+    create_fcf_per_share_chart,
+    create_roe_chart,
+    create_graham_chart,
 )
 
 
@@ -4389,6 +4401,28 @@ if st.session_state.show_metrics:
         if not pe_df.empty:
             km_charts.append((create_pe_chart(pe_df), "pe_ratio"))
 
+    # ---- Task #36 Phase 1 — Group A Key Metrics (6 derivable panels) ----
+    # Compute once, slot each column into its own chart. Each chart
+    # gracefully renders an empty figure when the column is absent or all
+    # NaN, so a ticker with sparse balance-sheet data (e.g. limited BVPS
+    # history) doesn't break the section.
+    _km_a_df = compute_key_metrics_group_a(
+        income_df, balance_df, cashflow_df,
+    )
+    # Trim partial FY in annual mode so single-quarter sums don't show up
+    # as YoY cliffs on the per-share bar charts.
+    if not quarterly and _partial_fy is not None and not _km_a_df.empty:
+        _pfy_lbl = str(_partial_fy)
+        if _pfy_lbl in _km_a_df.index:
+            _km_a_df = _km_a_df.drop(_pfy_lbl)
+    if not _km_a_df.empty:
+        km_charts.append((create_shares_variation_chart(_km_a_df), "shares_variation"))
+        km_charts.append((create_bvps_chart(_km_a_df), "bvps"))
+        km_charts.append((create_cash_per_share_chart(_km_a_df), "cash_per_share"))
+        km_charts.append((create_fcf_per_share_chart(_km_a_df), "fcf_per_share"))
+        km_charts.append((create_roe_chart(_km_a_df), "roe"))
+        km_charts.append((create_graham_chart(_km_a_df), "graham"))
+
     # Metric cards
     if "metric_cards" in _blocked_chart_keys:
         _render_blocked_overlay("Key Financial Metrics", "km_metric_cards")
@@ -4417,7 +4451,13 @@ if st.session_state.show_metrics:
         _km_captions = {}
         _pe_cap = _partial_fy_caption_keymetrics()
         if _pe_cap:
-            _km_captions["pe_ratio"] = _pe_cap
+            # P/E, BVPS, ROE, and Graham all depend on per-period Net
+            # Income / Equity / Diluted EPS / BVPS, so they're all
+            # distorted by a partial current-year column in the same
+            # way the P/E chart is. Surface the same caption above
+            # each so the user isn't guessing why 2026 dips.
+            for _k in ("pe_ratio", "bvps", "roe", "graham"):
+                _km_captions[_k] = _pe_cap
         render_charts(km_charts, "keymetrics", _blocked_chart_keys,
                       chart_captions=_km_captions)
 

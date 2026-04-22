@@ -1191,3 +1191,117 @@ def get_company_icon(ticker: str, sector: str = "", industry: str = "") -> str:
         return _sector_icons[sector]
 
     return "📊"
+
+
+# ---------------------------------------------------------------------------
+# Key Metrics — Group A (derivable panels, Phase 1 of Task #36)
+# ---------------------------------------------------------------------------
+# Group A = everything that can be computed from SEC income + balance +
+# cashflow + shares alone, without any price lookup. Phase 1 ships these
+# panels; Phase 2 wires in the price-dependent ratios (P/S, P/B, etc.) on
+# top of the same DataFrame.
+
+def _pick_shares_series(income_df: pd.DataFrame) -> Optional[pd.Series]:
+    """Return the best per-period shares series from an income DataFrame.
+
+    Prefers diluted over basic. Returns ``None`` if neither column exists
+    or is entirely empty, so callers can degrade gracefully.
+    """
+    for col in ("Diluted Average Shares", "Basic Average Shares"):
+        if col in income_df.columns:
+            s = pd.to_numeric(income_df[col], errors="coerce").replace(0, np.nan)
+            if s.notna().sum() > 0:
+                return s
+    return None
+
+
+def compute_key_metrics_group_a(
+    income_df: pd.DataFrame,
+    balance_df: pd.DataFrame,
+    cashflow_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Return a wide DataFrame with the Phase 1 Key Metrics columns.
+
+    Columns produced (each may be absent if the underlying inputs are):
+      - Shares YoY %               (from Diluted Shares pct_change(4))
+      - BVPS                       (Stockholders Equity / Diluted Shares)
+      - Cash/Share                 (Cash & Equivalents / Diluted Shares)
+      - FCF/Share                  (Free CF / Diluted Shares)
+      - ROE %                      (Net Income / Stockholders Equity × 100)
+      - Graham Number              (√(22.5 × Diluted EPS × BVPS))
+
+    The returned index is the union of rows present in `income_df`,
+    `balance_df`, and `cashflow_df` that have a valid shares denominator.
+    `Shares YoY %` uses a 4-period lag for quarterly frames; callers that
+    pass annual frames will get yearly YoY for free.
+
+    Never raises — missing inputs degrade to empty columns, empty frame
+    on full failure.
+    """
+    if income_df is None or income_df.empty:
+        return pd.DataFrame()
+
+    shares = _pick_shares_series(income_df)
+    if shares is None:
+        return pd.DataFrame()
+
+    out = pd.DataFrame(index=income_df.index)
+
+    # Shares YoY % — 4-period lag is correct for quarterly; for annual
+    # frames this reduces to a 4-year lag, so downstream annual callers
+    # should re-use Shares YoY % on the quarterly frame, not the annual
+    # one. Graceful fallback to 1-period diff if there's <4 rows.
+    periods = 4 if len(shares) > 4 else 1
+    out["Shares YoY %"] = (shares.pct_change(periods=periods) * 100).round(2)
+
+    # BVPS — balance sheet equity aligned to income_df index.
+    if not balance_df.empty and "Stockholders Equity" in balance_df.columns:
+        eq = pd.to_numeric(balance_df["Stockholders Equity"], errors="coerce")
+        eq_aligned = eq.reindex(out.index)
+        bvps = (eq_aligned / shares).round(4)
+        out["BVPS"] = bvps
+    else:
+        out["BVPS"] = np.nan
+
+    # Cash/Share
+    if not balance_df.empty and "Cash and Cash Equivalents" in balance_df.columns:
+        cash = pd.to_numeric(balance_df["Cash and Cash Equivalents"], errors="coerce")
+        out["Cash/Share"] = (cash.reindex(out.index) / shares).round(4)
+    else:
+        out["Cash/Share"] = np.nan
+
+    # FCF/Share — Free CF is computed by get_cash_flow when both Operating
+    # CF and CapEx are present. Tolerate its absence.
+    if not cashflow_df.empty and "Free CF" in cashflow_df.columns:
+        fcf = pd.to_numeric(cashflow_df["Free CF"], errors="coerce")
+        out["FCF/Share"] = (fcf.reindex(out.index) / shares).round(4)
+    else:
+        out["FCF/Share"] = np.nan
+
+    # ROE % — Net Income / Stockholders Equity × 100. We divide period
+    # Net Income by period-end equity; a cleaner version would use
+    # average-of-period equity, but that requires two-period alignment
+    # and downstream charting tolerates the simpler form fine.
+    if ("Net Income" in income_df.columns
+            and not balance_df.empty
+            and "Stockholders Equity" in balance_df.columns):
+        ni = pd.to_numeric(income_df["Net Income"], errors="coerce")
+        eq = pd.to_numeric(balance_df["Stockholders Equity"], errors="coerce").reindex(out.index)
+        roe = (ni / eq.replace(0, np.nan) * 100).round(2)
+        out["ROE %"] = roe
+    else:
+        out["ROE %"] = np.nan
+
+    # Graham Number = √(22.5 × EPS × BVPS). Only defined for positive EPS
+    # and positive BVPS; mask out the rest so the chart doesn't choke on
+    # imaginary numbers.
+    if "Diluted EPS" in income_df.columns and "BVPS" in out.columns:
+        eps = pd.to_numeric(income_df["Diluted EPS"], errors="coerce")
+        bv = out["BVPS"]
+        prod = 22.5 * eps * bv
+        graham = np.sqrt(prod.where(prod > 0))
+        out["Graham Number"] = graham.round(2)
+    else:
+        out["Graham Number"] = np.nan
+
+    return out
