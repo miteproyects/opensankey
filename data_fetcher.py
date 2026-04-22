@@ -169,6 +169,12 @@ _SEC_BS_MAP = {
     "LongTermDebtNoncurrent": "Long Term Debt",
     "DebtCurrent": "Total Debt",
     "LongTermDebtAndCapitalLeaseObligations": "Total Debt",
+    # Task #36 prep — needed for Key Metrics turnover, P/TB, Graham, BVPS.
+    "Goodwill": "Goodwill",
+    "IntangibleAssetsNetExcludingGoodwill": "Intangible Assets",
+    "AccountsReceivableNetCurrent": "Accounts Receivable",
+    "AccountsPayableCurrent": "Accounts Payable",
+    "InventoryNet": "Inventory",
 }
 
 # Cash flow (duration-based → use CY####Q# frames)
@@ -183,6 +189,9 @@ _SEC_CF_MAP = {
     "DepreciationDepletionAndAmortization": "D&A",
     "DepreciationAndAmortization": "D&A",
     "Depreciation": "D&A",
+    # Task #36 prep — needed for Net Buyback Yield TTM + Shares Variation.
+    "PaymentsForRepurchaseOfCommonStock": "Stock Repurchased",
+    "ProceedsFromIssuanceOfCommonStock": "Stock Issued",
 }
 
 # ---------------------------------------------------------------------------
@@ -1258,6 +1267,12 @@ _FMP_BS_MAP = {
     "cashAndCashEquivalents": "Cash and Cash Equivalents",
     "totalDebt": "Total Debt",
     "longTermDebt": "Long Term Debt",
+    # Task #36 prep — mirror of _SEC_BS_MAP additions.
+    "goodwill": "Goodwill",
+    "intangibleAssets": "Intangible Assets",
+    "netReceivables": "Accounts Receivable",
+    "accountPayables": "Accounts Payable",
+    "inventory": "Inventory",
 }
 
 _FMP_CF_MAP = {
@@ -1269,6 +1284,9 @@ _FMP_CF_MAP = {
     "stockBasedCompensation": "Stock Based Compensation",
     "depreciationAndAmortization": "D&A",
     "changeInCash": "Cash and Cash Equivalents",
+    # Task #36 prep — mirror of _SEC_CF_MAP additions.
+    "commonStockRepurchased": "Stock Repurchased",
+    "commonStockIssued": "Stock Issued",
 }
 
 
@@ -1915,6 +1933,16 @@ _BS_MAP: Dict[str, List[str]] = {
     ],
     "Total Debt": ["Total Debt", "TotalDebt", "Net Debt"],
     "Long Term Debt": ["Long Term Debt", "LongTermDebt", "Long Term Debt And Capital Lease Obligation"],
+    # Task #36 prep — mirror of _SEC_BS_MAP / _FMP_BS_MAP additions.
+    "Goodwill": ["Goodwill"],
+    "Intangible Assets": [
+        "Intangible Assets",
+        "Net Intangible Assets",
+        "Other Intangible Assets",
+    ],
+    "Accounts Receivable": ["Accounts Receivable", "Receivables", "Net Receivables"],
+    "Accounts Payable": ["Accounts Payable", "Payables And Accrued Expenses"],
+    "Inventory": ["Inventory"],
 }
 
 
@@ -2002,6 +2030,17 @@ _CF_MAP: Dict[str, List[str]] = {
         "Changes In Cash",
         "Change In Cash Supplemental As Reported",
         "Net Change in Cash",
+    ],
+    # Task #36 prep — mirror of _SEC_CF_MAP / _FMP_CF_MAP additions.
+    "Stock Repurchased": [
+        "Repurchase Of Capital Stock",
+        "Common Stock Payments",
+        "Payments For Repurchase Of Common Stock",
+    ],
+    "Stock Issued": [
+        "Issuance Of Capital Stock",
+        "Common Stock Issuance",
+        "Proceeds From Issuance Of Common Stock",
     ],
 }
 
