@@ -185,6 +185,81 @@ _SEC_CF_MAP = {
     "Depreciation": "D&A",
 }
 
+# ---------------------------------------------------------------------------
+# Sector-specific us-gaap supplements (Task #31)
+# ---------------------------------------------------------------------------
+# When `info_data.get_sic_sector(ticker)` returns one of these keys, the
+# baseline `_SEC_*_MAP` is MERGED with the matching supplement dict before
+# extraction — so JPM gets `Net Interest Income` in addition to whatever
+# generic revenue lines its XBRL happens to tag. Generic tickers fall
+# through to the baseline unchanged (zero overhead).
+#
+# Keep each supplement narrow: only add tags that the sector genuinely
+# uses and the baseline misses. Duplicating a generic tag here with a
+# different friendly name would cause column collisions.
+_SECTOR_FIELD_MAP: Dict[str, Dict[str, Dict[str, str]]] = {
+    "bank": {
+        "income": {
+            "NetInterestIncome": "Net Interest Income",
+            "InterestAndDividendIncomeOperating": "Net Interest Income",
+            "InterestIncomeOperating": "Net Interest Income",
+            "ProvisionForLoanLeaseAndOtherLosses": "Provision for Loan Losses",
+            "ProvisionForCreditLosses": "Provision for Loan Losses",
+            "ProvisionForLoanAndLeaseLosses": "Provision for Loan Losses",
+            "NoninterestIncome": "Noninterest Income",
+            "NoninterestExpense": "Noninterest Expense",
+        },
+        "balance": {},
+        "cashflow": {},
+    },
+    "insurer": {
+        "income": {
+            "PremiumsEarnedNet": "Premiums Earned",
+            "PremiumsEarnedNetLifeInsurance": "Premiums Earned",
+            "PremiumsWrittenNet": "Premiums Written",
+            "InsuranceLossesAndLossAdjustmentExpense": "Losses & Loss Adjustment",
+            "BenefitsLossesAndExpenses": "Benefits & Losses",
+            "PolicyholderBenefitsAndClaimsIncurredNet": "Benefits & Losses",
+        },
+        "balance": {},
+        "cashflow": {},
+    },
+    "energy": {
+        "income": {
+            # Energy filers often skip CostOfRevenue and fold into this line.
+            "CostsAndExpenses": "Total Costs & Expenses",
+        },
+        "balance": {
+            "OilAndGasPropertyFullCostMethodGross": "Oil & Gas Property (Full Cost, Gross)",
+            "OilAndGasPropertyFullCostMethodNet": "Oil & Gas Property (Full Cost, Net)",
+            "OilAndGasPropertySuccessfulEffortMethodGross": "Oil & Gas Property (Successful Efforts, Gross)",
+            "OilAndGasPropertySuccessfulEffortMethodNet": "Oil & Gas Property (Successful Efforts, Net)",
+        },
+        "cashflow": {},
+    },
+}
+
+
+def _augment_field_map(base_map: dict, ticker: str, statement: str) -> dict:
+    """Return *base_map* merged with sector-specific tags for *ticker*.
+
+    *statement* must be one of ``"income"``, ``"balance"``, ``"cashflow"``.
+    Falls back to *base_map* unchanged on any lookup error or for
+    "general"-sector tickers, so the sector path is additive and never
+    regresses behavior for non-sector tickers.
+    """
+    try:
+        from info_data import get_sic_sector
+        sector = get_sic_sector(ticker)
+    except Exception:
+        return base_map
+    if sector == "general":
+        return base_map
+    supplement = _SECTOR_FIELD_MAP.get(sector, {}).get(statement, {})
+    if not supplement:
+        return base_map
+    return {**base_map, **supplement}
+
 
 def _sec_extract_facts(
     company_facts: dict,
@@ -352,27 +427,33 @@ def _sec_extract_facts(
 
 
 def _sec_get_income_statement(ticker: str, quarterly: bool = True) -> pd.DataFrame:
-    """Fetch income statement from SEC EDGAR."""
+    """Fetch income statement from SEC EDGAR, augmented with sector-specific
+    us-gaap tags when applicable (Task #31)."""
     facts = _sec_fetch_company_facts(ticker)
     if facts is None:
         return pd.DataFrame()
-    return _sec_extract_facts(facts, _SEC_INCOME_MAP, quarterly=quarterly, instantaneous=False)
+    field_map = _augment_field_map(_SEC_INCOME_MAP, ticker, "income")
+    return _sec_extract_facts(facts, field_map, quarterly=quarterly, instantaneous=False)
 
 
 def _sec_get_balance_sheet(ticker: str, quarterly: bool = True) -> pd.DataFrame:
-    """Fetch balance sheet from SEC EDGAR v2."""
+    """Fetch balance sheet from SEC EDGAR, augmented with sector-specific
+    us-gaap tags when applicable (Task #31)."""
     facts = _sec_fetch_company_facts(ticker)
     if facts is None:
         return pd.DataFrame()
-    return _sec_extract_facts(facts, _SEC_BS_MAP, quarterly=quarterly, instantaneous=True)
+    field_map = _augment_field_map(_SEC_BS_MAP, ticker, "balance")
+    return _sec_extract_facts(facts, field_map, quarterly=quarterly, instantaneous=True)
 
 
 def _sec_get_cash_flow(ticker: str, quarterly: bool = True) -> pd.DataFrame:
-    """Fetch cash flow statement from SEC EDGAR v2."""
+    """Fetch cash flow statement from SEC EDGAR, augmented with sector-specific
+    us-gaap tags when applicable (Task #31)."""
     facts = _sec_fetch_company_facts(ticker)
     if facts is None:
         return pd.DataFrame()
-    return _sec_extract_facts(facts, _SEC_CF_MAP, quarterly=quarterly, instantaneous=False)
+    field_map = _augment_field_map(_SEC_CF_MAP, ticker, "cashflow")
+    return _sec_extract_facts(facts, field_map, quarterly=quarterly, instantaneous=False)
 
 
 # ---------------------------------------------------------------------------

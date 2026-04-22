@@ -26,6 +26,95 @@ _SEC_HEADERS = {
     "Accept-Encoding": "gzip, deflate",
 }
 
+# ---------------------------------------------------------------------------
+# Sector classification (SIC code → sector) — Task #31
+# ---------------------------------------------------------------------------
+# SEC's Standard Industrial Classification codes map filers to high-level
+# sectors. We key on just 3 sectors where us-gaap tag expectations diverge
+# meaningfully from the generic Industrial/Tech pattern:
+#
+#   banks     — report NetInterestIncome / ProvisionForLoanLosses /
+#               NoninterestIncome instead of CostOfRevenue / GrossProfit.
+#   insurers  — report PremiumsEarnedNet / InsuranceLossesAndLossAdjustment
+#               / BenefitsLossesAndExpenses.
+#   energy    — report OilAndGasPropertyFullCostMethod* on the balance
+#               sheet; also often skip CostOfRevenue and fold everything
+#               into a single "Total Costs and Expenses" line.
+#
+# Everything else is "general" — the existing _SEC_*_MAP handles them.
+#
+# SIC code ranges (SEC list):
+#   6020–6199  Depository Institutions & Commercial Banks
+#   6310–6411  Life Insurance, Hospital & Medical, Fire/Marine/Casualty
+#   1311       Crude Petroleum & Natural Gas (upstream)
+#   2911       Petroleum Refining
+#
+# Adding more sectors later is just one `((lo, hi), "name")` tuple plus a
+# matching supplement in `data_fetcher._SECTOR_FIELD_MAP`.
+
+_SIC_SECTOR_RANGES = [
+    ((6020, 6199), "bank"),
+    ((6310, 6411), "insurer"),
+    ((1311, 1311), "energy"),
+    ((2911, 2911), "energy"),
+]
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _sec_fetch_submission_meta(ticker: str) -> Optional[dict]:
+    """Fetch `submissions/CIK{n}.json` for a ticker.
+
+    Cached for 24h because SIC codes almost never change. Returns None on
+    any failure so callers can fall back to "general" sector.
+    """
+    # Lazy import to avoid a circular dependency with data_fetcher, which
+    # imports `get_sic_sector` from this module inside `_augment_field_map`.
+    from data_fetcher import _sec_get_cik
+    cik = _sec_get_cik(ticker)
+    if cik is None:
+        return None
+    cik_padded = str(cik).zfill(10)
+    url = f"https://data.sec.gov/submissions/CIK{cik_padded}.json"
+    try:
+        resp = requests.get(url, timeout=10, headers=_SEC_HEADERS)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:
+        return None
+
+
+def get_sic_sector(ticker: str) -> str:
+    """Return one of {"bank", "insurer", "energy", "general"} for *ticker*.
+
+    Reads the SIC code from SEC's submissions endpoint (cached). Tickers
+    whose SIC is unknown or outside the ranges above fall through to
+    "general", which means the existing `_SEC_*_MAP` fields are used
+    unchanged. Never raises — returns "general" on any error.
+    """
+    meta = _sec_fetch_submission_meta(ticker)
+    if not meta:
+        return "general"
+    try:
+        sic = int(meta.get("sic") or 0)
+    except (TypeError, ValueError):
+        return "general"
+    for (lo, hi), sector in _SIC_SECTOR_RANGES:
+        if lo <= sic <= hi:
+            return sector
+    return "general"
+
+
+def is_turnover_applicable(sector: str) -> bool:
+    """Return True iff DSO/DPO/DIO turnover metrics make sense for *sector*.
+
+    Banks and insurers don't have meaningful receivables / payables /
+    inventory in the traditional sense — their "working capital" is loans,
+    premiums, and reserves, not merchandise flow. Rendering DSO/DPO/DIO
+    for them would be misleading.
+    """
+    return sector not in {"bank", "insurer"}
+
+
 # XBRL tag mappings for income statement
 _XBRL_INCOME_TAGS = {
     "Total Revenue": [
