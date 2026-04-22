@@ -325,7 +325,13 @@ def patch():
             # Mark done once all elements are tagged
             "if(mc&&mc.getAttribute('role')){done=true;obs.disconnect()}"
             "});"
-            "obs.observe(document.body,{childList:true,subtree:true})"
+            # Guard against document.body being null when this inline
+            # script runs before </body> is parsed (causes TypeError:
+            # "parameter 1 is not of type 'Node'"). Retry until ready.
+            "(function _attach(){"
+            "if(document.body)obs.observe(document.body,{childList:true,subtree:true});"
+            "else setTimeout(_attach,50)"
+            "})();"
             "});"
             "</script>\n"
         )

@@ -2225,7 +2225,10 @@ def _inject_pill_hover_js(metric_map, color_map):
             clearTimeout(_deb);
             _deb = setTimeout(function() {{ setupPillHovers(); }}, 200);
         }});
-        obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+        (function _attach() {{
+            if (parentDoc.body) obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+            else setTimeout(_attach, 50);
+        }})();
         setupPillHovers();
         setInterval(function() {{ setupPillHovers(); }}, 3000);
     }})();
@@ -2391,7 +2394,10 @@ def _inject_sankey_click_js(metric_map, section="income"):
             clearTimeout(_deb);
             _deb = setTimeout(function() {{ attach(); }}, 200);
         }});
-        obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+        (function _attach() {{
+            if (parentDoc.body) obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+            else setTimeout(_attach, 50);
+        }})();
         attach();
         setInterval(function() {{ attach(); }}, 3000);
     }})();
@@ -2628,7 +2634,10 @@ def _inject_node_hover_js(metric_map, color_map):
             clearTimeout(_deb);
             _deb = setTimeout(function() {{ attach(); }}, 200);
         }});
-        obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+        (function _attach() {{
+            if (parentDoc.body) obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+            else setTimeout(_attach, 50);
+        }})();
         attach();
         setInterval(function() {{ attach(); }}, 3000);
     }})();
@@ -2724,7 +2733,10 @@ def _inject_delta_color_js():
             clearTimeout(_debounce);
             _debounce = setTimeout(function() { colorize(); }, 200);
         });
-        obs.observe(parentDoc.body, {childList: true, subtree: true});
+        (function _attach() {
+            if (parentDoc.body) obs.observe(parentDoc.body, {childList: true, subtree: true});
+            else setTimeout(_attach, 50);
+        })();
         colorize();
         /* Poll frequently as fallback — catches in-place Plotly updates */
         setInterval(function() { colorize(); }, 1500);
@@ -2961,7 +2973,10 @@ def _inject_kpi_hover_js(kpi_labels_to_nodes, color_map, section="income"):
             clearTimeout(_deb);
             _deb = setTimeout(function() {{ setupKpiHovers(); }}, 200);
         }});
-        obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+        (function _attach() {{
+            if (parentDoc.body) obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+            else setTimeout(_attach, 50);
+        }})();
         setupKpiHovers();
         setInterval(function() {{ setupKpiHovers(); }}, 3000);
     }})();
@@ -3177,7 +3192,10 @@ def _inject_link_hover_js(color_map):
             clearTimeout(_deb);
             _deb = setTimeout(function() {{ attach(); }}, 200);
         }});
-        obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+        (function _attach() {{
+            if (parentDoc.body) obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+            else setTimeout(_attach, 50);
+        }})();
         attach();
         setInterval(function() {{ attach(); }}, 3000);
     }})();
@@ -3419,7 +3437,10 @@ def _inject_drag_persist_js(ticker, view):
             clearTimeout(_deb);
             _deb = setTimeout(function() {{ setup(); }}, 300);
         }});
-        obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+        (function _attach() {{
+            if (parentDoc.body) obs.observe(parentDoc.body, {{childList: true, subtree: true}});
+            else setTimeout(_attach, 50);
+        }})();
         setup();
         setInterval(function() {{ setup(); }}, 3000);
     }})();

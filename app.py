@@ -4536,17 +4536,30 @@ components.html("""
     setTimeout(fixPopoverWidth, 1500);
 
 
-    // Re-apply on DOM mutations (Streamlit re-renders)
+    // Re-apply on DOM mutations (Streamlit re-renders).
+    // Guard: `doc.body` can be null when this iframe script runs before
+    // the parent frame finishes parsing its <body>. Observing a null
+    // target raises a TypeError ("parameter 1 is not of type 'Node'").
+    // Defer + retry until the parent body exists.
     var observer = new MutationObserver(function() {
         setTimeout(applyStyles, 100);
         setTimeout(fixPopoverWidth, 50);
     });
-    observer.observe(doc.body, { childList: true, subtree: true });
+    function attachObserver() {
+        if (doc.body) {
+            observer.observe(doc.body, { childList: true, subtree: true });
+        } else {
+            setTimeout(attachObserver, 50);
+        }
+    }
+    attachObserver();
 
     // Sidebar click handler is in a separate early-loading components.html
     // near the nav bar (not here) so it loads before the page finishes.
 
-    // Fix popover width - Streamlit emotion CSS overrides regular CSS
+    // Fix popover width - Streamlit emotion CSS overrides regular CSS.
+    // Guard: same `document.body == null` race as the observer above; the
+    // srcdoc iframe's own body may not be parsed when this IIFE runs.
     (function() {
         var popoverObserver = new MutationObserver(function(mutations) {
             var popovers = document.querySelectorAll('[data-testid="stPopoverBody"]');
@@ -4558,7 +4571,14 @@ components.html("""
                 }
             });
         });
-        popoverObserver.observe(document.body, { childList: true, subtree: true });
+        function attachPopoverObserver() {
+            if (document.body) {
+                popoverObserver.observe(document.body, { childList: true, subtree: true });
+            } else {
+                setTimeout(attachPopoverObserver, 50);
+            }
+        }
+        attachPopoverObserver();
     })();
 
 })();
