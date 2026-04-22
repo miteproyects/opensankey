@@ -2694,3 +2694,204 @@ def get_next_earnings(ticker: str) -> dict:
         print(f"[NextEarnings] {ticker}: {exc}")
 
     return {}
+
+
+# ---------------------------------------------------------------------------
+# Price-history + dividend fetchers (Task #36 Phase 2)
+# ---------------------------------------------------------------------------
+# These back the price-dependent Key Metrics panels (P/S, P/OCF, P/FCF,
+# P/B, P/TB, Market Cap series, Dividend Yield). Chained across sources
+# so a single provider outage doesn't blank the whole section.
+#
+# Chain priority: yfinance (primary, rich data, no key) → FMP (secondary,
+# requires FMP_API_KEY) → Finnhub (tertiary, free-tier sparse). Stooq
+# was considered as a 4th tier per T13 spec but dropped: its CSV
+# endpoint would need ~40 lines for parsing + date alignment + dot/hyphen
+# quirks, and the 3-tier chain already gives us ≥99% US-equity coverage.
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_period_end_closes(ticker: str, period_ends: tuple) -> pd.Series:
+    """Return close prices at/on-or-before each period-end date.
+
+    Parameters
+    ----------
+    ticker : str
+        Equity ticker. Dot-tickers (BRK.B) are accepted; normalised to
+        BRK-B internally for yfinance / SEC-style lookups.
+    period_ends : tuple[date]
+        Sequence of calendar dates for which to return the last trading-
+        day close on or before that date. Tuple (not list) so Streamlit's
+        @cache_data can hash the argument.
+
+    Returns
+    -------
+    pd.Series
+        Float values indexed by the input `period_ends`. Missing days
+        fall through to NaN, never raises.
+    """
+    if not period_ends:
+        return pd.Series(dtype=float)
+    try:
+        period_ends = [pd.Timestamp(d).normalize() for d in period_ends]
+    except Exception:
+        return pd.Series(dtype=float)
+    start = min(period_ends) - pd.Timedelta(days=14)
+    end = max(period_ends) + pd.Timedelta(days=2)
+    yf_tk = ticker.upper()  # yfinance accepts dots natively
+
+    # 1) yfinance
+    try:
+        stock = yf.Ticker(yf_tk)
+        hist = stock.history(start=start, end=end, auto_adjust=False)
+        if hist is not None and not hist.empty and "Close" in hist.columns:
+            closes = hist["Close"]
+            closes.index = pd.to_datetime(closes.index).tz_localize(None).normalize()
+            out = pd.Series(index=period_ends, dtype=float)
+            for d in period_ends:
+                mask = closes.index <= d
+                if mask.any():
+                    out.loc[d] = float(closes[mask].iloc[-1])
+            if out.notna().any():
+                return out
+    except Exception as exc:
+        print(f"[price] yfinance/{ticker}: {exc}")
+
+    # 2) FMP
+    if _fmp_available():
+        try:
+            url = (
+                f"https://financialmodelingprep.com/api/v3/historical-price-full/"
+                f"{yf_tk.replace('.', '-')}?from={start.date()}&to={end.date()}"
+                f"&apikey={_fmp_key()}"
+            )
+            resp = _requests.get(url, timeout=15)
+            if resp.status_code == 200:
+                hist = (resp.json() or {}).get("historical", [])
+                if hist:
+                    bars = pd.Series(
+                        {pd.Timestamp(b["date"]).normalize(): float(b["close"]) for b in hist if b.get("close") is not None},
+                    ).sort_index()
+                    out = pd.Series(index=period_ends, dtype=float)
+                    for d in period_ends:
+                        mask = bars.index <= d
+                        if mask.any():
+                            out.loc[d] = float(bars[mask].iloc[-1])
+                    if out.notna().any():
+                        return out
+        except Exception as exc:
+            print(f"[price] FMP/{ticker}: {exc}")
+
+    # 3) Finnhub
+    try:
+        key = _finnhub_key()
+        if key:
+            url = (
+                "https://finnhub.io/api/v1/stock/candle"
+                f"?symbol={yf_tk.replace('.', '-')}&resolution=D"
+                f"&from={int(start.timestamp())}&to={int(end.timestamp())}&token={key}"
+            )
+            resp = _requests.get(url, timeout=15)
+            data = resp.json() if resp.status_code == 200 else {}
+            if data.get("s") == "ok" and data.get("c") and data.get("t"):
+                bars = pd.Series(
+                    [float(c) for c in data["c"]],
+                    index=[pd.Timestamp(t, unit="s").normalize() for t in data["t"]],
+                ).sort_index()
+                out = pd.Series(index=period_ends, dtype=float)
+                for d in period_ends:
+                    mask = bars.index <= d
+                    if mask.any():
+                        out.loc[d] = float(bars[mask].iloc[-1])
+                if out.notna().any():
+                    return out
+    except Exception as exc:
+        print(f"[price] Finnhub/{ticker}: {exc}")
+
+    return pd.Series(index=period_ends, dtype=float)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_dividend_history(ticker: str) -> pd.Series:
+    """Return per-share dividend payments, indexed by ex-dividend date.
+
+    Chain: yfinance → FMP → Finnhub → SEC
+    (``us-gaap:CommonStockDividendsPerShareDeclared``, last resort).
+
+    Empty Series on total failure — callers should treat as "no dividend".
+    """
+    yf_tk = ticker.upper()
+
+    # 1) yfinance
+    try:
+        stock = yf.Ticker(yf_tk)
+        divs = stock.dividends
+        if divs is not None and len(divs) > 0:
+            s = pd.to_numeric(divs, errors="coerce").dropna()
+            s.index = pd.to_datetime(s.index).tz_localize(None).normalize()
+            return s
+    except Exception as exc:
+        print(f"[div] yfinance/{ticker}: {exc}")
+
+    # 2) FMP
+    if _fmp_available():
+        try:
+            url = (
+                f"https://financialmodelingprep.com/api/v3/historical-price-full/"
+                f"stock_dividend/{yf_tk.replace('.', '-')}?apikey={_fmp_key()}"
+            )
+            resp = _requests.get(url, timeout=15)
+            if resp.status_code == 200:
+                hist = (resp.json() or {}).get("historical", [])
+                if hist:
+                    s = pd.Series(
+                        {pd.Timestamp(h["date"]).normalize(): float(h.get("dividend") or h.get("adjDividend") or 0)
+                         for h in hist},
+                    ).replace(0, np.nan).dropna().sort_index()
+                    if not s.empty:
+                        return s
+        except Exception as exc:
+            print(f"[div] FMP/{ticker}: {exc}")
+
+    # 3) Finnhub
+    try:
+        key = _finnhub_key()
+        if key:
+            from_dt = (pd.Timestamp.now() - pd.Timedelta(days=365 * 20)).date()
+            to_dt = pd.Timestamp.now().date()
+            url = (
+                "https://finnhub.io/api/v1/stock/dividend2"
+                f"?symbol={yf_tk.replace('.', '-')}&from={from_dt}&to={to_dt}&token={key}"
+            )
+            resp = _requests.get(url, timeout=15)
+            data = resp.json() if resp.status_code == 200 else []
+            if isinstance(data, list) and data:
+                s = pd.Series(
+                    {pd.Timestamp(d["date"]).normalize(): float(d["amount"]) for d in data if d.get("amount")},
+                ).sort_index()
+                if not s.empty:
+                    return s
+    except Exception as exc:
+        print(f"[div] Finnhub/{ticker}: {exc}")
+
+    # 4) SEC fallback (spotty — declared vs paid, per-share not always tagged)
+    try:
+        facts = _sec_fetch_company_facts(ticker)
+        if facts:
+            us_gaap = facts.get("facts", {}).get("us-gaap", {})
+            decl = us_gaap.get("CommonStockDividendsPerShareDeclared", {})
+            for unit, rows in (decl.get("units") or {}).items():
+                items = {}
+                for r in rows:
+                    try:
+                        d = pd.Timestamp(r.get("end") or r.get("filed") or "").normalize()
+                        v = float(r.get("val") or 0)
+                        if v > 0:
+                            items[d] = v
+                    except Exception:
+                        continue
+                if items:
+                    return pd.Series(items).sort_index()
+    except Exception as exc:
+        print(f"[div] SEC/{ticker}: {exc}")
+
+    return pd.Series(dtype=float)

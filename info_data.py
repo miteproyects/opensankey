@@ -1305,3 +1305,86 @@ def compute_key_metrics_group_a(
         out["Graham Number"] = np.nan
 
     return out
+
+
+# ---------------------------------------------------------------------------
+# Key Metrics — Group B (Phase 2 price-dependent panels, Task #36)
+# ---------------------------------------------------------------------------
+# Group B needs per-period market cap (closes × shares) to compute the
+# "P/X" ratios and Dividend Yield. Dividend Yield uses TTM dividends as
+# the numerator, period-end price as the denominator. Net Buyback Yield
+# uses TTM (Stock Issued - Stock Repurchased) as the numerator, period-
+# end market cap as the denominator.
+
+def compute_net_buyback_yield_ttm(
+    cashflow_df: pd.DataFrame,
+    market_cap_series: pd.Series,
+) -> pd.Series:
+    """Return TTM Net Buyback Yield %, aligned to *market_cap_series*' index.
+
+    Numerator : trailing-4-quarters sum of (Stock Issued − Stock Repurchased),
+                sign-flipped so that NET buybacks come out positive. Stock
+                Repurchased is reported as a positive outflow in cashflow
+                statements (payments for repurchase), Stock Issued as a
+                positive inflow.
+    Denominator : `market_cap_series` (period-end market cap, shares × close).
+
+    Sign convention: POSITIVE Net Buyback Yield = buybacks > issuance (net
+    shrink). NEGATIVE = net dilution. Matches how GuruFocus/QuarterCharts
+    render it.
+
+    Returns empty Series on any missing input.
+    """
+    if cashflow_df is None or cashflow_df.empty or market_cap_series is None or market_cap_series.empty:
+        return pd.Series(dtype=float)
+    if "Stock Repurchased" not in cashflow_df.columns and "Stock Issued" not in cashflow_df.columns:
+        return pd.Series(dtype=float)
+
+    repurchased = pd.to_numeric(
+        cashflow_df.get("Stock Repurchased", pd.Series(dtype=float)),
+        errors="coerce",
+    ).fillna(0)
+    issued = pd.to_numeric(
+        cashflow_df.get("Stock Issued", pd.Series(dtype=float)),
+        errors="coerce",
+    ).fillna(0)
+    # Net buyback flow (positive = net buybacks). Repurchased is an outflow
+    # so we subtract; Issued is an inflow so it reduces net buyback.
+    net_buyback = repurchased.abs() - issued.abs()
+    # TTM = rolling 4-quarter sum. For annual frames pass a 1-period window
+    # (caller must align first).
+    window = 4 if len(net_buyback) >= 4 else max(1, len(net_buyback))
+    ttm = net_buyback.rolling(window, min_periods=1).sum()
+
+    # Align both series on a common index, then compute the ratio.
+    common = ttm.index.intersection(market_cap_series.index)
+    if common.empty:
+        return pd.Series(dtype=float)
+    yield_pct = (ttm.loc[common] / market_cap_series.loc[common].replace(0, np.nan) * 100).round(2)
+    return yield_pct
+
+
+def compute_cumulative_shares_change(
+    shares_series: pd.Series,
+    years: int = 5,
+) -> Optional[float]:
+    """Return cumulative shares change over the last *years* years, in %.
+
+    Negative = net buybacks / share count shrank.
+    Positive = net dilution.
+    Returns None if not enough history (need at least `years * 4` quarterly
+    rows, i.e. the earliest available sample).
+    """
+    if shares_series is None or shares_series.empty:
+        return None
+    s = pd.to_numeric(shares_series, errors="coerce").dropna()
+    if s.empty:
+        return None
+    window = years * 4
+    if len(s) < window + 1:
+        return None
+    latest = s.iloc[-1]
+    anchor = s.iloc[-(window + 1)]
+    if anchor == 0:
+        return None
+    return round((latest - anchor) / anchor * 100, 2)

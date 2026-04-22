@@ -72,7 +72,10 @@ from info_data import (
     get_sic_sector,
     is_turnover_applicable,
     compute_key_metrics_group_a,
+    compute_net_buyback_yield_ttm,
+    compute_cumulative_shares_change,
 )
+from data_fetcher import fetch_period_end_closes, fetch_dividend_history
 
 # ─── Database module ───────────────────────────────────────────────────────
 from database import initialize_schema, is_db_ready, get_testing_mode_enabled
@@ -115,6 +118,13 @@ from charts import (
     create_fcf_per_share_chart,
     create_roe_chart,
     create_graham_chart,
+    # Task #36 Phase 2 price-dependent charts
+    create_ps_chart,
+    create_pocf_chart,
+    create_pfcf_chart,
+    create_pb_chart,
+    create_ptb_chart,
+    create_dividend_yield_chart,
 )
 
 
@@ -4415,7 +4425,139 @@ if st.session_state.show_metrics:
         _pfy_lbl = str(_partial_fy)
         if _pfy_lbl in _km_a_df.index:
             _km_a_df = _km_a_df.drop(_pfy_lbl)
+
+    # ---- Task #36 Phase 2 — Group B Key Metrics (price-dependent) ----
+    # Fetch period-end closes + dividends once per page render, then derive
+    # Market Cap / P/S / P/OCF / P/FCF / P/B / P/TB / Dividend Yield /
+    # Net Buyback Yield TTM columns. All graceful — if price fetch fails,
+    # Phase 2 charts silently render empty figures and the Phase 1 panels
+    # are unaffected.
+    _5y_change = None
+    _10y_change = None
+    if not _km_a_df.empty and not income_df.empty:
+        try:
+            # Map each fiscal-period label to its actual calendar-quarter end.
+            _period_ends = []
+            _period_to_end = {}
+            for lbl in _km_a_df.index:
+                end_dt = _period_label_to_date(lbl) if hasattr(locals().get("_period_label_to_date"), "__call__") else None
+                if end_dt is None:
+                    # Fallback: parse fiscal-quarter or year label directly.
+                    try:
+                        if lbl.startswith("Q"):
+                            q = int(lbl[1])
+                            y = int(lbl.split()[-1])
+                            end_month = {1: 3, 2: 6, 3: 9, 4: 12}[q]
+                            end_dt = pd.Timestamp(year=y, month=end_month, day=1) + pd.offsets.MonthEnd(0)
+                        else:
+                            y = int(lbl)
+                            end_dt = pd.Timestamp(year=y, month=12, day=31)
+                    except Exception:
+                        continue
+                _period_ends.append(end_dt.date())
+                _period_to_end[lbl] = end_dt
+
+            _shares_series = None
+            for _col in ("Diluted Average Shares", "Basic Average Shares"):
+                if _col in income_df.columns:
+                    _s = pd.to_numeric(income_df[_col], errors="coerce").replace(0, np.nan)
+                    if _s.notna().any():
+                        _shares_series = _s
+                        break
+
+            _closes = fetch_period_end_closes(ticker, tuple(_period_ends))
+            _closes_by_label = pd.Series(
+                {lbl: _closes.get(_period_to_end[lbl].normalize(), np.nan)
+                 for lbl in _km_a_df.index if lbl in _period_to_end},
+                dtype=float,
+            )
+
+            _km_a_df["Close"] = _closes_by_label
+
+            if _shares_series is not None:
+                _shares_aligned = _shares_series.reindex(_km_a_df.index)
+                _market_cap = (_closes_by_label * _shares_aligned).rename("Market Cap")
+                _km_a_df["Market Cap"] = _market_cap
+
+                # P/S = close / revenue-per-share-TTM.
+                if "Revenue" in income_df.columns:
+                    _rev_ttm = pd.to_numeric(income_df["Revenue"], errors="coerce").rolling(4, min_periods=1).sum()
+                    _rev_ttm = _rev_ttm.reindex(_km_a_df.index)
+                    _km_a_df["P/S"] = (_market_cap / _rev_ttm.replace(0, np.nan)).round(2)
+
+                # P/OCF
+                if not cashflow_df.empty and "Operating CF" in cashflow_df.columns:
+                    _ocf_ttm = pd.to_numeric(cashflow_df["Operating CF"], errors="coerce").rolling(4, min_periods=1).sum()
+                    _ocf_ttm = _ocf_ttm.reindex(_km_a_df.index)
+                    _km_a_df["P/OCF"] = (_market_cap / _ocf_ttm.replace(0, np.nan)).round(2)
+
+                # P/FCF
+                if not cashflow_df.empty and "Free CF" in cashflow_df.columns:
+                    _fcf_ttm = pd.to_numeric(cashflow_df["Free CF"], errors="coerce").rolling(4, min_periods=1).sum()
+                    _fcf_ttm = _fcf_ttm.reindex(_km_a_df.index)
+                    _km_a_df["P/FCF"] = (_market_cap / _fcf_ttm.replace(0, np.nan)).round(2)
+
+                # P/B = close / BVPS
+                if "BVPS" in _km_a_df.columns:
+                    _km_a_df["P/B"] = (_closes_by_label / _km_a_df["BVPS"].replace(0, np.nan)).round(2)
+
+                # P/TB = close / (BVPS − (Goodwill + Intangibles)/shares)
+                _intangible_per_share = pd.Series(dtype=float)
+                if not balance_df.empty:
+                    _intangibles = (
+                        pd.to_numeric(balance_df.get("Goodwill", 0), errors="coerce").fillna(0)
+                        + pd.to_numeric(balance_df.get("Intangible Assets", 0), errors="coerce").fillna(0)
+                    )
+                    _intangible_per_share = (
+                        _intangibles.reindex(_km_a_df.index) / _shares_aligned
+                    )
+                if "BVPS" in _km_a_df.columns:
+                    _tbvps = _km_a_df["BVPS"] - _intangible_per_share.fillna(0)
+                    _km_a_df["P/TB"] = (_closes_by_label / _tbvps.replace(0, np.nan)).round(2)
+
+                # Dividend Yield % = TTM dividends / close × 100
+                try:
+                    _divs = fetch_dividend_history(ticker)
+                    if not _divs.empty:
+                        _div_by_period = pd.Series(dtype=float)
+                        for lbl, end_dt in _period_to_end.items():
+                            window_start = end_dt - pd.Timedelta(days=365)
+                            mask = (_divs.index > window_start) & (_divs.index <= end_dt)
+                            _div_by_period.loc[lbl] = float(_divs[mask].sum())
+                        _km_a_df["Dividend Yield %"] = (
+                            _div_by_period / _closes_by_label.replace(0, np.nan) * 100
+                        ).round(2)
+                except Exception:
+                    pass
+
+                # Net Buyback Yield TTM % — same-series slot as Shares YoY
+                # on create_shares_variation_chart (yellow second line).
+                try:
+                    _nby = compute_net_buyback_yield_ttm(cashflow_df, _market_cap)
+                    if not _nby.empty:
+                        _km_a_df["Net Buyback Yield TTM %"] = _nby.reindex(_km_a_df.index)
+                except Exception:
+                    pass
+
+                # Cumulative share change pills (5Y / 10Y).
+                _5y_change = compute_cumulative_shares_change(_shares_series, years=5)
+                _10y_change = compute_cumulative_shares_change(_shares_series, years=10)
+        except Exception as _exc:
+            print(f"[keymetrics-phase2] {ticker}: {_exc}")
+
+    # ---- Render Phase 1 + Phase 2 chart tuples ----
     if not _km_a_df.empty:
+        # Phase 2: Market Cap + Dividend Yield go first in the grid.
+        km_charts.append((create_market_cap_chart(_km_a_df), "market_cap"))
+        km_charts.append((create_dividend_yield_chart(_km_a_df), "dividend_yield"))
+        # Price-valuation ratios cluster.
+        km_charts.append((create_ps_chart(_km_a_df), "ps_ratio"))
+        km_charts.append((create_pocf_chart(_km_a_df), "pocf_ratio"))
+        km_charts.append((create_pfcf_chart(_km_a_df), "pfcf_ratio"))
+        km_charts.append((create_pb_chart(_km_a_df), "pb_ratio"))
+        km_charts.append((create_ptb_chart(_km_a_df), "ptb_ratio"))
+        # Phase 1 slate (Shares Variation will carry the yellow Net
+        # Buyback Yield TTM line when present).
         km_charts.append((create_shares_variation_chart(_km_a_df), "shares_variation"))
         km_charts.append((create_bvps_chart(_km_a_df), "bvps"))
         km_charts.append((create_cash_per_share_chart(_km_a_df), "cash_per_share"))
@@ -4446,6 +4588,36 @@ if st.session_state.show_metrics:
             st.metric("Quick Ratio", _fmt(info.get("quick_ratio"), ratio=True))
         with m2[3]:
             st.metric("Revenue Growth", _fmt(info.get("revenue_growth"), pct=True))
+
+    # ---- Task #36 Phase 2 — Cumulative Share Change pills (5Y / 10Y) ----
+    # Pills sit above the Key Metrics chart grid per T13. Green when the
+    # count shrank (buybacks), red when it grew (dilution) — GuruFocus-
+    # style using st.metric's `delta_color="inverse"` trick.
+    if _5y_change is not None or _10y_change is not None:
+        _pill_cols = st.columns(2)
+        def _fmt_share_change(v):
+            if v is None:
+                return "—"
+            sign = "+" if v > 0 else ""
+            return f"{sign}{v:.1f}%"
+        with _pill_cols[0]:
+            st.metric(
+                "5-Year Share Change",
+                _fmt_share_change(_5y_change),
+                delta=_fmt_share_change(_5y_change) if _5y_change is not None else None,
+                delta_color="inverse" if _5y_change is not None else "off",
+                help="Cumulative change in diluted share count over the last 5 years. "
+                     "Negative = net buybacks.",
+            )
+        with _pill_cols[1]:
+            st.metric(
+                "10-Year Share Change",
+                _fmt_share_change(_10y_change),
+                delta=_fmt_share_change(_10y_change) if _10y_change is not None else None,
+                delta_color="inverse" if _10y_change is not None else "off",
+                help="Cumulative change in diluted share count over the last 10 years. "
+                     "Negative = net buybacks.",
+            )
 
     if km_charts:
         _km_captions = {}

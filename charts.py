@@ -457,13 +457,76 @@ def create_pe_chart(df: pd.DataFrame) -> go.Figure:
 
 
 def create_market_cap_chart(df: pd.DataFrame) -> go.Figure:
-    """Bar – Market Capitalisation."""
+    """Bar — Market Capitalization as a time series.
+
+    Task #36 Phase 2 upgrade: was a single-value scalar bar; now renders
+    the full period-end Market Cap column (close × shares, computed in
+    app.py's Key Metrics block from fetch_period_end_closes).
+    """
     col = "Market Cap"
-    if df.empty or col not in df.columns:
+    if df.empty or col not in df.columns or not df[col].notna().any():
         return _empty_fig()
     x = _x(df)
-    fig = go.Figure(go.Bar(x=x, y=df[col], name="Market Cap", marker_color=COLORS["blue"]))
+    fig = go.Figure(go.Bar(x=x, y=df[col], name="Market Cap",
+                           marker_color=COLORS["blue"]))
     fig.update_layout(**_layout("Market Capitalization"))
+    fig.update_yaxes(tickprefix="$")
+    return fig
+
+
+def _create_ratio_line(df: pd.DataFrame, col: str, title: str, color_key: str = "blue") -> go.Figure:
+    """Internal — line chart with `x` suffix for valuation-ratio series."""
+    if df.empty or col not in df.columns or not df[col].notna().any():
+        return _empty_fig()
+    x = _x(df)
+    fig = go.Figure(go.Scatter(
+        x=x, y=df[col], name=col, mode="lines+markers",
+        line=dict(width=3, color=COLORS[color_key]),
+        marker=dict(size=8, color=COLORS[color_key]),
+    ))
+    fig.update_layout(**_layout(title))
+    fig.update_yaxes(ticksuffix="x")
+    return fig
+
+
+def create_ps_chart(df: pd.DataFrame) -> go.Figure:
+    """Line — Price / Sales ratio."""
+    return _create_ratio_line(df, "P/S", "Price / Sales", "blue")
+
+
+def create_pocf_chart(df: pd.DataFrame) -> go.Figure:
+    """Line — Price / Operating Cash Flow ratio."""
+    return _create_ratio_line(df, "P/OCF", "Price / Operating CF", "green")
+
+
+def create_pfcf_chart(df: pd.DataFrame) -> go.Figure:
+    """Line — Price / Free Cash Flow ratio."""
+    return _create_ratio_line(df, "P/FCF", "Price / Free Cash Flow", "yellow")
+
+
+def create_pb_chart(df: pd.DataFrame) -> go.Figure:
+    """Line — Price / Book ratio."""
+    return _create_ratio_line(df, "P/B", "Price / Book", "purple")
+
+
+def create_ptb_chart(df: pd.DataFrame) -> go.Figure:
+    """Line — Price / Tangible Book ratio."""
+    return _create_ratio_line(df, "P/TB", "Price / Tangible Book", "teal")
+
+
+def create_dividend_yield_chart(df: pd.DataFrame) -> go.Figure:
+    """Line — Dividend Yield % (TTM dividends / period-end price)."""
+    col = "Dividend Yield %"
+    if df.empty or col not in df.columns or not df[col].notna().any():
+        return _empty_fig()
+    x = _x(df)
+    fig = go.Figure(go.Scatter(
+        x=x, y=df[col], name="Dividend Yield", mode="lines+markers",
+        line=dict(width=3, color=COLORS["green"]),
+        marker=dict(size=8, color=COLORS["green"]),
+    ))
+    fig.update_layout(**_layout("Dividend Yield (%)"))
+    fig.update_yaxes(ticksuffix="%")
     return fig
 
 
