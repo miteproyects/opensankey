@@ -1932,26 +1932,23 @@ def get_cash_flow(ticker: str, quarterly: bool = True) -> pd.DataFrame:
     Data source priority: SEC EDGAR → FMP → yfinance.
     """
     # 1) SEC EDGAR
+    #
+    # Task #34 (2026-04-21): removed the previous sparse-quarter filter
+    # (`_has_recent and _has_all_q`). That filter was dropping SEC data
+    # for tickers like AAPL whose 2008–2010 cash-flow XBRL has missing
+    # Q1/Q3 rows — the check rejected the entire frame instead of
+    # accepting the quarters that ARE present and letting
+    # `_gap_fill_quarterly` backfill the holes from Finnhub/yfinance.
+    # Keeping the behavior symmetric with `get_income_statement` and
+    # `get_balance_sheet`, which accept any non-empty SEC frame with
+    # ≥4 periods and rely on gap-fill to patch the gaps.
     try:
         df = _sec_get_cash_flow(ticker, quarterly=quarterly)
         if not df.empty and len(df) >= 4:
-            # For quarterly data, verify we have consecutive quarters (not just Q1+Q4)
-            from datetime import datetime as _dt
-            _cur_year = _dt.now().year
-            _has_recent = any(str(_cur_year) in lbl or str(_cur_year - 1) in lbl for lbl in df.index)
+            print(f"[SEC] cash-flow/{ticker}: {len(df)} periods")
             if quarterly:
-                # Check for consecutive quarter coverage: need Q1-Q4 patterns
-                _q_set = set(lbl.split()[0] for lbl in df.index if lbl.startswith("Q"))
-                _has_all_q = len(_q_set) >= 4  # must have Q1, Q2, Q3, Q4
-            else:
-                _has_all_q = True
-            if _has_recent and _has_all_q:
-                print(f"[SEC] cash-flow/{ticker}: {len(df)} periods")
-                if quarterly:
-                    df = _gap_fill_quarterly(df, ticker, "cashflow", primary="sec")
-                return df
-            else:
-                print(f"[SEC] cash-flow/{ticker}: sparse quarters ({list(df.index[:6])}…), skipping")
+                df = _gap_fill_quarterly(df, ticker, "cashflow", primary="sec")
+            return df
     except Exception as exc:
         print(f"[SEC] cash-flow/{ticker} error: {exc}")
 
