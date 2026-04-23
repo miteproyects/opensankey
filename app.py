@@ -130,6 +130,7 @@ from charts import (
     # Task #36 Phase 3 Key Metrics charts
     create_roic_chart,
     create_turnover_efficiency_chart,
+    create_turnover_not_applicable_fig,
     _empty_fig as _empty_chart_fig,
 )
 
@@ -4482,7 +4483,12 @@ if st.session_state.show_metrics:
 
             if _shares_series is not None:
                 _shares_aligned = _shares_series.reindex(_km_a_df.index)
-                _market_cap = (_closes_by_label * _shares_aligned).rename("Market Cap")
+                # Clip to non-negative: close × shares should always be ≥0,
+                # but NaN shares or bad sign-flip in the intermediate series
+                # can produce spurious negative bars on some bank/insurer
+                # frames (observed on JPM where early-period shares
+                # alignment produced $-1T / $-1.5T bars).
+                _market_cap = (_closes_by_label * _shares_aligned).clip(lower=0).rename("Market Cap")
                 _km_a_df["Market Cap"] = _market_cap
 
                 # P/S = close / revenue-per-share-TTM.
@@ -4621,10 +4627,9 @@ if st.session_state.show_metrics:
         if is_turnover_applicable(_sector) and not _turnover_df.empty:
             km_charts.append((create_turnover_efficiency_chart(_turnover_df), "turnover"))
         else:
-            km_charts.append((
-                _empty_chart_fig("Not applicable for this sector"),
-                "turnover",
-            ))
+            # Titled placeholder so render_charts emits an <h2> for the slot
+            # — a title-less empty fig gets silently dropped from the grid.
+            km_charts.append((create_turnover_not_applicable_fig(), "turnover"))
 
     # Metric cards
     if "metric_cards" in _blocked_chart_keys:
@@ -4684,12 +4689,17 @@ if st.session_state.show_metrics:
         _km_captions = {}
         _pe_cap = _partial_fy_caption_keymetrics()
         if _pe_cap:
-            # P/E, BVPS, ROE, and Graham all depend on per-period Net
-            # Income / Equity / Diluted EPS / BVPS, so they're all
-            # distorted by a partial current-year column in the same
-            # way the P/E chart is. Surface the same caption above
-            # each so the user isn't guessing why 2026 dips.
-            for _k in ("pe_ratio", "bvps", "roe", "graham"):
+            # Every chart whose numerator depends on per-period EPS,
+            # Net Income, Revenue, Operating CF, Free CF, Stockholders
+            # Equity, or Shares is distorted by a partial current-year
+            # column in the same way P/E is. Surface the caption on all
+            # of them per T13 "any new ratio chart that depends on EPS
+            # or shares".
+            for _k in (
+                "pe_ratio", "bvps", "roe", "graham",
+                "ps_ratio", "pocf_ratio", "pfcf_ratio", "pb_ratio", "ptb_ratio",
+                "dividend_yield", "roic",
+            ):
                 _km_captions[_k] = _pe_cap
         render_charts(km_charts, "keymetrics", _blocked_chart_keys,
                       chart_captions=_km_captions)

@@ -551,14 +551,43 @@ def create_roic_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def create_turnover_not_applicable_fig() -> go.Figure:
+    """Titled placeholder for the Turnover slot when the ticker is a bank
+    or insurer (Task #36 C4 sector-gating).
+
+    `render_charts` in app.py explicitly filters out figures that have no
+    data traces — an annotation-only figure would be silently dropped
+    from the grid. To keep the cell visible we add a 1-point invisible
+    scatter so `fig.data` passes the has-data check, and overlay a
+    centered "Not applicable for this sector" message.
+    """
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=[0], y=[0], mode="markers",
+        marker=dict(size=0, color="rgba(0,0,0,0)"),
+        hoverinfo="skip",
+        showlegend=False,
+    ))
+    fig.add_annotation(
+        text="Not applicable for this sector",
+        xref="paper", yref="paper",
+        x=0.5, y=0.5,
+        showarrow=False,
+        font=dict(size=16, color=COLORS["muted"]),
+    )
+    fig.update_layout(**_layout("Turnover & Efficiency (days)"))
+    fig.update_yaxes(visible=False, range=[-1, 1])
+    fig.update_xaxes(visible=False, range=[-1, 1])
+    return fig
+
+
 def create_turnover_efficiency_chart(df: pd.DataFrame) -> go.Figure:
     """Grouped bar — DSO / DPO / DIO turnover days.
 
     Caller is responsible for NOT calling this when
     ``info_data.is_turnover_applicable(sector)`` returns False — for
     banks and insurers the Turnover panel is replaced with
-    ``_empty_fig("Not applicable for this sector")`` upstream in
-    ``app.py``.
+    ``create_turnover_not_applicable_fig()`` upstream in ``app.py``.
     """
     if df.empty:
         return _empty_fig()
