@@ -34,17 +34,14 @@ When Sebastián says "Read MD" (or at the start of any session), do this exact s
 
 Ordered, one at a time. Top = do next. Remove items as they complete; promote new items from Current Focus.
 
-**Annual mode is shipped (Task #20 closed at T6).** No active blocker; baton parked on Claude Code.
+**T14 work shipped & pushed (commits `20d609e` … `9fba414` on `origin/main` 2026-04-22).** Key Metrics panels + sector field maps are live; Railway redeploys automatically on push.
 
 Bench, in rough priority — Sebastián picks which one to greenlight next:
 
-1. **#28** — T1 product-segment historical stitching. SEC only returns latest filing; older 10-Q segments don't stitch. Touches the same `get_edgar_available_qs_map` filter surface that capped the Annual sidebar year list at ~10 years.
-2. **#29** — SEC geographic segments returning None on all 16 probed tickers. Likely a single axis-name mismatch.
-3. **#34** — AAPL `_sec_get_cash_flow` sparse-quarter filter (dropping 2008–2010). Low effort to diagnose; same family as #32.
-4. **#32** — LLY cashflow SEC=36q vs 70q income. Investigate with #34 together.
-5. **#30** — QC fallback coverage audit (fires 1/96 slots). Lower priority.
-6. **#31** — Sector field maps for conglomerates/banks/insurers/energy. Largest scope; defer until there's a triage list.
-7. **[Ops / Sebastián]** Set `FMP_API_KEY` in Mac shell (`~/.zshrc` or `.env`). Closes the 4-source chain validation, but nothing blocks on it.
+1. **[Ops / Sebastián]** Flip live DB `testing_mode_enabled` back to **OFF** via `quartercharts.com/?page=pricing` (admin UI under "🔧 Admin controls"). During T14 verification I observed live was `=1` (META loads signed-out). Once off, NSFQ paywall enforces on the free tier again.
+2. **Live re-verify after Railway redeploys 9fba414** — confirm JPM Turnover "Not applicable for this sector" annotation renders on `quartercharts.com/?page=charts&ticker=JPM` with testing-mode ON (admin bypass or temporary flip). Curl `Last-Modified` header or check Railway deploy dashboard first.
+3. **#37** — AAPL 10Y cumulative share change carries SEC split-adjustment artifact (+140.6%). Needs split-history layer; scope ~40 lines. 5Y is clean so low priority.
+4. **[Ops / Sebastián]** Set `FMP_API_KEY` in Mac shell (`~/.zshrc` or `.env`). Closes the 4-source chain validation, but nothing blocks on it.
 
 ---
 
@@ -59,9 +56,9 @@ Bench, in rough priority — Sebastián picks which one to greenlight next:
 
 ## Current Focus
 
-**Parked.** Annual mode (Task #20) shipped 2026-04-18 at T6 — commits `60692dd` (#26 dot-ticker), `625a8d0` (#25 gap-fill), `81140c3` (#33 caption + Annual UI). All 6 acceptance items green.
+**Parked.** Task #31 (sector field maps) + Task #36 (16 Key Metrics panels matching quarterchart.com + Net Buyback Yield + 5Y/10Y pills) shipped 2026-04-22 at T14 — 6 commits (`20d609e` sector maps, `70bb394` field-map prep, `701b160` Phase 1, `7a2c2e0` Phase 2, `e7a7088` Phase 3, `b92b3ec` pills bugfix) + T14 anomaly cleanup (`9fba414`: Turnover placeholder invisible trace, Market Cap `.clip(lower=0)`, full `_km_captions` coverage). All 6 commits + anomaly patch pushed to `origin/main`.
 
-Next focus will be whichever task Sebastián promotes from the Next Actions bench. Likely candidates: #28 (segment stitching), #29 (SEC geo segments), or the #32/#34 cashflow pair.
+Next focus: whichever task Sebastián promotes. Top candidate is Task #37 (AAPL 10Y split-adjustment layer) — the only functional anomaly surfaced by T14 that needs code (vs data artifact).
 
 **Annual mode acceptance (closed):**
 - [x] Probe matrix generated and reviewed (T2/T3).
@@ -122,6 +119,12 @@ For each FY, compare QC's Qs to SEC's filed Qs. If QC is missing any Q that SEC 
 - **`testing_mode_enabled` DB flag** (Task #36, commit `d2c35a2`) — admin-only toggle at `/?page=pricing` under "🔧 Admin controls". When ON, the free-tier paywall is bypassed for every visitor. Default OFF. Helpers: `database.get_testing_mode_enabled()` (fails-closed False), `database.set_testing_mode_enabled(enabled, admin_email)`. Every new paywall gate must check this flag via the same `is_admin(...) or get_testing_mode_enabled()` pattern used in `app.py` / `dashboard_page.py`.
 - **Do NOT reintroduce `_gate_allowed = None  # TEMP`** as a shortcut — the admin toggle replaces it. Bypasses that aren't wired to `is_admin` + `get_testing_mode_enabled` will silently open the paywall permanently and will fail the post-commit review on the next sweep.
 - **MutationObserver.observe() must be guarded** — inline scripts injected by `st.components.v1.html(...)` run as-parsed inside an `about:srcdoc` iframe. Both the iframe's own `document.body` and `window.parent.document.body` can be `null` at that instant, causing `TypeError: parameter 1 is not of type 'Node'`. Always wrap `obs.observe(target.body, …)` in a retry helper: `(function _attach(){ if (target.body) obs.observe(target.body, {…}); else setTimeout(_attach, 50); })();`. Commit `13dfa83` fixed 9 sites across `app.py` / `sankey_page.py` / `seo_patch.py`; pattern is reusable everywhere new observers get added.
+- **`income_df` inside the Key Metrics block is TRIMMED** to the sidebar FROM/TO window (~9 rows in default view). Any computation requiring long history — 5Y / 10Y cumulative shares-change, net-buyback averages, multi-year ratios — must re-fetch via `get_income_statement(ticker, quarterly=True)` (cached) rather than reuse `income_df`. Introduced with Task #36 5Y/10Y pills; bugfix commit `b92b3ec` pulls the untrimmed frame for the pill calc only.
+- **`_SECTOR_FIELD_MAP` merges into the extractor input BEFORE `_sec_get_*` runs.** Adding an XBRL tag to the sector dict (`bank` / `insurer` / `energy`) auto-flows through every `_sec_*` getter for SIC-matching tickers — no extractor-side change needed. Commit `20d609e` (Task #31) introduced the map; the `_augment_field_map()` helper is the single point of composition. Don't duplicate tag lookups inside individual extractors.
+- **Pills / metrics that depend on long history must null-guard their compute helper.** `compute_cumulative_shares_change(df, years=N)` returns `None` when fewer than `years * 4 + 1` quarterly rows are available. Wrap the `st.metric` or `st.columns` write site with an `if value is not None:` guard, or the pill renders as `None%`. Same pattern for `compute_net_buyback_yield_ttm` when fewer than 5 TTM rows exist.
+- **`render_charts` filters out figures with no data traces.** Annotation-only placeholder figs silently disappear from the grid. The "Not applicable for this sector" placeholder in `charts.create_turnover_not_applicable_fig()` works around this by adding an invisible `go.Scatter` with `marker.size=0` + transparent color + `hoverinfo='skip'` before the annotation. Use this shape for any future "this chart is intentionally empty" slot instead of raw `go.Figure()` + annotation — commit `9fba414` documents the fix after JPM's Turnover placeholder went missing in T14 smoke.
+- **Banks with negative common equity can produce negative Market Cap bars** in the time-series chart — `_closes_by_label * _shares_aligned` is safe, but some SEC quarters return negative shares-outstanding placeholder rows for banks mid-restatement. Always `.clip(lower=0)` on the Market Cap series before rendering. Commit `9fba414` applies this in `app.py` right before `create_market_cap_chart`.
+- **`_km_captions` must cover every price-dependent chart key.** `pe_ratio`, `ps_ratio`, `pocf_ratio`, `pfcf_ratio`, `pb_ratio`, `ptb_ratio`, `dividend_yield`, `roic`, `bvps`, `roe`, `graham` — if any of these is missing from the captions dict, the partial-FY disclaimer renders under the wrong panel (or not at all) when the current FY is partial. Extend the dict whenever a new panel is added to the Key Metrics block. Commit `9fba414` backfilled the 7 Phase-2/3 keys that were missing from T13's original 4-key list.
 
 ---
 
@@ -142,13 +145,25 @@ Canonical state lives in the task tools; this is a snapshot.
 - **#33** [completed] Partial-FY caption now scoped to latest FY only — commit `81140c3` (bundled with Cowork's uncommitted Annual-mode UI work).
 - **#34** [completed] Cash-flow sparse filter — commit `3ef495b` removed it. AAPL 2008–2010 cashflow now flows through normally; SEC 51 periods + Finnhub gap-fill 16 → 67 total periods. Keeps behavior symmetric with `get_income_statement` / `get_balance_sheet`.
 - **#35** [completed-no-fix] KO regression — verified 2026-04-21 post #36 on :8503 with NSFQ paywall enforced (toggle OFF). KO loads chart page via URL and lowercase/uppercase both normalize correctly. Landing-page form submit couldn't be UI-tested due to Chrome MCP iframe boundary, but the `validate_ticker` path (SEC-primary since `e8bd1d4`) returns True for KO — no code change required.
-- **#36** [completed] Admin testing-mode toggle on pricing page — commit `d2c35a2` (2026-04-21 T10). Replaces `e8bd1d4` TEMP paywall bypass with a DB-backed, admin-only toggle. Default OFF (NSFQ enforced). Admins (info@quartercharts.com, sebasflores@gmail.com) get permanent ticker bypass regardless of toggle.
+- **#36a** [completed] Admin testing-mode toggle on pricing page — commit `d2c35a2` (2026-04-21 T10). Replaces `e8bd1d4` TEMP paywall bypass with a DB-backed, admin-only toggle. Default OFF (NSFQ enforced). Admins (info@quartercharts.com, sebasflores@gmail.com) get permanent ticker bypass regardless of toggle. (Original Cowork label was #36 pre-T13; renumbered to #36a after Cowork re-scoped Task #36 to the Key Metrics panels below.)
+- **#36** [completed] 16 Key Metrics panels matching quarterchart.com + Net Buyback Yield TTM + 5Y/10Y pills — shipped 2026-04-22 T14 as 6 commits: `70bb394` (Phase 3 field-map prep), `701b160` (Phase 1: BVPS / Cash per share / FCF per share / ROE / Graham / Shares Variation), `7a2c2e0` (Phase 2: Market Cap series + P/S P/OCF P/FCF P/B P/TB + Dividend Yield + Net Buyback Yield TTM + cumulative shares pills), `e7a7088` (Phase 3: ROIC + sector-gated Turnover/Efficiency), `b92b3ec` (pills bugfix — fetch untrimmed `income_df`), `9fba414` (T14 anomaly cleanup: Turnover placeholder with invisible trace, Market Cap `.clip(lower=0)` for banks, full `_km_captions` coverage). Acceptance: 16 panels render on AAPL + NVDA free-tier; JPM Turnover shows "Not applicable for this sector"; right sidebar pixel-identical by construction. Net Buyback Yield renders as yellow second line on Shares Variation chart.
+- **#37** [open — deferred] AAPL 10Y cumulative share change reports +140.6% — SEC's `Diluted Average Shares` XBRL values aren't consistently split-adjusted across AAPL's 2020 4-for-1 split, which inverts the 10Y number's sign. Fix needs a split-adjustment layer: fetch split history (yfinance/Finnhub) and normalize pre-split rows to post-split basis before passing to `compute_cumulative_shares_change`. Scope: ~40 lines in `data_fetcher` + adapter in `info_data`. 5Y number is clean so low priority.
 
 ---
 
 ## Rolling Log
 
 Add a dated entry after each meaningful session. Prune entries older than ~30 days.
+
+### 2026-04-22 (T14) — Claude Code
+- **Task #31 shipped** as commit `20d609e`. `info_data.get_sic_sector()` + `is_turnover_applicable()` classify via SIC code (bank 6020–6199, insurer 6310–6411, energy 1311+2911, general fallback). `data_fetcher._SECTOR_FIELD_MAP` supplements `_SEC_*_MAP` with NetInterestIncome / PremiumsEarnedNet / OilAndGasProperty* etc. JPM→bank with 70 NII rows; BRK.B→insurer (SIC 6311); AAPL→general unchanged.
+- **Task #36 shipped** as 4 internal commits (`70bb394` field-map prep → `701b160` Phase 1 → `7a2c2e0` Phase 2 → `e7a7088` Phase 3) + pills bugfix `b92b3ec`. 16 new Key Metrics panels render in QuarterCharts order on AAPL / NVDA. Net Buyback Yield TTM renders as yellow second line on Shares Variation chart. 5Y/10Y cumulative-shares pills render beside the chart (AAPL 5Y −13.5% / 10Y +140.6%). Right sidebar pixel-identical by construction (zero sidebar code touched across 6 commits).
+- **T14 anomaly cleanup** shipped as `9fba414`. Three fixes bundled: (a) `create_turnover_not_applicable_fig()` in `charts.py` with invisible `go.Scatter` trace so JPM's "Not applicable for this sector" annotation survives the `render_charts` trace-filter; (b) `.clip(lower=0)` on the `_market_cap` series to eliminate negative-value bars for banks mid-restatement; (c) `_km_captions` extended from 4 → 11 keys (all price-dependent panels now get the partial-FY disclaimer). Verified locally on JPM: turn_heading = "Turnover & Efficiency (days)", notApp = true, clean Market Cap series, P/S + P/OCF + P/FCF + P/B + P/TB + Dividend Yield + ROIC all get correct captions on partial FY.
+- **Pushed** all 7 T14 commits to `origin/main` in two rounds (T14 initial 6 commits, then `9fba414` after anomaly fixes). Railway auto-deploys on push.
+- **4 new gotchas appended** to CLAUDE.md: `income_df` trimming trap, `_SECTOR_FIELD_MAP` merge behavior, pill null-guard pattern, `create_turnover_not_applicable_fig` invisible-trace convention. Plus two more: Market Cap `.clip(lower=0)` for banks, and `_km_captions` must cover all price-dependent keys.
+- **Task mirror cleanup**: renamed old admin-toggle Task #36 entry to #36a to disambiguate from the newer Key Metrics scope that Cowork re-scoped Task #36 to at T13. Added Task #37 (AAPL split-adjustment layer) to mirror.
+- **Live state observation** (flag for Sebastián): `quartercharts.com` currently has `testing_mode_enabled=1` on the prod DB — META loads signed-out, which shouldn't happen under NSFQ rules. Flip OFF via `/pricing` admin UI when ready. Not urgent; admin bypass still works regardless.
+- **Baton → Cowork** for T14 review / T15 direction.
 
 ### 2026-04-21 (T10) — Claude Code
 - Shipped **Task #36** (admin testing-mode toggle) as commit `d2c35a2`. Added `auth.is_admin()` + `ADMIN_EMAILS` single-source-of-truth; replaced 4 inline admin-email checks across `app.py` + `dashboard_page.py`. Added `database.get/set_testing_mode_enabled()` on top of existing `app_config` table (reused — no new migration). Rebuilt all 4 paywall gate sites: now `is_admin(...) → bypass`, else `get_testing_mode_enabled() → bypass`, else enforce plan's `allowed_tickers`. Added `🔧 Admin controls` block at top of `pricing_page.py` (hidden for non-admins).
