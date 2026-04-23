@@ -74,6 +74,8 @@ from info_data import (
     compute_key_metrics_group_a,
     compute_net_buyback_yield_ttm,
     compute_cumulative_shares_change,
+    compute_roic_series,
+    compute_turnover_efficiency,
 )
 from data_fetcher import fetch_period_end_closes, fetch_dividend_history
 
@@ -125,6 +127,10 @@ from charts import (
     create_pb_chart,
     create_ptb_chart,
     create_dividend_yield_chart,
+    # Task #36 Phase 3 Key Metrics charts
+    create_roic_chart,
+    create_turnover_efficiency_chart,
+    _empty_fig as _empty_chart_fig,
 )
 
 
@@ -4545,7 +4551,35 @@ if st.session_state.show_metrics:
         except Exception as _exc:
             print(f"[keymetrics-phase2] {ticker}: {_exc}")
 
-    # ---- Render Phase 1 + Phase 2 chart tuples ----
+    # ---- Task #36 Phase 3 — Group C Key Metrics (ROIC + Turnover) ----
+    # ROIC is universal; Turnover is sector-gated — banks/insurers don't
+    # have meaningful DSO/DPO/DIO, so for those tickers we substitute an
+    # "N/A for sector" placeholder figure to keep the grid shape intact
+    # without showing garbage numbers.
+    try:
+        _roic = compute_roic_series(income_df, balance_df, cashflow_df)
+        if not _roic.empty:
+            _km_a_df["ROIC %"] = _roic.reindex(_km_a_df.index)
+    except Exception as _exc:
+        print(f"[keymetrics-phase3/roic] {ticker}: {_exc}")
+
+    try:
+        _sector = get_sic_sector(ticker)
+    except Exception:
+        _sector = "general"
+
+    _turnover_df = pd.DataFrame()
+    if is_turnover_applicable(_sector):
+        try:
+            _turnover_df = compute_turnover_efficiency(income_df, balance_df)
+            if not _turnover_df.empty and not quarterly and _partial_fy is not None:
+                _pfy_lbl = str(_partial_fy)
+                if _pfy_lbl in _turnover_df.index:
+                    _turnover_df = _turnover_df.drop(_pfy_lbl)
+        except Exception as _exc:
+            print(f"[keymetrics-phase3/turnover] {ticker}: {_exc}")
+
+    # ---- Render Phase 1 + Phase 2 + Phase 3 chart tuples ----
     if not _km_a_df.empty:
         # Phase 2: Market Cap + Dividend Yield go first in the grid.
         km_charts.append((create_market_cap_chart(_km_a_df), "market_cap"))
@@ -4556,6 +4590,8 @@ if st.session_state.show_metrics:
         km_charts.append((create_pfcf_chart(_km_a_df), "pfcf_ratio"))
         km_charts.append((create_pb_chart(_km_a_df), "pb_ratio"))
         km_charts.append((create_ptb_chart(_km_a_df), "ptb_ratio"))
+        # Phase 3 — ROIC is universal.
+        km_charts.append((create_roic_chart(_km_a_df), "roic"))
         # Phase 1 slate (Shares Variation will carry the yellow Net
         # Buyback Yield TTM line when present).
         km_charts.append((create_shares_variation_chart(_km_a_df), "shares_variation"))
@@ -4564,6 +4600,14 @@ if st.session_state.show_metrics:
         km_charts.append((create_fcf_per_share_chart(_km_a_df), "fcf_per_share"))
         km_charts.append((create_roe_chart(_km_a_df), "roe"))
         km_charts.append((create_graham_chart(_km_a_df), "graham"))
+        # Phase 3 — Turnover is sector-gated.
+        if is_turnover_applicable(_sector) and not _turnover_df.empty:
+            km_charts.append((create_turnover_efficiency_chart(_turnover_df), "turnover"))
+        else:
+            km_charts.append((
+                _empty_chart_fig("Not applicable for this sector"),
+                "turnover",
+            ))
 
     # Metric cards
     if "metric_cards" in _blocked_chart_keys:

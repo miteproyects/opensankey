@@ -1364,6 +1364,87 @@ def compute_net_buyback_yield_ttm(
     return yield_pct
 
 
+def compute_roic_series(
+    income_df: pd.DataFrame,
+    balance_df: pd.DataFrame,
+    cashflow_df: pd.DataFrame,
+) -> pd.Series:
+    """Return Return-on-Invested-Capital as a time series in percent.
+
+    ROIC = NOPAT / Invested Capital × 100
+      NOPAT           = Operating Income × (1 − effective_tax_rate)
+      effective_tax   = Income Tax Expense / Pretax Income, clipped to
+                          [0, 0.5] for stability (extreme tax rates
+                          from one-time items distort NOPAT otherwise)
+      Invested Capital = Total Debt + Stockholders Equity − Cash
+
+    Empty Series on missing inputs. Sign-sensitive: NOPAT and IC can
+    both go negative; the formula passes the sign through naturally so
+    companies with negative equity + negative Operating Income don't
+    render spurious "positive" ROIC.
+    """
+    if income_df is None or income_df.empty or balance_df is None or balance_df.empty:
+        return pd.Series(dtype=float)
+    if "Operating Income" not in income_df.columns:
+        return pd.Series(dtype=float)
+
+    op_inc = pd.to_numeric(income_df["Operating Income"], errors="coerce")
+
+    # Effective tax rate — prefer Income Tax / Pretax Income per-period,
+    # fall back to 21% US corporate rate when either is missing.
+    eff_tax = pd.Series(0.21, index=op_inc.index, dtype=float)
+    if {"Income Tax Expense", "Pretax Income"}.issubset(income_df.columns):
+        tax = pd.to_numeric(income_df["Income Tax Expense"], errors="coerce")
+        pretax = pd.to_numeric(income_df["Pretax Income"], errors="coerce")
+        ratio = (tax / pretax.replace(0, np.nan)).clip(lower=0, upper=0.5)
+        eff_tax = ratio.reindex(op_inc.index).fillna(0.21)
+
+    nopat = op_inc * (1 - eff_tax)
+
+    # `.get(col, default)` must return a Series, not a scalar — else
+    # pd.to_numeric of a scalar int has no `.fillna` and the whole call
+    # crashes for tickers without Total Debt / Cash on balance_df (and
+    # debt-free balance sheets do happen on young or small caps).
+    _zero_series = pd.Series(0.0, index=balance_df.index, dtype=float)
+    debt = pd.to_numeric(balance_df.get("Total Debt", _zero_series), errors="coerce").fillna(0)
+    equity = pd.to_numeric(balance_df.get("Stockholders Equity", _zero_series), errors="coerce").fillna(0)
+    cash = pd.to_numeric(balance_df.get("Cash and Cash Equivalents", _zero_series), errors="coerce").fillna(0)
+    ic = (debt + equity - cash).reindex(op_inc.index)
+
+    roic = (nopat / ic.replace(0, np.nan) * 100).round(2)
+    return roic.rename("ROIC %")
+
+
+def compute_turnover_efficiency(
+    income_df: pd.DataFrame,
+    balance_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Return DSO / DPO / DIO as a wide DataFrame of days.
+
+    DSO = Accounts Receivable / Revenue × 365
+    DPO = Accounts Payable / Cost Of Revenue × 365
+    DIO = Inventory / Cost Of Revenue × 365
+
+    Missing columns → NaN column (kept in frame so the caller's
+    downstream chart sees a predictable shape). Empty frame when
+    neither income_df nor balance_df have usable rows.
+    """
+    if income_df is None or income_df.empty or balance_df is None or balance_df.empty:
+        return pd.DataFrame()
+
+    out = pd.DataFrame(index=income_df.index)
+    rev = pd.to_numeric(income_df.get("Revenue", pd.Series(dtype=float)), errors="coerce")
+    cogs = pd.to_numeric(income_df.get("Cost Of Revenue", pd.Series(dtype=float)), errors="coerce")
+    ar = pd.to_numeric(balance_df.get("Accounts Receivable", pd.Series(dtype=float)), errors="coerce").reindex(out.index)
+    ap = pd.to_numeric(balance_df.get("Accounts Payable", pd.Series(dtype=float)), errors="coerce").reindex(out.index)
+    inv = pd.to_numeric(balance_df.get("Inventory", pd.Series(dtype=float)), errors="coerce").reindex(out.index)
+
+    out["DSO"] = (ar / rev.replace(0, np.nan) * 365).round(1)
+    out["DPO"] = (ap / cogs.replace(0, np.nan) * 365).round(1)
+    out["DIO"] = (inv / cogs.replace(0, np.nan) * 365).round(1)
+    return out
+
+
 def compute_cumulative_shares_change(
     shares_series: pd.Series,
     years: int = 5,

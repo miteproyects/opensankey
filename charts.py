@@ -531,6 +531,57 @@ def create_dividend_yield_chart(df: pd.DataFrame) -> go.Figure:
 
 
 # ---------------------------------------------------------------------------
+# Key Metrics — Group C charts (Task #36 Phase 3)
+# ---------------------------------------------------------------------------
+
+def create_roic_chart(df: pd.DataFrame) -> go.Figure:
+    """Line — Return on Invested Capital."""
+    col = "ROIC %"
+    if df.empty or col not in df.columns or not df[col].notna().any():
+        return _empty_fig()
+    x = _x(df)
+    fig = go.Figure(go.Scatter(
+        x=x, y=df[col], name="ROIC", mode="lines+markers",
+        line=dict(width=3, color=COLORS["teal"]),
+        marker=dict(size=8, color=COLORS["teal"]),
+    ))
+    fig.update_layout(**_layout("Return on Invested Capital (%)"))
+    fig.update_yaxes(ticksuffix="%")
+    fig.add_hline(y=0, line_dash="dot", line_color="rgba(128,128,128,0.4)")
+    return fig
+
+
+def create_turnover_efficiency_chart(df: pd.DataFrame) -> go.Figure:
+    """Grouped bar — DSO / DPO / DIO turnover days.
+
+    Caller is responsible for NOT calling this when
+    ``info_data.is_turnover_applicable(sector)`` returns False — for
+    banks and insurers the Turnover panel is replaced with
+    ``_empty_fig("Not applicable for this sector")`` upstream in
+    ``app.py``.
+    """
+    if df.empty:
+        return _empty_fig()
+    traces = [
+        ("DSO", COLORS["blue"]),
+        ("DPO", COLORS["yellow"]),
+        ("DIO", COLORS["red"]),
+    ]
+    # Require at least one of the three columns to be non-empty.
+    if not any(c in df.columns and df[c].notna().any() for c, _ in traces):
+        return _empty_fig()
+    x = _x(df)
+    fig = go.Figure()
+    for col, color in traces:
+        if col in df.columns and df[col].notna().any():
+            fig.add_trace(go.Bar(x=x, y=df[col], name=col, marker_color=color))
+    fig.update_layout(**_layout("Turnover & Efficiency (days)"))
+    fig.update_yaxes(ticksuffix=" d")
+    fig.update_layout(barmode="group")
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Additional Income Statement charts (15 total)
 # ---------------------------------------------------------------------------
 
