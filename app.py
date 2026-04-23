@@ -4546,8 +4546,25 @@ if st.session_state.show_metrics:
                     pass
 
                 # Cumulative share change pills (5Y / 10Y).
-                _5y_change = compute_cumulative_shares_change(_shares_series, years=5)
-                _10y_change = compute_cumulative_shares_change(_shares_series, years=10)
+                # IMPORTANT: `income_df` at this point has already been
+                # trimmed by the sidebar FROM/TO selectors, so it holds
+                # only the currently-displayed window (often <10 rows).
+                # The pills need 10+ years of history, so we pull the
+                # full untrimmed frame directly from the cached fetcher.
+                try:
+                    _full_inc = get_income_statement(ticker, quarterly=True)
+                    _full_shares = None
+                    for _sc in ("Diluted Average Shares", "Basic Average Shares"):
+                        if _sc in _full_inc.columns:
+                            _fs = pd.to_numeric(_full_inc[_sc], errors="coerce").replace(0, np.nan)
+                            if _fs.notna().any():
+                                _full_shares = _fs
+                                break
+                    if _full_shares is not None:
+                        _5y_change = compute_cumulative_shares_change(_full_shares, years=5)
+                        _10y_change = compute_cumulative_shares_change(_full_shares, years=10)
+                except Exception:
+                    pass
         except Exception as _exc:
             print(f"[keymetrics-phase2] {ticker}: {_exc}")
 
