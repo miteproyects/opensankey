@@ -2,58 +2,17 @@
 Pricing / Subscription page for QuarterCharts.
 Shows tiered pricing plans with feature comparison.
 Plans are loaded dynamically from the database (managed via NSFE Pricing tab).
+
+Note: the admin paywall testing-mode toggle lives in NSFE > 💳 Pricing tab
+(`nsfe_page._render_pricing_admin`), not here — NSFE password gating is the
+intended access boundary, not the hard-coded ADMIN_EMAILS list.
 """
 import json
 import streamlit as st
 
-from auth import is_admin
-from database import get_testing_mode_enabled, set_testing_mode_enabled
-
-
-def _render_admin_testing_mode_block() -> None:
-    """Admin-only toggle: flip the paywall off for all users (testing only).
-
-    Visible only to users whose email is in ``auth.ADMIN_EMAILS``. When ON,
-    all 10,000+ tickers are accessible to every visitor, regardless of plan
-    — intended for smoke tests and private betas, NOT for public promos.
-    Default OFF so NSFQ subscription rules are enforced.
-    """
-    _current_email = st.session_state.get("user_email", "")
-    if not is_admin(_current_email):
-        return
-
-    current = get_testing_mode_enabled()
-    with st.container(border=True):
-        st.markdown("#### 🔧 Admin controls")
-        new_value = st.toggle(
-            "Make all tickers available for testing",
-            value=current,
-            help=(
-                "YES → all 10,000+ tickers are available to every user "
-                "(paywall bypassed for testing). "
-                "NO → normal NSFQ subscription rules apply — free-tier users "
-                "see only the 7 allow-list tickers."
-            ),
-            key="admin_testing_mode_toggle",
-        )
-        if new_value != current:
-            set_testing_mode_enabled(new_value, _current_email)
-            st.cache_data.clear()
-            st.success(
-                "Testing mode: "
-                + ("ON — paywall bypassed for all users"
-                   if new_value else "OFF — NSFQ rules enforced")
-            )
-            st.rerun()
-        status_text = "ON — paywall bypassed" if current else "OFF — NSFQ rules enforced"
-        st.caption(f"Status: **{status_text}**")
-    st.divider()
-
 
 def render_pricing_page():
     """Render the pricing page with subscription tiers from database."""
-
-    _render_admin_testing_mode_block()
 
     st.markdown("""
     <style>

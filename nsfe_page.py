@@ -2638,7 +2638,8 @@ def _render_seo():
 def _render_pricing_admin():
     """💳 Pricing – Spreadsheet-style CRUD for pricing plans."""
     from database import (get_all_plans, get_plan_by_id, create_plan,
-                          update_plan, delete_plan, seed_default_plans)
+                          update_plan, delete_plan, seed_default_plans,
+                          get_testing_mode_enabled, set_testing_mode_enabled)
 
     # Seed defaults if no plans exist
     all_plans = get_all_plans()
@@ -2716,6 +2717,36 @@ def _render_pricing_admin():
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # ── Testing-mode toggle (was previously on public /pricing; moved here so
+    #    access is gated by NSFE password, not by hard-coded admin emails) ──
+    _tm_current = get_testing_mode_enabled()
+    with st.container(border=True):
+        st.markdown("#### 🔧 Paywall testing mode")
+        _tm_new = st.toggle(
+            "Make all tickers available for testing",
+            value=_tm_current,
+            help=(
+                "YES → all 10,000+ tickers are available to every visitor "
+                "(paywall bypassed for testing / private betas). "
+                "NO → normal NSFQ subscription rules apply — free-tier users "
+                "see only the 7 allow-list tickers."
+            ),
+            key="nsfe_testing_mode_toggle",
+        )
+        if _tm_new != _tm_current:
+            _audit_email = st.session_state.get("user_email", "") or "nsfe-admin"
+            set_testing_mode_enabled(_tm_new, _audit_email)
+            st.cache_data.clear()
+            st.success(
+                "Testing mode: "
+                + ("ON — paywall bypassed for all users"
+                   if _tm_new else "OFF — NSFQ rules enforced")
+            )
+            st.rerun()
+        _tm_status = "ON — paywall bypassed" if _tm_current else "OFF — NSFQ rules enforced"
+        st.caption(f"Status: **{_tm_status}**")
+    st.divider()
 
     # ── Add New Plan button ──
     add_col, _, _ = st.columns([1, 1, 4])
