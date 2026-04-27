@@ -2628,10 +2628,7 @@ _FINNHUB_BASE = "https://finnhub.io/api/v1"
 
 
 def _finnhub_key() -> str:
-    return _os.environ.get(
-        "FINNHUB_API_KEY",
-        "d77c5b1r01qp6afl34h0d77c5b1r01qp6afl34hg",
-    )
+    return _os.environ.get("FINNHUB_API_KEY", "")
 
 
 @st.cache_data(ttl=3600, show_spinner=False)

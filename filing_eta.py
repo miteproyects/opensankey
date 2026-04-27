@@ -68,10 +68,7 @@ _SEC_TIMEOUT = 8
 _FMP_KEY = os.environ.get("FMP_API_KEY", "")
 _FMP_BASE = "https://financialmodelingprep.com/api/v3"
 
-_FINNHUB_KEY = os.environ.get(
-    "FINNHUB_API_KEY",
-    "d77c5b1r01qp6afl34h0d77c5b1r01qp6afl34hg",
-)
+_FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY", "")
 _FINNHUB_BASE = "https://finnhub.io/api/v1"
 
 

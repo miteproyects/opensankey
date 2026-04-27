@@ -226,7 +226,7 @@ def _get_edgar_batches() -> list[list[str]]:
 
 
 # ── Earnings Week Tickers ──────────────────────────────────────────────
-_FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY", "d77c5b1r01qp6afl34h0d77c5b1r01qp6afl34hg")
+_FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY", "")
 _EARNINGS_CACHE_FILE = os.path.join(_BASE_DIR, "earnings_week_cache.json")
 _EARNINGS_CACHE_TTL = 3600  # 1 hour
 

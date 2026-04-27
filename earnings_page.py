@@ -12,7 +12,7 @@ import traceback
 from datetime import datetime, timedelta, date
 
 # ── Finnhub API ─────────────────────────────────────────────────────────
-_FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY", "d77c5b1r01qp6afl34h0d77c5b1r01qp6afl34hg")
+_FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY", "")
 _FINNHUB_BASE = "https://finnhub.io/api/v1"
 
 _DEBUG_LOG: list[str] = []
