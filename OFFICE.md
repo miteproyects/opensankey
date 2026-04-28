@@ -1,12 +1,14 @@
 # OFFICE.md — Multi-Worker Coordination Spec for QuarterCharts
 
-This is the design spec for the 9-worker parallel Claude Code setup. Read this once, refer back when conflicts surface, never paste into prompts (it's for humans + the orchestrator, not workers).
+This is the design spec for the parallel-Claude-Code setup. Read this once, refer back when conflicts surface, never paste into prompts (it's for humans + the orchestrator, not workers).
+
+> **Live roster**: see `~/.qc-office/agents.json` (auto-discovered every ~10s by `~/.qc-office/hooks/discover-agents.py`). The chat count churns as Sebastián spins up new workers and archives old ones — the `agents.json` registry is the source of truth, not any list in this doc.
 
 ---
 
 ## Why this exists
 
-Sebastián runs 9 parallel Claude Code chats (pinned `1. *`) across separate git worktrees of `miteproyects`. Each chat is an independent Claude process with its own context window. They share one filesystem and one git repo, so without coordination they'd:
+Sebastián runs ~10–15 parallel Claude Code chats (pinned `QC.*`, formerly `1.*`) across separate git worktrees of `miteproyects`. Each chat is an independent Claude process with its own context window. They share one filesystem and one git repo, so without coordination they'd:
 
 1. Edit the same file simultaneously and overwrite each other.
 2. Duplicate work (e.g., Currency and US Charts originally had the same brief).
@@ -15,14 +17,14 @@ Sebastián runs 9 parallel Claude Code chats (pinned `1. *`) across separate git
 
 This spec defines a **file-based coordination layer** — locks, events, inbox, lookup — that runs **outside the LLM** via Claude Code hooks. Coordination cost: zero LLM tokens. Workers only spend tokens reading peer state when they actually need to make a decision.
 
-> **Why not Claude Code Agent Teams?** Anthropic's `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` assumes one lead session spawns teammates inside its own project. We have 9 independent leads in 9 worktrees — wrong topology. The flag is enabled in settings for future use; the protocol below is what actually runs today.
+> **Why not Claude Code Agent Teams?** Anthropic's `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` assumes one lead session spawns teammates inside its own project. We have many independent leads across many worktrees — wrong topology. The flag is enabled in settings for future use; the protocol below is what actually runs today.
 
 ---
 
 ## Architecture at a glance
 
 ```
-9 Claude Code processes (one per worktree)
+N Claude Code processes (one per worktree)
         │
         │  hooks fire on every tool call / turn boundary
         ▼
@@ -36,38 +38,48 @@ This spec defines a **file-based coordination layer** — locks, events, inbox, 
    └─────────────────────────────────────────┘
         ▲
         │  on demand: workers read inbox / events
-        │  on demand: dashboard tails events.jsonl
+        │  daemon tails events.jsonl + serves SSE
         ▼
-   office.quartercharts.com  (Phase 3)
-   ─ live floor plan
-   ─ chat-room feed (decoded events)
-   ─ ttyd-per-worker terminals (iframed)
+   office.quartercharts.com  (Cloudflare-Access-gated)
+   ─ isometric office floor (live agent state)
+   ─ chat-room feed (decoded events, real-time)
+   ─ ttyd-per-worker terminals (iframed)  [Phase 6]
 ```
 
 ### Why `~/.qc-office/` and not the repo?
 
 - Survives `git clean -fdx`, branch switches, worktree resets.
 - Not tracked by git → no PR noise from runtime state.
-- All 9 worktrees can read/write because it's at user-home, not project-relative.
+- All worktrees can read/write because it's at user-home, not project-relative.
 - Easy to back up / blow away in one place.
 
 ---
 
-## The 9 workers (canonical names)
+## Workers — canonical names
 
-Use the **canonical names** below in events, not chat labels or worktree slugs. The mapping lives in `~/.qc-office/agents.json`.
+Use the **canonical name** in events, not the chat label or worktree slug. The live roster lives in `~/.qc-office/agents.json`, auto-discovered from Claude desktop's session metadata. The shape of each entry:
 
-| Canonical name     | Chat label          | Worktree slug             | Owns                     |
-| ------------------ | ------------------- | ------------------------- | ------------------------ |
-| `office`           | 1. Office           | eloquent-lewin-7c8efe     | orchestration, this spec |
-| `currency`         | 1. Currency         | lucid-khayyam-9b0a8c      | api.qc.com (FastAPI)     |
-| `us-charts`        | 1. US Charts        | kind-haslett-2451e3       | us.qc.com (Next.js)      |
-| `super-companias`  | 1. Super Compañías  | crazy-kilby-d4c673        | tfcsmart.com extraction  |
-| `dns`              | 1. DNS              | stoic-ellis-63f6bc        | DNS migration            |
-| `globe`            | 1. Globe            | silly-benz-aff74f         | world.qc.com globe       |
-| `business-model`   | 1. Business model   | gallant-swartz-5ac5a7     | docs/business-model      |
-| `logo`             | 1. Logo             | youthful-bouman-460ec2    | header logos             |
-| `searching-tool`   | 1. Searching Tool   | unruffled-raman-d25796    | search infra             |
+```jsonc
+{
+  "<canonical-name>": {
+    "role": "orchestrator" | "worker" | "scratch" | "reserve",
+    "worktree": "/abs/path/to/worktree",
+    "worktree_exists": true,
+    "is_archived": false,
+    "branch": "claude/...",
+    "chat_label": "QC. <Display Name>",
+    "scope": "one-line scope description",
+    "owns_files": ["glob/**", "..."],
+    "_cli_session_id": "<uuid>",
+    "_session_metadata": "/path/to/Claude/local_<uuid>.json"
+  }
+}
+```
+
+Canonical names are derived from chat labels by stripping the `QC.` (or legacy `1.`) prefix and slug-casing the rest:
+- `QC. Office` → `office`
+- `QC. US Charts` → `us-charts`
+- `QC. Super Compañías` → `super-companias`
 
 Per-worker scope, file ownership, and bootstrap notes: see `WORKERS/<name>.md`.
 
