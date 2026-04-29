@@ -33,6 +33,38 @@ def patch():
     if 'lang="en"' not in html:
         html = re.sub(r"<html(?!\s+lang=)", '<html lang="en"', html, count=1)
 
+    # ── Path-style URL redirect (e.g. /sankey/NVDA → /?page=sankey&ticker=NVDA)
+    # Streamlit only understands query-param routes; without this script,
+    # /sankey/NVDA serves the index.html homepage with no ticker context.
+    # This synchronous inline script runs at the top of <head> BEFORE any
+    # Streamlit bundle JS, so the browser never paints the wrong page.
+    # Idempotent via the qc-path-redirect id sentinel.
+    if "qc-path-redirect" not in html:
+        _path_redirect = (
+            '<script id="qc-path-redirect">(function(){'
+            "try{"
+            "var p=location.pathname;"
+            "if(!p||p==='/'||p===''){return;}"
+            # Match /<page>[/<ticker>][/] — page must be in the valid set,
+            # ticker is optional and accepts A-Z 0-9 dot hyphen up to 10 chars
+            # (covers BRK.B / BRK-B / BF.B etc.).
+            "var re=/^\\/(charts|sankey|profile|dashboard|earnings|watchlist|home|pricing|privacy|terms|sitemap|user|login|nsfe)(?:\\/([A-Za-z0-9.\\-]{1,10}))?\\/?$/i;"
+            "var m=p.match(re);"
+            "if(!m){return;}"
+            "var page=m[1].toLowerCase();"
+            "var ticker=m[2]?m[2].toUpperCase():'';"
+            "var qs='/?page='+page+(ticker?'&ticker='+encodeURIComponent(ticker):'');"
+            # Preserve any existing query string (e.g. utm_*, auth params).
+            "if(location.search&&location.search.length>1){qs+='&'+location.search.slice(1);}"
+            "qs+=location.hash||'';"
+            "location.replace(qs);"
+            "}catch(e){}"
+            "})();</script>\n"
+        )
+        # Insert immediately after <head> so it runs before Streamlit's
+        # module preload / bundle script tags later in <head>.
+        html = html.replace("<head>", f"<head>\n{_path_redirect}", 1)
+
     # ── Google site verification ─────────────────────────────────────────
     tag = '<meta name="google-site-verification" content="4yRIohYFN8d_gMq4yQUG3sF9n_tbeZqKEL4pp-SlK9A" />'
     if "google-site-verification" not in html:

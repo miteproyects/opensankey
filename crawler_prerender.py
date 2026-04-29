@@ -409,6 +409,26 @@ _VALID_PAGES = {
     "watchlist", "pricing", "login", "privacy", "terms",
 }
 
+# ── Path-style URL matcher (e.g. /sankey/NVDA) ────────────────────────────
+# Mirrors the client-side redirect injected by seo_patch.py so crawlers
+# requesting /sankey/NVDA directly get the prerendered sankey page for
+# NVDA instead of falling back to the homepage prerender.
+_PATH_ROUTE_RE = re.compile(
+    r"^/(charts|sankey|profile|dashboard|earnings|watchlist|home|pricing|"
+    r"privacy|terms|sitemap|user|login|nsfe)(?:/([A-Za-z0-9.\-]{1,10}))?/?$",
+    re.IGNORECASE,
+)
+
+
+def _parse_path_route(path: str):
+    """Return (page, ticker) for a /<page>[/<ticker>] path, or (None, None)."""
+    if not path or path in ("/", ""):
+        return (None, None)
+    m = _PATH_ROUTE_RE.match(path)
+    if not m:
+        return (None, None)
+    return (m.group(1).lower(), (m.group(2) or "").upper())
+
 
 def _get_cached_html(page: str, ticker: str) -> str:
     """Return pre-rendered HTML, using a 1-hour memory cache."""
@@ -444,11 +464,21 @@ def inject_crawler_prerender():
                 ua = self.request.headers.get("User-Agent", "")
 
                 # Only intercept root page requests (not /static/*, /_stcore/*, /api/*, etc.)
+                # Accept either "/" (with query params) or path-style routes
+                # like "/sankey/NVDA" — the client-side redirect in seo_patch.py
+                # handles humans, this branch handles crawlers that don't run JS.
                 path = self.request.path
-                if path in ("/", "") and CRAWLER_RE.search(ua):
-                    # Parse query params
-                    page = self.get_argument("page", "home").lower()
-                    ticker = self.get_argument("ticker", "").upper()
+                _path_page, _path_ticker = _parse_path_route(path)
+                _is_root = path in ("/", "")
+                _is_path_route = _path_page is not None
+                if (_is_root or _is_path_route) and CRAWLER_RE.search(ua):
+                    if _is_path_route:
+                        page = _path_page
+                        ticker = _path_ticker
+                    else:
+                        # Parse query params for the canonical "/" form.
+                        page = self.get_argument("page", "home").lower()
+                        ticker = self.get_argument("ticker", "").upper()
 
                     if page not in _VALID_PAGES:
                         page = "home"
