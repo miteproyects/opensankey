@@ -32,15 +32,40 @@ When Sebastián says "Read MD" (or at the start of any session), do this exact s
 
 ## Next Actions
 
-Ordered, one at a time. Top = do next. Remove items as they complete; promote new items from Current Focus.
+Ordered, one at a time. Top = do next.
 
-**T14 work shipped & pushed (commits `20d609e` … `9fba414` on `origin/main` 2026-04-22).** Key Metrics panels + sector field maps are live; Railway redeploys automatically on push.
+**ACTIVE: Office orchestrator stood up 2026-04-28.** This worktree (`eloquent-lewin-7c8efe`) is now the team-lead `office` for the 9-pinned-chats parallel-worker setup. See `OFFICE.md` (root) for the full coordination spec. 9 workers mapped in `~/.qc-office/agents.json`. Hooks live in `~/.qc-office/hooks/` and are wired via `.claude/settings.json` (project-level → all worktrees inherit on next session start).
 
-Bench, in rough priority — Sebastián picks which one to greenlight next:
+### Office orchestration roadmap (Phase 1B–4)
 
-1. **[Ops / Sebastián]** Flip live DB `testing_mode_enabled` back to **OFF** via `NSFE > 💳 Pricing` tab (at `quartercharts.com/?page=nsfe`, enter NSFE password, click **💳 Pricing**, flip the "🔧 Paywall testing mode" toggle at the top). During T14 verification I observed live was `=1` (META loads signed-out). Once off, NSFQ paywall enforces on the free tier again.
-2. **#37** — AAPL 10Y cumulative share change carries SEC split-adjustment artifact (+140.6%). Needs split-history layer; scope ~40 lines. 5Y is clean so low priority.
-3. **[Ops / Sebastián]** Set `FMP_API_KEY` in Mac shell (`~/.zshrc` or `.env`). Closes the 4-source chain validation, but nothing blocks on it.
+1. **[Sebastián]** Rotate the office-dashboard password (the one shared in chat is now in transcript history; treat as compromised). Pick a new one, store in Apple Passwords.
+2. **[Office]** Phase 1D — Smoke-test the lock layer with 3 real workers acquiring + colliding on a shared file. Verify `R/Y` round-trip works.
+3. **[Sebastián + Office]** Phase 2 — Stand up NATS JetStream on Railway (~$5/mo). Office adds a NATS publisher leg to the hooks alongside the file-based events. File-based stays as fallback.
+4. **[Office]** Phase 3 — Scaffold `office.quartercharts.com` Next.js dashboard on Vercel. WebSocket bridge to NATS. Auth-gated by the rotated password.
+5. **[Office + dns]** Phase 4 — `ttyd`-per-worker on Mac, tunneled via Cloudflare, iframed in dashboard. DNS records owned by `dns` worker.
+6. **[Office]** Phase 5 — Cool visual layer (isometric office or force-graph). Replaces grid placeholder.
+
+### Cross-repo escalation + branch-coordination spec (2026-04-29)
+
+QC. US Sankey escalated a cross-repo boundary violation. Triaged by office and the spec extended:
+- **PreToolUse hook** blocks Edit/Write outside the agent's worktree (smoke-tested 7 cases, all green; allow-list is inbox-for-everyone + `~/.qc-office/` + `qc-office-dashboard` for orchestrator only).
+- **`qc/us-sankey` registry entry** corrected: scope/owns_files now match the Streamlit codebase (`sankey_page.py` + `data_fetcher.py:_sankey*`).
+- **OFFICE.md extended** with branch-level coordination: new `B`/`X` events, `branch_owner` and `extra_owns_files` fields in agents.json, slice hand-off via extended `R/Y`. Phase 1E adds the hook enforcement (spec landed, code pending). Phase 1F adds the `quartercharts.com/`-rooted agent topology (web-charts / web-world / web-earnings / web-sankey / api-extractors / api-sankey / api-fx).
+- **INFRASTRUCTURE.md gained "Branches & owners"** — full audit of all 36 `quartercharts.com` branches, grouped by surface area, with suggested agent owners and the 5 surfaced decisions below.
+
+**Pending your call:**
+- **Phase 1F — spawn 4–7 `quartercharts.com/`-rooted chats.** Until you do, the boundary guard blocks all live web/API work from any registered agent. Suggested split is in `OFFICE.md` → "Suggested agent topology" + the table in INFRASTRUCTURE.md → "Branches & owners".
+- **Earnings cluster** — 8 parallel branches, no registered owner. Pin `qc/web-earnings` first; the rest will need rebase coordination.
+- **Header collision** — `feat-header-legacy-logo` (PR #59, +3) vs `feat-header-logo-region-together` (+4). Pick one, close the other.
+- **`hotfix-ci-lint-cleanup` (+6)** — land or close; it's blocking other branches' lint-clean rebases.
+- **WIP stash on `fix/sankey-band-gap-and-drag`** in `~/Desktop/OpenTF/quartercharts.com/` — drop, reassign to the future `qc/api-sankey`, or hold? (Tests pass; ~70 LOC; matches Plotly `nodepad=20` semantics.)
+- **`miteproyects/CLAUDE.md` doc fix**: it claims us.quartercharts.com is Streamlit, but the live host is the Next.js port from `quartercharts.com/`. The stale mapping is what made us-sankey reach for the wrong repo. Want me to update it?
+
+### Legacy QuarterCharts bench (still valid, not blocking Office)
+
+- **[Ops]** Flip live DB `testing_mode_enabled` back to **OFF** via `NSFE > 💳 Pricing` tab (at `quartercharts.com/?page=nsfe`, enter NSFE password, click **💳 Pricing**, flip the "🔧 Paywall testing mode" toggle at the top). During T14 verification I observed live was `=1` (META loads signed-out).
+- **#37** — AAPL 10Y cumulative share change carries SEC split-adjustment artifact (+140.6%). Needs split-history layer; scope ~40 lines. 5Y is clean so low priority.
+- **[Ops]** Set `FMP_API_KEY` in Mac shell (`~/.zshrc` or `.env`).
 
 ---
 
@@ -55,9 +80,11 @@ Bench, in rough priority — Sebastián picks which one to greenlight next:
 
 ## Current Focus
 
-**Parked.** Task #31 (sector field maps) + Task #36 (16 Key Metrics panels matching quarterchart.com + Net Buyback Yield + 5Y/10Y pills) shipped 2026-04-22 at T14 — 6 commits (`20d609e` sector maps, `70bb394` field-map prep, `701b160` Phase 1, `7a2c2e0` Phase 2, `e7a7088` Phase 3, `b92b3ec` pills bugfix) + T14 anomaly cleanup (`9fba414`: Turnover placeholder invisible trace, Market Cap `.clip(lower=0)`, full `_km_captions` coverage). All 6 commits + anomaly patch pushed to `origin/main`.
+**Office orchestrator standup (2026-04-28).** This worktree is now `office` — the team-lead for the 9-worker pinned-chats parallel setup. Phase 1A–1C shipped: shared coordination root at `~/.qc-office/`, design spec `OFFICE.md`, per-worker briefs `WORKERS/*.md`, 5 fail-open Python hooks (PreToolUse / PostToolUse / Stop / SessionStart / UserPromptSubmit) wired via project-level `settings.json`. Lock layer smoke-tested end-to-end (acquire / conflict-block / refresh / release / cross-process visibility). Agent Teams experimental flag enabled for future use.
 
-Next focus: whichever task Sebastián promotes. Top candidate is Task #37 (AAPL 10Y split-adjustment layer) — the only functional anomaly surfaced by T14 that needs code (vs data artifact).
+Next: Phase 1D smoke test with real concurrent workers, then Phase 2 (NATS upgrade) when Sebastián approves Railway spend.
+
+Legacy QC product work is **parked** until orchestration is shipped. Open items: #37 (AAPL split-adjustment) + ops items (testing_mode flip, FMP key).
 
 **Annual mode acceptance (closed):**
 - [x] Probe matrix generated and reviewed (T2/T3).
@@ -153,6 +180,39 @@ Canonical state lives in the task tools; this is a snapshot.
 ## Rolling Log
 
 Add a dated entry after each meaningful session. Prune entries older than ~30 days.
+
+### 2026-04-29 (T+later) — Office (branch landscape audit + coordination spec extension)
+- **Audited all 36 active branches** in `~/Desktop/OpenTF/quartercharts.com/` (the Next.js + FastAPI monorepo serving us.qc.com + world.qc.com + api.qc.com). Grouped by surface area: us.qc frontend, world.qc frontend, earnings (8-branch hot zone — no owner), sankey (3 branches incl. the held WIP stash), QC quarter-comparison, API extractors (4 branches), API FX (PR #113), header collision pair, ci-lint-cleanup (+6, blocking).
+- **Found 2 open PRs** in quartercharts.com: #59 (`feat-header-legacy-logo`, web header) + #113 draft (`feat-fx-backend-phase-2`, API). Streamlit repo (miteproyects) has 10 Dependabot PRs only.
+- **Extended `OFFICE.md` with branch-level coordination** (new "Branch-level coordination" section): introduced `B`/`X` events for branch claim/release, `branch_owner` field on agents.json, `extra_owns_files` time-boxed grants for slice hand-off, and the Repos table mapping logical names (`miteproyects`, `quartercharts.com`, `qc-office-dashboard`) to paths and hosts. Roadmap got Phase 1E (hook enforcement of branch_owner) and Phase 1F (spawn quartercharts.com/-rooted agents).
+- **Added "Suggested agent topology" to OFFICE.md**: 7 chats Sebastián should spawn (`QC. Web Charts`, `QC. Web World`, `QC. Web Earnings`, `QC. Web Sankey`, `QC. API Extractors`, `QC. API Sankey`, `QC. API FX`) each with worktrees inside `~/Desktop/OpenTF/quartercharts.com/`. Existing `qc/us-charts` and `qc/us-sankey` remain Streamlit-only.
+- **Added "Branches & owners" section to `~/Desktop/OpenTF/INFRASTRUCTURE.md`**: full table grouped by surface, suggested agent owners per row, and 5 surfaced decisions for Sebastián (earnings cluster, header collision, lint-cleanup, WIP stash, Phase 1F spawn).
+- **Net effect**: office can now answer "who should work on which branch" mechanically. Branch coordination is currently advisory (`B`/`X` are observed but not yet hook-enforced); Phase 1E lands the enforcement once Phase 1F agents exist to use it.
+
+### 2026-04-29 — Office (cross-repo boundary triage)
+- **QC. US Sankey escalation triaged.** Worker (`qc/us-sankey`, worktree `vigilant-goldstine-487a21` in miteproyects) edited `~/Desktop/OpenTF/quartercharts.com/api/src/qc_api/sankey/reconcile.py` from inside the wrong repo. Sebastián caught it pre-commit and reverted; the agent stashed the WIP and escalated via inbox.
+- **Hook fix shipped.** `~/.qc-office/hooks/_lib.py` gained `agent_worktree()`, `is_writable_outside_worktree()`, `_is_inside_any_other_worktree()`. `~/.qc-office/hooks/pretooluse-lockcheck.py` now returns exit 2 (BLOCK) when an Edit/Write target is outside the agent's worktree, with stderr telling them to escalate via the office inbox. Allow-list: `~/.qc-office/inbox/*` for everyone + `~/.qc-office/*` and `~/Desktop/OpenTF/qc-office-dashboard/*` for the orchestrator only. 7 smoke cases all green (incl. the exact regression: us-sankey worktree → quartercharts.com path → BLOCK).
+- **`qc/us-sankey` registry entry corrected.** `owns_files` was `["us-app/components/Sankey*", "lib/sankey/**"]` (Next.js paths that don't exist in miteproyects); now `["sankey_page.py", "data_fetcher.py:_build_income_sankey", "data_fetcher.py:_sankey*"]` — actual Streamlit paths in their worktree. Scope explicitly notes the Next.js sankey is a SEPARATE codebase needing its own agent.
+- **WIP stash held.** `git stash@{0}` on `fix/sankey-band-gap-and-drag` in `~/Desktop/OpenTF/quartercharts.com/` preserved untouched. Tests pass (~70 LOC, `_MIN_GAP=0.03` matches Plotly's `nodepad=20`). Pending Sebastián's call: drop, reassign, or hold.
+- **Reply written to `~/.qc-office/inbox/us-sankey.md`** documenting all of the above + green light to resume Streamlit-only work in their own worktree.
+- **Open Sebastián decisions** captured in Next Actions: stash disposition, miteproyects/CLAUDE.md doc fix (says us.qc.com is Streamlit, live is Next.js), and whether to spawn a `quartercharts.com/`-rooted agent for the still-unfixed sankey overlap on us.qc.com/sankey/NVDA.
+
+### 2026-04-28 — Office (orchestrator standup)
+- **Stood up the multi-worker coordination layer.** Sebastián has 9 pinned Claude Code chats (`1. Office`, `1. Currency`, `1. US Charts`, `1. Super Compañías`, `1. DNS`, `1. Globe`, `1. Business model`, `1. Logo`, `1. Searching Tool`) each in its own git worktree. They were running independently with no coordination — risk of file conflicts, duplicate work, drift.
+- **Architecture decision**: Anthropic's `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is mismatched to this topology (it expects one lead session spawning teammates inside one project, not 9 independent leads). Built a file-based coordination layer instead, using Claude Code hooks for zero-token coordination.
+- **Shipped Phase 1A–1C**:
+  - `~/.qc-office/` — shared coordination root (outside repo, machine-wide). `agents.json` registry, `inbox/<worker>.md` per-agent inboxes, `locks/<file>.lock` file locks, `events/events.jsonl` append-only event log, `hooks/*.py` hook scripts.
+  - `OFFICE.md` (repo root, this worktree) — full design spec: 10-event TOON-style vocabulary (`L/U/S/T/D/Q/A/R/Y/H`), lockfile format with TTL + race-handling, the awareness loop, conflict-resolution rules, roadmap.
+  - `WORKERS/*.md` — per-worker briefs (one per pinned chat). Each has scope, owned files, out-of-scope, tasks, open questions. The `office` worker is special: orchestrator, doesn't edit app code unless explicitly assigned.
+  - `~/.qc-office/hooks/` — 5 fail-open Python hooks: `pretooluse-lockcheck.py` (blocks tool call if peer holds fresh lock), `posttooluse-event.py` (releases lock + logs U/T), `stop-event.py` (logs idle/done), `sessionstart-event.py` (surfaces recent peer activity to LLM context), `userpromptsubmit-event.py` (surfaces unread inbox).
+  - Project-level `.claude/settings.json` updated: enabled `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (for future use) + registered all 5 hooks. Project-level → all 9 worktrees inherit on next session start.
+- **Smoke test (7 tests, all green)**: office acquires lock on `smoke.py` → globe blocked with reason → office refreshes own lock → posttooluse releases → globe acquires → stop hook logs idle → currency's sessionstart shows the full peer activity sequence. Cross-process file-based coordination working.
+- **Token cost**: coordination is zero-LLM-tokens (hooks are deterministic Python). Workers only spend tokens reading inbox/events when a hook injects them as system reminders, and only when peers actually need attention.
+- **Critical caveats**:
+  - The office password Sebastián shared in chat is now in transcript history — flagged for rotation per his own MEMORY.md "leaked secrets" rule. Phase 0 owner action.
+  - Hooks fail open — any internal error → exit 0 (let tool through). Coordination layer can never break a worker.
+  - The `office` worker (this one) is the only one that should edit `OFFICE.md`, `WORKERS/*`, `agents.json`, hooks, and the future dashboard.
+- **Phase 2+ pending Sebastián approval**: NATS JetStream on Railway (~$5/mo), `office.quartercharts.com` Next.js dashboard on Vercel, `ttyd` tunnel via Cloudflare, cool visual layer (isometric / force-graph) replacing the placeholder grid.
 
 ### 2026-04-23 — Claude Code
 - **Moved the paywall testing-mode toggle from the public `/pricing` page into `NSFE > 💳 Pricing` tab** per Sebastián's request. The old location gated access via the hard-coded `ADMIN_EMAILS` list; the new location gates via the NSFE password (`nsfe_page._PASSWORD`), which is the intended access boundary for admin controls — NSFE exists precisely so admin features aren't scattered across public pages guarded by email checks.

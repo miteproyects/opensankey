@@ -105,6 +105,8 @@ Every coordination message is one line in `~/.qc-office/events/events.jsonl`. Fo
 | `R`  | Request room cleared | `from`, `file`, `reason`              | ~12 tokens         |
 | `Y`  | Yield room           | `from`, `file`                        | ~6 tokens          |
 | `H`  | Halt / escalate      | `from`, `reason`                      | ~12 tokens         |
+| `B`  | Branch claimed       | `from`, `repo`, `branch`              | ~10 tokens         |
+| `X`  | Branch released      | `from`, `repo`, `branch`              | ~8 tokens          |
 
 **Rules:**
 - ASCII only. No emoji, no Unicode quotes, no English narration.
@@ -227,6 +229,78 @@ A separator line `<!-- READ: <ISO-timestamp> -->` is inserted by the agent when 
 
 ---
 
+## Branch-level coordination (added 2026-04-29)
+
+File locks are not enough when many agents share one repo (`quartercharts.com/` has 30+ live branches). Agents need a way to (a) declare which branch they own right now, (b) hand it off temporarily, (c) hand off only a slice of files inside a branch.
+
+### Branch ownership
+
+Each agent's `agents.json` entry MAY include:
+
+```jsonc
+{
+  "branch_owner": {
+    "repo": "quartercharts.com",        // logical repo name, see Repos table below
+    "branch": "feat-earnings-future-toggle-v2"
+  },
+  "extra_owns_files": [                 // grants given by office, time-boxed
+    {
+      "glob": "web/components/sankey-chart.tsx",
+      "granted_by": "qc/office",
+      "expires_at": "2026-04-29T10:00:00Z",
+      "reason": "drag-handler one-off, then back to qc/api-sankey"
+    }
+  ]
+}
+```
+
+`branch_owner` is exclusive — at most one agent per `(repo, branch)` pair. Office enforces this when a `B` event lands.
+
+### `B`/`X` lifecycle
+
+```
+2026-04-29T08:00:00Z B from=qc/web-earnings repo=quartercharts.com branch=feat-earnings-future-toggle-v2
+... agent works ...
+2026-04-29T08:42:11Z X from=qc/web-earnings repo=quartercharts.com branch=feat-earnings-future-toggle-v2
+```
+
+Two failure modes:
+- Two agents `B` the same branch → first wins, office emits `H` to the second with the current owner's name. Loser yields and re-queues.
+- Agent goes silent with `B` held > 60 min → office strips ownership and posts a `D` event (auto-released).
+
+### Slice hand-off (`R/Y` extended for files inside a branch)
+
+The `R/Y` round-trip from the file-lock spec also handles "release a slice of your branch":
+
+```
+2026-04-29T08:30:00Z R from=qc/api-sankey file=web/components/sankey-chart.tsx reason="need 30 min for drag handler" duration=1800
+2026-04-29T08:30:05Z Y from=qc/web-charts file=web/components/sankey-chart.tsx
+2026-04-29T08:30:06Z H to=qc/office reason="grant requested" file=web/components/sankey-chart.tsx
+```
+
+Office observes the request, writes a temporary `extra_owns_files` entry on the requester's registry record with `expires_at = now + duration`, and emits `Y from=qc/office`. PreToolUse honors `extra_owns_files` for the duration. After expiry, `discover-agents.py` prunes the entry on its next 10s tick.
+
+### Repos table
+
+Logical repo names used in `B`/`X`/`branch_owner.repo`:
+
+| repo (logical)    | path                                       | host                                                  |
+| ----------------- | ------------------------------------------ | ----------------------------------------------------- |
+| `miteproyects`    | `~/Desktop/OpenTF/miteproyects/`           | `quartercharts.com` root + `usa.quartercharts.com`    |
+| `quartercharts.com` | `~/Desktop/OpenTF/quartercharts.com/`    | `us.quartercharts.com` + `world.quartercharts.com` + `api.quartercharts.com` |
+| `qc-office-dashboard` | `~/Desktop/OpenTF/qc-office-dashboard/` | `office.quartercharts.com`                            |
+
+### Hook enforcement (Phase 1E — pending)
+
+PreToolUse will additionally:
+1. Resolve `repo` from the agent's worktree path (best-effort: walk up to find a `.git` ancestor whose path matches a known logical repo).
+2. Resolve `branch` from `git rev-parse --abbrev-ref HEAD` (cached per-worktree).
+3. If another agent has `branch_owner == (repo, branch)` → exit 2 BLOCK with the same escalation copy used by the worktree guard.
+
+Until Phase 1E lands, branch ownership is **advisory** — workers and office observe `B`/`X` events but the hook only enforces file-level locks + worktree boundary.
+
+---
+
 ## Conflict-resolution rules
 
 1. **Stay in your lane.** Each worker has `owns_files` in `agents.json`. Edits inside your lane: no announcement needed (still acquire lock). Edits outside: emit `R`, wait for `Y` from current owner before locking.
@@ -261,11 +335,38 @@ Non-participating roles (`scratch`, `reserve`) are still discovered and shown on
 | 1B    | Hook scripts in `.claude/hooks/`. Inert until Phase 1C wires them in.                  | ⏳     |
 | 1C    | `.claude/settings.json` enables Agent Teams flag + registers hooks.                    | ⏳     |
 | 1D    | Smoke test: 3 workers each lock a file simultaneously; verify queueing + events.       | ⏳     |
+| 1E    | Branch-level coordination: `B`/`X` events, `branch_owner` enforcement, `extra_owns_files` grants. Spec landed 2026-04-29; hook code pending. | ⏳ |
+| 1F    | Spawn `quartercharts.com/`-rooted agents (web-charts / web-world / web-earnings / web-sankey / api-extractors / api-sankey / api-fx). Currently every agent's worktree is in miteproyects, so the boundary guard blocks all live `quartercharts.com` work. See Suggested agent topology below. | ⏳ |
 | 2     | Replace file-based events with NATS JetStream on Railway. Hooks publish to NATS too.   | ⏳     |
 | 3     | `office.quartercharts.com` Next.js dashboard on Vercel. Auth-gated. WebSocket bridge.  | ⏳     |
 | 4     | `ttyd` per worker on Mac, tunneled via Cloudflare, iframed in dashboard.               | ⏳     |
 | 5     | Cool visual layer (isometric office or force-graph). Replaces grid placeholder.        | ⏳     |
 | 6     | Optional: room-clearing UX, audio cues, dashboard-driven worker spawn/kill.            | ⏳     |
+
+---
+
+## Suggested agent topology for `quartercharts.com/` (Phase 1F)
+
+Today every registered agent's worktree is rooted in `~/Desktop/OpenTF/miteproyects/`. The PreToolUse boundary guard (added 2026-04-29) blocks any of them from editing files in `~/Desktop/OpenTF/quartercharts.com/`, which is where 100% of the live web/API work happens. Until Sebastián spawns chats whose worktrees are inside that repo, no agent can land any of the 30+ active branches there.
+
+Recommended split (one chat per row, name = chat title):
+
+| Chat title       | Canonical name       | Repo                | Owns                                                       |
+| ---------------- | -------------------- | ------------------- | ---------------------------------------------------------- |
+| `QC. Web Charts` | `qc/web-charts`      | quartercharts.com   | `web/app/charts/**`, `web/components/charts-*`             |
+| `QC. Web World`  | `qc/web-world`       | quartercharts.com   | `web/app/world/**`, `web/components/globe-*`               |
+| `QC. Web Earnings` | `qc/web-earnings`  | quartercharts.com   | `web/app/earnings/**` (8-branch hot zone — pin one owner)  |
+| `QC. Web Sankey` | `qc/web-sankey`      | quartercharts.com   | `web/components/sankey-*`, `web/app/sankey/**`             |
+| `QC. API Extractors` | `qc/api-extractors` | quartercharts.com | `api/src/qc_api/charts/**`, `api/src/qc_api/extractors/**` |
+| `QC. API Sankey` | `qc/api-sankey`      | quartercharts.com   | `api/src/qc_api/sankey/**` (inherits the WIP stash on `fix/sankey-band-gap-and-drag`) |
+| `QC. API FX`     | `qc/api-fx`          | quartercharts.com   | FX backend (`feat-fx-backend-phase-2` PR #113)             |
+
+The existing `qc/us-charts` and `qc/us-sankey` chats stay as **Streamlit-only owners** in `miteproyects/` (their worktrees already live there; their owns_files were corrected on 2026-04-29 to match Streamlit paths).
+
+Each new chat should:
+1. Create its worktree inside `~/Desktop/OpenTF/quartercharts.com/.claude/worktrees/<adjective-noun-XYZ>` from `main`.
+2. Discovery picks it up automatically on the next 10s tick (the `QC. ` prefix is enough).
+3. Office grants `branch_owner` on first `B` event.
 
 ---
 
