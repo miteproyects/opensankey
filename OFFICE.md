@@ -107,6 +107,8 @@ Every coordination message is one line in `~/.qc-office/events/events.jsonl`. Fo
 | `H`  | Halt / escalate      | `from`, `reason`                      | ~12 tokens         |
 | `B`  | Branch claimed       | `from`, `repo`, `branch`              | ~10 tokens         |
 | `X`  | Branch released      | `from`, `repo`, `branch`              | ~8 tokens          |
+| `P`  | Push intent          | `from`, `branch`, `files` (csv), `priority` | ~14 tokens   |
+| `M`  | Merge plan published | `train_id`, `members` (csv), `order`  | ~16 tokens         |
 
 **Rules:**
 - ASCII only. No emoji, no Unicode quotes, no English narration.
@@ -226,6 +228,195 @@ The agent never has to think about coordination — it just does its work, and t
 ### Read marker
 
 A separator line `<!-- READ: <ISO-timestamp> -->` is inserted by the agent when it reads. Hook prepends only entries below the most recent read marker.
+
+---
+
+## Per-agent QC worktrees (signed off 2026-04-29 evening, after qc/us-charts escalation)
+
+Multiple QC agents historically `cd`'d into a single shared physical
+checkout of `~/Desktop/OpenTF/quartercharts.com/` and ran git
+HEAD-movers from there. They raced on the same HEAD pointer; commits
+got reset, branches got switched mid-edit. Fix:
+
+### Layout
+
+```
+~/Desktop/OpenTF/qc-trees/
+├── us-charts/         agents/qc-us-charts/main      (qc/us-charts)
+├── globe/             agents/qc-globe/main          (qc/globe)
+└── ...one per QC agent that ships to quartercharts.com
+
+~/Desktop/OpenTF/qc-com-sankey-fix/                  (qc/us-sankey, pre-existing)
+~/Desktop/OpenTF/quartercharts.com/                  Sebastián's main, off-limits to agents
+```
+
+### Conventions
+
+- **Each QC agent gets its own `git worktree add`** of the production
+  monorepo. They share an object DB; HEADs are independent.
+- **Branch namespace `agents/<canonical>/<topic>`** — collisions
+  impossible across agents; CI logs identify owner instantly.
+- **Per-worktree git identity** via `git config --worktree user.email`
+  set to `<canonical>@quartercharts.com`. Commit author traces actually
+  identify the agent.
+- **Sebastián's main checkout** at `~/Desktop/OpenTF/quartercharts.com/`
+  is off-limits to agents. The hook BLOCKs any HEAD-mover Bash call
+  from there.
+
+### Registry schema (agents.json v2)
+
+Each QC agent that ships to the monorepo adds three fields to its
+record:
+
+```jsonc
+{
+  "qc/us-charts": {
+    "worktree":      "/Users/.../miteproyects/.claude/worktrees/cool-keller-...",
+    "repo_worktree": "/Users/.../qc-trees/us-charts",       // NEW
+    "repo_branch":   "agents/qc-us-charts/main",            // NEW
+    "ships_to":      "quartercharts.com",                   // NEW
+    ...
+  }
+}
+```
+
+### Hook enforcement (already shipped)
+
+`pretooluse-lockcheck.py` does two new things:
+
+1. **Bash HEAD-mover guard.** Any `git checkout / switch / reset --hard /
+   reset --merge / rebase / pull / merge / cherry-pick` from inside the
+   shared `quartercharts.com/` checkout is BLOCKed with a pointer at
+   the agent's own `repo_worktree`.
+2. **HEAD-stability check.** Edit/Write inside an agent's `repo_worktree`
+   verifies `git symbolic-ref HEAD` matches the registered `repo_branch`.
+   Mismatch → BLOCK with a `git checkout` hint.
+
+`resolve_agent()` checks both `worktree` AND `repo_worktree` so an
+agent invoking tools from either location is identified.
+
+---
+
+## Push-train coordination (DRAFT — needs build, design landed 2026-04-29)
+
+Per Sebastián's request: when a high-priority agent pushes work, lower-
+priority agents whose work touches the same files should pause; office
+analyzes overlap; if multiple agents need to ship, they negotiate a
+push plan.
+
+This is sometimes called a **merge train** (Etsy, Slack, Stripe) or
+**push queue** (Google's Bazel + presubmit). The pattern is well-known
+in industry — the key insight is that push-time is when conflicts hurt
+most, so you serialize there even if you parallelize everywhere else.
+
+### Vocabulary additions
+
+Two new event codes (added to the table above):
+
+| Code | Meaning              | Required fields                                  |
+| ---- | -------------------- | ------------------------------------------------ |
+| `P`  | Push intent          | `from`, `branch`, `files` (csv), `priority`      |
+| `M`  | Merge plan published | `train_id`, `members` (csv canonical names), `order` |
+
+### Lifecycle
+
+1. **Intent.** Agent A is about to `git push`. Before pushing, it emits:
+   `P from=qc/us-charts branch=agents/qc-us-charts/feat-x files="web/charts/..,api/..." priority=P0`.
+   Hook intercepts the `git push` Bash call and writes the intent to
+   `~/.qc-office/push-queue.json`. The push itself is held.
+
+2. **Triage.** Office (this chat, when on duty) reads the queue. For each
+   pending intent:
+     - Compute `overlap_set` = union of file paths touched by every
+       higher-priority OR same-priority-earlier-arrived intent.
+     - If `intent.files ∩ overlap_set` is empty: **green-light** the push
+       immediately (parallelisable, no conflict possible). Office writes
+       `green: true` on the queue entry.
+     - Else: **enqueue behind** the conflicting peer. Office writes
+       `blocked_by: <peer-name>`.
+
+3. **Pause low-priority work.** When a P0 / P1 intent is in flight,
+   office sets `paused: true` on every P3 (and optionally P2) agent
+   whose `owns_files` overlaps with the in-flight intent's files. The
+   priority-pause is automatic and surfaces in the dashboard. Once the
+   high-priority push lands (CI green, Vercel deploy succeeds), office
+   un-pauses them.
+
+4. **Push plan published.** Office emits a single `M` event:
+   `M train_id=tr-2026-04-29-01 members="qc/us-charts,qc/globe,qc/legal" order=us-charts,globe,legal`.
+   Each member checks `~/.qc-office/push-train.json` before pushing;
+   if its slot isn't current, it waits.
+
+5. **Conflict pre-flight.** Before clearing a slot, office runs `git
+   merge-tree` (or a dry-run rebase) on each member's branch against
+   `origin/main` and posts the result. If a textual conflict surfaces,
+   the affected agent gets a `Q` (question) inbox message asking them
+   to rebase. The slot is held until they reply with a clean rebase.
+
+6. **Rollback.** If a push lands but CI / deploy fails, office:
+     - Marks the train in `failed` state.
+     - Holds remaining members.
+     - Notifies the failing agent via inbox.
+     - Once they fix and re-push (a new `P` intent), the train resumes.
+
+### How FAANGs do it (and what we're stealing)
+
+| Pattern                   | Inspiration                          | What we use                           |
+| ------------------------- | ------------------------------------ | ------------------------------------- |
+| Push queue                | Etsy "deploy train", Slack "checkers" | Single ordered queue per repo         |
+| Pre-merge dry-run         | Google Bazel pre-submit               | `git merge-tree` against `origin/main` |
+| Stacked PRs               | Meta Sapling, GitButler              | Ranked by priority; later stacks rebase |
+| Auto-rebase failure → Q   | LinkedIn, Uber's Submit Queue         | Office sends `Q` event to author      |
+| Priority-aware preemption | Borg / Kubernetes preemption          | P3 yields to P0; same-priority FCFS  |
+| Audit log                 | Google Critique, Phab                 | All `P/M` events in `events.jsonl`    |
+
+We deliberately skip:
+- **Speculative execution / parallel CI lanes.** Adds infra cost we
+  can't justify until traffic > 5 pushes/hour.
+- **Cherry-pick squashing across stacks.** Easy to break; not worth it.
+- **Auto-revert on CI fail.** Too aggressive; hold the train, prompt
+  human instead.
+
+### Implementation phases
+
+**Phase A — minimum viable (~150 LOC)**:
+- `~/.qc-office/push-queue.json` schema + atomic write helper.
+- Hook intercepts `git push` Bash → writes intent → exits with a
+  message ("queued, waiting on office green-light").
+- A small `office-tick.py` polled every 5s by the daemon: walks the
+  queue, applies the conflict-set rule, emits `M` events, frees slots.
+- Dashboard sankey adds a tiny **🚉 train** indicator next to each
+  agent showing queue position + state (`waiting / green / failed`).
+
+**Phase B — niceties (~+100 LOC)**:
+- Pre-flight `git merge-tree` against `origin/main`.
+- Auto-rebase suggestion via `Q` event.
+- Priority-aware pause of P3 agents whose files overlap with active
+  P0/P1 intents.
+
+**Phase C — power-user**:
+- A "meeting" UI in the dashboard (when 3+ agents have intents
+  conflicting on the same files): office surfaces a button that
+  consolidates them into a single train with explicit ordering.
+  Agents can accept / counter-propose via inbox.
+
+### What we DON'T need yet
+
+- **Cron-based train cycle.** Daemon polls every 5s already; no need
+  for a separate cron.
+- **Database.** JSON file is fine for ≤100 entries / hour.
+- **Remote push from office.** Each agent still pushes its own branch;
+  office only orchestrates the order.
+
+### Status
+
+- Design landed in OFFICE.md (this section).
+- Vocabulary placeholders for `P` and `M` reserved.
+- Implementation deferred until first real conflict happens — current
+  scale (4 active QC agents) hasn't generated one yet, and the
+  HEAD-race fix (per-agent worktrees) eliminates the most common
+  failure mode. We'll add Phase A when the second hot-merge-conflict
+  bites.
 
 ---
 

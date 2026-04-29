@@ -45,7 +45,34 @@ Ordered, one at a time. Top = do next.
 5. **[Office + dns]** Phase 4 — `ttyd`-per-worker on Mac, tunneled via Cloudflare, iframed in dashboard. DNS records owned by `dns` worker.
 6. **[Office]** Phase 5 — Cool visual layer (isometric office or force-graph). Replaces grid placeholder.
 
-### Shared-checkout HEAD race — qc/us-charts escalation (2026-04-29 evening) — Sebastián decision needed
+### Shared-checkout HEAD race — qc/us-charts escalation (2026-04-29 evening) — IMPLEMENTED
+
+Sebastián signed off on all 5 sign-off items 2026-04-29 evening. **Shipped:**
+
+- **Per-agent worktrees** under `~/Desktop/OpenTF/qc-trees/`:
+  - `qc-trees/us-charts` on branch `agents/qc-us-charts/main` (qc/us-charts)
+  - `qc-trees/globe` on branch `agents/qc-globe/main` (qc/globe)
+  - Existing `qc-com-sankey-fix` on `fix/sankey-band-gap-and-drag` registered as qc/us-sankey's repo_worktree (preserves WIP stash from earlier escalation).
+- **Agent-namespaced branch convention** documented: `agents/<canonical>/<topic>` is now the standard.
+- **Per-worktree git identity** via `git config --worktree user.email`:
+  - `qc-us-charts@quartercharts.com`, `qc-globe@quartercharts.com`, `qc-us-sankey@quartercharts.com`. Required `extensions.worktreeConfig=true` on the repo, set on the main checkout.
+- **agents.json schema bump (v2)**: three new fields per QC agent that ships to the monorepo — `repo_worktree`, `repo_branch`, `ships_to`. `discover-agents.py` preserves them across sweeps.
+- **HEAD-stability hook check**: PreToolUse now does TWO things:
+  1. Bash HEAD-mover guard now points blocked agents at their own `repo_worktree` instead of just rejecting.
+  2. Edit/Write inside the agent's `repo_worktree` verifies HEAD branch matches the registered `repo_branch`. Drift → BLOCK with a `git checkout` hint.
+- `resolve_agent()` extended to match BOTH `worktree` AND `repo_worktree` so an agent invoking tools from either path is identified.
+
+**4 smoke cases pass**: shared-QC bash blocks, own-repo bash passes, edit on registered branch passes, edit after HEAD drift blocks.
+
+### Push-train coordination (DESIGN landed in OFFICE.md, IMPLEMENTATION deferred)
+
+Per Sebastián's request: high-priority agents shouldn't have their pushes trampled by lower-priority concurrent work; agents should be able to "meet" and coordinate a push plan.
+
+**Design shipped in OFFICE.md** under "Push-train coordination". Pattern: stolen from Etsy/Slack/Stripe push trains + Google Bazel pre-submit + Kubernetes preemption + LinkedIn/Uber Submit Queue. Two new event codes reserved (`P` push-intent, `M` merge plan). 3 implementation phases scoped (A: ~150 LOC MVP queue + 5s daemon tick + dashboard chip; B: pre-flight conflict probe + Q-event auto-rebase prompts + P3 auto-pause; C: meeting UI for 3+ way conflicts).
+
+**Implementation deferred** to first real conflict because (a) per-agent worktrees just eliminated the most common failure mode, (b) we currently have ≤4 active QC agents so a serialized queue is overkill, and (c) the design needs at least one real-world conflict to validate the heuristic. Will revisit when next hot-merge bites.
+
+### Shared-checkout HEAD race — earlier escalation context
 
 **Reported by qc/us-charts via `~/.qc-office/inbox/office.md`** — full report there. Summary:
 
