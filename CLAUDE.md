@@ -181,6 +181,13 @@ Canonical state lives in the task tools; this is a snapshot.
 
 Add a dated entry after each meaningful session. Prune entries older than ~30 days.
 
+### 2026-04-29 (T++later) — Office (priority persistence bug fix)
+- **Bug**: clicking Priority 0/1/2/No Rush in the dashboard modal saved to `agents.json` correctly, but the value reverted ~10 s later when `discover-agents.py` ran its next sweep. Same regression hit `paused`, `current_task`, `branch_owner`, `extra_owns_files`, `notes`, `_last_office_triage`.
+- **Cause**: `discover-agents.py` rebuilt every agent entry from scratch on each sweep, carrying over only a hardcoded subset (`scope`, `owns_files`, `note`). Every priority-related field added since then silently dropped.
+- **Fix**: rewrote the merge so discovery only OVERRIDES the desktop-owned fields (`team / worktree / worktree_exists / is_archived / chat_label / _cli_session_id / _session_metadata`) and **carries forward every other prior field by default**. Defensive catch-all preserves unknown future fields too.
+- **Smoke test**: set `priority=P1, paused=true` via `POST /priority/patch`, ran discovery, verified both still present. Cleaned up test data.
+- **No daemon restart needed** — `discover-agents.py` is invoked as a subprocess on each 10 s tick.
+
 ### 2026-04-29 (T+later) — Office (branch landscape audit + coordination spec extension)
 - **Audited all 36 active branches** in `~/Desktop/OpenTF/quartercharts.com/` (the Next.js + FastAPI monorepo serving us.qc.com + world.qc.com + api.qc.com). Grouped by surface area: us.qc frontend, world.qc frontend, earnings (8-branch hot zone — no owner), sankey (3 branches incl. the held WIP stash), QC quarter-comparison, API extractors (4 branches), API FX (PR #113), header collision pair, ci-lint-cleanup (+6, blocking).
 - **Found 2 open PRs** in quartercharts.com: #59 (`feat-header-legacy-logo`, web header) + #113 draft (`feat-fx-backend-phase-2`, API). Streamlit repo (miteproyects) has 10 Dependabot PRs only.
