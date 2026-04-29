@@ -45,6 +45,30 @@ Ordered, one at a time. Top = do next.
 5. **[Office + dns]** Phase 4 — `ttyd`-per-worker on Mac, tunneled via Cloudflare, iframed in dashboard. DNS records owned by `dns` worker.
 6. **[Office]** Phase 5 — Cool visual layer (isometric office or force-graph). Replaces grid placeholder.
 
+### Shared-checkout HEAD race — qc/us-charts escalation (2026-04-29 evening) — Sebastián decision needed
+
+**Reported by qc/us-charts via `~/.qc-office/inbox/office.md`** — full report there. Summary:
+
+- Multiple QC agents (us-charts, globe, us-sankey, …) all share a single physical checkout of `~/Desktop/OpenTF/quartercharts.com/`. Their `agents.json.worktree` fields point at miteproyects worktrees, so they `cd` into the shared QC repo to ship and run `git checkout` / `commit` / `pull` from there.
+- Result: same HEAD pointer for everyone → race conditions when two agents work concurrently → lost commits (Phase 3A.2 had to be re-shipped after a peer's `git reset` wiped it), commits on the wrong branch, redo cycles.
+- The PreToolUse boundary guard didn't catch it because it fires only on `Edit/Write/MultiEdit/NotebookEdit` — git operations were going through `Bash` and sailing past.
+
+**Interim guard shipped today** (no Sebastián approval needed, low risk):
+- PreToolUse hook now also inspects `Bash` calls. If the cwd is inside `~/Desktop/OpenTF/quartercharts.com/` AND the calling agent's registered worktree isn't ALSO that repo, it BLOCKS any `git checkout / switch / reset --hard / reset --merge / rebase / pull / merge / cherry-pick` with a pointer at the open escalation. Read-only git ops (status, log, diff) pass.
+- 5 smoke cases all green. Hook is fail-open as before.
+
+**5 sign-off items pending your call:**
+
+1. **Per-agent `git worktree add`** under `~/Desktop/OpenTF/qc-trees/{us-charts,globe,us-sankey,api-extractors,api-sankey,api-fx,web-earnings}` — separate physical checkouts of `quartercharts.com`, shared object DB. Each agent gets its own HEAD; race-eliminated.
+2. **Agent-namespaced branch convention**: `agents/qc-us-charts/<topic>` instead of `feat/<topic>`. Eliminates branch-name collisions; instantly identifies who owns a stray branch in CI.
+3. **Per-agent `git config user.email`** (e.g. `qc-us-charts@quartercharts.com`) so commit author traces actually identify which agent did the work.
+4. **`agents.json` schema bump**: add a separate `repo_worktree` field for QC-monorepo-shipping agents, distinct from the existing `worktree` field (which means "Claude Code session worktree"). Office hooks consult both.
+5. **HEAD-stability hook check**: PreToolUse compares the QC checkout's actual HEAD vs the agent's registered branch on every Edit, BLOCKs with a clear message if a peer moved it.
+
+Recommend accepting all 5 as a single change. Counter-proposals (claim-based locks, etc.) are softer and wouldn't have caught the Phase 3A.2 reset.
+
+When you sign off I'll: spin up the worktrees, write the migration script for agents.json, ship the HEAD-stability hook addition, and update OFFICE.md to document the new convention. Reply lives at `~/.qc-office/inbox/us-charts.md`.
+
 ### Cross-repo escalation + branch-coordination spec (2026-04-29)
 
 QC. US Sankey escalated a cross-repo boundary violation. Triaged by office and the spec extended:
@@ -180,6 +204,14 @@ Canonical state lives in the task tools; this is a snapshot.
 ## Rolling Log
 
 Add a dated entry after each meaningful session. Prune entries older than ~30 days.
+
+### 2026-04-29 (evening) — Office (qc/us-charts HEAD-race escalation triage)
+- **Inbox message from qc/us-charts** describing a shared-checkout HEAD race in `~/Desktop/OpenTF/quartercharts.com/`. Multiple QC agents `cd` into the same physical checkout and concurrently invoke `git checkout / commit / pull / reset`, trampling each other's HEAD pointer. Their Phase 3A.2 commit was lost to a peer's `git reset` and had to be re-shipped (`4e58cf2` → `8b9ffa6`).
+- **Triaged**. Their analysis is right and the failure mode is exactly what `git worktree` was invented to prevent. Wrote a long reply to `~/.qc-office/inbox/us-charts.md` confirming the diagnosis and disposition.
+- **5-item sign-off list documented in Next Actions** above (per-agent worktrees, agent-namespaced branches, per-agent git identity, agents.json schema bump for `repo_worktree`, HEAD-stability hook).
+- **Interim guard shipped** (no Sebastián approval needed): PreToolUse hook now inspects `Bash` calls. If cwd is inside the shared QC repo AND the calling agent's registered worktree isn't ALSO that repo, BLOCKs any `git checkout / switch / reset --hard / reset --merge / rebase / pull / merge / cherry-pick`. Read-only git ops (status, log, diff) still pass. 5 smoke cases green.
+- **Why the existing boundary guard missed it**: it fires only on `Edit/Write/MultiEdit/NotebookEdit`. Bash sailed past. New Bash leg closes that gap as a stopgap until the proper per-agent worktree fix lands.
+- **Held qc/us-charts's in-flight Phase 3D/3E/3G apply-script** — wrote 'don't ship until per-agent worktrees exist' so we don't reproduce the race.
 
 ### 2026-04-29 (T++later) — Office (priority persistence bug fix)
 - **Bug**: clicking Priority 0/1/2/No Rush in the dashboard modal saved to `agents.json` correctly, but the value reverted ~10 s later when `discover-agents.py` ran its next sweep. Same regression hit `paused`, `current_task`, `branch_owner`, `extra_owns_files`, `notes`, `_last_office_triage`.
