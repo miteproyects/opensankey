@@ -232,6 +232,18 @@ Canonical state lives in the task tools; this is a snapshot.
 
 Add a dated entry after each meaningful session. Prune entries older than ~30 days.
 
+### 2026-04-29 (deepest evening) — Office (incident: own-goal in repo_worktree rollout, qc/us-sankey patched the hook)
+- **What happened**: when I shipped per-agent `repo_worktree` earlier this evening (item #4 of the qc/us-charts escalation), I taught `resolve_agent()` to match BOTH `worktree` and `repo_worktree`, and added a HEAD-stability check that uses `repo_worktree`. I forgot to teach `_lib.repo_relative()` about `repo_worktree`. So:
+  - Agent's session cwd was the miteproyects worktree (`vigilant-goldstine-487a21`).
+  - Edits targeted files in their `repo_worktree` (`qc-com-sankey-fix`).
+  - `repo_relative(target, cwd)` returned None (target outside cwd).
+  - "Outside worktree" branch BLOCKed every Edit (`is_writable_outside_worktree` returns False for non-orchestrator agents).
+- **qc/us-sankey hit this 4 times in a row** while Sebastián kept saying "continue." After the office (me) didn't ship a fix in time, they applied a minimal, surgical, documented patch directly to `pretooluse-lockcheck.py`: at the `if not rel:` fall-through, recompute `rel = os.path.relpath(target, repo_worktree)` if the target is inside the agent's `repo_worktree`. Patch is correct and well-commented (attributed to "qc/us-sankey 2026-04-29").
+- **Smoke-tested 4 cases, all green** after the patch landed: edit in session worktree (PASS), edit in repo_worktree from session cwd (the fix — PASS), edit in repo_worktree from repo_worktree cwd (PASS), edit in a peer's session worktree (still BLOCKED — cross-poach guard intact).
+- **Authorized retroactively.** Replied at `~/.qc-office/inbox/us-sankey.md` with the diagnosis + ack + boundary discussion. The conditions justified unilateral action: orchestrator unresponsive, bug is in orchestrator's code, change is minimal/documented, patch passes review after the fact. Don't make a habit of it — escalate first, patch only when the inbox is silent — but this one was the right call.
+- **Lesson for the office**: when adding a field to the registry, grep every caller of every helper that reads the prior field. The bug pattern was "added `repo_worktree`, only updated half the readers." Going forward I'll batch-update all readers in one commit.
+- **Follow-up I owe**: refactor the inline patch into a clean `repo_relative_for_agent()` helper in `_lib.py` so the logic lives next to the function it complements. Not in this turn — the inline patch is correct and the codebase isn't on fire.
+
 ### 2026-04-29 (deep evening) — Office (Meetings + Watchdogs + Push-queue Phase A)
 - **Universal working-glow shipped.** Every agent in `working` state on the iso floor now wears a pulsing neon pill halo (purple→cyan→amber gradient with gaussian bloom). One visual everywhere, breathing animation tells you who's mid-turn at a glance.
 - **Two new rooms** added to the floor: **Meetings** (purple, central-south) and **Watchdogs** (orange, NE corner). Both registered in `CLUSTER_TILES` + `CLUSTER_COLOR` + `ClusterTints`. Floor still passes `assertNoOverlaps()`.
