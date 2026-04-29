@@ -232,6 +232,19 @@ Canonical state lives in the task tools; this is a snapshot.
 
 Add a dated entry after each meaningful session. Prune entries older than ~30 days.
 
+### 2026-04-29 (deep evening) — Office (Meetings + Watchdogs + Push-queue Phase A)
+- **Universal working-glow shipped.** Every agent in `working` state on the iso floor now wears a pulsing neon pill halo (purple→cyan→amber gradient with gaussian bloom). One visual everywhere, breathing animation tells you who's mid-turn at a glance.
+- **Two new rooms** added to the floor: **Meetings** (purple, central-south) and **Watchdogs** (orange, NE corner). Both registered in `CLUSTER_TILES` + `CLUSTER_COLOR` + `ClusterTints`. Floor still passes `assertNoOverlaps()`.
+- **Drag-to-relocate** primitive shipped. Mouse + touch pointer-down on any agent sprite → after 5 px movement, sprite enters drag mode → cursor-following ghost + drop-target highlight on the cluster the cursor is over → on pointer-up, POSTs to `/api/priority` with `presence: <cluster-name>`. Drop on agent's home cluster → clears presence. Single click (no movement) still opens the modal.
+- **`presence` field** added to AgentSnapshot type, daemon `PATCHABLE_AGENT_FIELDS`, daemon `/state` snapshot, and `discover-agents.py` PRESERVE_IF_PRESENT (v3 schema). `effectiveCluster()` overrides `clusterFor()` when presence is set.
+- **Meeting protocol** wired: `~/.qc-office/meetings/<id>.md` per-meeting append-only doc + SessionStart hook surfaces the doc tail (last 2 KB) + kickoff prompt for any agent with `presence: meeting:<id>`. Async-first — Sebastián gives ONE topic prompt, agents iterate the doc on their own clocks.
+- **Push-queue Phase A SHIPPED.** PreToolUse hook intercepts every `git push` (except `--dry-run`), writes intent to `~/.qc-office/push-queue.json`, emits a `P` event, BLOCKs the push with a queued-message. Override: `QC_OFFICE_FORCE_PUSH=1 git push…` (audited via `H` event). Smoke-tested 3 cases: queued, dry-run-pass, override-pass.
+- **Meeting participants get a stronger block**: agents with `presence: meeting:*` are BLOCKed from `git push` even before queue logic runs, until the meeting publishes an `M` event. This is what makes the meeting room actually CHANGE behavior.
+- **Watchdog role** added (cluster, color, README at `~/.qc-office/watchdogs/README.md` with launchd plist template + Python skeleton + 6 standard watchdogs to register: ci, vercel, railway, paywall, dns, tunnel). Actual launchd loads are Sebastián's call (machine-side plist installation).
+- **Daemon restarted** to pick up the new patchable fields. `discover-agents.py` doesn't need restart (subprocess every 10s).
+- **OFFICE.md** updated with two new sections — "Meetings room + drag-to-relocate" and "Push-train coordination Phase A SHIPPED" — Phase B/C remain deferred-but-designed.
+- **Deferred**: LGTM-quorum auto-detection (Phase 2), pre-flight `git merge-tree` (Phase B), Convene-meeting button (Phase 3), auto-archive on timeout, P3 auto-pause when P0 intents are in flight, 3+ way conflict consolidation UI (Phase C). Designs remain in OFFICE.md.
+
 ### 2026-04-29 (evening) — Office (qc/us-charts HEAD-race escalation triage)
 - **Inbox message from qc/us-charts** describing a shared-checkout HEAD race in `~/Desktop/OpenTF/quartercharts.com/`. Multiple QC agents `cd` into the same physical checkout and concurrently invoke `git checkout / commit / pull / reset`, trampling each other's HEAD pointer. Their Phase 3A.2 commit was lost to a peer's `git reset` and had to be re-shipped (`4e58cf2` → `8b9ffa6`).
 - **Triaged**. Their analysis is right and the failure mode is exactly what `git worktree` was invented to prevent. Wrote a long reply to `~/.qc-office/inbox/us-charts.md` confirming the diagnosis and disposition.

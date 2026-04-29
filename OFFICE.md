@@ -297,7 +297,79 @@ agent invoking tools from either location is identified.
 
 ---
 
-## Push-train coordination (DRAFT — needs build, design landed 2026-04-29)
+## Meetings room + drag-to-relocate (Phase 0+1 SHIPPED 2026-04-29)
+
+The dashboard now lets Sebastián grab any agent on the iso floor with
+mouse or finger and drag it into a different room. Two new rooms:
+
+- **Meetings** (purple, central-south) — agents dropped here have their
+  `presence` set to `"meeting"` (or `meeting:<id>`). The SessionStart
+  hook surfaces a kickoff prompt + the meeting doc tail on every turn
+  while they're in this state. The PreToolUse hook BLOCKs `git push`
+  for meeting participants until the meeting publishes an `M` (merge
+  plan) event.
+- **Watchdogs** (orange, NE corner) — home for cron-style monitor
+  agents (CI, deploy, paywall flag, DNS, tunnel). Skeleton + launchd
+  template at `~/.qc-office/watchdogs/README.md`. Watchdog role added.
+
+### How drag-to-relocate works
+
+1. User pointer-down on an agent sprite → AgentSprite tracks pointer.
+   If movement >5 px, sprite hands a drag intent to the parent SVG.
+2. SVG tracks cursor in user-space; computes which cluster the cursor
+   is over via `clusterAtUserCoord(x, y)` (reverse top-down iso →
+   tile-coord lookup against `CLUSTER_TILES`).
+3. Drop target highlights with the cluster's color while dragging.
+4. On pointer-up over a valid cluster, POSTs to `/api/priority`
+   action=`patch` with `fields.presence = <cluster-name>`. Daemon
+   atomic-writes to agents.json.
+5. Drop in agent's home cluster → sets `presence: null` (returns to
+   default behavior driven by `clusterFor()`).
+
+### `presence` semantics
+
+```jsonc
+"qc/us-charts": {
+  "presence": "meeting:plan-3d"   // transient room override
+}
+```
+
+- Cluster format: `<room-name>` (e.g., `"meetings"`, `"watchdogs"`).
+- Meeting format: `meeting:<id>` (kickoff prompt fires + git-push
+  blocked until `M` event for the meeting).
+- Cleared on drop in home cluster, or by office on meeting timeout.
+- Preserved across discovery sweeps (`discover-agents.py`).
+
+### Meeting protocol (async)
+
+```
+~/.qc-office/meetings/
+  └── <meeting-id>.md        # append-only shared doc
+```
+
+When ≥2 agents have `presence: meeting:<id>`:
+
+1. Each agent's SessionStart hook surfaces the meeting doc tail
+   (last 2 KB) as a system reminder + the kickoff prompt explaining
+   the protocol (read doc, append your plan, propose joint plan,
+   `LGTM <name>` to ratify, wait for `M` event before pushing).
+2. Agents iterate through the doc on their own clocks (async, no
+   live-call required). Sebastián gives the meeting ONE prompt (the
+   topic) and stays out of the loop.
+3. When all participants have appended `LGTM <name>` on the same
+   plan section, office detects the quorum and emits an `M` (merge
+   plan) event. PreToolUse unblocks pushes for that agent set, in
+   the order specified by the plan.
+4. Drag-to-eject (drop the agent OUT of meetings) clears their
+   `presence`; the meeting continues with remaining participants.
+
+**LGTM-quorum auto-detection: deferred** to Phase 2. For now office
+emits `M` manually (or via dashboard button — also deferred). The
+async doc + push-block + kickoff prompt are enough for v1.
+
+---
+
+## Push-train coordination (Phase A SHIPPED 2026-04-29)
 
 Per Sebastián's request: when a high-priority agent pushes work, lower-
 priority agents whose work touches the same files should pause; office
@@ -408,15 +480,26 @@ We deliberately skip:
 - **Remote push from office.** Each agent still pushes its own branch;
   office only orchestrates the order.
 
-### Status
+### Status (UPDATED 2026-04-29 evening)
 
-- Design landed in OFFICE.md (this section).
-- Vocabulary placeholders for `P` and `M` reserved.
-- Implementation deferred until first real conflict happens — current
-  scale (4 active QC agents) hasn't generated one yet, and the
-  HEAD-race fix (per-agent worktrees) eliminates the most common
-  failure mode. We'll add Phase A when the second hot-merge-conflict
-  bites.
+- **Phase A SHIPPED.** PreToolUse hook intercepts every `git push`
+  (except `--dry-run`), writes an intent to `~/.qc-office/push-queue.json`,
+  emits a `P` event, and BLOCKs the push with a queued-message until
+  office green-lights it.
+- **Override**: prefix the command with `QC_OFFICE_FORCE_PUSH=1 git push…`
+  for genuine emergencies. The override emits an `H` event so the audit
+  trail captures it.
+- **Meeting-presence block** is layered on top: agents with
+  `presence: meeting:<id>` are blocked from pushing AT ALL until the
+  meeting publishes an `M` event (regardless of conflict-set state).
+  This is what makes the meeting room "real."
+- **Phase A daemon ticker** (auto-emit `M` based on conflict-set rule)
+  is **NOT yet live**. Office emits `M` manually for now. Wiring the
+  5 s ticker is a small follow-up; the queue file already has the
+  schema it needs.
+- **Phase B / C** (pre-flight `git merge-tree`, auto-rebase Q events,
+  P3 auto-pause, 3+ way "meeting" UI) remain deferred. Designs above
+  remain authoritative.
 
 ---
 
