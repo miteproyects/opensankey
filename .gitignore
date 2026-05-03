@@ -30,3 +30,14 @@ watchlist_names_cache.json
 
 # Smoke-test scratch
 .smoke-screenshots/
+
+# qc-office
+.claude/worktrees/
+WORKERS/*.pre-promote-*
+WORKING_STATE_SNAPSHOT.md
+edgar_tickers_cache.json
+watchlist_data/
+quarterchat graphs/
+
+# Big local datasets (commit explicitly when intended)
+SuperEcuador/

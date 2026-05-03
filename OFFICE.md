@@ -300,4 +300,4 @@ That's me. My job:
 
 ---
 
-*Last updated: 2026-04-28 by office worker (eloquent-lewin-7c8efe).*
+*Last updated: 2026-04-29 by office-2 (eager-mendeleev-bbe58e). Orchestrator role transferred from qc/office (eloquent-lewin-7c8efe) on 2026-04-29 after the original chat hit attach failures; new active brief lives at `WORKERS/office-2.md`.*
