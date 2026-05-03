@@ -3888,27 +3888,8 @@ def render_nsfe_page():
     """Render the password-protected NSFE manager control center."""
     st.markdown(_STYLES, unsafe_allow_html=True)
 
-    # ── Password Gate ──
-    if not st.session_state.get("nsfe_auth", False):
-        st.markdown("""
-        <div class="lock-container">
-            <div class="lock-icon">\U0001f512</div>
-            <div class="lock-title">NSFE \u2014 Restricted Area</div>
-            <div class="lock-sub">Enter the project password to continue</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col2:
-            pwd = st.text_input("Password", type="password", key="nsfe_pwd",
-                                placeholder="Enter password\u2026", label_visibility="collapsed")
-            if st.button("Unlock Dashboard", width='stretch', type="primary"):
-                if pwd == _PASSWORD:
-                    st.session_state.nsfe_auth = True
-                    st.rerun()
-                else:
-                    st.error("Incorrect password. Try again.")
-        return
+    # Password gate removed per owner request 2026-05-03 — NSFE accessible directly
+    st.session_state.nsfe_auth = True
 
     # ── Main Menu (Streamlit tabs) ──
     _sync_steps()
