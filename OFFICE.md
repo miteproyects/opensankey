@@ -230,10 +230,30 @@ A separator line `<!-- READ: <ISO-timestamp> -->` is inserted by the agent when 
 ## Conflict-resolution rules
 
 1. **Stay in your lane.** Each worker has `owns_files` in `agents.json`. Edits inside your lane: no announcement needed (still acquire lock). Edits outside: emit `R`, wait for `Y` from current owner before locking.
-2. **5-lock max.** No agent holds more than 5 active locks. Forces small commits.
+2. **5-lock max** (workers) / **25-lock max** (orchestrators). Forces small commits for workers; gives orchestrators headroom for multi-file refactors.
 3. **TTL is sacred.** Default 600s. If your task takes longer, refresh the lock by re-running the same hook (any tool call on the file refreshes). If you go silent for 10+ minutes with the lock held, peers will rip it.
-4. **Office breaks ties.** If two agents both `R` for the same file, `office` arbitrates by emitting `H` to the loser. Loser yields and re-queues.
+4. **Orchestrators arbitrate.** If two agents both `R` for the same file, any active orchestrator can arbitrate by emitting `H` to the loser. Loser yields and re-queues.
 5. **Halt is for humans.** `H` events surface in Sebastián's dashboard with audio. Use sparingly.
+
+## Dashboard drag/drop semantics (2026-05-03)
+
+The dashboard at `office.quartercharts.com` exposes drag-to-relocate for every chip on the floor. Behavior matrix:
+
+| Drop target | Effect |
+| --- | --- |
+| Built-in cluster (`charts-office`, `meetings`, etc.) | Sets `presence: "<cluster>"`, `presence_pinned: true`. Survives auto-drift. |
+| Custom room (user-created via Add Room button) | Sets `presence: "custom-...id"`, `presence_pinned: true`. |
+| `MEETINGS` / `MEETINGS-2` | Sticky (renders there regardless of agent state). |
+| `WATCHDOGS` | Sticky, same as meetings. |
+| `COFFEE` | User-explicit drop sticks even when `pinned=true` (presence_pinned distinguishes user intent from auto-drift). |
+| `ORCHESTRATOR` (ADMIN) | `/priority/promote` runs silently — no modal. Multi-orch: adds without demoting. Modal only re-appears on daemon error. |
+| Outside any room (corridor) | Snap-to-nearest within 1 tile; otherwise no-op. |
+
+**The two pin flags** distinguish two intents:
+- `pinned: true` — defeats automatic drift to system-managed presences (`coffee` from idle, `agent-ready` from orientation graduation, etc.). When pinned, an idle agent stays at home rather than drifting.
+- `presence_pinned: true` — user has explicitly placed this agent at this presence (via drag or room-card combobox). Distinct from `pinned` because we want explicit user placements to override even system-presence routing rules. Set by the dashboard's drag handler; preserved across discovery sweeps via `PRESERVE_IF_PRESENT` in `discover-agents.py`.
+
+Both default to `false`. Both survive discovery sweeps.
 
 ---
 
@@ -245,12 +265,14 @@ The protocol distinguishes four roles. Hooks branch on these:
 
 | Role | Hooks behavior | Lock cap | Use case |
 | --- | --- | --- | --- |
-| `orchestrator` | Full participation. Lock + event spam allowed. | 25 | The single `office` chat. |
+| `orchestrator` | Full participation. Lock + event spam allowed. | 25 | One or more orchestrator chats per team (`hq`, `hq-2`, etc.). |
 | `worker` | Full participation. Standard. | 5 | All real product workers (us-charts, globe, currency, etc.). |
 | `scratch` | **No-op.** No locks, no event log entries, no inbox surfacing. | n/a | Sebastián's personal pads (`notes`). |
 | `reserve` | **No-op.** Same as scratch. | n/a | Empty hot-spares (`open-slot-1`). |
 
 Non-participating roles (`scratch`, `reserve`) are still discovered and shown on the dashboard, but they don't block other workers and aren't blocked by them.
+
+> **Multi-orchestrator support** (added 2026-05-03 per Sebastián's directive): a team can have **multiple live orchestrators**. Drag-to-ADMIN on the dashboard ADDS the dragged agent as a co-orchestrator without demoting any existing one. Office-inbox notifications use "ORCHESTRATOR ADDED" wording, not "HANDOFF". Workers route Q events to ANY active orchestrator. The legacy demote-then-promote takeover flow can still be invoked manually via two `/priority/patch` calls (demote outgoing → promote incoming) but is no longer the default of `/priority/promote`.
 
 ## Roadmap
 

@@ -154,6 +154,95 @@ Canonical state lives in the task tools; this is a snapshot.
 
 Add a dated entry after each meaningful session. Prune entries older than ~30 days.
 
+### 2026-05-03 — Claude Code (qc/hq, orchestrator)
+
+**Long session: QC office infrastructure overhaul + nsfq-dashboard PR #1 audit.**
+
+**Orchestrator state**:
+- `qc/hq` (this chat) is QC orchestrator. `qc/hq-2` was concurrently promoted earlier in the day, taking over momentarily before user reverted via direct registry edit. Final state: both `qc/hq` (frosty-pascal-7bcfe6) AND `qc/hq-2` (eager-mendeleev-bbe58e) are `role=orchestrator` per Sebastián's "I want more than 1 orchestrator" directive. Multi-orchestrator semantics now in code (no more handoff-by-default).
+- `qc/hq2` archived (the one renamed and re-archived during HQ2 lineage cleanup).
+
+**Daemon-side patches** (`~/.qc-office/daemon/server.py` — runtime, not in git):
+1. `_lib.py::resolve_agent` — first-turn-race fallback to Claude desktop session metadata (Bug 1)
+2. `drop_orientation_packet` — `_backdated_stamp_for` reads `createdAt` from session metadata (Bug 2)
+3. `check_orientation_promotions` — per-agent ceiling: 60s when `completedTurns ≥ 1`, 300s otherwise (Bug 3)
+4. Orchestrator attribution — `_current_orchestrator_for_team` replaces hardcoded `qc/office-2` in orientation events (Bug 4)
+5. `/state` handler — fire-and-forget discovery thread on every fetch (was sync; pushed past Vercel's 3s proxy timeout under load)
+6. `promote_to_orchestrator` — multi-orch: demote step removed; co-orchestrators co-exist; office-inbox notice rewritten "ADDED" not "HANDOFF"
+7. `promote_to_orchestrator` — idempotent on already-orchestrator (returns 200 noop, re-anchors presence)
+8. `promote_to_orchestrator` — auto-notifies promotee's own inbox (was only writing to office.md)
+9. `/priority/patch` orientation packet drop — fire-and-forget thread (was sync, blocked /state)
+
+**Hooks** (`~/.qc-office/hooks/`):
+- `discover-agents.py`: added `presence_pinned` to `PRESERVE_IF_PRESENT` (was being cleared every 10s sweep)
+- `discover-agents.py`: archived/live name collision now stashes archived under `<name>-archived-<worktree-slug>` instead of overwriting
+- `_lib.py`: session-metadata fallback for resolve_agent
+
+**Dashboard commits** (`qc-office-dashboard` repo, all on `origin/main`):
+```
+2a78493 fix(office): ship help-session types + endpoints to repair build
+d7db864 feat(office): GUEST pill shows friendly room name + globe→homepage rename
+91bd3ec fix(office): suppress GUEST pill when agent has no canonical home
+5dbebb8 fix(office): restore self-closing JSX on visitors Section
+f495d16 fix(office): pass cluster prop to all Section invocations in RoomCard
+f634e09 feat(office): show GUEST badge when an agent is in a non-home room
+76ab8a4 fix(office): more forgiving drop targets + defensive pointer-events
+9885334 chore(office): show build commit hash in floor footer
+d5e8ac6 fix(office): drag from MEETINGS to COFFEE/offices now actually sticks
+a3723c3 fix(office): update drag-to-ADMIN modal copy for multi-orch semantics
+07a11c1 feat(office): drag-to-ADMIN supports multiple orchestrators (no modal)
+5443e9e feat(office): add MEETINGS-2 room with same functionality as MEETINGS
+a284f69 feat(office): drag-to-ADMIN promotion + auto-promote for fresh graduates
+```
+
+Highlights:
+- **Multi-orchestrator drag-to-ADMIN**: any worker dragged onto ADMIN is silently promoted to co-orchestrator. Modal removed; only re-appears on daemon errors as an info surface.
+- **MEETINGS-2 room**: built-in cluster mirror of MEETINGS (sticky-presence behavior, dedicated tile region 13,17–17,19, color `#a78bfa`).
+- **Drag from MEETINGS to anywhere**: presence_pinned plumbed end-to-end so user-explicit drags survive the pin-defeat-system-presence rule. Fixes "can't drag agents out of meetings to coffee/offices."
+- **Drop tolerance**: `clusterAtUserCoord` now snaps to nearest cluster within 1-tile Manhattan radius. Prevents "dropped one pixel outside the room" silent failures.
+- **GUEST pill** in `AgentDetailModal` + per-row badge in `RoomCard`'s Visiting section. Resolves cluster IDs to friendly labels via `resolveRoomLabel()` + a hook that re-renders on rename events.
+- **Renamed `globe-office` → `homepage-office`** in office-layout + IsometricFloor + types union.
+- **Build hash in floor footer** so cache vs latest-deploy state is one glance away.
+
+**Skills shipped** (`miteproyects/.claude/skills/`):
+- `update-all-qc-agents/SKILL.md` — full V3 atomic-writes procedure (no daemon-patch sequencing). Filters scratch/reserve, snapshots ORIGINAL layout, restores exact original presences at end.
+- `update-all-bc-agents/SKILL.md` — sister skill, BC-specific source docs (mostly placeholders — BC office is currently deleted pending re-creation).
+- Concurrency guard: don't run while a previous run is in progress (`pgrep -f update-all-qc-agents`).
+
+**WORKERS briefs**:
+- `WORKERS/hq.md` — auto-written by orchestrator promote
+- `WORKERS/hq-2.md` — auto-written; corrected via inbox notice when qc/hq-2 chat kept reporting "still a worker" (orientation-packet cache lag)
+- `WORKERS/_orchestrator-template.md` — committed (was untracked)
+- `WORKERS/office-2.md`, `WORKERS/us-sankey-2.md` — lineage records committed
+- `WORKERS/nsfq-dashboard.md` — hand-written brief documenting Phase A/B/C/D repo-grant rotation model
+- `WORKERS/business-model.md` deleted (replaced by template)
+
+**Mass re-orientation event**:
+- Ran `/update-all-qc-agents` mid-session. V1 had a race condition (Phase 3 read+write of agents.json clobbered the orientation patch), V2 timed out, V3 used pure atomic writes and succeeded.
+- Final result: 17 inboxes received fresh orientation packets (sentinel versioned V1→V2). Inboxes are 25–49 KB each. Agents pick up the packet content on their next prompted turn via the `UserPromptSubmit` hook.
+
+**nsfq-dashboard PR #1 collaboration** (across multiple inbox exchanges):
+- ACK on three Phase A defaults: action enum (`pool.ticker.set`), soft-delete cascade (app-side), country seed (drop RU+VE, keep CN at `is_supported=false`)
+- 4-issue audit on PR #303 (`gh pr view` works after all): DESC on audit log indices, `set_updated_at_column()` trigger function + 5 triggers, collapse 6 audit indices → 4 compound, `uq_plan_templates_only_one_popular` partial unique index
+- All 4 audit issues + 9 ACK items folded into nsfq-dashboard's commit `0b288e7` on `feat/office-pricing` branch, PR #303
+- CLERK_JWT_SECRET placeholder approach ACK'd (set on Railway business workspace, fail-closed in production)
+- Branch strategy ACK: repo_branch rotated `feat/office-pricing` → `feat/office-pricing-auth` for PR #2 (auth scaffolding) — stacked on PR #303
+
+**Live infra state at end of session**:
+- Daemon: PID 86219+ (multiple restarts), `127.0.0.1:8765/healthz` ok
+- Tunnel: `cloudflared` PID 1105 routing to `office-api.quartercharts.com`
+- Dashboard: latest deploy `2a78493` on Vercel, ● Ready, build 2a78493 visible in floor footer
+- 25 live agents (20 QC + 5 BC), 2 orchestrators (`qc/hq` + `qc/hq-2`), all draggable, GUEST badges resolve to friendly labels
+
+**Two big honest mistakes this session**:
+1. The `/update-all-qc-agents` V1 race condition (Phase 3 clobbered orientation patches via unlocked agents.json read+write). Cost: 16 of 17 agents stranded in MEETINGS for ~30 minutes; required manual recovery via direct atomic write. Skill SKILL.md updated with explicit warning + atomic-writes-only procedure (commit `b7a90a8` + `a612424`).
+2. Accidentally rolled up another chat's uncommitted help-session work into commit `91bd3ec` (the GUEST pill commit). Shipped consumer (`AgentDetailModal.tsx` imports of `HelpSession` types) without producer (`types.ts` exports). Vercel build failed for ~3 min until repaired by commit `2a78493`. Lesson logged in commit body: always run `git diff --cached` before commit when working in shared worktrees.
+
+**Open follow-ups**:
+- 9 QC agents still missing from `KNOWN_DESKS` (cloud-design, country-matrix, deepseek, research, robocounter, whatsapp, nsfq-dashboard, hq-2, homepage was fixed). They survive only via `pinned=true` + custom-room presence. Either add KNOWN_DESKS entries (recommended) or accept the dependency on pin flags.
+- BC office still deleted per Sebastián's earlier "delete for now office BP" instruction. `/update-all-bc-agents` aborts at pre-flight (no live BC orchestrator).
+- Help-session feature (qc/notes E2E test) is half-shipped on dashboard — types + AgentDetailModal UI are live, but the daemon endpoints (`/help/start`, `/help/post`, etc.) are TBD on the daemon side. Whoever was building this needs to land the daemon side.
+
 ### 2026-04-28 — Claude Code
 - **Shipped path-style URL routing** as commit `bd01c10` on `origin/main`. Reported issue: `https://usa.quartercharts.com/sankey/NVDA` returned 200 but landed on the homepage (Streamlit only understands `?page=...&ticker=...`, not path segments). Two-pronged fix: (1) `seo_patch.py` injects a synchronous inline `<script id="qc-path-redirect">` at the very top of `<head>` — verified offset 667, before the first Streamlit module bundle at 1848 — that detects `/<page>/<ticker>` and `location.replace`'s to the canonical query-string form before Streamlit boots; (2) `crawler_prerender.py` learns the same path pattern via new `_PATH_ROUTE_RE` + `_parse_path_route()` so SEO bots hitting `/sankey/NVDA` directly get the prerendered sankey page for NVDA.
 - **Pages covered** (mirrors `app.py:1018`): charts, sankey, profile, dashboard, earnings, watchlist, home, pricing, privacy, terms, sitemap, user, login, nsfe.
