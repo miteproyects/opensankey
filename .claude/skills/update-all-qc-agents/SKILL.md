@@ -1,6 +1,6 @@
 ---
-name: UpdateAllQCAgents
-description: All-hands re-orientation for the QC team. Gathers every live QC worker in the MEETING room, drops a fresh orientation packet to each agent's inbox (with the latest OFFICE.md / INFRASTRUCTURE.md / CLAUDE.md / each agent's WORKERS brief inlined), then returns them to their home rooms. Use after substantive doc changes that the entire QC team needs to absorb. Trigger on "/UpdateAllQCAgents", "update all QC agents", "all-hands re-orient QC", "broadcast new docs to QC team", "QC team re-onboard". Do NOT use for one-off messages to a single agent — for that, write directly to that agent's inbox.
+name: update-all-qc-agents
+description: All-hands re-orientation for the QC team. Gathers every live QC worker in the MEETING room, drops a fresh orientation packet to each agent's inbox (with the latest OFFICE.md / INFRASTRUCTURE.md / CLAUDE.md / each agent's WORKERS brief inlined), then returns them to their home rooms. Use after substantive doc changes that the entire QC team needs to absorb. Trigger on "/update-all-qc-agents", "update all QC agents", "all-hands re-orient QC", "broadcast new docs to QC team", "QC team re-onboard". Do NOT use for one-off messages to a single agent — for that, write directly to that agent's inbox.
 ---
 
 # UpdateAllQCAgents — All-Hands Re-Orientation (QC team)
@@ -34,7 +34,7 @@ Before doing anything, verify ALL of:
            print(n)
    "
    ```
-   If the printed name doesn't match this chat's canonical name, abort with: "Only the active QC orchestrator can run /UpdateAllQCAgents. Active orchestrator is: <name>. Ask them to run it, or have Sebastián drag-promote you first."
+   If the printed name doesn't match this chat's canonical name, abort with: "Only the active QC orchestrator can run /update-all-qc-agents. Active orchestrator is: <name>. Ask them to run it, or have Sebastián drag-promote you first."
 
 2. The daemon is reachable:
    ```bash
@@ -200,7 +200,7 @@ Also append a Rolling Log entry to `CLAUDE.md` describing the re-orientation:
 
 ```markdown
 ### YYYY-MM-DD — qc/<orchestrator>
-- All-hands QC re-orientation via /UpdateAllQCAgents. Targeted N agents; M succeeded, K force-cleared, S skipped/errored. Source docs as of <iso>: OFFICE.md (xK bytes), INFRASTRUCTURE.md (xK), CLAUDE.md (xK).
+- All-hands QC re-orientation via /update-all-qc-agents. Targeted N agents; M succeeded, K force-cleared, S skipped/errored. Source docs as of <iso>: OFFICE.md (xK bytes), INFRASTRUCTURE.md (xK), CLAUDE.md (xK).
 ```
 
 ## Safety properties

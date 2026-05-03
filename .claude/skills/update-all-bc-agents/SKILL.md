@@ -1,6 +1,6 @@
 ---
-name: UpdateAllBCAgents
-description: All-hands re-orientation for the BC (Blip.Company) team. Gathers every live BC worker in the MEETING room, drops a fresh orientation packet to each agent's inbox (with the latest BC source-of-truth docs and the agent's WORKERS brief inlined), then returns them to their home rooms. Use after substantive doc changes that the entire BC team needs to absorb. Trigger on "/UpdateAllBCAgents", "update all BC agents", "all-hands re-orient BC", "broadcast new docs to BC team", "BC team re-onboard". Do NOT mix with QC — BC has its own source docs and scope.
+name: update-all-bc-agents
+description: All-hands re-orientation for the BC (Blip.Company) team. Gathers every live BC worker in the MEETING room, drops a fresh orientation packet to each agent's inbox (with the latest BC source-of-truth docs and the agent's WORKERS brief inlined), then returns them to their home rooms. Use after substantive doc changes that the entire BC team needs to absorb. Trigger on "/update-all-bc-agents", "update all BC agents", "all-hands re-orient BC", "broadcast new docs to BC team", "BC team re-onboard". Do NOT mix with QC — BC has its own source docs and scope.
 ---
 
 # UpdateAllBCAgents — All-Hands Re-Orientation (BC team)
@@ -36,9 +36,9 @@ Before doing anything, verify ALL of:
            print(n)
    "
    ```
-   If the printed name doesn't match this chat's canonical name, abort with: "Only the active BC orchestrator can run /UpdateAllBCAgents. Active orchestrator is: <name>. Ask them to run it, or have Sebastián drag-promote you first."
+   If the printed name doesn't match this chat's canonical name, abort with: "Only the active BC orchestrator can run /update-all-bc-agents. Active orchestrator is: <name>. Ask them to run it, or have Sebastián drag-promote you first."
 
-   **Special case (2026-05-03)**: BC's office is currently DELETED (Sebastián's instruction "delete for now office BP. we will create a new office for BP later."). If there's no live BC orchestrator, abort with: "No active BC orchestrator. BC office is currently deleted; ask Sebastián to spin up a new BC orchestrator before running /UpdateAllBCAgents."
+   **Special case (2026-05-03)**: BC's office is currently DELETED (Sebastián's instruction "delete for now office BP. we will create a new office for BP later."). If there's no live BC orchestrator, abort with: "No active BC orchestrator. BC office is currently deleted; ask Sebastián to spin up a new BC orchestrator before running /update-all-bc-agents."
 
 2. The daemon is reachable:
    ```bash
@@ -125,7 +125,7 @@ Identical structure, but the rolling-log entry goes to BC's project-state file (
 Example log entry:
 ```markdown
 ### YYYY-MM-DD — bc/<orchestrator>
-- All-hands BC re-orientation via /UpdateAllBCAgents. Targeted N agents; M succeeded, K force-cleared, S skipped/errored. Source docs as of <iso>: miteproyects/OFFICE.md (xK bytes), Blip LLC/blip-company.md (NOT YET WRITTEN — placeholder).
+- All-hands BC re-orientation via /update-all-bc-agents. Targeted N agents; M succeeded, K force-cleared, S skipped/errored. Source docs as of <iso>: miteproyects/OFFICE.md (xK bytes), Blip LLC/blip-company.md (NOT YET WRITTEN — placeholder).
 ```
 
 ## Safety properties
@@ -159,4 +159,4 @@ When BC stabilizes, replace these placeholder lines:
 - [ ] Create `~/Desktop/OpenTF/Blip LLC/INFRASTRUCTURE.md` (BC's infra map).
 - [ ] Decide whether BC forks `OFFICE.md` or keeps the shared spec.
 - [ ] Decide whether `WORKERS/` stays mixed-team or BC moves to `WORKERS-BC/` (and update Phase 3 path resolution accordingly).
-- [ ] Spin up a live BC orchestrator (per Sebastián's "we will create a new office for BP later" plan). Until then, `/UpdateAllBCAgents` aborts at Pre-flight gate 1.
+- [ ] Spin up a live BC orchestrator (per Sebastián's "we will create a new office for BP later" plan). Until then, `/update-all-bc-agents` aborts at Pre-flight gate 1.
