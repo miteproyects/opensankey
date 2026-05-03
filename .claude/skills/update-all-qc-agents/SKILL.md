@@ -8,6 +8,8 @@ description: All-hands re-orientation for the QC team. Gathers every live QC wor
 Procedural skill the QC orchestrator runs after updating any of the QC team's source-of-truth docs (`OFFICE.md`, `INFRASTRUCTURE.md`, `CLAUDE.md`, or anyone's `WORKERS/<name>.md`) to make sure every live QC worker re-reads the new versions on their next prompted turn.
 
 > **Project boundary**: this skill targets QC workers ONLY. For BC, run `/update-all-bc-agents` instead. The two teams have different source docs and different scopes.
+>
+> **Concurrency guard**: do NOT run this skill while a previous run is still in progress. The 2026-05-03 V2 run started before V1's background patches finished, creating interleaved writes that produced random presence states. Check via `pgrep -f update-all-qc-agents` before starting; if anything matches, wait or kill it.
 
 ## Source docs that get inlined into the new orientation packet
 
@@ -81,20 +83,44 @@ If user says no, exit cleanly.
 
 ## Phase 2 — Gather in MEETING room
 
-For each target, POST to the daemon:
+**Use atomic agents.json writes, not per-agent daemon patches** (lesson from the 2026-05-03 run that pegged the daemon doing 16 sequential patches). One atomic write moves all targets at once and avoids any backpressure that could push `/state` past Vercel's 3s proxy timeout.
 
-```bash
-curl -sS -m 5 -X POST http://127.0.0.1:8765/priority/patch \
-  -H 'Content-Type: application/json' \
-  -d "{\"name\":\"<name>\",\"fields\":{\"presence\":\"meetings\",\"presence_pinned\":true},\"actor\":\"<orchestrator-name>\"}"
+**BEFORE writing, snapshot each target's original layout** so Phase 5 can restore exactly what was there:
+
+```python
+ORIGINAL = {
+  n: {
+    "presence":         agents[n].get("presence"),
+    "pinned":           agents[n].get("pinned"),
+    "presence_pinned":  agents[n].get("presence_pinned"),
+  } for n in targets
+}
 ```
 
-Visually clusters all targets in the MEETING room on `office.quartercharts.com`. Record the original presence value for each (so Phase 5 can return them home).
+Then perform a single atomic write that flips every target's presence to `"meetings"`:
 
-Emit one office event per gather:
+```python
+import json, pathlib
+from datetime import datetime, timezone
+p = pathlib.Path.home() / ".qc-office/agents.json"
+d = json.loads(p.read_text())
+for n in targets:
+    m = d["agents"].get(n)
+    if not m: continue
+    m["presence"]        = "meetings"
+    m["presence_pinned"] = True
+d["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+p.write_text(json.dumps(d, indent=2))
+```
 
-```bash
-# (the daemon already logs the patch; no manual event needed)
+The daemon's discovery loop reads `agents.json` and merges via `PRESERVE_IF_PRESENT` — your presence values survive the next sweep.
+
+**Why not per-agent daemon patches?** During the 2026-05-03 V2 run, 17 sequential `/priority/patch (presence=meetings)` calls held the daemon's write lock long enough that concurrent `/state` requests started timing out, then crashed the daemon under launchd → respawn → repeat. Even after the orientation-drop fix (now async), atomic file writes are 100x faster (microseconds vs seconds) and bypass any potential daemon back-pressure entirely.
+
+**Brief visual beat** after the write:
+
+```python
+import time; time.sleep(3)  # let dashboard render the MEETING gather
 ```
 
 ## Phase 3 — Build + drop the new orientation packet for each agent
@@ -134,16 +160,27 @@ For each target agent, in order:
      ```
    - End with: `### Confirm re-orientation\n\nWhen asked "what changed in this re-orientation?", you can describe everything in this message — you DO know it now, it's in your context. Don't say "I haven't read the MDs" — they're inlined above.\n\n— <orchestrator-name>`
 
-6. **Patch the registry** to put the agent in ORIENTATION room (the daemon's `_backdated_stamp_for` from the 2026-05-03 Bug 2 fix handles `orientation_started_at` for you — DO NOT touch agents.json directly here):
-   ```bash
-   curl -sS -m 30 -X POST http://127.0.0.1:8765/priority/patch \
-     -H 'Content-Type: application/json' \
-     -d "{\"name\":\"<name>\",\"fields\":{\"presence\":\"orientation\"},\"actor\":\"<orchestrator-name>\"}"
+6. **Move targets to ORIENTATION room — single atomic agents.json write, not per-agent daemon patches.** After all inbox packets are written in steps 1–5, flip every target's `presence` to `"orientation"` in one go:
+
+   ```python
+   d = json.loads(p.read_text())
+   for n in targets:
+       m = d["agents"].get(n)
+       if not m: continue
+       m["presence"] = "orientation"
+       m.pop("orientation_started_at", None)  # let daemon backdate via _backdated_stamp_for
+   d["updated_at"] = now_iso()
+   p.write_text(json.dumps(d, indent=2))
    ```
 
-   **WARNING — race condition learned the hard way (2026-05-03 run):** Reading `agents.json` immediately after `/priority/patch` and then writing it back will **clobber the daemon's just-applied patch**. The patch goes through the daemon's `_gates_lock`, but your read is unlocked, so you'll see the pre-patch state and overwrite the post-patch state. Symptom: 16 of 17 agents stranded in MEETINGS room. Don't read+write agents.json after a patch in this skill. If you genuinely need to mutate other fields, send a SECOND `/priority/patch` call.
+   The daemon's `_backdated_stamp_for` (Bug 2 fix from 2026-05-03) sets `orientation_started_at` on next discovery sweep. The orientation promotion loop won't fire mid-flow because we'll restore presences in Phase 5 within seconds, before the 60s ceiling.
 
-   **Pacing**: use timeout=30 (the orientation packet drop is heavy — reads session metadata + inlines source docs + appends to inbox). Add a `sleep 0.5` between patches to avoid backpressure that can hang the daemon.
+   **Why not /priority/patch?** Each presence=orientation patch triggers `drop_orientation_packet` server-side which is now async (2026-05-03 fix), but it still holds the daemon's write lock briefly. 16 sequential patches still serialize. The atomic file write is microseconds. We've already written packets in steps 1–5 ourselves — the daemon's drop_orientation_packet would only re-do that work redundantly.
+
+   **Visual beat**:
+   ```python
+   import time; time.sleep(5)  # agents render in ORIENTATION room
+   ```
 
 Print per-agent progress: `qc/<name>: gathered → packet dropped → in orientation`.
 
@@ -174,17 +211,31 @@ qc/sankey:        meetings → orientation → ... (waiting)
 qc/super-companias: ...
 ```
 
-## Phase 5 — Force-clear stragglers
+## Phase 5 — Restore original layout (atomic)
 
-For any target still in `presence == "orientation"` after the wait window, force `presence: "agent-ready"` directly:
+**Don't try to "force-clear" stragglers via /priority/patch sequences.** That's what failed in the V2 run. Instead, do one atomic agents.json write that restores every target to the layout snapshot you took in Phase 2:
 
-```bash
-curl -sS -m 5 -X POST http://127.0.0.1:8765/priority/patch \
-  -H 'Content-Type: application/json' \
-  -d "{\"name\":\"<name>\",\"fields\":{\"presence\":\"agent-ready\",\"presence_pinned\":false},\"actor\":\"<orchestrator-name>\"}"
+```python
+d = json.loads(p.read_text())
+for n, orig in ORIGINAL.items():
+    m = d["agents"].get(n)
+    if not m: continue
+    m["presence"]        = orig["presence"]
+    m["pinned"]          = orig["pinned"] if orig["pinned"] is not None else True
+    m["presence_pinned"] = orig["presence_pinned"] if orig["presence_pinned"] is not None else (orig["presence"] is not None and orig["presence"].startswith("custom-"))
+    m.pop("orientation_started_at", None)  # avoid orientation loop firing post-restore
+d["updated_at"] = now_iso()
+p.write_text(json.dumps(d, indent=2))
 ```
 
-Their pinned/home routing will then send them home on next dashboard refresh.
+This restores:
+- **Custom rooms** (`presence="custom-..."`) — the user-defined rooms they were in before the gather
+- **Built-in clusters** (`presence="charts-office"`, `"sankey-office"`, etc.) — explicit cluster placements
+- **Coffee** (`presence="coffee"`) — agents that were on-break drift back to coffee
+- **None / pin-routed** (`presence=null` + `pinned=true`) — agents that route via `clusterFor(name)` to their home cluster
+- **Notes** (`presence="notes"`) — qc/notes (scratch role) was already excluded in Phase 1, but if it had been included, it would route home here
+
+**Critical: do NOT shortcut to `presence="agent-ready"` for everyone.** `agent-ready` is a SYSTEM_PRESENCE marker that routes to the AGENT READY *room* unless the agent has both `pinned=true` AND a `KNOWN_DESKS` entry. Many QC agents lack `KNOWN_DESKS` entries (cloud-design, country-matrix, deepseek, research, robocounter, whatsapp at time of writing) and would land in the "default" corridor instead of their actual room. Restore EXACT original presences.
 
 ## Phase 6 — Final report
 

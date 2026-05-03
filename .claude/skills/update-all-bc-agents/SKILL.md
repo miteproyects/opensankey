@@ -8,6 +8,10 @@ description: All-hands re-orientation for the BC (Blip.Company) team. Gathers ev
 Procedural skill the BC orchestrator runs after updating any of the BC team's source-of-truth docs to make sure every live BC worker re-reads the new versions on their next prompted turn.
 
 > **Project boundary**: this skill targets BC workers ONLY. For QC, run `/update-all-qc-agents` instead. **BC and QC are separate projects with separate docs and separate scopes — never bridge them in a single re-orientation.**
+>
+> **Atomic writes (2026-05-03 lesson)**: Phase 2 (gather), Phase 3 step 6 (move to ORIENTATION), and Phase 5 (restore original layout) all use **single atomic agents.json writes** rather than per-agent /priority/patch sequences. The daemon's write lock + orientation-drop pipeline doesn't serialize cleanly across many agents — see /update-all-qc-agents for the full procedure. BC inherits the same pattern.
+>
+> **Concurrency guard**: do NOT run this skill while a previous run is still in progress; check via `pgrep -f update-all-bc-agents`.
 
 ## BC source docs that get inlined into the new orientation packet
 
@@ -79,7 +83,7 @@ If user says no, exit cleanly.
 
 ## Phase 2 — Gather in MEETING room
 
-Identical to `/update-all-qc-agents` Phase 2, but with BC names. Record original presence per target.
+Identical to `/update-all-qc-agents` Phase 2: snapshot each target's original `{presence, pinned, presence_pinned}` into an `ORIGINAL` dict, then perform one atomic agents.json write to set every target to `presence="meetings"`. **No per-agent /priority/patch sequence** — that's what crashed the daemon during the 2026-05-03 QC run. See QC's Phase 2 for the exact Python snippet.
 
 ## Phase 3 — Build + drop the new orientation packet for each agent
 
@@ -111,13 +115,13 @@ The sentinel-strip + sentinel-replant + presence-patch logic is identical to the
 
 Print per-agent progress: `bc/<name>: gathered → packet dropped → in orientation`.
 
-## Phase 4 — Wait for return-home
+## Phase 4 — Visual beat
 
-Identical to `/update-all-qc-agents` Phase 4. Poll `/state` for up to 90s (override via `--wait-seconds`). BC agents go through the same orientation-promotion-loop logic since the daemon is team-agnostic.
+Sleep 5 seconds so the dashboard renders the agents in the ORIENTATION room before Phase 5 restores them. **Don't poll for return-home** — Phase 5 atomically restores everyone in one write, no need to wait on the orientation promotion loop.
 
-## Phase 5 — Force-clear stragglers
+## Phase 5 — Restore original layout (atomic)
 
-Identical to `/update-all-qc-agents` Phase 5.
+Identical to `/update-all-qc-agents` Phase 5: one atomic agents.json write that restores every target to the `ORIGINAL` snapshot taken in Phase 2. Restores EXACT original presences (custom rooms, built-in clusters, coffee, pin-routed homes) — never shortcuts to `presence="agent-ready"` because that would land agents without a `KNOWN_DESKS` entry in the default corridor instead of their real room.
 
 ## Phase 6 — Final report
 
