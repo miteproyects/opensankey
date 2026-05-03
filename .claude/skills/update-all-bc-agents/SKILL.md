@@ -57,6 +57,7 @@ Read `~/.qc-office/agents.json` and select all agents matching ALL of:
 - `team == "bc"`
 - `is_archived == false`
 - `role != "orchestrator"`
+- `role NOT IN ("scratch", "reserve")` — non-participating roles per OFFICE.md. Don't gather, re-orient, or move them.
 - `scope` does NOT start with `"DELETED "` (soft-deleted by Sebastián even when not archive-flagged — bc/office is currently in this state)
 
 Apply `--exclude <name1>,<name2>` if the user passed it.
@@ -106,7 +107,7 @@ Identical procedure to `/update-all-qc-agents` Phase 3, with three differences:
    <inlined or "(NOT YET WRITTEN)">
    ```
 
-The sentinel-strip + sentinel-replant + presence-patch + stamp-clear logic is identical to the QC skill.
+The sentinel-strip + sentinel-replant + presence-patch logic is identical to the QC skill — including the **2026-05-03 race-condition warning in QC's Phase 3 step 6**: do NOT read+write `agents.json` after a `/priority/patch` call. Use 30s timeouts and 0.5s spacing between patches.
 
 Print per-agent progress: `bc/<name>: gathered → packet dropped → in orientation`.
 

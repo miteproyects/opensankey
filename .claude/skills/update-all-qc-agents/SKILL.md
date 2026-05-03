@@ -59,6 +59,7 @@ Read `~/.qc-office/agents.json` and select all agents matching ALL of:
 - `team == "qc"`
 - `is_archived == false`
 - `role != "orchestrator"` (don't re-orient the orchestrator running this skill — that's circular)
+- `role NOT IN ("scratch", "reserve")` — non-participating roles per OFFICE.md. `qc/notes` is `scratch` (Sebastián's personal pad); never gather, re-orient, or move it. Open slots are `reserve` and likewise inert.
 - `scope` does NOT start with the literal string `"DELETED "` (soft-deleted by Sebastián even when not archive-flagged)
 
 Apply `--exclude <name1>,<name2>` if the user passed it.
@@ -133,13 +134,16 @@ For each target agent, in order:
      ```
    - End with: `### Confirm re-orientation\n\nWhen asked "what changed in this re-orientation?", you can describe everything in this message — you DO know it now, it's in your context. Don't say "I haven't read the MDs" — they're inlined above.\n\n— <orchestrator-name>`
 
-6. **Patch the registry** to put the agent in ORIENTATION room and reset the orientation stamp (so the promotion-loop counters start fresh):
+6. **Patch the registry** to put the agent in ORIENTATION room (the daemon's `_backdated_stamp_for` from the 2026-05-03 Bug 2 fix handles `orientation_started_at` for you — DO NOT touch agents.json directly here):
    ```bash
-   curl -sS -m 5 -X POST http://127.0.0.1:8765/priority/patch \
+   curl -sS -m 30 -X POST http://127.0.0.1:8765/priority/patch \
      -H 'Content-Type: application/json' \
      -d "{\"name\":\"<name>\",\"fields\":{\"presence\":\"orientation\"},\"actor\":\"<orchestrator-name>\"}"
    ```
-   Then directly clear `orientation_started_at` for this agent in `~/.qc-office/agents.json` via Python heredoc (the daemon's `_ensure_stamp` only sets it if missing, so stamping won't fight us). The `_backdated_stamp_for` logic (Bug 2 fix) will pick the right value on next discovery.
+
+   **WARNING — race condition learned the hard way (2026-05-03 run):** Reading `agents.json` immediately after `/priority/patch` and then writing it back will **clobber the daemon's just-applied patch**. The patch goes through the daemon's `_gates_lock`, but your read is unlocked, so you'll see the pre-patch state and overwrite the post-patch state. Symptom: 16 of 17 agents stranded in MEETINGS room. Don't read+write agents.json after a patch in this skill. If you genuinely need to mutate other fields, send a SECOND `/priority/patch` call.
+
+   **Pacing**: use timeout=30 (the orientation packet drop is heavy — reads session metadata + inlines source docs + appends to inbox). Add a `sleep 0.5` between patches to avoid backpressure that can hang the daemon.
 
 Print per-agent progress: `qc/<name>: gathered → packet dropped → in orientation`.
 
