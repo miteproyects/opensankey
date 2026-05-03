@@ -7,7 +7,7 @@ description: All-hands re-orientation for the QC team. Gathers every live QC wor
 
 Procedural skill the QC orchestrator runs after updating any of the QC team's source-of-truth docs (`OFFICE.md`, `INFRASTRUCTURE.md`, `CLAUDE.md`, or anyone's `WORKERS/<name>.md`) to make sure every live QC worker re-reads the new versions on their next prompted turn.
 
-> **Project boundary**: this skill targets QC workers ONLY. For BC, run `/UpdateAllBCAgents` instead. The two teams have different source docs and different scopes.
+> **Project boundary**: this skill targets QC workers ONLY. For BC, run `/update-all-bc-agents` instead. The two teams have different source docs and different scopes.
 
 ## Source docs that get inlined into the new orientation packet
 
@@ -220,7 +220,7 @@ Also append a Rolling Log entry to `CLAUDE.md` describing the re-orientation:
 
 ## What this skill does NOT do
 
-- It does NOT touch BC team workers — that's `/UpdateAllBCAgents`.
+- It does NOT touch BC team workers — that's `/update-all-bc-agents`.
 - It does NOT modify the source docs — write your edits FIRST, then run the skill.
 - It does NOT page agents whose chats are closed — the inbox waits silently. The packet is consumed on the next user-prompted turn via the `UserPromptSubmit` hook.
 - It does NOT interrupt mid-turn work — drag-events fire after the current tool call.

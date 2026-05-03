@@ -7,7 +7,7 @@ description: All-hands re-orientation for the BC (Blip.Company) team. Gathers ev
 
 Procedural skill the BC orchestrator runs after updating any of the BC team's source-of-truth docs to make sure every live BC worker re-reads the new versions on their next prompted turn.
 
-> **Project boundary**: this skill targets BC workers ONLY. For QC, run `/UpdateAllQCAgents` instead. **BC and QC are separate projects with separate docs and separate scopes — never bridge them in a single re-orientation.**
+> **Project boundary**: this skill targets BC workers ONLY. For QC, run `/update-all-qc-agents` instead. **BC and QC are separate projects with separate docs and separate scopes — never bridge them in a single re-orientation.**
 
 ## BC source docs that get inlined into the new orientation packet
 
@@ -78,11 +78,11 @@ If user says no, exit cleanly.
 
 ## Phase 2 — Gather in MEETING room
 
-Identical to `/UpdateAllQCAgents` Phase 2, but with BC names. Record original presence per target.
+Identical to `/update-all-qc-agents` Phase 2, but with BC names. Record original presence per target.
 
 ## Phase 3 — Build + drop the new orientation packet for each agent
 
-Identical procedure to `/UpdateAllQCAgents` Phase 3, with three differences:
+Identical procedure to `/update-all-qc-agents` Phase 3, with three differences:
 
 1. **Source docs**: use the BC list at the top of this file. For each path that doesn't exist, inline `(NOT YET WRITTEN — placeholder, BC docs in flight)` instead of crashing.
 
@@ -112,11 +112,11 @@ Print per-agent progress: `bc/<name>: gathered → packet dropped → in orienta
 
 ## Phase 4 — Wait for return-home
 
-Identical to `/UpdateAllQCAgents` Phase 4. Poll `/state` for up to 90s (override via `--wait-seconds`). BC agents go through the same orientation-promotion-loop logic since the daemon is team-agnostic.
+Identical to `/update-all-qc-agents` Phase 4. Poll `/state` for up to 90s (override via `--wait-seconds`). BC agents go through the same orientation-promotion-loop logic since the daemon is team-agnostic.
 
 ## Phase 5 — Force-clear stragglers
 
-Identical to `/UpdateAllQCAgents` Phase 5.
+Identical to `/update-all-qc-agents` Phase 5.
 
 ## Phase 6 — Final report
 
@@ -146,7 +146,7 @@ Example log entry:
 
 ## What this skill does NOT do
 
-- It does NOT touch QC team workers — that's `/UpdateAllQCAgents`.
+- It does NOT touch QC team workers — that's `/update-all-qc-agents`.
 - It does NOT auto-create missing BC source docs. If `Blip LLC/blip-company.md` doesn't exist, the packet contains a placeholder and the BC team is responsible for writing the doc.
 - It does NOT bridge teams. If you want both teams re-oriented, run both skills sequentially. They share the daemon and the office event log but no other state.
 - It does NOT page closed chats. Inbox content waits silently for the next user-prompted turn.
