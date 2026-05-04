@@ -3885,10 +3885,35 @@ def _render_analytics():
 
 
 def render_nsfe_page():
-    """Render the password-protected NSFE manager control center."""
-    st.markdown(_STYLES, unsafe_allow_html=True)
+    """Render the NSFE manager control center.
 
-    # Password gate removed per owner request 2026-05-03 — NSFE accessible directly
+    **Auth gate (2026-05-04)**: redirects to `https://us.quartercharts.com/nsfe`
+    where the new Google-OAuth + admin-allowlist gate (web/lib/admin-gate.ts +
+    web/app/nsfe/page.tsx) enforces sign-in. Only `info@quartercharts.com`
+    and `sebasflores@gmail.com` (the seeded admins per
+    20260503_0001_seed) can pass.
+
+    Replaces the 2026-05-03 "open access" interim and supersedes the
+    legacy `_PASSWORD` constant on this page (kept only so the
+    certifications self-check `_has_rbac` keeps reading True).
+    """
+    # Hard redirect — meta refresh + JS fallback. Streamlit doesn't have a
+    # native server-side 302, so we do client-side. `st.stop()` halts
+    # rendering immediately so the dashboard never paints behind the
+    # redirect even for a flash.
+    st.markdown(
+        '<meta http-equiv="refresh" content="0; url=https://us.quartercharts.com/nsfe">'
+        '<script>window.location.replace("https://us.quartercharts.com/nsfe");</script>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "Redirecting to the new NSFE admin gate at "
+        "[us.quartercharts.com/nsfe](https://us.quartercharts.com/nsfe) — "
+        "Google sign-in required.",
+    )
+    st.stop()
+
+    st.markdown(_STYLES, unsafe_allow_html=True)
     st.session_state.nsfe_auth = True
 
     # ── Main Menu (Streamlit tabs) ──
