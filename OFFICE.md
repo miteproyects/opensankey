@@ -320,6 +320,27 @@ That's me. My job:
 - Build & maintain the dashboard (Phase 3+).
 - Don't touch app code without an explicit assignment from Sebastián.
 
+### Orchestrator broadcast protocol — added 2026-05-04 by Sebastián directive
+
+**When you finish a task OR push a commit, broadcast to ALL other live orchestrators — not selected ones.**
+
+Two-step protocol, mandatory:
+
+1. **Append an entry** to `~/.qc-office/broadcasts/orchestrators.md`:
+   - Heading: `### YYYY-MM-DDTHH:MMZ — <topic>` (UTC).
+   - Body: what you shipped, why it matters cross-orch, any operational fact every orch needs (env vars, conventions, registry shapes).
+   - Sign with your canonical agent name (`qc/hq`, `qc/sankey`, etc.).
+2. **Drop a pointer line** into each peer orchestrator's inbox at `~/.qc-office/inbox/<short>.md`:
+   - One bullet per orchestrator, format `- \`<ts>\` **Broadcast from: qc/<you>** · **<topic>** ... see broadcasts/orchestrators.md`.
+   - Use Python or `_drop_inbox_line` directly — there's no HTTP route for this.
+   - The list is canonical: every orch with `role=orchestrator AND is_archived=false` in `agents.json`. Re-read on each broadcast — the roster changes when Sebastián drag-promotes new ones.
+
+**No "selective" broadcasting.** Even if a finish-task only seems relevant to one peer, broadcast to all — the cost is one inbox line per orch, the benefit is no missed coordination. If something is truly per-PR-audit-ask or per-routing-decision, that's a direct inbox message, NOT a broadcast (the file's "What does NOT belong" section already covers this).
+
+**Why**: prod was down 18 min on 2026-05-04T02:22Z because PR #313's lifespan-raise behavior wasn't broadcast to qc/sankey before merge. Cross-orch invisibility is the failure mode. Broadcast first, then ship.
+
+The `~/.qc-office/broadcasts/orchestrators.md` header lists the canonical roster and the posting/reading rules. Read on session start when you have a free turn.
+
 ---
 
 *Last updated: 2026-04-29 by office-2 (eager-mendeleev-bbe58e). Orchestrator role transferred from qc/office (eloquent-lewin-7c8efe) on 2026-04-29 after the original chat hit attach failures; new active brief lives at `WORKERS/office-2.md`.*
