@@ -1,5 +1,5 @@
 """
-Sankey diagram page â Income Statement & Balance Sheet visualizations.
+Sankey diagram page – Income Statement & Balance Sheet visualizations.
 Fixed-position nodes with vivid 11-color palette, KPI metric cards,
 and Pretax Income waterfall matching QuarterCharts deployed style.
 """
@@ -12,7 +12,7 @@ import numpy as np
 import requests
 from auth import get_auth_params
 
-# âââ Demo / sample data for when Yahoo Finance is rate-limited âââââââââââââ
+# ─── Demo / sample data for when Yahoo Finance is rate-limited ─────────────
 def _get_demo_data(ticker: str):
     """Return hardcoded sample financial data so Sankey always renders."""
     # NVDA-like data (FY2025 approximate values in USD)
@@ -70,7 +70,7 @@ def _get_demo_data(ticker: str):
     return income_df, balance_df, info
 
 
-# âââ Vivid 11-color palette (one per node) ââââââââââââââââââââââââââââââââ
+# ─── Vivid 11-color palette (one per node) ────────────────────────────────
 VIVID = [
     "#22c55e",  # 0  Revenue (green)
     "#ef4444",  # 1  COGS (red)
@@ -1010,13 +1010,13 @@ def _reorder_df_for_comparison(df, period_a, period_b, quarterly=False):
     return df.iloc[:, new_order]
 
 
-# âââ SEC EDGAR data source ââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ─── SEC EDGAR data source ──────────────────────────────────────────────────
 _SEC_HEADERS = {
     "User-Agent": "QuarterCharts contact@quartercharts.com",
     "Accept-Encoding": "gzip, deflate",
 }
 
-# XBRL tag mappings: DataFrame row name â list of possible us-gaap tags (first match wins)
+# XBRL tag mappings: DataFrame row name → list of possible us-gaap tags (first match wins)
 _XBRL_INCOME_TAGS = {
     "Total Revenue": [
         "Revenues",
@@ -1198,7 +1198,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
 
     Args:
         facts: Full CompanyFacts JSON
-        tag_map: Dict mapping display_name â list of XBRL tags
+        tag_map: Dict mapping display_name → list of XBRL tags
         form_filter: "10-K" for annual, "10-Q" for quarterly
         quarterly_income: If True, compute individual-quarter income values.
                           Uses frame-based data (CYxxxxQn) when available,
@@ -1237,7 +1237,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
             vals = {}
 
             if form_filter == "10-K":
-                # ââ Annual data: straightforward, one entry per year ââ
+                # ── Annual data: straightforward, one entry per year ──
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
@@ -1252,7 +1252,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                         vals[end] = (val, filed)
 
             elif form_filter == "10-Q" and not quarterly_income:
-                # ââ Balance sheet: point-in-time values ââ
+                # ── Balance sheet: point-in-time values ──
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
@@ -1266,14 +1266,14 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                             vals[end] = (val, filed)
 
             elif form_filter == "10-Q" and quarterly_income:
-                # ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+                # ══════════════════════════════════════════════════════
                 # QUARTERLY INCOME: YTD-subtraction approach
-                # ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+                # ══════════════════════════════════════════════════════
                 # SEC EDGAR 10-Q entries for income items report
                 # CUMULATIVE year-to-date values:
-                #   Q1 â 3-month value (individual = cumulative)
-                #   Q2 â 6-month cumulative (Q1+Q2)
-                #   Q3 â 9-month cumulative (Q1+Q2+Q3)
+                #   Q1 → 3-month value (individual = cumulative)
+                #   Q2 → 6-month cumulative (Q1+Q2)
+                #   Q3 → 9-month cumulative (Q1+Q2+Q3)
                 # Recent years also have CYxxxxQn frame entries with
                 # individual quarter values, but older years do not.
                 #
@@ -1284,9 +1284,9 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                 #           Q2_ind = cum_Q2 - cum_Q1
                 #           Q3_ind = cum_Q3 - cum_Q2
                 #   Pass 3: Q4 = FY_annual - cum_Q3
-                # ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+                # ══════════════════════════════════════════════════════
 
-                # ââ Pass 1: Collect frame-based individual quarter values ââ
+                # ── Pass 1: Collect frame-based individual quarter values ──
                 for e in entries:
                     frame = e.get("frame", "")
                     end = e.get("end", "")
@@ -1298,10 +1298,10 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
                         if end not in vals or filed > vals[end][1]:
                             vals[end] = (val, filed)
 
-                # ââ Pass 2: YTD subtraction for missing quarters ââ
+                # ── Pass 2: YTD subtraction for missing quarters ──
                 # Collect cumulative (max val) per end date from 10-Q
-                cum_by_end = {}  # end_date â (max_val, filed, fp)
-                fy_annual = {}   # end_date â (val, filed)
+                cum_by_end = {}  # end_date → (max_val, filed, fp)
+                fy_annual = {}   # end_date → (val, filed)
                 for e in entries:
                     form = e.get("form", "")
                     fp = e.get("fp", "")
@@ -1338,7 +1338,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
 
                     prev_cum = cum_val
 
-                # ââ Pass 3: Q4 = FY_annual - Q3_cumulative ââ
+                # ── Pass 3: Q4 = FY_annual - Q3_cumulative ──
                 for fy_end, (fy_val, fy_filed) in fy_annual.items():
                     if fy_end in vals:
                         continue
@@ -1389,7 +1389,7 @@ def _edgar_build_df(facts: dict, tag_map: dict, form_filter: str = "10-K",
     return df
 
 
-# âââ Node label â metric mapping âââââââââââââââââââââââââââââââââââââââââ
+# ─── Node label → metric mapping ─────────────────────────────────────────
 # Maps the display name in each Sankey node to the DataFrame row key.
 # Used to pull historical time-series when a user clicks a node.
 
@@ -1508,7 +1508,7 @@ def _fetch_sub_values(ticker: str, children_config: list, form_filter: str = "10
     return result
 
 
-# âââ Node info: "What it means" + "How to read it" for Sankey popups ââââââ
+# ─── Node info: "What it means" + "How to read it" for Sankey popups ──────
 INCOME_NODE_INFO = {
     "Revenue": {
         "meaning": "Total sales or income generated from the company's core business operations before any costs are subtracted.",
@@ -1791,7 +1791,7 @@ def _show_metric_popup(ticker, node_label, view):
     if not yf_key:
         return
 
-    # ââ Inject custom CSS for the timeframe buttons ââ
+    # ── Inject custom CSS for the timeframe buttons ──
     st.markdown("""
     <style>
     .tf-row {
@@ -1826,12 +1826,12 @@ def _show_metric_popup(ticker, node_label, view):
     """, unsafe_allow_html=True)
 
 
-    # ââ Frequency toggle: Quarterly / Annual ââ
+    # ── Frequency toggle: Quarterly / Annual ──
     freq_key = f"tf_freq_{view}_{clean_label}"
     if freq_key not in st.session_state:
         st.session_state[freq_key] = "Quarterly"
 
-    # ââ Period toggle: 1Y / 2Y / 4Y / MAX ââ
+    # ── Period toggle: 1Y / 2Y / 4Y / MAX ──
     period_key = f"tf_period_{view}_{clean_label}"
     if period_key not in st.session_state:
         st.session_state[period_key] = "4Y"
@@ -1856,7 +1856,7 @@ def _show_metric_popup(ticker, node_label, view):
                             width='stretch'):
                 st.session_state[period_key] = lbl
 
-    # ââ Navigation pills inside popup ââ
+    # ── Navigation pills inside popup ──
     all_metrics = list(metric_map.keys())
     popup_nav_key = f"popup_nav_{view}"
     nav_sel = st.pills(
@@ -1874,7 +1874,7 @@ def _show_metric_popup(ticker, node_label, view):
     freq = st.session_state[freq_key]
     period = st.session_state[period_key]
 
-    # ââ Fetch data based on frequency ââ
+    # ── Fetch data based on frequency ──
     if freq == "Quarterly":
         q_income, q_balance = _fetch_quarterly_data(ticker)
         src_df = q_income if view == "income" else q_balance
@@ -1927,7 +1927,7 @@ def _show_metric_popup(ticker, node_label, view):
                 if not computed.empty and computed.sum() > 0:
                     series = computed.sort_index()
 
-    # ââ Fallback: compute "Other OpEx" as residual when not directly available ââ
+    # ── Fallback: compute "Other OpEx" as residual when not directly available ──
     if (series is None or series.empty) and yf_key == "Other Operating Expenses":
         gp = _get_historical_series(src_df, "Gross Profit")
         rd = _get_historical_series(src_df, "Research And Development")
@@ -1948,7 +1948,7 @@ def _show_metric_popup(ticker, node_label, view):
                 if not computed.empty and computed.sum() > 0:
                     series = computed.sort_index()
 
-    # ââ Fallback: compute "Investments" as residual when not directly available ââ
+    # ── Fallback: compute "Investments" as residual when not directly available ──
     if (series is None or series.empty) and yf_key == "Investments And Advances":
         nca = _get_historical_series(src_df, "Total Non Current Assets")
         ppe = _get_historical_series(src_df, "Net PPE")
@@ -1972,7 +1972,7 @@ def _show_metric_popup(ticker, node_label, view):
         st.warning(f"No {freq_label.lower()} data available for **{clean_label}**.")
         return
 
-    # ââ Filter by period ââ
+    # ── Filter by period ──
     if period != "MAX":
         years = int(period.replace("Y", ""))
         cutoff = pd.Timestamp.now() - pd.DateOffset(years=years)
@@ -2036,7 +2036,7 @@ def _show_metric_popup(ticker, node_label, view):
     )
 
     st.plotly_chart(fig, width='stretch', config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": False, "modeBarButtons": [["toImage"]]}, key=f"hist_{freq}_{period}")
-    # ââ Node info: "What it means" + "How to read it" ââ
+    # ── Node info: "What it means" + "How to read it" ──
     info_map = INCOME_NODE_INFO if view == "income" else BALANCE_NODE_INFO
     node_info = info_map.get(clean_label, {})
     if node_info:
@@ -2243,7 +2243,7 @@ def _inject_sankey_click_js(metric_map, section="income"):
 
     When a user clicks a Sankey node, the JS sets ?open_metric=<label>&metric_section=<section>
     in the parent URL, which triggers a Streamlit rerun that opens the dialog.
-    This triggers the existing st.pills â st.dialog flow.
+    This triggers the existing st.pills → st.dialog flow.
     """
     # Build a JS set of valid pill labels for fast lookup
     valid_labels = list(metric_map.keys())
@@ -5021,7 +5021,7 @@ def render_sankey_page():
             display: inline-block;
         }
 
-        /* ââ Sankey Responsive ââ */
+        /* ── Sankey Responsive ── */
         @media (max-width: 768px) {
             .sankey-header {
                 padding: 16px 14px 14px !important;
@@ -5589,10 +5589,10 @@ def render_sankey_page():
                 st.rerun()
 
     if sankey_view == "income":
-        # ââ Historical trend selector (popup) ââ
+        # ── Historical trend selector (popup) ──
         st.markdown(f'<div class="sankey-compare-card">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
-        # ââ KPI Metric Cards ââ
+        # ── KPI Metric Cards ──
         # IMPORTANT: clear stale reconciled values — they were computed from
         # the PREVIOUS Q selection.  The Sankey is built AFTER KPIs (below),
         # so these session-state values lag by one rerun.  By clearing them,
@@ -5705,7 +5705,7 @@ def render_sankey_page():
             with st.container(key="sankey_income_scroll"):
                 st.plotly_chart(fig, width='stretch', config=_chart_cfg)
 
-            # Bridge: click Sankey node â auto-click matching pill
+            # Bridge: click Sankey node → auto-click matching pill
             _inject_sankey_click_js(INCOME_NODE_METRICS, section="income")
             _inject_pill_hover_js(INCOME_NODE_METRICS, INCOME_PILL_COLORS)
             _inject_node_hover_js(INCOME_NODE_METRICS, INCOME_PILL_COLORS)
@@ -5727,7 +5727,7 @@ def render_sankey_page():
     elif sankey_view == "balance":
         st.markdown(f'<div class="sankey-compare-card">{("<span class=sankey-compare-pill>" + _compare_note + "</span>") if _compare_note else ""}</div>', unsafe_allow_html=True)
 
-        # ââ KPI Metric Cards for Balance Sheet ââ
+        # ── KPI Metric Cards for Balance Sheet ──
         total_assets = _safe(balance_df, "Total Assets")
         total_liab   = _safe(balance_df, "Total Liabilities Net Minority Interest") or _safe(balance_df, "Total Liab")
         equity_val   = _safe(balance_df, "Stockholders Equity") or _safe(balance_df, "Total Stockholders Equity")
@@ -5787,7 +5787,7 @@ def render_sankey_page():
             with st.container(key="sankey_balance_scroll"):
                 st.plotly_chart(fig, width='stretch', config=_chart_cfg)
 
-            # Bridge: click Sankey node â auto-click matching pill
+            # Bridge: click Sankey node → auto-click matching pill
             _inject_sankey_click_js(BALANCE_NODE_METRICS, section="balance")
             _inject_pill_hover_js(BALANCE_NODE_METRICS, BALANCE_PILL_COLORS)
             _inject_node_hover_js(BALANCE_NODE_METRICS, BALANCE_PILL_COLORS)
